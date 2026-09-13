@@ -1,27 +1,23 @@
 defmodule TalesForge.Game.WorldSim do
   @moduledoc """
-  Pure front tick. No Repo, no LLM. Crossroads (empty fronts) is a no-op.
+  Pure front and people tick. No Repo, no LLM.
+  Empty fronts or people is a no-op (Crossroads).
   """
 
   alias TalesForge.Game.Fronts.Moves
   alias TalesForge.Game.Fronts.Rules
 
   @spec tick(%{fronts: [map()], events: [map()]}) :: {:ok, map()}
-  def tick(%{fronts: fronts, events: events}) do
-    {updated, applied} =
-      Enum.map_reduce(fronts, [], fn front, acc ->
-        if live?(front) do
-          {next, moves} = apply_rules(front, events)
-          {next, acc ++ moves}
-        else
-          {front, acc}
-        end
-      end)
+  def tick(%{fronts: fronts, events: events} = input) do
+    people = Map.get(input, :people, [])
+    {updated_fronts, applied_fronts} = tick_actors(fronts, events)
+    {updated_people, applied_people} = tick_actors(people, events)
 
     {:ok,
      %{
-       fronts: updated,
-       applied: applied,
+       fronts: updated_fronts,
+       people: updated_people,
+       applied: applied_fronts ++ applied_people,
        unmatched: [],
        portents_fired: [],
        status_changes: []
@@ -38,26 +34,44 @@ defmodule TalesForge.Game.WorldSim do
     end
   end
 
-  defp apply_rules(front, events) do
-    matches = Rules.match(front, events)
-
-    Enum.reduce(matches, {front, []}, fn %{rule: rule, event: event}, {current, applied} ->
-      case apply_rule(current, rule, event) do
-        {:ok, next, move} -> {next, applied ++ [move]}
-        {:ok, next} -> {maybe_threshold(next), applied}
-        {:error, _} -> {current, applied}
+  defp tick_actors(actors, events) do
+    Enum.map_reduce(actors, [], fn actor, acc ->
+      if live?(actor) do
+        {next, moves} = apply_rules(actor, events)
+        {next, acc ++ moves}
+      else
+        {actor, acc}
       end
     end)
-    |> then(fn {front, applied} -> {maybe_threshold(front), applied} end)
   end
 
-  defp apply_rule(front, %{"move" => move}, _event) when is_binary(move) do
-    runtime = runtime(front)
-    defn = definition(front)
+  defp apply_rules(actor, events) do
+    {next, applied} =
+      Enum.reduce(Rules.rules(actor), {actor, []}, fn rule, acc ->
+        apply_matching_events(rule, events, acc)
+      end)
+
+    {maybe_threshold(next), applied}
+  end
+
+  defp apply_matching_events(rule, events, {current, applied}) do
+    Enum.reduce(Rules.matching_events(current, rule, events), {current, applied}, fn event,
+                                                                                     {cur, acc} ->
+      case apply_rule(cur, rule, event) do
+        {:ok, next, move} -> {next, acc ++ [move]}
+        {:ok, next} -> {maybe_threshold(next), acc}
+        {:error, _} -> {cur, acc}
+      end
+    end)
+  end
+
+  defp apply_rule(actor, %{"move" => move}, _event) when is_binary(move) do
+    runtime = runtime(actor)
+    defn = definition(actor)
 
     case Moves.apply(runtime, move, defn) do
       {:ok, state} ->
-        {:ok, put_runtime(front, state), %{front_id: front_id(front), move: move}}
+        {:ok, put_runtime(actor, state), %{id: actor_id(actor), move: move}}
 
       {:error, reason} ->
         {:error, reason}
@@ -134,8 +148,10 @@ defmodule TalesForge.Game.WorldSim do
   defp status(%{"status" => status}), do: status
   defp status(_), do: "live"
 
-  defp front_id(%{front_id: id}), do: id
-  defp front_id(%{"front_id" => id}), do: id
+  defp actor_id(%{front_id: id}), do: id
+  defp actor_id(%{npc_id: id}), do: id
+  defp actor_id(%{"front_id" => id}), do: id
+  defp actor_id(%{"npc_id" => id}), do: id
 
   defp runtime(%{runtime_state: state}), do: state
   defp runtime(%{"runtime_state" => state}), do: state

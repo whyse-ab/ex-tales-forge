@@ -119,18 +119,27 @@ defmodule TalesForge.Game.TurnProcessor do
     world_before = session.world_state || %{}
     world_moved = apply_world_updates(session, character, handler, gm_result, player_action)
     fronts = Fronts.sim_fronts(session.id)
+    people = NPC.sim_people(session.id)
 
     events =
-      Events.from_turn(player_action, handler, mechanical, world_before, world_moved, fronts)
+      Events.from_turn(
+        player_action,
+        handler,
+        mechanical,
+        world_before,
+        world_moved,
+        fronts,
+        people
+      )
 
-    {:ok, sim} = WorldSim.tick(%{fronts: fronts, events: events})
+    {:ok, sim} = WorldSim.tick(%{fronts: fronts, people: people, events: events})
 
     hidden = Enum.reject(events, & &1["player_aware"])
 
     world_after =
       world_moved
       |> Perception.scrub_situation_lines(hidden)
-      |> Perception.snapshot_public_facts(sim.fronts)
+      |> Perception.snapshot_public_facts(sim.fronts ++ sim.people)
 
     with {:ok, %{session: session, turn: turn}} <-
            persist_turn_multi(
@@ -306,6 +315,7 @@ defmodule TalesForge.Game.TurnProcessor do
 
     case event_multi
          |> Fronts.persist_tick_multi(session.id, sim)
+         |> NPC.persist_tick_multi(session.id, sim)
          |> Repo.transaction() do
       {:ok, result} -> {:ok, result}
       {:error, _step, reason, _} -> {:error, reason}

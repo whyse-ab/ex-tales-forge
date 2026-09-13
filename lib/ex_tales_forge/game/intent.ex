@@ -172,7 +172,8 @@ defmodule TalesForge.Game.Intent do
   def heuristic_intent(raw_action, context) do
     target_location = infer_target_location(raw_action, context)
     target_npc = infer_target_npc(raw_action, context)
-    action_type = infer_action_type(raw_action, target_location)
+    target_fixture = infer_target_fixture(raw_action, context)
+    action_type = infer_action_type(raw_action, target_location, target_fixture)
     skill = Mechanics.infer_skill_from_action(raw_action)
 
     parameters =
@@ -182,7 +183,7 @@ defmodule TalesForge.Game.Intent do
       |> Map.merge(infer_inventory_parameters(raw_action, action_type, context, target_npc))
 
     {target, action_parameters} =
-      inventory_target(action_type, target_location, target_npc, parameters)
+      inventory_target(action_type, target_location, target_npc, target_fixture, parameters)
 
     action = %SingleAction{
       action_type: action_type,
@@ -213,7 +214,7 @@ defmodule TalesForge.Game.Intent do
     type in @skill_required and is_nil(Mechanics.normalize_skill_name(Map.get(params, "skill")))
   end
 
-  defp infer_action_type(raw_action, target_location) do
+  defp infer_action_type(raw_action, target_location, target_fixture) do
     lowered = String.downcase(raw_action)
 
     cond do
@@ -230,6 +231,7 @@ defmodule TalesForge.Game.Intent do
       Regex.match?(~r/\b(pick up|pickup|take|grab)\b/i, lowered) -> :pickup
       Regex.match?(~r/\b(look|examine|study|read|search|inspect|listen)\b/i, lowered) -> :observe
       Regex.match?(~r/\b(use|drink|eat|open)\b/i, lowered) -> :use_item
+      is_binary(target_fixture) -> :interact
       true -> :other
     end
   end
@@ -254,6 +256,17 @@ defmodule TalesForge.Game.Intent do
          String.contains?(lowered, String.downcase(name)) do
       exit_id
     end
+  end
+
+  defp infer_target_fixture(raw_action, context) do
+    lowered = String.downcase(raw_action)
+
+    context
+    |> Map.get("fixtures", [])
+    |> List.wrap()
+    |> Enum.find(fn fixture ->
+      is_binary(fixture) and fixture != "" and String.contains?(lowered, String.downcase(fixture))
+    end)
   end
 
   defp infer_target_npc(raw_action, context) do
@@ -308,7 +321,7 @@ defmodule TalesForge.Game.Intent do
     )
   end
 
-  defp inventory_target(action_type, target_location, target_npc, parameters) do
+  defp inventory_target(action_type, target_location, target_npc, target_fixture, parameters) do
     case action_type do
       type when type in [:drop, :pickup] ->
         {Map.get(parameters, "item_id") || target_npc, parameters}
@@ -323,7 +336,7 @@ defmodule TalesForge.Game.Intent do
         {target_npc, parameters}
 
       _ ->
-        {target_location || target_npc, parameters}
+        {target_location || target_npc || target_fixture, parameters}
     end
   end
 

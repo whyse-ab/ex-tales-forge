@@ -8,7 +8,7 @@ default_location_id: market_square
 
 # Osric Vane
 
-Face of the Miners Guild in the square — not the front itself.
+Face of the Miners Guild in the square — not the front itself. He hires his own steel; he is not the Guild.
 
 ## Appearance
 

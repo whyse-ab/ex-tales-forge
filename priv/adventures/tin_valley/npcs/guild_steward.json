@@ -1,0 +1,63 @@
+{
+  "id": "guild_steward",
+  "motivations": {
+    "agency_tier": "actor",
+    "personality_traits": {
+      "openness": 4,
+      "conscientiousness": 7,
+      "extraversion": 5,
+      "agreeableness": 2,
+      "neuroticism": 4
+    }
+  },
+  "resources": {"coin": 12},
+  "public_facts": [],
+  "triggers": [
+    {
+      "id": "guild_post_thwarted",
+      "on": "interact",
+      "location_id": "market_square",
+      "target_in": ["guild post"],
+      "event": "npc.slighted",
+      "player_aware": true
+    }
+  ],
+  "rules": [
+    {
+      "id": "remember_slight",
+      "on_event": "npc.slighted",
+      "move": "mark_debt"
+    },
+    {
+      "id": "hire_on_slight",
+      "on_event": "npc.slighted",
+      "if_felt": "owed",
+      "agreeableness_lte": 3,
+      "move": "hire_extra"
+    }
+  ],
+  "moves": {
+    "mark_debt": {
+      "memory": {
+        "who": "player",
+        "what": "tore the tin corner from the guild post; I will have them killed",
+        "felt": "owed",
+        "secret": true
+      }
+    },
+    "hire_extra": {
+      "wage": 5,
+      "public_fact": {
+        "id": "osric_hired_blades",
+        "text": "Osric Vane's hired blades watch the square — his own steel, not Guild retainers.",
+        "visibility": ["market_square", "valley_inn"]
+      },
+      "memory": {
+        "who": "self",
+        "what": "paid blades from my purse to settle what is owed",
+        "felt": "owed",
+        "secret": true
+      }
+    }
+  }
+}

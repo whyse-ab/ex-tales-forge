@@ -150,13 +150,14 @@ defmodule TalesForge.Game.Pack do
         |> Path.wildcard()
         |> Enum.map(&parse_npc!/1)
 
-      json =
+      json_by_id =
         npc_dir
         |> Path.join("*.json")
         |> Path.wildcard()
         |> Enum.map(&parse_npc_json!/1)
+        |> Map.new(&{&1["id"], &1})
 
-      markdown ++ json
+      merge_npc_json(markdown, json_by_id)
     else
       []
     end
@@ -184,6 +185,31 @@ defmodule TalesForge.Game.Pack do
     attrs = path |> File.read!() |> Jason.decode!() |> stringify_keys()
 
     Map.update(attrs, "motivations", %{}, &normalize_motivations/1)
+  end
+
+  defp merge_npc_json(markdown, json_by_id) do
+    merged =
+      Enum.map(markdown, fn npc ->
+        case Map.get(json_by_id, npc["id"]) do
+          nil -> npc
+          extra -> deep_merge_npc(npc, extra)
+        end
+      end)
+
+    md_ids = MapSet.new(merged, & &1["id"])
+
+    json_only =
+      json_by_id
+      |> Map.values()
+      |> Enum.reject(&MapSet.member?(md_ids, &1["id"]))
+
+    merged ++ json_only
+  end
+
+  defp deep_merge_npc(left, right) when is_map(left) and is_map(right) do
+    Map.merge(left, right, fn _k, l, r ->
+      if is_map(l) and is_map(r), do: deep_merge_npc(l, r), else: r
+    end)
   end
 
   defp npc_motivations(from_frontmatter, body) do

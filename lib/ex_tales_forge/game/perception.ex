@@ -5,6 +5,7 @@ defmodule TalesForge.Game.Perception do
   """
 
   alias TalesForge.Fronts
+  alias TalesForge.NPC
   alias TalesForge.Repo
   alias TalesForge.Schemas.{GameSession, SessionEvent}
 
@@ -13,8 +14,9 @@ defmodule TalesForge.Game.Perception do
   def visible_world(%GameSession{} = session) do
     world = session.world_state || %{}
     fronts = Fronts.list_all(session.id)
+    people = NPC.list_instances(session.id)
     events = list_event_maps(session.id)
-    visible_world(world, fronts, events)
+    visible_world(world, fronts ++ people, events)
   end
 
   def visible_world(world_state, fronts, events) when is_map(world_state) do
@@ -70,9 +72,15 @@ defmodule TalesForge.Game.Perception do
     end
   end
 
-  defp fact_list(%{runtime_state: state}), do: List.wrap(state["public_facts"])
-  defp fact_list(%{"runtime_state" => state}), do: List.wrap(state["public_facts"])
+  defp fact_list(%{runtime_state: state}), do: visible_facts(state["public_facts"])
+  defp fact_list(%{"runtime_state" => state}), do: visible_facts(state["public_facts"])
   defp fact_list(_), do: []
+
+  defp visible_facts(facts) do
+    facts
+    |> List.wrap()
+    |> Enum.reject(&(&1["secret"] == true))
+  end
 
   defp visible_at?(fact, loc), do: loc in List.wrap(fact["visibility"])
 

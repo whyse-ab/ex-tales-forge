@@ -47,8 +47,27 @@ defmodule TalesForge.Game.PackTest do
       assert get_in(by_npc["guild_steward"], ["motivations", "current_concern", "focus"]) =~
                "nest on the cut"
 
+      assert get_in(by_npc["guild_steward"], ["resources", "coin"]) == 12
+
+      assert get_in(by_npc["guild_steward"], [
+               "motivations",
+               "personality_traits",
+               "agreeableness"
+             ]) ==
+               2
+
+      assert get_in(by_npc["guild_steward"], ["rules"]) != []
+      assert get_in(by_npc["guild_steward"], ["moves", "hire_extra", "wage"]) == 5
+      assert by_npc["guild_steward"]["name"] == "Osric Vane"
+
       assert get_in(by_npc["prospector"], ["motivations", "current_concern", "focus"]) =~
                "orcs on the hill"
+
+      assert get_in(by_npc["prospector"], ["motivations", "personality_traits", "agreeableness"]) ==
+               6
+
+      refute get_in(by_npc["prospector"], ["moves", "hire_extra"])
+      assert get_in(by_npc["prospector"], ["rules"]) in [nil, []]
 
       assert get_in(by_npc["innkeep"], ["motivations", "primary_need"]) =~ "inn standing"
 
@@ -127,6 +146,10 @@ defmodule TalesForge.Game.PackTest do
       assert get_in(brenna.runtime_state, ["current_concern", "focus"]) =~ "armed strangers"
       assert get_in(osric.runtime_state, ["current_concern", "focus"]) =~ "nest on the cut"
       assert get_in(caldern.runtime_state, ["current_concern", "focus"]) =~ "orcs on the hill"
+      assert get_in(osric.personality, ["resources", "coin"]) == 12
+      assert get_in(osric.runtime_state, ["resources", "coin"]) == 12
+      assert get_in(osric.personality, ["rules"]) != []
+      refute Fronts.get_instance(session.id, "guild_steward")
 
       assert get_in(brenna.personality, ["motivations", "current_concern", "focus"]) =~
                "armed strangers"

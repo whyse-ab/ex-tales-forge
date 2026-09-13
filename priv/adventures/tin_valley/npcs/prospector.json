@@ -1,0 +1,13 @@
+{
+  "id": "prospector",
+  "motivations": {
+    "agency_tier": "normal",
+    "personality_traits": {
+      "openness": 6,
+      "conscientiousness": 5,
+      "extraversion": 6,
+      "agreeableness": 6,
+      "neuroticism": 5
+    }
+  }
+}

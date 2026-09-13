@@ -125,6 +125,23 @@ defmodule TalesForge.NPC do
     Repo.get_by(NpcInstance, game_session_id: session_id, npc_id: npc_id)
   end
 
+  def sim_people(session_id) when is_binary(session_id) do
+    Enum.map(list_instances(session_id), &to_sim/1)
+  end
+
+  def persist_tick_multi(multi, session_id, sim) when is_map(sim) do
+    Enum.reduce(Map.get(sim, :people, []), multi, fn person, acc ->
+      inst = get_instance(session_id, npc_id(person))
+
+      if inst do
+        cs = NpcInstance.changeset(inst, %{runtime_state: runtime(person)})
+        Ecto.Multi.update(acc, {:npc, inst.npc_id}, cs)
+      else
+        acc
+      end
+    end)
+  end
+
   def record_memory(session_id, npc_id, summary, world_tick)
       when is_binary(session_id) and is_binary(npc_id) and is_binary(summary) do
     trimmed = String.trim(summary)
@@ -386,6 +403,20 @@ defmodule TalesForge.NPC do
     """
   end
 
+  defp to_sim(%NpcInstance{} = inst) do
+    %{
+      npc_id: inst.npc_id,
+      definition: inst.personality || %{},
+      runtime_state: inst.runtime_state || %{}
+    }
+  end
+
+  defp npc_id(%{npc_id: id}), do: id
+  defp npc_id(%{"npc_id" => id}), do: id
+
+  defp runtime(%{runtime_state: state}), do: state
+  defp runtime(%{"runtime_state" => state}), do: state
+
   defp insert_instance!(session_id, npc_id, definition, world_tick) do
     location_id = Map.get(definition, "default_location_id", "weary_pilgrim")
 
@@ -396,7 +427,9 @@ defmodule TalesForge.NPC do
         "relationship_score" => 0.0,
         "memories" => [],
         "since_tick" => world_tick,
-        "stock" => seed_stock(definition)
+        "stock" => seed_stock(definition),
+        "resources" => definition["resources"] || %{},
+        "public_facts" => definition["public_facts"] || []
       }
       |> maybe_seed_concern_tick(definition, world_tick)
 
