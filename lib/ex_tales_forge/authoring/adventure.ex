@@ -55,7 +55,7 @@ defmodule TalesForge.Authoring.Adventure do
     update_timestamp :updated_at
   end
 
-  # TODO: relationships to NpcDefinition (many), Location resources
+  # NpcDefinition and Location stay keyed by adventure_id; Ash relationships are not wired yet.
 
   actions do
     defaults [:read, :destroy]

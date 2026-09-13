@@ -11,6 +11,6 @@ defmodule TalesForge.Authoring do
     resource TalesForge.Authoring.Location
     resource TalesForge.Authoring.NpcDefinition
 
-    # TODO: RosterCharacter + relationships
+    # RosterCharacter + relationships belong with pack roster/ import, not this domain yet.
   end
 end

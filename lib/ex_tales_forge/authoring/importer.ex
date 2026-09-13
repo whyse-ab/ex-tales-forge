@@ -228,22 +228,25 @@ defmodule TalesForge.Authoring.Importer do
 
     if File.dir?(src_rules) do
       File.mkdir_p!(tgt_rules)
-      # Recursively copy everything under rules/
-      Path.wildcard(Path.join(src_rules, "**/*"))
-      |> Enum.each(fn src ->
-        rel = Path.relative_to(src, src_rules)
-        dst = Path.join(tgt_rules, rel)
 
-        if File.dir?(src) do
-          File.mkdir_p!(dst)
-        else
-          File.mkdir_p!(Path.dirname(dst))
-          File.cp!(src, dst)
-        end
-      end)
+      src_rules
+      |> Path.join("**/*")
+      |> Path.wildcard()
+      |> Enum.each(&copy_rules_entry(&1, src_rules, tgt_rules))
     end
 
     :ok
+  end
+
+  defp copy_rules_entry(src, src_root, tgt_root) do
+    dst = Path.join(tgt_root, Path.relative_to(src, src_root))
+
+    if File.dir?(src) do
+      File.mkdir_p!(dst)
+    else
+      File.mkdir_p!(Path.dirname(dst))
+      File.cp!(src, dst)
+    end
   end
 
   # ------------------------------------------------------------------
@@ -257,24 +260,23 @@ defmodule TalesForge.Authoring.Importer do
   defp check_rules_mandated(dir) do
     rules_dir = Path.join(dir, "rules")
 
-    if not File.dir?(rules_dir) do
-      {:error,
-       "Mandatory rules/ directory is missing (point 5). Every game pack must contain a rules/ directory. The contents can be a deep hierarchy (e.g. 00-*/ bestiary/ appendices/)."}
-    else
-      has_md = Path.wildcard(Path.join(rules_dir, "**/*.md")) |> Enum.any?()
+    cond do
+      not File.dir?(rules_dir) ->
+        {:error,
+         "Mandatory rules/ directory is missing (point 5). Every game pack must contain a rules/ directory. The contents can be a deep hierarchy (e.g. 00-*/ bestiary/ appendices/)."}
 
-      if has_md do
+      Enum.any?(Path.wildcard(Path.join(rules_dir, "**/*.md"))) ->
         :ok
-      else
+
+      true ->
         {:error,
          "rules/ exists but contains no .md files in #{rules_dir}. " <>
            "Provide at least core rules content (you can copy from another pack). Example files: core_mechanics.md, skills.md, races.md, ..."}
-      end
     end
   end
 
   defp check_has_content(dir) do
-    # Lightweight generic check: rules/ (already validated) + something useful (places/characters/adventure root / README)
+    # rules/ is already validated. Also require places, characters, or a root README.
     has_places =
       ["places", "locations", "sites", "world"]
       |> Enum.any?(fn c -> File.dir?(Path.join(dir, c)) end)
@@ -312,32 +314,36 @@ defmodule TalesForge.Authoring.Importer do
 
     if File.exists?(root_md) do
       {:ok, fm, body} = parse_md_file(root_md)
-      body_str = to_string(body || "")
-
-      synopsis =
-        case fm["synopsis"] || fm["summary"] do
-          s when is_binary(s) and s != "" ->
-            s
-
-          _ ->
-            bp = extract_first_paragraph(body_str)
-            if bp == "", do: base.synopsis, else: bp
-        end
-
-      meta =
-        base
-        |> Map.merge(string_keys_to_atoms(fm))
-        |> Map.put(:synopsis, synopsis)
-        |> Map.put(:name, fm["name"] || fm["title"] || base.name)
-        |> Map.put(
-          :starting_location_id,
-          fm["starting_location_id"] || fm["start"] || base.starting_location_id
-        )
-
-      initial = parse_list(fm["initial_present_npc_ids"] || fm["present_npcs"])
-      {:ok, Map.put(meta, :initial_present_npc_ids, initial)}
+      {:ok, merge_adventure_frontmatter(base, fm, to_string(body || ""))}
     else
       {:ok, base}
+    end
+  end
+
+  defp merge_adventure_frontmatter(base, fm, body_str) do
+    initial = parse_list(fm["initial_present_npc_ids"] || fm["present_npcs"])
+
+    base
+    |> Map.merge(string_keys_to_atoms(fm))
+    |> Map.put(:synopsis, adventure_synopsis(fm, body_str, base.synopsis))
+    |> Map.put(:name, fm["name"] || fm["title"] || base.name)
+    |> Map.put(
+      :starting_location_id,
+      fm["starting_location_id"] || fm["start"] || base.starting_location_id
+    )
+    |> Map.put(:initial_present_npc_ids, initial)
+  end
+
+  defp adventure_synopsis(fm, body_str, default) do
+    case fm["synopsis"] || fm["summary"] do
+      s when is_binary(s) and s != "" ->
+        s
+
+      _ ->
+        case extract_first_paragraph(body_str) do
+          "" -> default
+          paragraph -> paragraph
+        end
     end
   end
 
@@ -727,114 +733,9 @@ defmodule TalesForge.Authoring.Importer do
   defp maybe_write_to_ash(pack, true), do: {:ok, %{dry_run: true, pack: sanitize_for_log(pack)}}
 
   defp maybe_write_to_ash(pack, false) do
-    # Create / upsert Adventure
-    adv_attrs = %{
-      adventure_id: pack.adventure_id,
-      name: pack.name,
-      synopsis: pack.synopsis,
-      starting_location_id: pack.starting_location_id,
-      initial_present_npc_ids: pack.initial_present_npc_ids
-    }
-
-    adventure =
-      case Ash.read(Adventure |> filter(adventure_id == ^pack.adventure_id), load: []) do
-        {:ok, [existing | _]} ->
-          update_attrs = Map.drop(adv_attrs, [:adventure_id, "adventure_id"])
-          Adventure.update!(existing, update_attrs)
-
-        _ ->
-          case Adventure.create(adv_attrs) do
-            {:ok, adv} ->
-              adv
-
-            {:error, _constraint_error} ->
-              # Unique violation or race - read and update instead (robust upsert)
-              case Ash.read(Adventure |> filter(adventure_id == ^pack.adventure_id), load: []) do
-                {:ok, [ex | _]} ->
-                  update_attrs = Map.drop(adv_attrs, [:adventure_id, "adventure_id"])
-                  Adventure.update!(ex, update_attrs)
-
-                _ ->
-                  raise "Could not upsert Adventure #{pack.adventure_id}"
-              end
-          end
-      end
-
-    # Locations
-    Enum.each(pack.locations, fn loc ->
-      attrs = %{
-        adventure_id: pack.adventure_id,
-        location_id: loc.location_id,
-        name: loc.name,
-        exits: loc.exits || [],
-        blurb: loc.blurb,
-        fixtures: loc.fixtures || [],
-        ground_items: loc.ground_items || [],
-        scene_image_url: loc.scene_image_url
-      }
-
-      # upsert by identity
-      case Ash.read(
-             Location
-             |> filter(adventure_id == ^pack.adventure_id and location_id == ^loc.location_id),
-             load: []
-           ) do
-        {:ok, [ex | _]} ->
-          Location.update!(ex, Map.drop(attrs, [:adventure_id, :location_id]))
-
-        _ ->
-          case Location.create(attrs) do
-            {:ok, l} ->
-              l
-
-            _ ->
-              ex =
-                Ash.read!(
-                  Location
-                  |> filter(
-                    adventure_id == ^pack.adventure_id and location_id == ^loc.location_id
-                  ),
-                  load: []
-                )
-
-              Location.update!(ex, Map.drop(attrs, [:adventure_id, :location_id]))
-          end
-      end
-    end)
-
-    # NPCs
-    Enum.each(pack.npcs, fn npc ->
-      attrs = %{
-        npc_id: npc.npc_id,
-        name: npc.name,
-        race: npc.race,
-        role: npc.role,
-        default_location_id: npc.default_location_id,
-        appearance: npc.appearance,
-        personality: npc.personality,
-        backstory: npc.backstory,
-        motivations: npc.motivations || %{},
-        stock: npc.stock || [],
-        portrait_url: npc.portrait_url
-      }
-
-      case Ash.read(NpcDefinition |> filter(npc_id == ^npc.npc_id), load: []) do
-        {:ok, [ex | _]} ->
-          update_attrs = Map.drop(attrs, [:npc_id, :race])
-          NpcDefinition.update!(ex, update_attrs)
-
-        _ ->
-          case NpcDefinition.create(attrs) do
-            {:ok, n} ->
-              n
-
-            _ ->
-              ex = Ash.read!(NpcDefinition |> filter(npc_id == ^npc.npc_id), load: [])
-              update_attrs = Map.drop(attrs, [:npc_id, :race])
-              NpcDefinition.update!(ex, update_attrs)
-          end
-      end
-    end)
+    adventure = upsert_adventure(pack)
+    Enum.each(pack.locations, &upsert_location(pack.adventure_id, &1))
+    Enum.each(pack.npcs, &upsert_npc/1)
 
     {:ok,
      %{
@@ -843,6 +744,113 @@ defmodule TalesForge.Authoring.Importer do
        npcs: length(pack.npcs),
        rules_files: Map.keys(pack.rules)
      }}
+  end
+
+  defp upsert_adventure(pack) do
+    attrs = %{
+      adventure_id: pack.adventure_id,
+      name: pack.name,
+      synopsis: pack.synopsis,
+      starting_location_id: pack.starting_location_id,
+      initial_present_npc_ids: pack.initial_present_npc_ids
+    }
+
+    case Ash.read(Adventure |> filter(adventure_id == ^pack.adventure_id), load: []) do
+      {:ok, [existing | _]} ->
+        Adventure.update!(existing, Map.drop(attrs, [:adventure_id, "adventure_id"]))
+
+      _ ->
+        insert_adventure(attrs)
+    end
+  end
+
+  defp insert_adventure(attrs) do
+    case Adventure.create(attrs) do
+      {:ok, adv} ->
+        adv
+
+      {:error, _constraint_error} ->
+        case Ash.read(Adventure |> filter(adventure_id == ^attrs.adventure_id), load: []) do
+          {:ok, [ex | _]} ->
+            Adventure.update!(ex, Map.drop(attrs, [:adventure_id, "adventure_id"]))
+
+          _ ->
+            raise "Could not upsert Adventure #{attrs.adventure_id}"
+        end
+    end
+  end
+
+  defp upsert_location(adventure_id, loc) do
+    attrs = %{
+      adventure_id: adventure_id,
+      location_id: loc.location_id,
+      name: loc.name,
+      exits: loc.exits || [],
+      blurb: loc.blurb,
+      fixtures: loc.fixtures || [],
+      ground_items: loc.ground_items || [],
+      scene_image_url: loc.scene_image_url
+    }
+
+    query =
+      Location
+      |> filter(adventure_id == ^adventure_id and location_id == ^loc.location_id)
+
+    case Ash.read(query, load: []) do
+      {:ok, [ex | _]} ->
+        Location.update!(ex, Map.drop(attrs, [:adventure_id, :location_id]))
+
+      _ ->
+        insert_location(attrs, query)
+    end
+  end
+
+  defp insert_location(attrs, query) do
+    case Location.create(attrs) do
+      {:ok, location} ->
+        location
+
+      _ ->
+        [existing | _] = Ash.read!(query, load: [])
+        Location.update!(existing, Map.drop(attrs, [:adventure_id, :location_id]))
+    end
+  end
+
+  defp upsert_npc(npc) do
+    attrs = %{
+      npc_id: npc.npc_id,
+      name: npc.name,
+      race: npc.race,
+      role: npc.role,
+      default_location_id: npc.default_location_id,
+      appearance: npc.appearance,
+      personality: npc.personality,
+      backstory: npc.backstory,
+      motivations: npc.motivations || %{},
+      stock: npc.stock || [],
+      portrait_url: npc.portrait_url
+    }
+
+    case Ash.read(NpcDefinition |> filter(npc_id == ^npc.npc_id), load: []) do
+      {:ok, [ex | _]} ->
+        NpcDefinition.update!(ex, Map.drop(attrs, [:npc_id, :race]))
+
+      _ ->
+        insert_npc(attrs)
+    end
+  end
+
+  defp insert_npc(attrs) do
+    case NpcDefinition.create(attrs) do
+      {:ok, npc} ->
+        npc
+
+      _ ->
+        [existing | _] =
+          Ash.read!(NpcDefinition |> filter(npc_id == ^attrs.npc_id), load: [])
+
+        NpcDefinition.update!(existing, Map.drop(attrs, [:npc_id, :race]))
+    end
   end
 
   defp sanitize_for_log(pack) do
