@@ -16,10 +16,22 @@ defmodule TalesForge.Game.IntentTest do
   }
 
   setup do
-    on_exit(fn -> System.delete_env("XAI_API_KEY") end)
+    previous_provider = System.get_env("LLM_PROVIDER")
+    previous_key = System.get_env("XAI_API_KEY")
+
+    on_exit(fn ->
+      restore_env("LLM_PROVIDER", previous_provider)
+      restore_env("XAI_API_KEY", previous_key)
+    end)
+
+    # Live bundle path, but these cases are heuristic-sufficient so no HTTP.
+    System.put_env("LLM_PROVIDER", "xai")
     System.put_env("XAI_API_KEY", "test-key")
     :ok
   end
+
+  defp restore_env(key, nil), do: System.delete_env(key)
+  defp restore_env(key, value), do: System.put_env(key, value)
 
   test "resolve_bundle uses heuristic for clear observe action" do
     {bundle, source} = Intent.resolve_bundle("look around the tavern", @context)

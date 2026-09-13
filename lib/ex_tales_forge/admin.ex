@@ -94,7 +94,7 @@ defmodule TalesForge.Admin do
   def delete_session(session) do
     id = Map.get(session, :id)
     name = Map.get(session, :name, "unknown")
-    Logger.warning("admin deleting session id=#{id} name=#{name}")
+    Logger.info("admin deleting session id=#{id} name=#{name}")
 
     case Ash.get(TalesForge.AdminResources.GameSession, id) do
       {:ok, ash_session} -> Ash.destroy!(ash_session)

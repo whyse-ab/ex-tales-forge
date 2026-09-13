@@ -37,7 +37,11 @@ defmodule TalesForge.DataCase do
   """
   def setup_sandbox(tags) do
     pid = Ecto.Adapters.SQL.Sandbox.start_owner!(TalesForge.Repo, shared: not tags[:async])
-    on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
+
+    on_exit(fn ->
+      stop_jido_agents()
+      Ecto.Adapters.SQL.Sandbox.stop_owner(pid)
+    end)
   end
 
   @doc """
@@ -53,6 +57,25 @@ defmodule TalesForge.DataCase do
       Regex.replace(~r"%{(\w+)}", message, fn _, key ->
         opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
       end)
+    end)
+  end
+
+  defp stop_jido_agents do
+    agents = TalesForge.Jido.list_agents()
+
+    Enum.each(agents, fn
+      {id, pid} when is_pid(pid) ->
+        ref = Process.monitor(pid)
+        TalesForge.Jido.stop_agent(id)
+
+        receive do
+          {:DOWN, ^ref, :process, ^pid, _} -> :ok
+        after
+          200 -> :ok
+        end
+
+      {id, _} ->
+        TalesForge.Jido.stop_agent(id)
     end)
   end
 end

@@ -105,6 +105,7 @@ cp .env.example .env          # add XAI_API_KEY
 mix setup                     # deps, DB, assets
 mix dev.check                 # Postgres + API key + provider
 mix phx.server                # http://localhost:4000
+mix warnings                  # reprint THIS app's compiler warnings; fail if any
 mix test
 mix precommit                 # format + quality + test (run before opening a PR)
 ```
@@ -123,12 +124,25 @@ lsof -ti :4000 | xargs kill -9
 
 **Turns feel slow (> 3s)** — confirm `.env` uses `XAI_MODEL=grok-4.20-0309-non-reasoning` (not a reasoning model). Run `mix e2e.smoke` to check the 3s budget. Tier 1 skips LLM for clear actions via heuristics.
 
-**PostgreSQL not running**:
+**PostgreSQL not running** (this machine uses mise Postgres, not Homebrew):
 
 ```bash
-brew services start postgresql@16
+mise install postgres@18.6   # once
+pg_ctl -D "$PGDATA" -l ~/.local/share/ex-tales-forge/postgres.log start
 mix setup
 ```
+
+`$PGDATA` is set from `.mise.toml`. Role `postgres` / trust on localhost. Stop with `pg_ctl -D "$PGDATA" stop`.
+
+**See this project's compiler warnings** (not Ash/Phoenix dep noise):
+
+```bash
+mix warnings                 # compile --force --all-warnings --warnings-as-errors
+MIX_ENV=test mix warnings
+mix test --warnings-as-errors
+```
+
+`--warnings-as-errors` applies to this app only. Dependency compile warnings are not ours to fix.
 
 ## LLM providers
 

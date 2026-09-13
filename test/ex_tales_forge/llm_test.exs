@@ -27,6 +27,11 @@ defmodule TalesForge.LLMTest do
   test "effective_xai_model rejects reasoning models" do
     System.put_env("XAI_MODEL", "grok-4.20-0309-reasoning")
 
-    assert LLM.effective_xai_model() == "grok-4.20-0309-non-reasoning"
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert LLM.effective_xai_model() == "grok-4.20-0309-non-reasoning"
+      end)
+
+    assert log =~ "reasoning model"
   end
 end

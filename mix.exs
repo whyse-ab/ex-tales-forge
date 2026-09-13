@@ -100,12 +100,14 @@ defmodule TalesForge.MixProject do
       ],
       "format.check": ["format --check-formatted"],
       quality: ["format.check", "credo --strict"],
+      # Project warnings only (not Hex deps). Reprints even if already compiled.
+      warnings: ["compile --force --all-warnings --warnings-as-errors"],
       precommit: [
         "compile --warnings-as-errors",
         "deps.unlock --unused",
         "format",
         "quality",
-        "test"
+        "test --warnings-as-errors"
       ],
       "dev.check": ["compile", "dev.check"],
       "e2e.smoke": ["compile", "e2e.smoke"],

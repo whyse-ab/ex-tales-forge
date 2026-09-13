@@ -60,8 +60,8 @@ defmodule TalesForge.NPCSignals do
         :ok
 
       pid ->
-        case AgentServer.cast(pid, signal) do
-          :ok ->
+        case AgentServer.call(pid, signal) do
+          {:ok, _} ->
             :ok
 
           {:error, reason} ->

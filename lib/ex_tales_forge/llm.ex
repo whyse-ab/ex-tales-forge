@@ -59,7 +59,7 @@ defmodule TalesForge.LLM do
   def complete_intent(system, user) do
     model = tier1_model()
 
-    if model == "mock" do
+    if mock?(model) do
       {:error, :mock_intent}
     else
       complete_json(model, system, user, @intent_schema, Config.tier1_temperature(),
@@ -76,7 +76,7 @@ defmodule TalesForge.LLM do
   def complete_scene(system, user, intent_context) when is_map(intent_context) do
     model = tier2_model()
 
-    if model == "mock" do
+    if mock?(model) do
       {:ok, mock_scene_response(intent_context)}
     else
       complete_json(model, system, user, @scene_schema, Config.tier2_temperature(),
@@ -105,7 +105,7 @@ defmodule TalesForge.LLM do
       ) do
     model = tier2_model()
 
-    if model == "mock" do
+    if mock?(model) do
       {:ok, mock_turn_response(player_action, handler, turn_number)}
     else
       user_prompt =
@@ -279,7 +279,8 @@ defmodule TalesForge.LLM do
         base_url <> "/chat/completions",
         headers: [{"authorization", "Bearer " <> api_key}, {"content-type", "application/json"}],
         json: body,
-        receive_timeout: 120_000
+        receive_timeout: 120_000,
+        retry: false
       )
       |> case do
         {:ok, %{status: 200, body: %{"choices" => [%{"message" => %{"content" => content}} | _]}}} ->
@@ -309,7 +310,8 @@ defmodule TalesForge.LLM do
           %{role: "user", content: user}
         ]
       },
-      receive_timeout: 120_000
+      receive_timeout: 120_000,
+      retry: false
     )
     |> case do
       {:ok, %{status: 200, body: %{"message" => %{"content" => content}}}} ->
@@ -376,12 +378,16 @@ defmodule TalesForge.LLM do
     else
       base = String.trim_trailing(Config.ollama_api_base(), "/")
 
-      case Req.get(base <> "/api/tags", receive_timeout: 1_500) do
+      # Probe must not use Req's default retries (1s+2s+4s on connection refused).
+      case Req.get(base <> "/api/tags", receive_timeout: 1_500, retry: false) do
         {:ok, %{status: 200}} -> true
         _ -> false
       end
     end
   end
+
+  defp mock?("mock"), do: true
+  defp mock?(_model), do: provider() == "mock"
 
   def reasoning_model?(model) do
     lowered = String.downcase(model)
