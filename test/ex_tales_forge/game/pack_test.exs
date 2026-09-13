@@ -71,6 +71,13 @@ defmodule TalesForge.Game.PackTest do
 
       assert get_in(by_npc["innkeep"], ["motivations", "primary_need"]) =~ "inn standing"
 
+      ale =
+        by_npc["innkeep"]
+        |> Map.get("stock", [])
+        |> Enum.find(&(&1["id"] == "ale_mug"))
+
+      assert ale["price_copper"] == 2
+
       guild = Enum.find(pack.fronts, &(&1["id"] == "miners_guild"))
       assert guild["identity"] =~ "You are the Miners Guild"
       assert guild["identity"] =~ "Killing a prospector"
@@ -128,6 +135,13 @@ defmodule TalesForge.Game.PackTest do
       assert world["location_id"] == "valley_inn"
       assert world["character"]["location_id"] == "valley_inn"
       assert world["location_name"] == "Valley Inn"
+      assert world["public_facts"] == []
+
+      assert world["situation_lines"] == [
+               "You have just pushed through the inn door.",
+               "Osric Vane wants the nest off the cut so the Guild can take the hill."
+             ]
+
       assert "market_square" in world["locations"]["valley_inn"]["exits"]
 
       assert world["character"]["id"] == elara["id"]
@@ -169,7 +183,16 @@ defmodule TalesForge.Game.PackTest do
       assert by_id["miners_guild"].status == "live"
       assert by_id["thing_below"].status == "dormant"
       assert by_id["orc_nest"].runtime_state["clocks"]["alert"]["value"] == "asleep"
+      assert by_id["miners_guild"].runtime_state["clocks"]["clear_orcs"]["threshold"] == 8
       assert Enum.sort(world["live_fronts"]) == ["miners_guild", "orc_nest"]
+
+      ale =
+        brenna.runtime_state
+        |> Map.get("stock", [])
+        |> Enum.find(&(&1["id"] == "ale_mug"))
+
+      assert ale["price_copper"] == 2
+      assert ale["quantity"] == 99
     end
   end
 

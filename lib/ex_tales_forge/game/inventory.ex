@@ -122,7 +122,7 @@ defmodule TalesForge.Game.Inventory do
   defp validate_buy(action, params, character, npc_stock) do
     item_id = Map.get(params, "item_id", "") |> to_string() |> String.trim()
     qty = action_quantity(params)
-    npc_id = npc_ref(action, "marta_kellen")
+    npc_id = resolve_buy_npc_id(action, params, npc_stock)
     stock = normalize_stock(Map.get(npc_stock, npc_id, []))
     stock_item = Enum.find(stock, &(&1["id"] == item_id))
 
@@ -130,8 +130,8 @@ defmodule TalesForge.Game.Inventory do
       item_id == "" ->
         {:error, "Buy requires parameters.item_id."}
 
-      is_nil(stock_item) ->
-        {:error, "'#{item_id}' is not sold by #{npc_id}."}
+      npc_id == "" or is_nil(stock_item) ->
+        {:error, "'#{item_id}' is not sold here."}
 
       item_quantity(stock, item_id) < qty ->
         {:error, "Not enough '#{item_id}' in stock."}
@@ -335,7 +335,7 @@ defmodule TalesForge.Game.Inventory do
           :buy ->
             item_id = Map.get(params, "item_id", "") |> to_string() |> String.trim()
             qty = action_quantity(params)
-            npc_id = npc_ref(action, "marta_kellen")
+            npc_id = resolve_buy_npc_id(action, params, npc_stock)
             stock = normalize_stock(Map.get(npc_stock, npc_id, []))
             stock_item = Enum.find(stock, &(&1["id"] == item_id))
             price = price_copper(params, stock_item)
@@ -504,13 +504,29 @@ defmodule TalesForge.Game.Inventory do
           Map.put(params, "item_id", item_id || "")
 
         :buy ->
-          npc_id = npc_ref(action, "marta_kellen")
-          stock = normalize_stock(Map.get(npc_stock, npc_id, []))
+          named_npc = npc_ref(action, "")
+
+          stock_items =
+            if named_npc == "" do
+              npc_stock |> Map.values() |> List.flatten() |> normalize_stock()
+            else
+              normalize_stock(Map.get(npc_stock, named_npc, []))
+            end
 
           item_id =
-            Map.get(params, "item_id") || resolve_item_id(to_string(action.target || ""), stock)
+            Map.get(params, "item_id") ||
+              resolve_item_id(to_string(action.target || ""), stock_items)
 
-          Map.put(params, "item_id", item_id || "")
+          npc_id =
+            if named_npc == "" do
+              seller_for_item(npc_stock, item_id || "") || ""
+            else
+              named_npc
+            end
+
+          params
+          |> Map.put("item_id", item_id || "")
+          |> Map.put("npc_id", npc_id)
 
         :sell ->
           item_id =
@@ -567,6 +583,27 @@ defmodule TalesForge.Game.Inventory do
     |> to_string()
     |> String.trim()
   end
+
+  defp resolve_buy_npc_id(action, params, npc_stock) do
+    case npc_ref(%{action | parameters: params}, "") do
+      "" ->
+        item_id = params |> Map.get("item_id", "") |> to_string() |> String.trim()
+        seller_for_item(npc_stock, item_id) || ""
+
+      npc_id ->
+        npc_id
+    end
+  end
+
+  defp seller_for_item(_npc_stock, ""), do: nil
+
+  defp seller_for_item(npc_stock, item_id) when is_map(npc_stock) and is_binary(item_id) do
+    Enum.find_value(npc_stock, fn {npc_id, stock} ->
+      if item_quantity(normalize_stock(stock), item_id) > 0, do: to_string(npc_id)
+    end)
+  end
+
+  defp seller_for_item(_, _), do: nil
 
   defp action_quantity(params) do
     max(1, int_field(params, ["quantity"], 1))
@@ -647,8 +684,11 @@ defmodule TalesForge.Game.Inventory do
     end)
   end
 
-  defp npc_stock_keys(%SingleAction{action_type: :buy} = action, _present_npcs) do
-    [npc_ref(action, "marta_kellen")]
+  defp npc_stock_keys(%SingleAction{action_type: :buy} = action, present_npcs) do
+    case npc_ref(action, "") do
+      "" -> present_npcs
+      npc_id -> Enum.uniq([npc_id | List.wrap(present_npcs)])
+    end
   end
 
   defp npc_stock_keys(%SingleAction{action_type: :trade} = action, _present_npcs) do

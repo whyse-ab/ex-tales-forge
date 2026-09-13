@@ -7,6 +7,7 @@ defmodule TalesForge.Game.Context do
 
   alias TalesForge.Game.Mechanics
   alias TalesForge.Game.Perception
+  alias TalesForge.Game.Schemas.MechanicalResolution
   alias TalesForge.Game.World
   alias TalesForge.NPC
   alias TalesForge.Repo
@@ -111,8 +112,7 @@ defmodule TalesForge.Game.Context do
         Map.get(context.intent_context, "present_npcs", [])
       )
 
-    session = %GameSession{id: context.session_id, world_state: context.world_state || %{}}
-    facts = Perception.format_facts_section(Perception.visible_world(session))
+    facts = perceived_facts_section(context)
 
     """
     #{context.rules}
@@ -129,6 +129,35 @@ defmodule TalesForge.Game.Context do
 
     #{npc_sections}
     """
+  end
+
+  def mechanical_bounds(%MechanicalResolution{} = mechanical) do
+    skill = mechanical.skill || "none"
+    roll = if is_nil(mechanical.roll), do: "none", else: mechanical.roll
+    outcome = mechanical.outcome || "none"
+
+    """
+
+    ## Server resolution (tone bounds only)
+    skill: #{skill}
+    roll: #{roll}
+    outcome: #{outcome}
+    """
+  end
+
+  def mechanical_bounds(_), do: ""
+
+  defp perceived_facts_section(context) do
+    world = context.world_state || %{}
+
+    case Map.fetch(world, "public_facts") do
+      {:ok, facts} when is_list(facts) ->
+        Perception.format_facts_section(%{"public_facts" => facts})
+
+      _ ->
+        session = %GameSession{id: context.session_id, world_state: world}
+        Perception.format_facts_section(Perception.visible_world(session))
+    end
   end
 
   defp present_npcs_for(world) do

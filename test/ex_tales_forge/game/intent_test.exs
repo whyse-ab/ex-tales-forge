@@ -66,4 +66,26 @@ defmodule TalesForge.Game.IntentTest do
     {bundle, _} = Intent.resolve_bundle("I drink the ale", @context)
     assert hd(bundle.actions).action_type == :use_item
   end
+
+  test "buy a mug of ale at the inn is buy from innkeep at pack price" do
+    context = %{
+      "exits" => ["market_square"],
+      "exit_names" => %{"market_square" => "Market Square"},
+      "present_npcs" => ["innkeep"],
+      "npc_details" => %{"innkeep" => %{"name" => "Brenna Holt", "role" => "innkeep"}},
+      "npc_stock" => %{
+        "innkeep" => [
+          %{"id" => "ale_mug", "name" => "Mug of Ale", "price_copper" => 2, "quantity" => 99}
+        ]
+      }
+    }
+
+    {bundle, _} = Intent.resolve_bundle("I buy a mug of ale", context)
+    action = hd(bundle.actions)
+
+    assert action.action_type == :buy
+    assert action.parameters["item_id"] == "ale_mug"
+    assert action.parameters["npc_id"] == "innkeep"
+    assert action.parameters["price_copper"] == 2
+  end
 end

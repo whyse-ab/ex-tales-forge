@@ -11,7 +11,6 @@ defmodule TalesForge.LLM do
     GMStructuredResponse,
     HandlerResult,
     IntentExtraction,
-    MechanicalResolution,
     PlayerAction
   }
 
@@ -43,7 +42,6 @@ defmodule TalesForge.LLM do
     "required" => ["narrative"],
     "properties" => %{
       "narrative" => %{"type" => "string"},
-      "mechanical_resolution" => %{"type" => "object"},
       "state_updates" => %{"type" => "array"},
       "npc_memory_updates" => %{"type" => "array"},
       "overlay_deltas" => %{"type" => "object"},
@@ -154,20 +152,14 @@ defmodule TalesForge.LLM do
 
   defp mock_turn_response(
          %PlayerAction{} = player_action,
-         %HandlerResult{} = handler,
+         %HandlerResult{} = _handler,
          turn_number
        ) do
-    skill = handler.skill || Map.get(player_action.action.parameters, "skill")
-
     %GMStructuredResponse{
       narrative:
         "**Turn #{turn_number}** — The world reacts to your action.\n\n" <>
           "#{player_action.overall_intent}\n\n" <>
-          "_Mock GM: set XAI_API_KEY for full LLM narration._",
-      mechanical_resolution: %MechanicalResolution{
-        skill: skill && to_string(skill),
-        outcome: "none"
-      }
+          "_Mock GM: set XAI_API_KEY for full LLM narration._"
     }
   end
 

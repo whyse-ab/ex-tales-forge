@@ -1,0 +1,11 @@
+{
+  "id": "innkeep",
+  "stock": [
+    {
+      "id": "ale_mug",
+      "name": "Mug of Ale",
+      "price_copper": 2,
+      "quantity": 99
+    }
+  ]
+}

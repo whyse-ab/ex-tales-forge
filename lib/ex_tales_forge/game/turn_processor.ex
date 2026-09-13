@@ -1,10 +1,12 @@
 defmodule TalesForge.Game.TurnProcessor do
   @moduledoc """
-  Tier 2 GM response, server mechanics, and session persistence.
+  Turn pipeline: board first, then one table GM, then one Multi.
 
-  ## Core runtime invariant
-  This module and everything it calls must remain 100% Ecto-based for
-  live game state. Ash (AdminResources or Authoring) is not allowed here.
+  PlayerAction → handler → server mechanics → inventory → clock+move →
+  events → WorldSim → Perception → table GM (tone only) → allow-listed
+  patches → Multi → sync/signals → turn_completed.
+
+  Core runtime is 100% Ecto. Ash is not allowed here.
   """
 
   require Logger
@@ -16,6 +18,7 @@ defmodule TalesForge.Game.TurnProcessor do
   alias TalesForge.Game.Inventory
   alias TalesForge.Game.Mechanics
   alias TalesForge.Game.Perception
+  alias TalesForge.Game.Prompts
   alias TalesForge.Game.SceneProcessor
   alias TalesForge.Game.Schemas.{GMStructuredResponse, MechanicalResolution, PlayerAction}
   alias TalesForge.Game.World
@@ -36,33 +39,28 @@ defmodule TalesForge.Game.TurnProcessor do
     with %GameSession{} = session <- Repo.get(GameSession, session_id),
          turn_number <- next_turn_number(session_id),
          handler <- ActionHandler.resolve(player_action),
-         gm_context <- Context.build_gm_context(session),
+         {character, mechanical} <- apply_mechanics(session.world_state, player_action, handler),
+         %{world: world_board, events: events, sim: sim} <-
+           apply_board(session, character, handler, player_action, mechanical),
+         gm_context <- Context.build_gm_context(%{session | world_state: world_board}),
+         user <- Context.format_gm_prompt(gm_context) <> Context.mechanical_bounds(mechanical),
          {:ok, gm_result} <-
            LLM.complete_turn(
-             TalesForge.Game.Prompts.gm_system(),
-             Context.format_gm_prompt(gm_context),
+             Prompts.gm_system(),
+             user,
              player_action,
              handler,
              turn_number
            ),
-         {character, mechanical} <-
-           apply_mechanics(
-             session.world_state,
-             gm_result.mechanical_resolution.skill,
-             player_action,
-             handler
-           ),
+         world_final <- apply_allowlisted_patches(world_board, gm_result),
          {:ok, payload} <-
-           finalize_turn(
-             session,
-             turn_number,
-             raw_action,
-             player_action,
-             handler,
-             mechanical,
-             gm_result,
-             character
-           ) do
+           persist_and_signal(session, world_final, turn_number, raw_action, %{
+             handler: handler,
+             mechanical: mechanical,
+             gm_result: gm_result,
+             events: events,
+             sim: sim
+           }) do
       elapsed = System.monotonic_time(:millisecond) - started
 
       Logger.info(
@@ -86,7 +84,6 @@ defmodule TalesForge.Game.TurnProcessor do
   def simulate!(session, raw_action, player_action, handler, mechanical) do
     gm_result = %GMStructuredResponse{
       narrative: "ok",
-      mechanical_resolution: mechanical,
       state_updates: [],
       context_summary: nil
     }
@@ -94,30 +91,30 @@ defmodule TalesForge.Game.TurnProcessor do
     character = Map.get(session.world_state || %{}, "character", %{})
     turn_number = next_turn_number(session.id)
 
-    finalize_turn(
-      session,
-      turn_number,
-      raw_action,
-      player_action,
-      handler,
-      mechanical,
-      gm_result,
-      character
-    )
+    %{world: world_board, events: events, sim: sim} =
+      apply_board(session, character, handler, player_action, mechanical)
+
+    persist_and_signal(session, world_board, turn_number, raw_action, %{
+      handler: handler,
+      mechanical: mechanical,
+      gm_result: gm_result,
+      events: events,
+      sim: sim
+    })
   end
 
-  defp finalize_turn(
-         session,
-         turn_number,
-         raw_action,
-         player_action,
-         handler,
-         mechanical,
-         gm_result,
-         character
-       ) do
+  @doc false
+  def apply_board(session, character, handler, player_action, mechanical) do
     world_before = session.world_state || %{}
-    world_moved = apply_world_updates(session, character, handler, gm_result, player_action)
+
+    world_moved =
+      world_before
+      |> put_in(["character"], character)
+      |> maybe_apply_inventory(session.id, player_action.action, handler)
+      |> maybe_move(handler)
+      |> WorldClock.advance(ActionHandler.tick_delta(handler))
+      |> apply_location_presence(session)
+
     fronts = Fronts.sim_fronts(session.id)
     people = NPC.sim_people(session.id)
 
@@ -133,13 +130,24 @@ defmodule TalesForge.Game.TurnProcessor do
       )
 
     {:ok, sim} = WorldSim.tick(%{fronts: fronts, people: people, events: events})
-
     hidden = Enum.reject(events, & &1["player_aware"])
 
-    world_after =
+    world =
       world_moved
       |> Perception.scrub_situation_lines(hidden)
       |> Perception.snapshot_public_facts(sim.fronts ++ sim.people)
+
+    %{world: world, events: events, sim: sim}
+  end
+
+  defp persist_and_signal(session, world_after, turn_number, raw_action, ctx) do
+    %{
+      handler: handler,
+      mechanical: mechanical,
+      gm_result: gm_result,
+      events: events,
+      sim: sim
+    } = ctx
 
     with {:ok, %{session: session, turn: turn}} <-
            persist_turn_multi(
@@ -152,13 +160,19 @@ defmodule TalesForge.Game.TurnProcessor do
              events,
              sim
            ),
+         :ok <-
+           NPC.apply_gm_updates(
+             session.id,
+             %{gm_result | state_updates: []},
+             Map.get(world_after, "world_tick")
+           ),
          :ok <- NPCRegistry.sync(session),
          :ok <- NPCSignals.emit_turn_signals(session.id, world_after, handler, raw_action) do
       {:ok,
        %{
          session_id: session.id,
          turn_count: turn_number,
-         entries: build_entries(raw_action, gm_result.narrative, mechanical, turn.id),
+         entries: build_entries(raw_action, gm_result.narrative, turn.id),
          mechanical_resolution: MechanicalResolution.encode(mechanical),
          llm_provider: LLM.provider(),
          llm_source: LLM.llm_source(LLM.provider()),
@@ -169,64 +183,49 @@ defmodule TalesForge.Game.TurnProcessor do
     end
   end
 
-  defp apply_mechanics(world_state, gm_skill, player_action, handler) do
-    character = Map.get(world_state, "character", %{})
+  defp apply_mechanics(world_state, player_action, handler) do
+    character = Map.get(world_state || %{}, "character", %{})
+    Mechanics.apply_server_mechanics(character, player_action, handler)
+  end
 
-    case Mechanics.apply_server_mechanics(character, gm_skill, player_action, handler) do
-      {updated, %MechanicalResolution{} = resolution} -> {updated, resolution}
-      %MechanicalResolution{} = resolution -> {character, resolution}
+  defp apply_allowlisted_patches(world, gm_result) do
+    world
+    |> apply_wound_patches(gm_result.state_updates)
+    |> maybe_apply_context_summary(gm_result.context_summary)
+  end
+
+  defp apply_wound_patches(world, state_updates) do
+    wounds =
+      state_updates
+      |> List.wrap()
+      |> Enum.filter(fn
+        %{"path" => "characters/" <> _} -> true
+        _ -> false
+      end)
+      |> Enum.map(&get_in(&1, ["patch", "wounds"]))
+      |> Enum.reject(&is_nil/1)
+      |> List.last()
+
+    if is_nil(wounds) do
+      world
+    else
+      put_in(world, ["character", "wounds"], wounds)
     end
   end
 
-  defp apply_world_updates(%GameSession{} = session, character, handler, gm_result, player_action) do
-    base_world = session.world_state || %{}
+  defp apply_location_presence(world_state, %GameSession{} = session) do
+    location_id = get_in(world_state, ["character", "location_id"])
+    location = World.runtime_location(world_state, location_id)
 
-    character =
-      gm_result.state_updates
-      |> character_patches()
-      |> Enum.reduce(character, &deep_merge_maps/2)
-
-    advanced_world =
-      base_world
-      |> put_in(["character"], character)
-      |> maybe_move(handler)
-      |> maybe_apply_inventory(session.id, player_action.action, handler)
-      |> maybe_apply_context_summary(gm_result.context_summary)
-      |> WorldClock.advance(ActionHandler.tick_delta(handler))
-
-    world_tick = Map.get(advanced_world, "world_tick")
-    :ok = NPC.apply_gm_updates(session.id, gm_result, world_tick)
-
-    location_id = get_in(advanced_world, ["character", "location_id"])
-    location = World.runtime_location(advanced_world, location_id)
-
-    advanced_world
+    world_state
     |> Map.put("location_id", location_id)
     |> Map.put(
       "location_name",
-      Map.get(location, "name", Map.get(advanced_world, "location_name"))
+      Map.get(location, "name", Map.get(world_state, "location_name"))
     )
     |> Map.put("present_npcs", NPC.sync_present_npcs(session.id, location_id))
     |> Map.put("npc_state", NPC.refresh_world_npc_state(session.id))
   end
-
-  defp character_patches(state_updates) do
-    state_updates
-    |> List.wrap()
-    |> Enum.filter(fn
-      %{"path" => "characters/" <> _} -> true
-      _ -> false
-    end)
-    |> Enum.map(&Map.get(&1, "patch", %{}))
-  end
-
-  defp deep_merge_maps(left, right) when is_map(left) and is_map(right) do
-    Map.merge(left, right, fn _key, l, r ->
-      if is_map(l) and is_map(r), do: deep_merge_maps(l, r), else: r
-    end)
-  end
-
-  defp deep_merge_maps(_left, right), do: right
 
   defp maybe_move(world_state, %{handler: "move", state_hints: %{"location_id" => location_id}})
        when is_binary(location_id) do
@@ -335,15 +334,10 @@ defmodule TalesForge.Game.TurnProcessor do
     end
   end
 
-  defp build_entries(raw_action, narrative, mechanical, turn_id) do
+  defp build_entries(raw_action, narrative, turn_id) do
     [
       %{id: "#{turn_id}-player", role: "player", text: raw_action},
-      %{
-        id: "#{turn_id}-gm",
-        role: "gm",
-        text: narrative,
-        mechanical: MechanicalResolution.encode(mechanical)
-      }
+      %{id: "#{turn_id}-gm", role: "gm", text: narrative}
     ]
   end
 end

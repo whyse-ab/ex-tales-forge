@@ -356,25 +356,13 @@ defmodule TalesForge.Game.Intent do
         Map.put(base, "quantity", 1)
 
       :buy ->
-        stock =
-          context
-          |> Map.get("npc_stock", %{})
-          |> stock_for_npc(target_npc)
+        {item_id, npc_id, price} =
+          resolve_buy_from_stock(raw_action, Map.get(context, "npc_stock", %{}), target_npc)
 
-        item_id = match_item_in_text(raw_action, stock)
-
-        params =
-          case Enum.find(stock, &(&1["id"] == item_id)) do
-            %{"price_copper" => price} when is_integer(price) ->
-              %{"price_copper" => price}
-
-            _ ->
-              %{}
-          end
-
-        params
+        %{}
         |> maybe_put("item_id", item_id)
-        |> maybe_put("npc_id", target_npc)
+        |> maybe_put("npc_id", npc_id)
+        |> maybe_put("price_copper", price)
         |> Map.put("quantity", 1)
 
       :sell ->
@@ -390,8 +378,32 @@ defmodule TalesForge.Game.Intent do
     end
   end
 
-  defp stock_for_npc(_npc_stock, nil), do: []
-  defp stock_for_npc(npc_stock, npc_id), do: Map.get(npc_stock, npc_id, [])
+  defp resolve_buy_from_stock(raw_action, npc_stock, target_npc) do
+    entries =
+      if is_binary(target_npc) and target_npc != "" do
+        [{target_npc, Map.get(npc_stock, target_npc, [])}]
+      else
+        Enum.to_list(npc_stock)
+      end
+
+    Enum.find_value(entries, {nil, target_npc, nil}, fn {npc_id, stock} ->
+      match_buy_stock(raw_action, npc_id, Inventory.normalize_stock(stock))
+    end)
+  end
+
+  defp match_buy_stock(raw_action, npc_id, stock) do
+    case match_item_in_text(raw_action, stock) do
+      nil -> nil
+      item_id -> {item_id, npc_id, stock_price(stock, item_id)}
+    end
+  end
+
+  defp stock_price(stock, item_id) do
+    case Enum.find(stock, &(&1["id"] == item_id)) do
+      %{"price_copper" => price} when is_integer(price) -> price
+      _ -> nil
+    end
+  end
 
   defp match_item_in_text(raw_action, items) do
     Inventory.resolve_item_id(raw_action, Inventory.normalize_items(items))

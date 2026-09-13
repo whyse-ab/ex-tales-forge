@@ -220,18 +220,10 @@ defmodule TalesForgeWeb.PlayLive do
       session.turns
       |> Enum.sort_by(& &1.turn_number)
       |> Enum.flat_map(fn turn ->
-        mechanical = turn.mechanical_resolution || %{}
-
         [
           {turn.inserted_at,
            %{id: "#{turn.id}-player", role: "player", text: turn.player_action}},
-          {turn.inserted_at,
-           %{
-             id: "#{turn.id}-gm",
-             role: "gm",
-             text: turn.narrative || "",
-             mechanical: mechanical
-           }}
+          {turn.inserted_at, %{id: "#{turn.id}-gm", role: "gm", text: turn.narrative || ""}}
         ]
       end)
 

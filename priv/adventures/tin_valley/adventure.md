@@ -5,7 +5,7 @@ starting_location_id: valley_inn
 initial_present_npc_ids: [innkeep]
 situation_lines:
   - You have just pushed through the inn door.
-  - The valley road runs east toward the cut.
+  - Osric Vane wants the nest off the cut so the Guild can take the hill.
 ---
 
 # Tin Valley

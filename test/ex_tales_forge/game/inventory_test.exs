@@ -212,6 +212,40 @@ defmodule TalesForge.Game.InventoryTest do
       stock = NPC.stock_map(session.id, ["marta_kellen"])["marta_kellen"]
       assert Inventory.item_quantity(stock, "ale_mug") == 98
     end
+
+    test "buy ale_mug from innkeep deducts 2c" do
+      {:ok, session} =
+        GameSessions.create_session(%{name: "Tin Valley Mug", adventure_id: "tin_valley"})
+
+      world = session.world_state
+
+      action = %SingleAction{
+        action_type: :buy,
+        target: "innkeep",
+        parameters: %{
+          "item_id" => "ale_mug",
+          "quantity" => 1,
+          "price_copper" => 2,
+          "npc_id" => "innkeep"
+        }
+      }
+
+      before = Inventory.coin_total_copper(get_in(world, ["character", "coins"]))
+
+      assert {:ok, updated, %{applied: applied}} =
+               Inventory.apply_transaction(world, session.id, action)
+
+      assert Enum.any?(applied, &String.contains?(&1, "bought"))
+
+      after_total = Inventory.coin_total_copper(get_in(updated, ["character", "coins"]))
+      assert after_total == before - 2
+
+      inventory = get_in(updated, ["character", "inventory"]) |> Inventory.normalize_items()
+      assert Inventory.item_quantity(inventory, "ale_mug") == 1
+
+      stock = NPC.stock_map(session.id, ["innkeep"])["innkeep"]
+      assert Inventory.item_quantity(stock, "ale_mug") == 98
+    end
   end
 
   describe "turn integration" do

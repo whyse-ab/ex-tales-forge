@@ -59,7 +59,6 @@ defmodule TalesForge.Game.Mechanics do
 
   def apply_server_mechanics(
         character,
-        gm_skill,
         %PlayerAction{} = player_action,
         %HandlerResult{} = handler
       ) do
@@ -68,30 +67,22 @@ defmodule TalesForge.Game.Mechanics do
       |> Map.get("skill")
       |> normalize_skill_name()
 
-    skill =
-      resolve_check_skill(
-        handler.handler,
-        handler.skill,
-        action_skill,
-        gm_skill,
-        player_action.overall_intent
-      )
+    skill = resolve_check_skill(handler.handler, handler.skill, action_skill)
 
     if is_nil(skill) do
-      no_check_resolution()
+      {character, no_check_resolution()}
     else
-      {character, resolution} = perform_and_apply(character, skill)
-      {character, resolution}
+      perform_and_apply(character, skill)
     end
   end
 
-  def resolve_check_skill(handler, handler_skill, action_skill, gm_skill, overall_intent) do
+  def resolve_check_skill(handler, handler_skill, action_skill) do
     explicit = action_skill || normalize_skill_name(handler_skill)
 
     cond do
       explicit -> explicit
       handler in ["move", "inventory", "wait"] -> nil
-      true -> normalize_skill_name(gm_skill) || infer_skill_from_action(overall_intent)
+      true -> nil
     end
   end
 

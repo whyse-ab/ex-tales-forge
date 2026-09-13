@@ -73,9 +73,6 @@ defmodule TalesForgeWeb.PlayComponents do
           <div class={entry_body_class(entry)}>
             <span class="play-narrative-body">{entry.text}</span>
           </div>
-          <p :if={entry.role == "gm" && entry[:mechanical]} class="text-xs text-[var(--paper-muted)]">
-            {format_mechanical(entry.mechanical)}
-          </p>
         </div>
 
         <p :if={@scene_loading} class="text-sm italic text-[var(--paper-muted)]">
@@ -210,7 +207,7 @@ defmodule TalesForgeWeb.PlayComponents do
     ~H"""
     <section class="play-panel shrink-0 rounded-lg px-4 py-3 sm:px-6">
       <h2 class="play-label mb-3">Character &amp; gear</h2>
-      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="grid gap-4 sm:grid-cols-2">
         <div class="space-y-2">
           <p class="font-serif text-base font-semibold text-[var(--paper-ink)]">
             {Map.get(@character, "name", "—")}
@@ -251,33 +248,6 @@ defmodule TalesForgeWeb.PlayComponents do
               Empty pack
             </li>
           </ul>
-        </div>
-
-        <div>
-          <h3 class="play-label mb-2">Skills</h3>
-          <div class="flex flex-wrap gap-1.5">
-            <span
-              :for={{skill, rank} <- Map.get(@character, "skills", %{})}
-              class="rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-2 py-0.5 text-xs text-[var(--paper-ink)]"
-            >
-              {format_skill(skill)} +{rank}
-            </span>
-          </div>
-        </div>
-
-        <div>
-          <h3 class="play-label mb-2">Learning points</h3>
-          <div class="flex flex-wrap gap-1.5">
-            <span
-              :for={{skill, lp} <- Map.get(@character, "learning_points", %{})}
-              class="rounded border border-[var(--paper-rule)] bg-[var(--paper-margin)] px-2 py-0.5 text-xs text-[var(--paper-ink)]"
-            >
-              {format_skill(skill)}: {lp}
-            </span>
-            <span :if={learning_points_empty?(@character)} class="text-sm text-[var(--paper-muted)]">
-              None yet
-            </span>
-          </div>
         </div>
       </div>
     </section>
@@ -348,26 +318,6 @@ defmodule TalesForgeWeb.PlayComponents do
     do:
       "whitespace-pre-wrap rounded bg-[var(--paper-panel)] px-3 py-2 text-sm text-[var(--paper-ink)]"
 
-  def format_mechanical(%{"outcome" => "none"}), do: nil
-
-  def format_mechanical(mechanical) when is_map(mechanical) do
-    skill = Map.get(mechanical, "skill")
-    outcome = Map.get(mechanical, "outcome")
-    roll = Map.get(mechanical, "roll")
-    lp = Map.get(mechanical, "lp_awarded")
-
-    parts =
-      [
-        skill && "Skill: #{skill}",
-        outcome && "Outcome: #{outcome}",
-        roll && "Roll: #{roll}",
-        lp && "+#{lp} LP"
-      ]
-      |> Enum.reject(&is_nil/1)
-
-    if parts == [], do: nil, else: Enum.join(parts, " · ")
-  end
-
   def format_mechanical(_), do: nil
 
   def format_coins(coins) when is_map(coins) do
@@ -385,11 +335,6 @@ defmodule TalesForgeWeb.PlayComponents do
     wounds |> Kernel.*(100) |> div(wound_max) |> min(100)
   end
 
-  defp format_skill(skill) when is_binary(skill),
-    do: skill |> String.replace("_", " ")
-
-  defp format_skill(skill), do: to_string(skill)
-
   defp npc_initials(name) when is_binary(name) do
     name
     |> String.split()
@@ -399,12 +344,6 @@ defmodule TalesForgeWeb.PlayComponents do
   end
 
   defp npc_initials(_), do: "?"
-
-  defp learning_points_empty?(character) do
-    character
-    |> Map.get("learning_points", %{})
-    |> map_size() == 0
-  end
 
   defp npc_role_label(%{concern_priority: priority, role: role})
        when is_integer(priority) and priority >= 8 do

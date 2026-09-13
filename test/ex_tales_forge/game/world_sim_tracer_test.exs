@@ -130,6 +130,79 @@ defmodule TalesForge.Game.WorldSimTracerTest do
     refute prompt =~ @hiring
   end
 
+  test "opening prompt names Osric want and has no hiring_steel", %{session: session} do
+    prompt = Context.format_gm_prompt(Context.build_gm_context(session))
+    assert prompt =~ "Osric Vane wants the nest"
+    refute prompt =~ @hiring
+  end
+
+  test "AFK without submit_message leaves clock and hiring_steel unchanged", %{session: session} do
+    assert session.world_state["world_tick"] == WorldClock.default_start_tick()
+
+    guild = Fronts.get_instance(session.id, "miners_guild")
+    refute Enum.any?(guild.runtime_state["public_facts"] || [], &(&1["id"] == "hiring_steel"))
+    assert get_in(guild.runtime_state, ["clocks", "clear_orcs", "value"]) == 0
+  end
+
+  test "this-turn wait GM prompt contains hiring_steel before persist", %{session: session} do
+    raw = "I spend three days drinking and gambling at the inn"
+    {bundle, _} = Intent.resolve_bundle(raw, %{"exits" => [], "present_npcs" => []})
+    player_action = Intent.validate_player_action(bundle, %{})
+    handler = ActionHandler.resolve(player_action)
+    mechanical = %MechanicalResolution{outcome: "none"}
+    character = Map.get(session.world_state, "character", %{})
+
+    pre = Context.format_gm_prompt(Context.build_gm_context(session))
+    refute pre =~ @hiring
+
+    %{world: world_board} =
+      TurnProcessor.apply_board(session, character, handler, player_action, mechanical)
+
+    prompt =
+      Context.format_gm_prompt(Context.build_gm_context(%{session | world_state: world_board}))
+
+    assert prompt =~ @hiring
+
+    guild = Fronts.get_instance(session.id, "miners_guild")
+    refute Enum.any?(guild.runtime_state["public_facts"] || [], &(&1["id"] == "hiring_steel"))
+  end
+
+  test "one mug at the inn does not hire steel", %{session: session} do
+    player_action =
+      PlayerAction.decode(%{
+        "overall_intent" => "I buy a mug of ale",
+        "action" => %{
+          "action_type" => "buy",
+          "target" => "innkeep",
+          "parameters" => %{
+            "item_id" => "ale_mug",
+            "npc_id" => "innkeep",
+            "price_copper" => 2,
+            "quantity" => 1
+          }
+        }
+      })
+
+    handler = ActionHandler.resolve(player_action)
+
+    {:ok, _} =
+      TurnProcessor.simulate!(
+        session,
+        "I buy a mug of ale",
+        player_action,
+        handler,
+        %MechanicalResolution{outcome: "none"}
+      )
+
+    session = reload(session.id)
+    guild = Fronts.get_instance(session.id, "miners_guild")
+    assert get_in(guild.runtime_state, ["clocks", "clear_orcs", "value"]) == 1
+    refute Enum.any?(guild.runtime_state["public_facts"] || [], &(&1["id"] == "hiring_steel"))
+
+    prompt = Context.format_gm_prompt(Context.build_gm_context(session))
+    refute prompt =~ @hiring
+  end
+
   test "three days drinking at the inn hires steel in one wait", %{session: session} do
     raw = "I spend three days drinking and gambling at the inn"
     session = wait(session, raw)

@@ -25,6 +25,7 @@ SingleAction fields:
 - wait is passing time at the table (rest, drink, gamble, sleep, "spend three days…"). parameters.ticks is integer world ticks (1 tick ≈ 15 minutes, 4 = 1 hour, 96 = 1 day). Cap at 672 (7 days). Do not emit wait for AFK or "I come back later". Wait is not a skill check.
 - inventory actions use parameters.item_id, quantity, price_copper; trade uses give/receive arrays and counterparty (ground or npc_id).
 - spend uses parameters.amount_copper for tips, bribes, tolls, or payments without receiving an item; target may be an npc_id.
+- A mug of ale is buy against present NPC stock at pack price; "spend three days drinking..." is wait, not buy/spend.
 
 When to clarify:
 - compound actions with unclear priority → needs_clarification true with options.

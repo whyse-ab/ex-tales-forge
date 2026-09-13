@@ -29,7 +29,7 @@ defmodule TalesForge.Game.MechanicsTest do
 
     handler = %TalesForge.Game.Schemas.HandlerResult{handler: "move", target: "crossroads_square"}
 
-    result = Mechanics.apply_server_mechanics(@character, nil, player_action, handler)
+    {_character, result} = Mechanics.apply_server_mechanics(@character, player_action, handler)
     assert %TalesForge.Game.Schemas.MechanicalResolution{outcome: "none"} = result
   end
 end
