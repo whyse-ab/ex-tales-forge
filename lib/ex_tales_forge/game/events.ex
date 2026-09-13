@@ -86,7 +86,7 @@ defmodule TalesForge.Game.Events do
   defp interact_events(triggers, player_action, loc_after, tick) do
     target = action_target(player_action)
 
-    if action_type(player_action) == :interact do
+    if action_type(player_action) in [:interact, :other] do
       triggers
       |> Enum.filter(&interact_trigger?(&1, loc_after, target))
       |> Enum.map(&interact_event(&1, loc_after, tick))

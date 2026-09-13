@@ -4,11 +4,13 @@ defmodule TalesForge.Game.PeopleAgencyTest do
   alias TalesForge.Fronts
   alias TalesForge.Game.ActionHandler
   alias TalesForge.Game.Context
+  alias TalesForge.Game.Events
   alias TalesForge.Game.Fronts.Moves
   alias TalesForge.Game.Intent
   alias TalesForge.Game.Prompts
   alias TalesForge.Game.Schemas.{MechanicalResolution, PlayerAction}
   alias TalesForge.Game.TurnProcessor
+  alias TalesForge.Game.WorldSim
   alias TalesForge.GameSessions
   alias TalesForge.Jido
   alias TalesForge.NPC
@@ -172,6 +174,91 @@ defmodule TalesForge.Game.PeopleAgencyTest do
     assert {:error, :illegal_move} = Moves.apply(state, "hire_extra", defn)
   end
 
+  test "Caldern does not hire when Osric is the slighted actor" do
+    osric = person("osric", slight_hire_def())
+    caldern = person("caldern", slight_hire_def())
+
+    {:ok, sim} =
+      WorldSim.tick(%{
+        fronts: [],
+        people: [osric, caldern],
+        events: [%{"kind" => "npc.slighted", "actor" => "osric"}]
+      })
+
+    by_id = Map.new(sim.people, &{&1.npc_id, &1})
+
+    assert get_in(by_id["osric"].runtime_state, ["resources", "coin"]) == 7
+    assert Enum.any?(by_id["osric"].runtime_state["public_facts"], &(&1["id"] == "hired_blades"))
+
+    assert get_in(by_id["caldern"].runtime_state, ["resources", "coin"]) == 12
+
+    refute Enum.any?(
+             by_id["caldern"].runtime_state["public_facts"],
+             &(&1["id"] == "hired_blades")
+           )
+  end
+
+  test "blank slight actor is a broadcast" do
+    caldern = person("caldern", slight_hire_def())
+
+    {:ok, sim} =
+      WorldSim.tick(%{
+        fronts: [],
+        people: [caldern],
+        events: [%{"kind" => "npc.slighted", "actor" => nil}]
+      })
+
+    [updated] = sim.people
+    assert get_in(updated.runtime_state, ["resources", "coin"]) == 7
+    assert Enum.any?(updated.runtime_state["public_facts"], &(&1["id"] == "hired_blades"))
+  end
+
+  test "other targeting a watched fixture emits npc.slighted" do
+    people = [
+      %{
+        npc_id: "steward",
+        definition: %{
+          "triggers" => [
+            %{
+              "on" => "interact",
+              "location_id" => "square",
+              "target_in" => ["notice board"],
+              "event" => "npc.slighted",
+              "player_aware" => true
+            }
+          ]
+        }
+      }
+    ]
+
+    player_action =
+      PlayerAction.decode(%{
+        "overall_intent" => "I wreck the notice board",
+        "action" => %{
+          "action_type" => "other",
+          "target" => "notice board",
+          "parameters" => %{}
+        }
+      })
+
+    world = %{"character" => %{"location_id" => "square"}, "world_tick" => 1}
+
+    events =
+      Events.from_turn(
+        player_action,
+        ActionHandler.resolve(player_action),
+        %MechanicalResolution{outcome: "none"},
+        world,
+        world,
+        [],
+        people
+      )
+
+    slight = Enum.find(events, &(&1["kind"] == "npc.slighted"))
+
+    assert %{"actor" => "steward", "location_id" => "square", "player_aware" => true} = slight
+  end
+
   defp interact(session, target) do
     raw = "I wreck the #{target}"
 
@@ -276,5 +363,40 @@ defmodule TalesForge.Game.PeopleAgencyTest do
     refute text =~ ~r/"wage"/
     refute text =~ "agreeableness_lte"
     refute text =~ "if_felt"
+  end
+
+  defp person(npc_id, defn) do
+    %{
+      npc_id: npc_id,
+      definition: defn,
+      runtime_state: %{
+        "resources" => %{"coin" => 12},
+        "public_facts" => [],
+        "memories" => []
+      }
+    }
+  end
+
+  defp slight_hire_def do
+    %{
+      "motivations" => %{"personality_traits" => %{"agreeableness" => 2}},
+      "rules" => [
+        %{"id" => "remember_slight", "on_event" => "npc.slighted", "move" => "mark_debt"},
+        %{
+          "id" => "hire_on_slight",
+          "on_event" => "npc.slighted",
+          "if_felt" => "owed",
+          "agreeableness_lte" => 3,
+          "move" => "hire_extra"
+        }
+      ],
+      "moves" => %{
+        "mark_debt" => %{"memory" => %{"felt" => "owed"}},
+        "hire_extra" => %{
+          "wage" => 5,
+          "public_fact" => %{"id" => "hired_blades", "text" => "hired blades"}
+        }
+      }
+    }
   end
 end

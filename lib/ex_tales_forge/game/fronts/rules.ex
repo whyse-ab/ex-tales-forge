@@ -31,9 +31,24 @@ defmodule TalesForge.Game.Fronts.Rules do
 
     on == event["kind"] and
       (is_nil(loc) or loc == event["location_id"]) and
+      actor_ok?(event["actor"], actor) and
       felt_ok?(rule["if_felt"], actor) and
       agreeableness_ok?(rule["agreeableness_lte"], actor)
   end
+
+  # Blank event actor is a broadcast. People with npc_id only match their own.
+  defp actor_ok?(event_actor, _actor) when event_actor in [nil, ""], do: true
+
+  defp actor_ok?(event_actor, actor) do
+    case npc_identity(actor) do
+      nil -> true
+      id -> event_actor == id
+    end
+  end
+
+  defp npc_identity(%{npc_id: id}) when is_binary(id) and id != "", do: id
+  defp npc_identity(%{"npc_id" => id}) when is_binary(id) and id != "", do: id
+  defp npc_identity(_), do: nil
 
   defp felt_ok?(nil, _actor), do: true
 
