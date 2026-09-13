@@ -7,19 +7,24 @@ defmodule TalesForge.NPCSignals do
 
   alias Jido.AgentServer
   alias Jido.Signal
+  alias TalesForge.Game.ActionHandler
   alias TalesForge.NPCRegistry
 
   def emit_turn_signals(session_id, world_state, handler, raw_action) do
     present_npcs = Map.get(world_state, "present_npcs", [])
     world_tick = Map.get(world_state, "world_tick", 0)
+    delta = ActionHandler.tick_delta(handler)
 
-    emit_time_passed(session_id, world_tick, 1, present_npcs)
+    emit_time_passed(session_id, world_tick, delta, present_npcs)
 
     if speak_to_npc?(handler) do
       emit_player_talked(session_id, handler.target, raw_action, world_tick)
     end
 
-    emit_overhear(session_id, world_tick, present_npcs, handler, raw_action)
+    unless wait?(handler) do
+      emit_overhear(session_id, world_tick, present_npcs, handler, raw_action)
+    end
+
     :ok
   end
 
@@ -93,4 +98,7 @@ defmodule TalesForge.NPCSignals do
 
   defp speak_to_npc?(%{handler: "speak", target: target}) when is_binary(target), do: true
   defp speak_to_npc?(_), do: false
+
+  defp wait?(%{handler: "wait"}), do: true
+  defp wait?(_), do: false
 end

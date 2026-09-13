@@ -7,6 +7,7 @@ defmodule TalesForge.Game.Intent do
   alias TalesForge.Game.Inventory
   alias TalesForge.Game.Mechanics
   alias TalesForge.Game.Schemas.{IntentExtraction, PlayerAction, SingleAction}
+  alias TalesForge.Game.WorldClock
   alias TalesForge.LLM
 
   @skill_required ~w(observe speak interact combat use_item)a
@@ -177,6 +178,7 @@ defmodule TalesForge.Game.Intent do
     parameters =
       %{}
       |> maybe_put_skill(skill, action_type)
+      |> maybe_put_wait_ticks(raw_action, action_type)
       |> Map.merge(infer_inventory_parameters(raw_action, action_type, context, target_npc))
 
     {target, action_parameters} =
@@ -215,6 +217,7 @@ defmodule TalesForge.Game.Intent do
     lowered = String.downcase(raw_action)
 
     cond do
+      wait_intent?(lowered) -> :wait
       target_location -> :move
       Regex.match?(~r/\b(attack|fight|strike|stab|shoot|punch)\b/i, lowered) -> :combat
       Regex.match?(~r/\b(say|ask|tell|speak|shout|whisper|greet)\b/i, lowered) -> :speak
@@ -277,11 +280,32 @@ defmodule TalesForge.Game.Intent do
   end
 
   defp maybe_put_skill(params, skill, action_type) do
-    if skill && action_type != :move do
+    if skill && action_type not in [:move, :wait] do
       Map.put(params, "skill", skill)
     else
       params
     end
+  end
+
+  defp maybe_put_wait_ticks(params, raw_action, :wait) do
+    Map.put(params, "ticks", WorldClock.parse_duration(raw_action))
+  end
+
+  defp maybe_put_wait_ticks(params, _, _), do: params
+
+  defp wait_intent?(lowered) do
+    Regex.match?(~r/\b(wait|dawdle|loiter|linger|idle|sleep|nap)\b/, lowered) or
+      Regex.match?(~r/\brest\s+(for|until|a)\b/, lowered) or
+      Regex.match?(~r/^\s*i\s+rest\.?\s*$/, lowered) or
+      (duration_phrase?(lowered) and
+         Regex.match?(~r/\b(spend|stay|pass|drink|drinking|gamble|gambling|carouse)\b/, lowered))
+  end
+
+  defp duration_phrase?(lowered) do
+    Regex.match?(
+      ~r/\b(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+(hours?|days?|nights?|weeks?)\b/,
+      lowered
+    )
   end
 
   defp inventory_target(action_type, target_location, target_npc, parameters) do

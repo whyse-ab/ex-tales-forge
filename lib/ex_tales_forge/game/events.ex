@@ -6,6 +6,7 @@ defmodule TalesForge.Game.Events do
   unless the mechanical outcome is success with an unless_skill.
   """
 
+  alias TalesForge.Game.ActionHandler
   alias TalesForge.Game.Mechanics
 
   def from_turn(_player_action, handler, mechanical, world_before, world_after, fronts \\ []) do
@@ -13,13 +14,14 @@ defmodule TalesForge.Game.Events do
     loc_before = character_loc(world_before)
     loc_after = character_loc(world_after)
     triggers = Enum.flat_map(fronts, &front_triggers/1)
+    delta = ActionHandler.tick_delta(handler)
 
     [
-      event("time.passed", true, tick, loc_after, %{"delta_ticks" => 1}, "world")
+      event("time.passed", true, tick, loc_after, %{"delta_ticks" => delta}, "world")
     ]
     |> Kernel.++(travel_events(loc_before, loc_after, tick))
     |> Kernel.++(notice_events(triggers, handler, mechanical, loc_before, loc_after, tick))
-    |> Kernel.++(dawdle_events(triggers, loc_after, tick))
+    |> Kernel.++(dawdle_events(triggers, loc_after, tick, delta))
   end
 
   defp travel_events(from, to, tick) when is_binary(from) and is_binary(to) and from != to do
@@ -60,11 +62,11 @@ defmodule TalesForge.Game.Events do
     end
   end
 
-  defp dawdle_events(triggers, loc_after, tick) do
+  defp dawdle_events(triggers, loc_after, tick, delta) do
     triggers
     |> Enum.filter(&dawdle_trigger?(&1, loc_after))
     |> Enum.map(fn _ ->
-      event("player.dawdled", true, tick, loc_after, %{}, "player")
+      event("player.dawdled", true, tick, loc_after, %{"delta_ticks" => delta}, "player")
     end)
   end
 

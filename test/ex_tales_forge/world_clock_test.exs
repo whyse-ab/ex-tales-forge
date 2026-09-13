@@ -23,4 +23,14 @@ defmodule TalesForge.Game.WorldClockTest do
     assert advanced["world_tick"] == 40
     assert advanced["world_clock"] == WorldClock.format(40)
   end
+
+  test "parse_duration/1 reads numbered stays and defaults to one hour" do
+    assert WorldClock.parse_duration("I wait") == 4
+    assert WorldClock.parse_duration("I rest") == 4
+    assert WorldClock.parse_duration("sleep") == 32
+    assert WorldClock.parse_duration("wait 2 hours") == 8
+    assert WorldClock.parse_duration("I spend three days drinking and gambling") == 288
+    assert WorldClock.parse_duration("stay a week") == WorldClock.max_wait_ticks()
+    assert WorldClock.parse_duration("wait 30 days") == WorldClock.max_wait_ticks()
+  end
 end

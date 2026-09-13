@@ -5,6 +5,7 @@ defmodule TalesForge.Game.ActionHandler do
 
   alias TalesForge.Game.Mechanics
   alias TalesForge.Game.Schemas.{HandlerResult, PlayerAction}
+  alias TalesForge.Game.WorldClock
 
   @stub_actions ~w(use_item)a
   @inventory_actions ~w(pickup drop buy sell trade spend)a
@@ -31,6 +32,16 @@ defmodule TalesForge.Game.ActionHandler do
             "action_type" => Atom.to_string(action.action_type),
             "parameters" => action.parameters
           }
+        }
+
+      action.action_type == :wait ->
+        ticks = wait_ticks(player_action)
+
+        %HandlerResult{
+          handler: "wait",
+          target: action.target,
+          notes: "Wait #{ticks} ticks.",
+          state_hints: %{"ticks" => ticks}
         }
 
       action.action_type == :move ->
@@ -65,6 +76,19 @@ defmodule TalesForge.Game.ActionHandler do
           target: action.target,
           notes: "Unhandled action_type #{action.action_type}; freeform."
         }
+    end
+  end
+
+  def tick_delta(%{handler: "wait", state_hints: %{"ticks" => ticks}}) do
+    WorldClock.clamp_wait(ticks)
+  end
+
+  def tick_delta(_), do: 1
+
+  defp wait_ticks(%PlayerAction{} = player_action) do
+    case player_action.action.parameters do
+      %{"ticks" => ticks} -> WorldClock.clamp_wait(ticks)
+      _ -> WorldClock.parse_duration(player_action.overall_intent || "")
     end
   end
 end

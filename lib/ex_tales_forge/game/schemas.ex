@@ -16,6 +16,7 @@ defmodule TalesForge.Game.Schemas do
           | :sell
           | :trade
           | :spend
+          | :wait
           | :freeform
           | :other
 
@@ -52,6 +53,7 @@ defmodule TalesForge.Game.Schemas do
         "sell" -> :sell
         "trade" -> :trade
         "spend" -> :spend
+        "wait" -> :wait
         "freeform" -> :freeform
         _ -> :other
       end

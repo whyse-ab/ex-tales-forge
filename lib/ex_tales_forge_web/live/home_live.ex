@@ -12,11 +12,22 @@ defmodule TalesForgeWeb.HomeLive do
   end
 
   @impl true
+  def handle_event("new_session", %{"adventure" => adventure}, socket) do
+    start_session(socket, adventure)
+  end
+
   def handle_event("new_session", _params, socket) do
-    case GameSessions.create_session(%{
-           name: "Crossroads Hamlet",
-           adventure_id: "crossroads_ledger"
-         }) do
+    start_session(socket, "crossroads_ledger")
+  end
+
+  defp start_session(socket, adventure) do
+    {name, adventure_id} =
+      case adventure do
+        "tin_valley" -> {"Tin Valley", "tin_valley"}
+        _ -> {"Crossroads Hamlet", "crossroads_ledger"}
+      end
+
+    case GameSessions.create_session(%{name: name, adventure_id: adventure_id}) do
       {:ok, session} ->
         {:noreply, push_navigate(socket, to: ~p"/play/#{session.id}")}
 
@@ -33,16 +44,24 @@ defmodule TalesForgeWeb.HomeLive do
         <p class="play-label text-[var(--paper-accent)]">Tales Forge</p>
         <h1 class="font-serif text-3xl font-bold text-[var(--paper-ink)]">Your adventures await</h1>
         <p class="text-[var(--paper-muted)]">
-          Text-first AI RPG on the BEAM. Jido agents, LiveView, and a living world in Merovingia.
+          Text-first AI RPG on the BEAM. You act at the table; factions act too.
         </p>
       </header>
 
-      <div>
+      <div class="flex flex-wrap gap-3">
         <button
           phx-click="new_session"
+          phx-value-adventure="tin_valley"
           class="rounded bg-[var(--paper-accent)] px-4 py-2 font-medium text-white hover:opacity-90"
         >
-          Start new session
+          Start Tin Valley
+        </button>
+        <button
+          phx-click="new_session"
+          phx-value-adventure="crossroads_ledger"
+          class="rounded border border-[var(--paper-rule)] px-4 py-2 font-medium text-[var(--paper-ink)] hover:opacity-80"
+        >
+          Crossroads Hamlet
         </button>
       </div>
 

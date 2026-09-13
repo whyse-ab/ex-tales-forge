@@ -176,7 +176,8 @@ When rules or prompts change in text-forge, sync the corresponding files here. P
 ## Game clock
 
 - `world_tick` in `world_state` — 1 tick ≈ 15 in-game minutes; 4 ticks ≈ 1 hour; 96 ticks ≈ 1 day (~100 is a fair approximation)
-- Each player turn advances `world_tick` by 1 via `TalesForge.Game.WorldClock`
+- Ordinary turns advance `world_tick` by 1 via `TalesForge.Game.WorldClock`
+- `wait` (rest, drink, gamble, sleep, "spend three days…") advances by parsed duration, capped at 7 days. Time does **not** pass while the player is AFK or logged off.
 - `world_clock` in the UI is a **derived label** (e.g. `Day 1 · late afternoon`)
 
 ## NPC runtime

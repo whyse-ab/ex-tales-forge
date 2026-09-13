@@ -5,8 +5,10 @@ defmodule TalesForge.Game.WorldSimTracerTest do
   alias TalesForge.Game.ActionHandler
   alias TalesForge.Game.Context
   alias TalesForge.Game.Fronts.Moves
+  alias TalesForge.Game.Intent
   alias TalesForge.Game.Prompts
   alias TalesForge.Game.Schemas.{MechanicalResolution, PlayerAction}
+  alias TalesForge.Game.WorldClock
   alias TalesForge.Game.TurnProcessor
   alias TalesForge.Game.WorldSim
   alias TalesForge.GameSessions
@@ -128,6 +130,23 @@ defmodule TalesForge.Game.WorldSimTracerTest do
     refute prompt =~ @hiring
   end
 
+  test "three days drinking at the inn hires steel in one wait", %{session: session} do
+    raw = "I spend three days drinking and gambling at the inn"
+    session = wait(session, raw)
+    start = WorldClock.default_start_tick()
+
+    assert session.world_state["world_tick"] == start + 288
+
+    guild = Fronts.get_instance(session.id, "miners_guild")
+    assert get_in(guild.runtime_state, ["clocks", "clear_orcs", "value"]) == 288
+    assert Enum.any?(guild.runtime_state["public_facts"], &(&1["id"] == "hiring_steel"))
+
+    prompt = Context.format_gm_prompt(Context.build_gm_context(session))
+    scene = Prompts.build_scene_user(session)
+    assert prompt =~ @hiring
+    assert scene =~ @hiring
+  end
+
   test "hire_extra with coin 0 is illegal" do
     state = %{"resources" => %{"coin" => 0}}
     defn = %{"id" => "miners_guild", "moves" => %{"hire_extra" => %{"wage" => 1}}}
@@ -159,6 +178,23 @@ defmodule TalesForge.Game.WorldSimTracerTest do
 
     handler = ActionHandler.resolve(player_action)
     {:ok, _} = TurnProcessor.simulate!(session, raw, player_action, handler, mechanical)
+    reload(session.id)
+  end
+
+  defp wait(session, raw) do
+    {bundle, _} = Intent.resolve_bundle(raw, %{"exits" => [], "present_npcs" => []})
+    player_action = Intent.validate_player_action(bundle, %{})
+    handler = ActionHandler.resolve(player_action)
+
+    {:ok, _} =
+      TurnProcessor.simulate!(
+        session,
+        raw,
+        player_action,
+        handler,
+        %MechanicalResolution{outcome: "none"}
+      )
+
     reload(session.id)
   end
 

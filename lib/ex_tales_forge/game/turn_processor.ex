@@ -183,7 +183,7 @@ defmodule TalesForge.Game.TurnProcessor do
       |> maybe_move(handler)
       |> maybe_apply_inventory(session.id, player_action.action, handler)
       |> maybe_apply_context_summary(gm_result.context_summary)
-      |> WorldClock.advance()
+      |> WorldClock.advance(ActionHandler.tick_delta(handler))
 
     world_tick = Map.get(advanced_world, "world_tick")
     :ok = NPC.apply_gm_updates(session.id, gm_result, world_tick)

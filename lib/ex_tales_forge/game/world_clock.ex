@@ -10,10 +10,26 @@ defmodule TalesForge.Game.WorldClock do
   @minutes_per_tick 15
   @ticks_per_hour 4
   @ticks_per_day 96
+  @max_wait_days 7
+  @word_counts %{
+    "a" => 1,
+    "an" => 1,
+    "one" => 1,
+    "two" => 2,
+    "three" => 3,
+    "four" => 4,
+    "five" => 5,
+    "six" => 6,
+    "seven" => 7,
+    "eight" => 8,
+    "nine" => 9,
+    "ten" => 10
+  }
 
   def minutes_per_tick, do: @minutes_per_tick
   def ticks_per_hour, do: @ticks_per_hour
   def ticks_per_day, do: @ticks_per_day
+  def max_wait_ticks, do: @ticks_per_day * @max_wait_days
 
   @default_start_tick 36
 
@@ -30,6 +46,55 @@ defmodule TalesForge.Game.WorldClock do
   def format(tick) when is_integer(tick) and tick >= 0 do
     day = div(tick, @ticks_per_day) + 1
     "Day #{day} · #{time_of_day(rem(tick, @ticks_per_day))}"
+  end
+
+  @doc """
+  Clamp a wait to at least 1 tick and at most 7 in-game days.
+  Time only advances from a table action — never while AFK.
+  """
+  def clamp_wait(n) when is_integer(n) and n >= 1, do: min(n, max_wait_ticks())
+  def clamp_wait(_), do: @ticks_per_hour
+
+  @doc """
+  Parse a player phrase into wait ticks.
+
+  Bare "wait" / "rest" is one hour. "sleep" is eight hours.
+  Numbered durations ("three days", "2 hours") win when present.
+  """
+  def parse_duration(text) when is_binary(text) do
+    lowered = String.downcase(text)
+
+    cond do
+      match =
+          Regex.run(
+            ~r/\b(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+(hours?|days?|nights?|weeks?)\b/,
+            lowered
+          ) ->
+        [_whole, count, unit] = match
+        clamp_wait(count_value(count) * unit_ticks(unit))
+
+      Regex.match?(~r/\b(sleep|nap|turn in)\b/, lowered) ->
+        clamp_wait(@ticks_per_hour * 8)
+
+      true ->
+        @ticks_per_hour
+    end
+  end
+
+  defp count_value(word) do
+    Map.get(@word_counts, word) ||
+      case Integer.parse(word) do
+        {n, _} when n > 0 -> n
+        _ -> 1
+      end
+  end
+
+  defp unit_ticks(unit) do
+    cond do
+      String.starts_with?(unit, "hour") -> @ticks_per_hour
+      String.starts_with?(unit, "week") -> @ticks_per_day * 7
+      true -> @ticks_per_day
+    end
   end
 
   defp time_of_day(slot) when slot in 0..3, do: "deep night"

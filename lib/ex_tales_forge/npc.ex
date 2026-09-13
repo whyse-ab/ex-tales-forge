@@ -566,7 +566,7 @@ defmodule TalesForge.NPC do
 
   defp maybe_escalate_concern(waiting, concern) when waiting >= 4 do
     priority = min(10, Map.get(concern, "priority", 5) + 1)
-    {waiting - 4, Map.put(concern, "priority", priority)}
+    maybe_escalate_concern(waiting - 4, Map.put(concern, "priority", priority))
   end
 
   defp maybe_escalate_concern(waiting, concern), do: {waiting, concern}

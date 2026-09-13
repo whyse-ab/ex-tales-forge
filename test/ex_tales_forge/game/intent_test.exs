@@ -36,4 +36,22 @@ defmodule TalesForge.Game.IntentTest do
     assert source == :heuristic
     assert hd(bundle.actions).action_type == :speak
   end
+
+  test "heuristic treats three days drinking as wait, not spend or drink" do
+    {bundle, source} =
+      Intent.resolve_bundle(
+        "I spend three days drinking and gambling at the inn",
+        @context
+      )
+
+    action = hd(bundle.actions)
+    assert source == :heuristic
+    assert action.action_type == :wait
+    assert action.parameters["ticks"] == 288
+  end
+
+  test "heuristic wait does not steal a mug of ale" do
+    {bundle, _} = Intent.resolve_bundle("I drink the ale", @context)
+    assert hd(bundle.actions).action_type == :use_item
+  end
 end

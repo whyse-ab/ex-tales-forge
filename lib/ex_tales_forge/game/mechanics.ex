@@ -90,7 +90,7 @@ defmodule TalesForge.Game.Mechanics do
 
     cond do
       explicit -> explicit
-      handler in ["move", "inventory"] -> nil
+      handler in ["move", "inventory", "wait"] -> nil
       true -> normalize_skill_name(gm_skill) || infer_skill_from_action(overall_intent)
     end
   end

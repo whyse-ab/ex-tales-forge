@@ -41,8 +41,8 @@ defmodule TalesForge.Game.WorldSim do
   defp apply_rules(front, events) do
     matches = Rules.match(front, events)
 
-    Enum.reduce(matches, {front, []}, fn %{rule: rule}, {current, applied} ->
-      case apply_rule(current, rule) do
+    Enum.reduce(matches, {front, []}, fn %{rule: rule, event: event}, {current, applied} ->
+      case apply_rule(current, rule, event) do
         {:ok, next, move} -> {next, applied ++ [move]}
         {:ok, next} -> {maybe_threshold(next), applied}
         {:error, _} -> {current, applied}
@@ -51,7 +51,7 @@ defmodule TalesForge.Game.WorldSim do
     |> then(fn {front, applied} -> {maybe_threshold(front), applied} end)
   end
 
-  defp apply_rule(front, %{"move" => move}) when is_binary(move) do
+  defp apply_rule(front, %{"move" => move}, _event) when is_binary(move) do
     runtime = runtime(front)
     defn = definition(front)
 
@@ -64,14 +64,24 @@ defmodule TalesForge.Game.WorldSim do
     end
   end
 
-  defp apply_rule(front, %{"clock" => clock, "delta" => delta}) when is_binary(clock) do
+  defp apply_rule(front, %{"clock" => clock, "delta" => delta}, event) when is_binary(clock) do
     runtime = runtime(front)
     path = ["clocks", clock, "value"]
     current = get_in(runtime, path) || 0
-    {:ok, put_runtime(front, put_in(runtime, path, current + delta))}
+    scaled = delta * event_delta(event)
+    {:ok, put_runtime(front, put_in(runtime, path, current + scaled))}
   end
 
-  defp apply_rule(front, _rule), do: {:ok, front}
+  defp apply_rule(front, _rule, _event), do: {:ok, front}
+
+  defp event_delta(event) when is_map(event) do
+    case get_in(event, ["payload", "delta_ticks"]) do
+      n when is_integer(n) and n > 0 -> n
+      _ -> 1
+    end
+  end
+
+  defp event_delta(_), do: 1
 
   defp maybe_threshold(front) do
     runtime = runtime(front)
