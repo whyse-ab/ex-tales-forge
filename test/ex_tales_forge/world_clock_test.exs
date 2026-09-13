@@ -33,4 +33,10 @@ defmodule TalesForge.Game.WorldClockTest do
     assert WorldClock.parse_duration("stay a week") == WorldClock.max_wait_ticks()
     assert WorldClock.parse_duration("wait 30 days") == WorldClock.max_wait_ticks()
   end
+
+  test "clamp_wait/1 coerces string and float ticks" do
+    assert WorldClock.clamp_wait("288") == 288
+    assert WorldClock.clamp_wait(288.0) == 288
+    assert WorldClock.clamp_wait(288) == 288
+  end
 end

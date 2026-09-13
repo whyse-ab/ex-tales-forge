@@ -60,16 +60,31 @@ defmodule TalesForge.NPCSignals do
         :ok
 
       pid ->
-        case AgentServer.call(pid, signal) do
-          {:ok, _} ->
-            :ok
-
-          {:error, reason} ->
-            Logger.debug(
-              "npc signal undelivered session=#{session_id} npc=#{npc_id} type=#{type} reason=#{inspect(reason)}"
-            )
-        end
+        call_agent(pid, signal, session_id, npc_id, type)
     end
+  end
+
+  @doc false
+  def call_agent(pid, signal, session_id, npc_id, type) do
+    case AgentServer.call(pid, signal) do
+      {:ok, _} ->
+        :ok
+
+      {:error, reason} ->
+        log_undelivered(session_id, npc_id, type, reason)
+    end
+  catch
+    :exit, {:noproc, _} = reason ->
+      log_undelivered(session_id, npc_id, type, reason)
+
+    :exit, :noproc = reason ->
+      log_undelivered(session_id, npc_id, type, reason)
+  end
+
+  defp log_undelivered(session_id, npc_id, type, reason) do
+    Logger.debug(
+      "npc signal undelivered session=#{session_id} npc=#{npc_id} type=#{type} reason=#{inspect(reason)}"
+    )
   end
 
   defp emit_overhear(session_id, world_tick, present_npcs, handler, raw_action) do

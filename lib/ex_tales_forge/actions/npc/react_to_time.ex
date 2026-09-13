@@ -10,7 +10,7 @@ defmodule TalesForge.Actions.NPC.ReactToTime do
 
   @impl true
   def run(_params, context) do
-    delta_ticks = signal_field(context, :delta_ticks, 1)
+    delta_ticks = signal_field(context, "delta_ticks", 1)
 
     with {:ok, concern_state} <- AdjustConcern.run(%{delta_ticks: delta_ticks}, context),
          context = update_in(context.state, &Map.merge(&1, concern_state)),

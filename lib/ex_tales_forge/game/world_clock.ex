@@ -53,6 +53,15 @@ defmodule TalesForge.Game.WorldClock do
   Time only advances from a table action — never while AFK.
   """
   def clamp_wait(n) when is_integer(n) and n >= 1, do: min(n, max_wait_ticks())
+  def clamp_wait(n) when is_float(n) and n >= 1.0, do: clamp_wait(trunc(n))
+
+  def clamp_wait(n) when is_binary(n) do
+    case Integer.parse(String.trim(n)) do
+      {int, _} -> clamp_wait(int)
+      :error -> @ticks_per_hour
+    end
+  end
+
   def clamp_wait(_), do: @ticks_per_hour
 
   @doc """

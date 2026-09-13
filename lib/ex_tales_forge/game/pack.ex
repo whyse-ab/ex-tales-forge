@@ -144,10 +144,19 @@ defmodule TalesForge.Game.Pack do
     npc_dir = Path.join(dir, "npcs")
 
     if File.dir?(npc_dir) do
-      npc_dir
-      |> Path.join("*.md")
-      |> Path.wildcard()
-      |> Enum.map(&parse_npc!/1)
+      markdown =
+        npc_dir
+        |> Path.join("*.md")
+        |> Path.wildcard()
+        |> Enum.map(&parse_npc!/1)
+
+      json =
+        npc_dir
+        |> Path.join("*.json")
+        |> Path.wildcard()
+        |> Enum.map(&parse_npc_json!/1)
+
+      markdown ++ json
     else
       []
     end
@@ -167,9 +176,68 @@ defmodule TalesForge.Game.Pack do
       "appearance" => attrs["appearance"] || extract_section(body, "Appearance"),
       "personality" => attrs["personality"] || extract_section(body, "Personality"),
       "backstory" => attrs["backstory"] || extract_section(body, "Backstory"),
-      "motivations" => attrs["motivations"] || %{}
+      "motivations" => npc_motivations(attrs["motivations"], body)
     }
   end
+
+  defp parse_npc_json!(path) do
+    attrs = path |> File.read!() |> Jason.decode!() |> stringify_keys()
+
+    Map.update(attrs, "motivations", %{}, &normalize_motivations/1)
+  end
+
+  defp npc_motivations(from_frontmatter, body) do
+    from_body = body |> extract_section("Motivations") |> normalize_motivations()
+    Map.merge(from_body, normalize_motivations(from_frontmatter))
+  end
+
+  defp normalize_motivations(nil), do: %{}
+  defp normalize_motivations(""), do: %{}
+
+  defp normalize_motivations(map) when is_map(map) do
+    map
+    |> stringify_keys()
+    |> Map.update("current_concern", nil, &normalize_concern/1)
+    |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+    |> Map.new()
+  end
+
+  defp normalize_motivations(text) when is_binary(text) do
+    %{}
+    |> maybe_put_motivation("primary_need", capture_need(text))
+    |> maybe_put_motivation("current_concern", normalize_concern(capture_concern(text)))
+  end
+
+  defp normalize_motivations(_), do: %{}
+
+  defp normalize_concern(%{} = concern), do: stringify_keys(concern)
+
+  defp normalize_concern(focus) when is_binary(focus) and focus != "" do
+    %{
+      "focus" => focus |> String.trim() |> String.trim_trailing("."),
+      "priority" => 8,
+      "blocked_by" => nil
+    }
+  end
+
+  defp normalize_concern(_), do: nil
+
+  defp capture_need(text) do
+    case Regex.run(~r/Primary need:\s*(.+?)(?:\.?\s*Current concern:|$)/is, text) do
+      [_, need] -> need |> String.trim() |> String.trim_trailing(".")
+      _ -> nil
+    end
+  end
+
+  defp capture_concern(text) do
+    case Regex.run(~r/Current concern:\s*(.+)/is, text) do
+      [_, focus] -> String.trim(focus)
+      _ -> nil
+    end
+  end
+
+  defp maybe_put_motivation(map, _key, nil), do: map
+  defp maybe_put_motivation(map, key, value), do: Map.put(map, key, value)
 
   defp parse_md!(path) do
     content = File.read!(path)

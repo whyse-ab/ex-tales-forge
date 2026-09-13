@@ -97,6 +97,55 @@ defmodule TalesForge.NPCRegistryTest do
     assert Map.get(concern, "priority", 0) >= 9
   end
 
+  test "world.time.passed applies string-keyed 288 delta_ticks in one signal" do
+    assert {:ok, session} = GameSessions.create_session(%{name: "NPC Wait Concern"})
+
+    aid = NPCRegistry.agent_id(session.id, "marta_kellen")
+    pid = Jido.whereis(aid)
+    world_tick = Map.get(session.world_state, "world_tick")
+    before = NPC.get_instance(session.id, "marta_kellen")
+    old_priority = get_in(before.runtime_state, ["current_concern", "priority"])
+
+    signal =
+      Signal.new!(
+        "world.time.passed",
+        %{"delta_ticks" => 288, "world_tick" => world_tick},
+        source: "/test"
+      )
+
+    assert {:ok, _agent} = AgentServer.call(pid, signal)
+
+    inst = NPC.get_instance(session.id, "marta_kellen")
+    concern = Map.get(inst.runtime_state, "current_concern")
+    assert Map.get(concern, "priority") == 10
+    assert Map.get(concern, "priority") > old_priority
+  end
+
+  test "three-day wait escalates pack NPC concern" do
+    assert {:ok, session} =
+             GameSessions.create_session(%{name: "Tin Valley Wait", adventure_id: "tin_valley"})
+
+    aid = NPCRegistry.agent_id(session.id, "innkeep")
+    pid = Jido.whereis(aid)
+    assert pid
+
+    before = NPC.get_instance(session.id, "innkeep")
+    assert get_in(before.runtime_state, ["current_concern", "focus"]) =~ "armed strangers"
+    old_priority = get_in(before.runtime_state, ["current_concern", "priority"])
+
+    signal =
+      Signal.new!(
+        "world.time.passed",
+        %{"delta_ticks" => 288, "world_tick" => Map.get(session.world_state, "world_tick")},
+        source: "/test"
+      )
+
+    assert {:ok, _agent} = AgentServer.call(pid, signal)
+
+    after_inst = NPC.get_instance(session.id, "innkeep")
+    assert get_in(after_inst.runtime_state, ["current_concern", "priority"]) > old_priority
+  end
+
   test "NPCSignals.emit_turn_signals delivers speak handler to target NPC" do
     assert {:ok, session} = GameSessions.create_session(%{name: "NPC Emit"})
 
@@ -118,6 +167,21 @@ defmodule TalesForge.NPCRegistryTest do
            end)
 
     assert Map.get(inst.runtime_state, "relationship_score", 0.0) > 0.0
+  end
+
+  test "NPCSignals treat a dead agent pid as undelivered" do
+    pid = spawn(fn -> :ok end)
+
+    ref = Process.monitor(pid)
+    assert_receive {:DOWN, ^ref, :process, ^pid, _}
+    refute Process.alive?(pid)
+
+    signal =
+      Signal.new!("world.time.passed", %{"delta_ticks" => 288, "world_tick" => 36},
+        source: "/test"
+      )
+
+    assert :ok = NPCSignals.call_agent(pid, signal, "session", "ghost", "world.time.passed")
   end
 
   defp insert_session_without_scene(name) do

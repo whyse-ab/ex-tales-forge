@@ -39,6 +39,19 @@ defmodule TalesForge.Game.PackTest do
       npc_ids = Enum.map(pack.npcs, & &1["id"]) |> Enum.sort()
       assert npc_ids == ["guild_steward", "innkeep", "prospector"]
 
+      by_npc = Map.new(pack.npcs, &{&1["id"], &1})
+
+      assert get_in(by_npc["innkeep"], ["motivations", "current_concern", "focus"]) =~
+               "armed strangers"
+
+      assert get_in(by_npc["guild_steward"], ["motivations", "current_concern", "focus"]) =~
+               "nest on the cut"
+
+      assert get_in(by_npc["prospector"], ["motivations", "current_concern", "focus"]) =~
+               "orcs on the hill"
+
+      assert get_in(by_npc["innkeep"], ["motivations", "primary_need"]) =~ "inn standing"
+
       guild = Enum.find(pack.fronts, &(&1["id"] == "miners_guild"))
       assert guild["identity"] =~ "You are the Miners Guild"
       assert guild["identity"] =~ "Killing a prospector"
@@ -106,6 +119,17 @@ defmodule TalesForge.Game.PackTest do
       npc_ids = Enum.map(session.npc_instances, & &1.npc_id) |> Enum.sort()
       assert npc_ids == ["guild_steward", "innkeep", "prospector"]
       assert world["present_npcs"] == ["innkeep"]
+
+      brenna = NPC.get_instance(session.id, "innkeep")
+      osric = NPC.get_instance(session.id, "guild_steward")
+      caldern = NPC.get_instance(session.id, "prospector")
+
+      assert get_in(brenna.runtime_state, ["current_concern", "focus"]) =~ "armed strangers"
+      assert get_in(osric.runtime_state, ["current_concern", "focus"]) =~ "nest on the cut"
+      assert get_in(caldern.runtime_state, ["current_concern", "focus"]) =~ "orcs on the hill"
+
+      assert get_in(brenna.personality, ["motivations", "current_concern", "focus"]) =~
+               "armed strangers"
 
       assert NPC.get_instance(session.id, "prospector").runtime_state["location_id"] ==
                "mine_workings"

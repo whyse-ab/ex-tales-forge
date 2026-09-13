@@ -4,7 +4,7 @@ defmodule TalesForge.Game.WaitTest do
   alias TalesForge.Game.ActionHandler
   alias TalesForge.Game.Events
   alias TalesForge.Game.Intent
-  alias TalesForge.Game.Schemas.MechanicalResolution
+  alias TalesForge.Game.Schemas.{MechanicalResolution, PlayerAction}
   alias TalesForge.Game.WorldClock
   alias TalesForge.Game.WorldSim
 
@@ -19,6 +19,31 @@ defmodule TalesForge.Game.WaitTest do
     handler = handler_for("I spend three days drinking and gambling at the inn")
     assert handler.handler == "wait"
     assert ActionHandler.tick_delta(handler) == 288
+  end
+
+  test "wait ticks coerce string and float from Tier 1 JSON" do
+    string_ticks =
+      PlayerAction.decode(%{
+        "overall_intent" => "wait",
+        "action" => %{
+          "action_type" => "wait",
+          "target" => nil,
+          "parameters" => %{"ticks" => "288"}
+        }
+      })
+
+    float_ticks =
+      PlayerAction.decode(%{
+        "overall_intent" => "wait",
+        "action" => %{
+          "action_type" => "wait",
+          "target" => nil,
+          "parameters" => %{"ticks" => 288.0}
+        }
+      })
+
+    assert ActionHandler.tick_delta(ActionHandler.resolve(string_ticks)) == 288
+    assert ActionHandler.tick_delta(ActionHandler.resolve(float_ticks)) == 288
   end
 
   test "time.passed and dawdle events scale with wait ticks" do

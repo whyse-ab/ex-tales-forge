@@ -97,8 +97,6 @@ defmodule TalesForge.Game.Perception do
   end
 
   defp hidden_tokens(events) do
-    base = ["prepared", "alert", "scout"]
-
     extra =
       events
       |> Enum.flat_map(fn ev ->
@@ -107,7 +105,8 @@ defmodule TalesForge.Game.Perception do
       end)
       |> Enum.filter(&is_binary/1)
 
-    Enum.uniq(base ++ extra)
+    scout_tokens = if extra == [], do: [], else: ["prepared", "alert", "scout"]
+    Enum.uniq(scout_tokens ++ extra)
   end
 
   defp contains_token?(line, tokens) when is_binary(line) do
