@@ -11,6 +11,7 @@ defmodule TalesForge.Game.Intent do
   alias TalesForge.LLM
 
   @skill_required ~w(observe speak interact combat use_item)a
+  @no_skill_types ~w(move wait pickup drop buy sell trade spend)a
   @move_hints ~r/\b(go|head|walk|travel|move|enter|leave|step|run|proceed)\b/i
 
   defmodule ClarificationNeeded do
@@ -293,7 +294,7 @@ defmodule TalesForge.Game.Intent do
   end
 
   defp maybe_put_skill(params, skill, action_type) do
-    if skill && action_type not in [:move, :wait] do
+    if skill && action_type not in @no_skill_types do
       Map.put(params, "skill", skill)
     else
       params

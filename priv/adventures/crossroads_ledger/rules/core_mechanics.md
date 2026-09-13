@@ -1,5 +1,8 @@
 # Fantasy RPG Game Mechanics Summary
 
+Why: you learn by failing, as in life. Getting very good is slow on
+purpose. See `PRODUCT.md` → Rules philosophy.
+
 ## Overview
 
 This is a skill-based fantasy RPG system where character progress is measured by skills acquired and improved primarily through learning from failures, rather than traditional levels or experience points. The system uses a computer as the DM for bookkeeping, eliminating manual tracking burdens. Skills are rolled on a 1d20, with success determined by rolling equal to or below the skill level. There is no skill cap, allowing indefinite growth, though high levels require trainers or adventures to achieve.
@@ -15,11 +18,13 @@ This is a skill-based fantasy RPG system where character progress is measured by
   - Success (non-natural 1): +0.5 LP.
   - Natural 20: +2 LP.
   - Natural 1: +1 LP (capped once per skill per session).
-  - Threshold: 5 LP to attempt improvement; resets to 0 on success or 1 on failure.
+  - Threshold: 5 LP and ≥ 3 failures on that skill to attempt improvement.
 - **Skill Improvement**:
-  - Attempt at narrative milestones (e.g., session end).
-  - Roll 1d20 &gt; current skill level minus Trainer Bonus (if applicable).
-  - Success: Skill level +1.
+  - Attempt at rest / sleep / wait ≥ 1 hour, not session end.
+  - One 1d20 per eligible skill per pause.
+  - Roll 1d20 &gt; raw skill.
+  - Success: skill +1, LP 0, failures 0.
+  - Failure: skill unchanged, LP 1, failures 0.
   - No skill cap; high levels become harder without bonuses.
 - **Death Exception**: No LP from fatal failures; near-death grants +1 LP if survived.
 - **Skill List Categories** (Examples):

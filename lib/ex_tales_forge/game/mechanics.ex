@@ -77,20 +77,18 @@ defmodule TalesForge.Game.Mechanics do
   end
 
   def resolve_check_skill(handler, handler_skill, action_skill) do
-    explicit = action_skill || normalize_skill_name(handler_skill)
-
-    cond do
-      explicit -> explicit
-      handler in ["move", "inventory", "wait"] -> nil
-      true -> nil
+    if handler in ["move", "inventory", "wait"] do
+      nil
+    else
+      action_skill || normalize_skill_name(handler_skill)
     end
   end
 
-  def perform_and_apply(character, skill) do
+  def perform_and_apply(character, skill, injected_roll \\ nil) do
     normalized = normalize_skill_name(skill) || "insight"
     raw_level = character |> get_in(["skills", normalized]) |> to_int(0)
     effective = effective_skill_level(character, normalized)
-    roll = :rand.uniform(20)
+    roll = injected_roll || :rand.uniform(20)
     outcome = resolve_outcome(roll, effective, raw_level)
     lp = lp_for_roll(roll, outcome, raw_level)
 
@@ -99,7 +97,10 @@ defmodule TalesForge.Game.Mechanics do
       |> Map.get("learning_points", %{})
       |> Map.update(normalized, lp, fn current -> Float.round(to_float(current) + lp, 1) end)
 
-    updated = put_in(character, ["learning_points"], learning_points)
+    updated =
+      character
+      |> Map.put("learning_points", learning_points)
+      |> maybe_count_failure(normalized, outcome, roll)
 
     resolution = %MechanicalResolution{
       skill: normalized,
@@ -115,8 +116,77 @@ defmodule TalesForge.Game.Mechanics do
     {updated, resolution}
   end
 
+  @doc """
+  One improvement 1d20 per eligible skill. Inject `rolls` in tests (`skill => 1..20`).
+  """
+  def attempt_improvements(character, rolls \\ %{}) when is_map(character) and is_map(rolls) do
+    lp_map = Map.get(character, "learning_points", %{})
+    fail_map = Map.get(character, "learning_failures", %{})
+
+    eligible =
+      (Map.keys(lp_map) ++ Map.keys(fail_map))
+      |> Enum.uniq()
+      |> Enum.sort()
+      |> Enum.filter(&eligible_skill?(&1, lp_map, fail_map))
+
+    Enum.reduce(eligible, {character, []}, fn skill, {char, acc} ->
+      {updated, entry} = attempt_skill(char, skill, rolls)
+      {updated, acc ++ [entry]}
+    end)
+  end
+
   defp no_check_resolution do
     %MechanicalResolution{outcome: "none", notes: "No skill check required."}
+  end
+
+  defp maybe_count_failure(character, skill, outcome, roll) do
+    if outcome == "failure" or roll == 20 do
+      failures =
+        character
+        |> Map.get("learning_failures", %{})
+        |> Map.update(skill, 1, fn current -> to_int(current, 0) + 1 end)
+
+      Map.put(character, "learning_failures", failures)
+    else
+      character
+    end
+  end
+
+  defp eligible_skill?(skill, lp_map, fail_map) do
+    to_float(Map.get(lp_map, skill, 0)) >= 5.0 and to_int(Map.get(fail_map, skill, 0), 0) >= 3
+  end
+
+  defp attempt_skill(character, skill, rolls) do
+    roll = Map.get(rolls, skill) || :rand.uniform(20)
+    raw = character |> get_in(["skills", skill]) |> to_int(0)
+    improved = roll > raw
+
+    prepared =
+      character
+      |> Map.put_new("skills", %{})
+      |> Map.put_new("learning_points", %{})
+      |> Map.put_new("learning_failures", %{})
+
+    updated =
+      if improved do
+        prepared
+        |> put_in(["skills", skill], raw + 1)
+        |> put_in(["learning_points", skill], 0)
+        |> put_in(["learning_failures", skill], 0)
+      else
+        prepared
+        |> put_in(["learning_points", skill], 1.0)
+        |> put_in(["learning_failures", skill], 0)
+      end
+
+    entry = %{
+      "skill" => skill,
+      "roll" => roll,
+      "raw_skill" => raw,
+      "improved" => improved
+    }
+
+    {updated, entry}
   end
 
   defp effective_skill_level(character, skill) do

@@ -94,6 +94,7 @@ defmodule TalesForge.Game.World do
           "melee_combat" => 1
         },
         "learning_points" => %{},
+        "learning_failures" => %{},
         "wounds" => 0,
         "wound_max" => 3,
         "coins" => %{"gold" => 2, "silver" => 10, "copper" => 0},

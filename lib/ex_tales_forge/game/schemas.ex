@@ -159,7 +159,8 @@ defmodule TalesForge.Game.Schemas do
               roll: nil,
               effective_skill: nil,
               lp_awarded: nil,
-              notes: nil
+              notes: nil,
+              improvements: []
 
     def decode(map) when is_map(map) do
       %__MODULE__{
@@ -168,7 +169,8 @@ defmodule TalesForge.Game.Schemas do
         roll: Map.get(map, "roll"),
         effective_skill: Map.get(map, "effective_skill"),
         lp_awarded: Map.get(map, "lp_awarded"),
-        notes: Map.get(map, "notes")
+        notes: Map.get(map, "notes"),
+        improvements: Map.get(map, "improvements") || []
       }
     end
 
@@ -179,7 +181,8 @@ defmodule TalesForge.Game.Schemas do
         "roll" => res.roll,
         "effective_skill" => res.effective_skill,
         "lp_awarded" => res.lp_awarded,
-        "notes" => res.notes
+        "notes" => res.notes,
+        "improvements" => res.improvements || []
       }
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
       |> Map.new()

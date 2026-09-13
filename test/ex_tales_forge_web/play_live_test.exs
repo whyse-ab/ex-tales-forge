@@ -57,5 +57,8 @@ defmodule TalesForgeWeb.PlayLiveTest do
     refute html =~ "+LP"
     refute html =~ "Learning points"
     refute html =~ "insight +2"
+    refute html =~ "you learned"
+    refute html =~ "XP"
+    refute html =~ "learning_failures"
   end
 end

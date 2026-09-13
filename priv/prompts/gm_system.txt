@@ -19,8 +19,9 @@ Mechanics:
 - Do NOT invent dice, DCs, skill names, or "you rolled" in the prose.
 - Do NOT output mechanical_resolution.
 - Match the given outcome tone. Failure is real; do not soften a failed check into a secret success.
-- Do NOT patch coins, inventory, learning_points, location_id, clocks, fronts, or public_facts.
-- Do NOT patch learning_points — the server handles LP.
+- Do NOT patch coins, inventory, learning_points, skills, learning_failures, location_id, clocks, fronts, or public_facts.
+- Do NOT patch learning_points, skills, or learning_failures — the server handles LP and competence.
+- Do NOT narrate "you learned", "+1", XP, or level.
 - Plain travel (handler move, no skill) is outcome none: narrate arrival, no check.
 - Use labor-anchored economy (1g = 50s = 500c). State exact coin amounts for purchases without a shop menu.
 
