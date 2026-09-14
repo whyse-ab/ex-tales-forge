@@ -44,6 +44,16 @@ defmodule TalesForge.Game.ActionHandler do
           state_hints: %{"ticks" => ticks}
         }
 
+      action.action_type == :train ->
+        ticks = wait_ticks(player_action)
+
+        %HandlerResult{
+          handler: "train",
+          target: action.target,
+          notes: "Train #{ticks} ticks.",
+          state_hints: %{"ticks" => ticks}
+        }
+
       action.action_type == :move ->
         %HandlerResult{
           handler: "move",
@@ -79,7 +89,8 @@ defmodule TalesForge.Game.ActionHandler do
     end
   end
 
-  def tick_delta(%{handler: "wait", state_hints: %{"ticks" => ticks}}) do
+  def tick_delta(%{handler: handler, state_hints: %{"ticks" => ticks}})
+      when handler in ["wait", "train"] do
     WorldClock.clamp_wait(ticks)
   end
 

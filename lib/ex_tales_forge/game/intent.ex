@@ -11,8 +11,16 @@ defmodule TalesForge.Game.Intent do
   alias TalesForge.LLM
 
   @skill_required ~w(observe speak interact combat use_item)a
-  @no_skill_types ~w(move wait pickup drop buy sell trade spend)a
+  @no_skill_types ~w(move wait train pickup drop buy sell trade spend)a
   @move_hints ~r/\b(go|head|walk|travel|move|enter|leave|step|run|proceed)\b/i
+  @train_verbs ~r/\b(teach|teaching|practice|practise|drill|train|training)\b/
+  @skill_aliases [
+    {"melee combat", "melee_combat"},
+    {"ranged combat", "ranged_combat"},
+    {"unarmed combat", "unarmed_combat"},
+    {"melee", "melee_combat"},
+    {"climb", "climbing"}
+  ]
 
   defmodule ClarificationNeeded do
     defexception [:extraction]
@@ -174,13 +182,14 @@ defmodule TalesForge.Game.Intent do
     target_location = infer_target_location(raw_action, context)
     target_npc = infer_target_npc(raw_action, context)
     target_fixture = infer_target_fixture(raw_action, context)
-    action_type = infer_action_type(raw_action, target_location, target_fixture)
+    action_type = infer_action_type(raw_action, target_location, target_fixture, target_npc)
     skill = Mechanics.infer_skill_from_action(raw_action)
 
     parameters =
       %{}
       |> maybe_put_skill(skill, action_type)
       |> maybe_put_wait_ticks(raw_action, action_type)
+      |> maybe_put_train_skill(raw_action, action_type)
       |> Map.merge(infer_inventory_parameters(raw_action, action_type, context, target_npc))
 
     {target, action_parameters} =
@@ -215,10 +224,11 @@ defmodule TalesForge.Game.Intent do
     type in @skill_required and is_nil(Mechanics.normalize_skill_name(Map.get(params, "skill")))
   end
 
-  defp infer_action_type(raw_action, target_location, target_fixture) do
+  defp infer_action_type(raw_action, target_location, target_fixture, target_npc) do
     lowered = String.downcase(raw_action)
 
     cond do
+      train_intent?(lowered, target_npc) -> :train
       wait_intent?(lowered) -> :wait
       target_location -> :move
       Regex.match?(~r/\b(attack|fight|strike|stab|shoot|punch)\b/i, lowered) -> :combat
@@ -274,23 +284,27 @@ defmodule TalesForge.Game.Intent do
     lowered = String.downcase(raw_action)
 
     Enum.find_value(context["present_npcs"], fn npc_id ->
-      readable = String.replace(npc_id, "_", " ")
-      detail = Map.get(context["npc_details"], npc_id, %{})
-      display = Map.get(detail, "name", "")
-
-      first_name =
-        display
-        |> String.split()
-        |> List.first()
-        |> case do
-          nil -> ""
-          name -> String.downcase(name)
-        end
-
-      String.contains?(lowered, npc_id) or String.contains?(lowered, readable) or
-        (display != "" and String.contains?(lowered, String.downcase(display))) or
-        (first_name != "" and String.contains?(lowered, first_name))
+      if npc_mentioned?(lowered, npc_id, context), do: npc_id
     end)
+  end
+
+  defp npc_mentioned?(lowered, npc_id, context) do
+    readable = String.replace(npc_id, "_", " ")
+    detail = Map.get(context["npc_details"], npc_id, %{})
+    display = Map.get(detail, "name", "")
+
+    first_name =
+      display
+      |> String.split()
+      |> List.first()
+      |> case do
+        nil -> ""
+        name -> String.downcase(name)
+      end
+
+    String.contains?(lowered, npc_id) or String.contains?(lowered, readable) or
+      (display != "" and String.contains?(lowered, String.downcase(display))) or
+      (first_name != "" and String.contains?(lowered, first_name))
   end
 
   defp maybe_put_skill(params, skill, action_type) do
@@ -301,18 +315,60 @@ defmodule TalesForge.Game.Intent do
     end
   end
 
-  defp maybe_put_wait_ticks(params, raw_action, :wait) do
+  defp maybe_put_wait_ticks(params, raw_action, type) when type in [:wait, :train] do
     Map.put(params, "ticks", WorldClock.parse_duration(raw_action))
   end
 
   defp maybe_put_wait_ticks(params, _, _), do: params
+
+  defp maybe_put_train_skill(params, raw_action, :train) do
+    case mentioned_skill(raw_action) do
+      nil -> params
+      skill -> Map.put(params, "skill", skill)
+    end
+  end
+
+  defp maybe_put_train_skill(params, _, _), do: params
+
+  defp mentioned_skill(raw_action) when is_binary(raw_action) do
+    lowered = String.downcase(raw_action)
+
+    named =
+      Mechanics.skill_stat_map()
+      |> Map.keys()
+      |> Enum.sort_by(&(-byte_size(&1)))
+      |> Enum.find(&skill_token?(lowered, &1))
+
+    named ||
+      Enum.find_value(@skill_aliases, fn {token, skill} ->
+        if contains_word?(lowered, token), do: skill
+      end)
+  end
+
+  defp skill_token?(lowered, token) do
+    readable = String.replace(token, "_", " ")
+    contains_word?(lowered, token) or (readable != token and contains_word?(lowered, readable))
+  end
+
+  defp contains_word?(text, word) do
+    Regex.match?(~r/\b#{Regex.escape(word)}\b/u, text)
+  end
+
+  defp train_intent?(lowered, npc_id) when is_binary(npc_id) and npc_id != "" do
+    train_verb?(lowered)
+  end
+
+  defp train_intent?(_, _), do: false
+
+  defp train_verb?(lowered), do: Regex.match?(@train_verbs, lowered)
 
   defp wait_intent?(lowered) do
     Regex.match?(~r/\b(wait|dawdle|loiter|linger|idle|sleep|nap)\b/, lowered) or
       Regex.match?(~r/\brest\s+(for|until|a)\b/, lowered) or
       Regex.match?(~r/^\s*i\s+rest\.?\s*$/, lowered) or
       (duration_phrase?(lowered) and
-         Regex.match?(~r/\b(spend|stay|pass|drink|drinking|gamble|gambling|carouse)\b/, lowered))
+         Regex.match?(~r/\b(spend|stay|pass|drink|drinking|gamble|gambling|carouse)\b/, lowered)) or
+      (train_verb?(lowered) and duration_phrase?(lowered))
   end
 
   defp duration_phrase?(lowered) do
@@ -334,6 +390,9 @@ defmodule TalesForge.Game.Intent do
         {target_npc, parameters}
 
       :spend ->
+        {target_npc, parameters}
+
+      :train ->
         {target_npc, parameters}
 
       _ ->

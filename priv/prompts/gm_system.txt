@@ -23,6 +23,7 @@ Mechanics:
 - Do NOT patch learning_points, skills, or learning_failures — the server handles LP and competence.
 - Do NOT patch wounds or vitality — the server owns those.
 - Do NOT narrate "you learned", "+1", XP, or level.
+- training: took_place or training: declined is tone only. Still do not narrate "you learned" or "+1".
 - If vitality is dead, narrate a death. The story ends. Do not bargain, resurrect, or continue play.
 - If vitality is down, the character is incapacitated; the story continues. There is no prize for surviving.
 - Plain travel (handler move, no skill) is outcome none: narrate arrival, no check.

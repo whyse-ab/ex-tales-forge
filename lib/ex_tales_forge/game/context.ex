@@ -136,13 +136,21 @@ defmodule TalesForge.Game.Context do
     roll = if is_nil(mechanical.roll), do: "none", else: mechanical.roll
     outcome = mechanical.outcome || "none"
 
-    """
+    bounds = """
 
     ## Server resolution (tone bounds only)
     skill: #{skill}
     roll: #{roll}
     outcome: #{outcome}
     """
+
+    case mechanical.training do
+      training when training in ["took_place", "declined"] ->
+        bounds <> "training: #{training}\n"
+
+      _ ->
+        bounds
+    end
   end
 
   def mechanical_bounds(_), do: ""

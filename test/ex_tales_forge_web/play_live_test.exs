@@ -28,6 +28,7 @@ defmodule TalesForgeWeb.PlayLiveTest do
     assert html =~ "Coins"
     assert html =~ "Inventory"
     assert html =~ "Brenna"
+    refute html =~ "fee_copper"
 
     refute_sheet(html)
 

@@ -1,5 +1,10 @@
 {
   "id": "innkeep",
+  "skills": {
+    "persuasion": 8,
+    "insight": 7
+  },
+  "fee_copper": 50,
   "stock": [
     {
       "id": "ale_mug",

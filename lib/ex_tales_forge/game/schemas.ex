@@ -17,6 +17,7 @@ defmodule TalesForge.Game.Schemas do
           | :trade
           | :spend
           | :wait
+          | :train
           | :freeform
           | :other
 
@@ -54,6 +55,7 @@ defmodule TalesForge.Game.Schemas do
         "trade" -> :trade
         "spend" -> :spend
         "wait" -> :wait
+        "train" -> :train
         "freeform" -> :freeform
         _ -> :other
       end
@@ -160,7 +162,8 @@ defmodule TalesForge.Game.Schemas do
               effective_skill: nil,
               lp_awarded: nil,
               notes: nil,
-              improvements: []
+              improvements: [],
+              training: nil
 
     def decode(map) when is_map(map) do
       %__MODULE__{
@@ -170,7 +173,8 @@ defmodule TalesForge.Game.Schemas do
         effective_skill: Map.get(map, "effective_skill"),
         lp_awarded: Map.get(map, "lp_awarded"),
         notes: Map.get(map, "notes"),
-        improvements: Map.get(map, "improvements") || []
+        improvements: Map.get(map, "improvements") || [],
+        training: Map.get(map, "training")
       }
     end
 
@@ -182,7 +186,8 @@ defmodule TalesForge.Game.Schemas do
         "effective_skill" => res.effective_skill,
         "lp_awarded" => res.lp_awarded,
         "notes" => res.notes,
-        "improvements" => res.improvements || []
+        "improvements" => res.improvements || [],
+        "training" => res.training
       }
       |> Enum.reject(fn {_k, v} -> is_nil(v) end)
       |> Map.new()

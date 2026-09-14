@@ -88,4 +88,54 @@ defmodule TalesForge.Game.IntentTest do
     assert action.parameters["npc_id"] == "innkeep"
     assert action.parameters["price_copper"] == 2
   end
+
+  @train_context %{
+    "exits" => ["market_square"],
+    "exit_names" => %{"market_square" => "Market Square"},
+    "present_npcs" => ["innkeep"],
+    "npc_details" => %{"innkeep" => %{"name" => "Brenna Holt", "role" => "innkeep"}}
+  }
+
+  test "heuristic trains persuasion with Brenna for a day" do
+    {bundle, source} =
+      Intent.resolve_bundle("I train persuasion with Brenna for a day", @train_context)
+
+    action = hd(bundle.actions)
+    assert source == :heuristic
+    assert action.action_type == :train
+    assert action.target == "innkeep"
+    assert action.parameters["skill"] == "persuasion"
+    assert action.parameters["ticks"] == 96
+  end
+
+  test "train wins over wait for a three-day lesson" do
+    {bundle, _} =
+      Intent.resolve_bundle(
+        "I spend three days training persuasion with Brenna",
+        @train_context
+      )
+
+    action = hd(bundle.actions)
+    assert action.action_type == :train
+    assert action.target == "innkeep"
+    assert action.parameters["skill"] == "persuasion"
+    assert action.parameters["ticks"] == 288
+  end
+
+  test "train wins over speak when asking a present person to teach" do
+    {bundle, _} =
+      Intent.resolve_bundle("ask Brenna to teach me persuasion", @train_context)
+
+    action = hd(bundle.actions)
+    assert action.action_type == :train
+    assert action.target == "innkeep"
+    assert action.parameters["skill"] == "persuasion"
+  end
+
+  test "practice without a person stays wait" do
+    {bundle, _} = Intent.resolve_bundle("I practice stealth for a day", @train_context)
+    action = hd(bundle.actions)
+    assert action.action_type == :wait
+    assert action.parameters["ticks"] == 96
+  end
 end

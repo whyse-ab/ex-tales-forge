@@ -19,10 +19,11 @@ Field rules:
 - clarification_options: 2-3 options when needs_clarification is true (id, label, description, action_index).
 
 SingleAction fields:
-- action_type: observe | interact | speak | move | combat | use_item | pickup | drop | buy | sell | trade | spend | wait | freeform | other
+- action_type: observe | interact | speak | move | combat | use_item | pickup | drop | buy | sell | trade | spend | wait | train | freeform | other
 - target: npc_id, location_id, or item_id when applicable; else null.
 - parameters: include skill (snake_case from valid_skills) for any action that involves a check.
 - wait is passing time at the table (rest, drink, gamble, sleep, "spend three days…"). parameters.ticks is integer world ticks (1 tick ≈ 15 minutes, 4 = 1 hour, 96 = 1 day). Cap at 672 (7 days). Do not emit wait for AFK or "I come back later". Wait is not a skill check.
+- train is practicing with a present person (teach, teaching, practice, practise, drill, train, training). target is npc_id. parameters are skill (snake_case from valid_skills, no default) and ticks (same clock as wait). Train wins over wait and speak when those verbs appear with a person. Without a person, leave wait.
 - inventory actions use parameters.item_id, quantity, price_copper; trade uses give/receive arrays and counterparty (ground or npc_id).
 - spend uses parameters.amount_copper for tips, bribes, tolls, or payments without receiving an item; target may be an npc_id.
 - A mug of ale is buy against present NPC stock at pack price; "spend three days drinking..." is wait, not buy/spend.

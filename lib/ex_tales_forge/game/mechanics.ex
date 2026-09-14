@@ -79,7 +79,7 @@ defmodule TalesForge.Game.Mechanics do
   end
 
   def resolve_check_skill(handler, handler_skill, action_skill) do
-    if handler in ["move", "inventory", "wait"] do
+    if handler in ["move", "inventory", "wait", "train"] do
       nil
     else
       action_skill || normalize_skill_name(handler_skill)
@@ -132,10 +132,42 @@ defmodule TalesForge.Game.Mechanics do
       |> Enum.filter(&eligible_skill?(&1, lp_map, fail_map))
 
     Enum.reduce(eligible, {character, []}, fn skill, {char, acc} ->
-      {updated, entry} = attempt_skill(char, skill, rolls)
-      {updated, acc ++ [entry]}
+      raw = char |> get_in(["skills", skill]) |> to_int(0)
+
+      if raw >= 16 do
+        entry = %{
+          "skill" => skill,
+          "raw_skill" => raw,
+          "improved" => false,
+          "auto_fail" => true
+        }
+
+        {char, acc ++ [entry]}
+      else
+        {updated, entry} = attempt_skill(char, skill, rolls)
+        {updated, acc ++ [entry]}
+      end
     end)
   end
+
+  @doc """
+  One trainer improvement 1d20. Hit if roll > raw - 5. Inject `rolls` in tests.
+  """
+  def attempt_trained_skill(character, skill, rolls \\ %{})
+      when is_map(character) and is_binary(skill) and is_map(rolls) do
+    {updated, entry} = attempt_skill(character, skill, rolls, 5)
+    {updated, [entry]}
+  end
+
+  def skill_eligible?(character, skill) when is_map(character) and is_binary(skill) do
+    eligible_skill?(
+      skill,
+      Map.get(character, "learning_points", %{}),
+      Map.get(character, "learning_failures", %{})
+    )
+  end
+
+  def skill_eligible?(_, _), do: false
 
   @doc """
   Wound cap from CON. Minimum 1 (CON 3).
@@ -282,10 +314,10 @@ defmodule TalesForge.Game.Mechanics do
     to_float(Map.get(lp_map, skill, 0)) >= 5.0 and to_int(Map.get(fail_map, skill, 0), 0) >= 3
   end
 
-  defp attempt_skill(character, skill, rolls) do
+  defp attempt_skill(character, skill, rolls, target_offset \\ 0) do
     roll = Map.get(rolls, skill) || :rand.uniform(20)
     raw = character |> get_in(["skills", skill]) |> to_int(0)
-    improved = roll > raw
+    improved = roll > raw - target_offset
 
     prepared =
       character

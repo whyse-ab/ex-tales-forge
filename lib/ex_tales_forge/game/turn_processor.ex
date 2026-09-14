@@ -21,6 +21,7 @@ defmodule TalesForge.Game.TurnProcessor do
   alias TalesForge.Game.Prompts
   alias TalesForge.Game.SceneProcessor
   alias TalesForge.Game.Schemas.{GMStructuredResponse, MechanicalResolution, PlayerAction}
+  alias TalesForge.Game.Train
   alias TalesForge.Game.World
   alias TalesForge.Game.WorldClock
   alias TalesForge.Game.WorldSim
@@ -40,8 +41,15 @@ defmodule TalesForge.Game.TurnProcessor do
          turn_number <- next_turn_number(session_id),
          handler <- ActionHandler.resolve(player_action),
          {character, mechanical} <- apply_mechanics(session.world_state, player_action, handler),
-         %{world: world_board, events: events, sim: sim, improvements: improvements} <-
+         %{
+           world: world_board,
+           events: events,
+           sim: sim,
+           improvements: improvements,
+           training: training
+         } <-
            apply_board(session, character, handler, player_action, mechanical),
+         mechanical <- %{mechanical | improvements: improvements, training: training},
          gm_context <- Context.build_gm_context(%{session | world_state: world_board}),
          user <- Context.format_gm_prompt(gm_context) <> Context.mechanical_bounds(mechanical),
          {:ok, gm_result} <-
@@ -56,7 +64,7 @@ defmodule TalesForge.Game.TurnProcessor do
          {:ok, payload} <-
            persist_and_signal(session, world_final, turn_number, raw_action, %{
              handler: handler,
-             mechanical: %{mechanical | improvements: improvements},
+             mechanical: mechanical,
              gm_result: gm_result,
              events: events,
              sim: sim
@@ -91,12 +99,18 @@ defmodule TalesForge.Game.TurnProcessor do
     character = Map.get(session.world_state || %{}, "character", %{})
     turn_number = next_turn_number(session.id)
 
-    %{world: world_board, events: events, sim: sim, improvements: improvements} =
+    %{
+      world: world_board,
+      events: events,
+      sim: sim,
+      improvements: improvements,
+      training: training
+    } =
       apply_board(session, character, handler, player_action, mechanical, opts)
 
     persist_and_signal(session, world_board, turn_number, raw_action, %{
       handler: handler,
-      mechanical: %{mechanical | improvements: improvements},
+      mechanical: %{mechanical | improvements: improvements, training: training},
       gm_result: gm_result,
       events: events,
       sim: sim
@@ -107,15 +121,15 @@ defmodule TalesForge.Game.TurnProcessor do
   def apply_board(session, character, handler, player_action, mechanical, opts \\ []) do
     world_before = session.world_state || %{}
 
-    world_moved =
+    world_present =
       world_before
       |> put_in(["character"], character)
       |> maybe_apply_inventory(session.id, player_action.action, handler)
       |> maybe_move(handler)
-      |> WorldClock.advance(ActionHandler.tick_delta(handler))
       |> apply_location_presence(session)
 
-    {world_paused, improvements} = maybe_attempt_improvements(world_moved, handler, opts)
+    {world_paused, improvements, training} =
+      apply_pause_or_train(world_present, session, handler, player_action, opts)
 
     fronts = Fronts.sim_fronts(session.id)
     people = NPC.sim_people(session.id)
@@ -140,8 +154,51 @@ defmodule TalesForge.Game.TurnProcessor do
       |> Perception.snapshot_public_facts(sim.fronts ++ sim.people)
       |> Mechanics.apply_vitality(mechanical, opts)
 
-    %{world: world, events: events, sim: sim, improvements: improvements}
+    %{
+      world: world,
+      events: events,
+      sim: sim,
+      improvements: improvements,
+      training: training
+    }
   end
+
+  defp apply_pause_or_train(world, session, %{handler: "train"}, player_action, opts) do
+    apply_training(world, session, player_action, opts)
+  end
+
+  defp apply_pause_or_train(world, _session, handler, _player_action, opts) do
+    world_moved = WorldClock.advance(world, ActionHandler.tick_delta(handler))
+    {world_improved, improvements} = maybe_attempt_improvements(world_moved, handler, opts)
+    {world_improved, improvements, nil}
+  end
+
+  defp apply_training(world, session, player_action, opts) do
+    action = player_action.action
+    npc_id = action.target
+    present_ids = Map.get(world, "present_npcs", [])
+    npc_def = trainer_personality(session.id, npc_id)
+    character = Map.get(world, "character", %{})
+
+    {taught, improvements, training, ticks} =
+      Train.apply(character, npc_def, present_ids, action, opts)
+
+    world =
+      world
+      |> put_in(["character"], taught)
+      |> WorldClock.advance(ticks)
+
+    {world, improvements, training}
+  end
+
+  defp trainer_personality(session_id, npc_id) when is_binary(npc_id) and npc_id != "" do
+    case NPC.get_instance(session_id, npc_id) do
+      %{personality: personality} when is_map(personality) -> personality
+      _ -> %{}
+    end
+  end
+
+  defp trainer_personality(_session_id, _npc_id), do: %{}
 
   defp maybe_attempt_improvements(world, handler, opts) do
     pause? =
@@ -208,7 +265,13 @@ defmodule TalesForge.Game.TurnProcessor do
     if Mechanics.dead?(world_after) do
       :ok
     else
-      NPCSignals.emit_turn_signals(session.id, world_after, handler, raw_action)
+      NPCSignals.emit_turn_signals(
+        session.id,
+        world_after,
+        handler,
+        raw_action,
+        session.world_state
+      )
     end
   end
 

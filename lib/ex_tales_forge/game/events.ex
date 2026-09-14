@@ -6,7 +6,6 @@ defmodule TalesForge.Game.Events do
   unless the mechanical outcome is success with an unless_skill.
   """
 
-  alias TalesForge.Game.ActionHandler
   alias TalesForge.Game.Mechanics
 
   def from_turn(
@@ -22,7 +21,9 @@ defmodule TalesForge.Game.Events do
     loc_before = character_loc(world_before)
     loc_after = character_loc(world_after)
     triggers = Enum.flat_map(fronts ++ people, &actor_triggers/1)
-    delta = ActionHandler.tick_delta(handler)
+
+    delta =
+      Map.get(world_after, "world_tick", 0) - Map.get(world_before, "world_tick", 0)
 
     [
       event("time.passed", true, tick, loc_after, %{"delta_ticks" => delta}, "world")

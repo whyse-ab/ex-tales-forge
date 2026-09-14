@@ -69,10 +69,11 @@ defmodule TalesForge.Game.MechanicsTest do
     assert Map.get(updated["learning_failures"] || %{}, "insight", 0) == 0
   end
 
-  test "move wait inventory skip a check even when parameters carry a skill" do
-    Enum.each(["move", "wait", "inventory"], fn handler ->
+  test "move wait inventory train skip a check even when parameters carry a skill" do
+    Enum.each(["move", "wait", "inventory", "train"], fn handler ->
       {_character, result} = apply_with_skill(handler, "climbing")
       assert %MechanicalResolution{outcome: "none"} = result
+      assert Mechanics.resolve_check_skill(handler, "climbing", "climbing") == nil
     end)
 
     {character, _result} = apply_with_skill("wait", "climbing")
@@ -179,6 +180,55 @@ defmodule TalesForge.Game.MechanicsTest do
     assert get_in(updated, ["skills", "stealth"]) == 2
     assert Map.get(updated["learning_points"], "climbing") == 0
     assert Map.get(updated["learning_points"], "stealth") == 1.0
+  end
+
+  test "attempt_trained_skill hits when roll is greater than raw minus 5" do
+    character = eligible(%{"persuasion" => 5}, %{"persuasion" => 3})
+    character = put_in(character, ["skills", "persuasion"], 10)
+
+    {updated, [entry]} =
+      Mechanics.attempt_trained_skill(character, "persuasion", %{"persuasion" => 6})
+
+    assert entry["improved"] == true
+    assert entry["roll"] == 6
+    assert entry["raw_skill"] == 10
+    assert get_in(updated, ["skills", "persuasion"]) == 11
+    assert Map.get(updated["learning_points"], "persuasion") == 0
+    assert Map.get(updated["learning_failures"], "persuasion") == 0
+  end
+
+  test "attempt_trained_skill misses when roll is not greater than raw minus 5" do
+    character = eligible(%{"persuasion" => 5}, %{"persuasion" => 3})
+    character = put_in(character, ["skills", "persuasion"], 10)
+
+    {updated, [entry]} =
+      Mechanics.attempt_trained_skill(character, "persuasion", %{"persuasion" => 5})
+
+    assert entry["improved"] == false
+    assert entry["roll"] == 5
+    assert get_in(updated, ["skills", "persuasion"]) == 10
+    assert Map.get(updated["learning_points"], "persuasion") == 1.0
+    assert Map.get(updated["learning_failures"], "persuasion") == 0
+  end
+
+  test "wait attempt_improvements auto-fails master raw without consuming LP" do
+    character =
+      eligible(%{"climbing" => 5}, %{"climbing" => 3})
+      |> put_in(["skills", "climbing"], 16)
+
+    {updated, [entry]} = Mechanics.attempt_improvements(character, %{"climbing" => 20})
+
+    assert entry == %{
+             "skill" => "climbing",
+             "raw_skill" => 16,
+             "improved" => false,
+             "auto_fail" => true
+           }
+
+    refute Map.has_key?(entry, "roll")
+    assert get_in(updated, ["skills", "climbing"]) == 16
+    assert Map.get(updated["learning_points"], "climbing") == 5
+    assert Map.get(updated["learning_failures"], "climbing") == 3
   end
 
   test "raw 0 eligible any 1d20 improves" do
