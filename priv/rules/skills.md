@@ -2,6 +2,9 @@
 
 This document defines the skill domain architecture for the RPG system, establishing how skills group together, transfer between each other, and scale with mastery.
 
+Why: as you get better you see general patterns, not just exact moves.
+Related skills transfer. See `PRODUCT.md` → Rules philosophy.
+
 ---
 
 ## The Five Domains

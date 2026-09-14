@@ -1,5 +1,9 @@
 # Labor-Anchored Economy System
 
+Why: fewer non-intuitive rules make it easier to stay in the story. Prices
+are a guess at **effort**, as in our world — not a loot table. See
+`PRODUCT.md` → Rules philosophy.
+
 The economy uses a **labor-based pricing model** where every price derives from the human effort required to produce an item or service.
 
 ---

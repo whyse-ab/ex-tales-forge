@@ -6,6 +6,10 @@ Text-first AI RPG on the BEAM. Jido agents own play-session runtime; LiveView is
 
 Greenfield Elixir rewrite of [text-forge](../text-forge). Borrow rules, prompts, and lore from text-forge; do not port v1 Supabase code.
 
+Who we build for is in [PRODUCT.md](PRODUCT.md). Core table: **Hawk** (hard mode), **Paul** (role-playing, mechanics invisible), **Lotta** (identification, world and character), **Lars** (adventure). **Ronny** (win, loot, highest level) is the anti-persona — do not add systems that exist to let him win.
+
+Rules identity (same file, Rules philosophy): prices ≈ human labor; you learn by failing, slowly, with transfer across related skills. Do not invent XP bars or loot-table gold. Fewer non-intuitive rules → easier to stay in the story.
+
 ## Stack
 
 - **UI:** Phoenix LiveView + Tailwind

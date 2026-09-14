@@ -70,7 +70,14 @@ Optional UI verification at http://localhost:4000:
 2. State **PASS** or **FAIL** clearly.
 3. For each failed step, show `issues`, `latency_ms`, and `narrative_preview`.
 4. Grep server logs for `[error]`, `[warning]`, `turn processor failed`.
-5. Suggest which layer broke:
+5. Persona check against `PRODUCT.md` (Hawk / Paul / Lotta / Lars; not Ronny):
+   - Did the narration dump dice, DCs, or skill names? (Paul fails)
+   - Did failure get softened into a win? (Hawk fails)
+   - Was the world/character thin or generic? (Lotta fails)
+   - Did the scene stall with no adventure pressure? (Lars fails)
+   - Did the GM optimize for loot, levels, or "winning"? (Ronny — that is a miss)
+
+6. Suggest which layer broke:
    - **intent** → `lib/ex_tales_forge/game/intent.ex`
    - **GM / narrative** → `lib/ex_tales_forge/llm.ex`, `priv/prompts/gm_system.txt`
    - **mechanics** → `lib/ex_tales_forge/game/mechanics.ex`, `action_handler.ex`
