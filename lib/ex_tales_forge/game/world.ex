@@ -97,6 +97,7 @@ defmodule TalesForge.Game.World do
         "learning_failures" => %{},
         "wounds" => 0,
         "wound_max" => 3,
+        "vitality" => "ok",
         "coins" => %{"gold" => 2, "silver" => 10, "copper" => 0},
         "inventory" => [
           %{"id" => "travel_cloak", "name" => "travel cloak", "quantity" => 1},

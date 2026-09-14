@@ -53,6 +53,7 @@ defmodule TalesForgeWeb.PlayComponents do
   attr :thinking, :boolean, required: true
   attr :clarification, :map, default: nil
   attr :input_disabled, :boolean, required: true
+  attr :session_status, :string, default: "active"
 
   def narrative_panel(assigns) do
     ~H"""
@@ -84,6 +85,9 @@ defmodule TalesForgeWeb.PlayComponents do
       </div>
 
       <div class="shrink-0 space-y-3 border-t border-[var(--paper-rule)] p-4">
+        <p :if={@session_status == "dead"} class="text-sm italic text-[var(--paper-muted)]">
+          You are dead.
+        </p>
         <section
           :if={@clarification}
           class="rounded-lg border border-[var(--paper-rule)] bg-[var(--paper-bg)] p-3"
@@ -109,7 +113,7 @@ defmodule TalesForgeWeb.PlayComponents do
           <input
             type="text"
             name="message"
-            placeholder={if @scene_loading, do: "Wait for the scene…", else: "What do you do?"}
+            placeholder={input_placeholder(@scene_loading, @session_status)}
             autocomplete="off"
             class="flex-1 rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-3 py-2 text-[var(--paper-ink)] placeholder:text-[var(--paper-muted)]"
             disabled={@input_disabled}
@@ -275,7 +279,12 @@ defmodule TalesForgeWeb.PlayComponents do
     wounds = Map.get(character, "wounds", 0)
     wound_max = Map.get(character, "wound_max", 3)
     coins = format_coins(Map.get(character, "coins", %{}))
-    "#{wounds}/#{wound_max} wounds · #{coins}"
+    wounds_part = "#{wounds}/#{wound_max} wounds · #{coins}"
+
+    case Map.get(character, "vitality", "ok") do
+      "ok" -> wounds_part
+      vitality -> "#{vitality} · #{wounds_part}"
+    end
   end
 
   def entry_heading(%{role: "scene", location_name: name}), do: "You arrive at #{name}"
@@ -317,6 +326,10 @@ defmodule TalesForgeWeb.PlayComponents do
   defp entry_body_class(_),
     do:
       "whitespace-pre-wrap rounded bg-[var(--paper-panel)] px-3 py-2 text-sm text-[var(--paper-ink)]"
+
+  defp input_placeholder(_scene_loading, "dead"), do: "You are dead."
+  defp input_placeholder(true, _status), do: "Wait for the scene…"
+  defp input_placeholder(_, _status), do: "What do you do?"
 
   def format_mechanical(_), do: nil
 

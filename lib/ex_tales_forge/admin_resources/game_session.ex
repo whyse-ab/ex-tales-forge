@@ -28,7 +28,7 @@ defmodule TalesForge.AdminResources.GameSession do
     end
 
     attribute :status, :atom do
-      constraints one_of: [:active, :paused, :completed]
+      constraints one_of: [:active, :paused, :completed, :dead]
       default :active
       public? true
     end

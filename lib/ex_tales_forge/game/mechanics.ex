@@ -37,6 +37,8 @@ defmodule TalesForge.Game.Mechanics do
     {~r/\b(track|follow trail)\b/i, "tracking"}
   ]
 
+  @combat_skills ~w(melee_combat ranged_combat unarmed_combat)
+
   def skill_stat_map, do: @skill_stat
 
   def normalize_skill_name(nil), do: nil
@@ -133,6 +135,130 @@ defmodule TalesForge.Game.Mechanics do
       {updated, entry} = attempt_skill(char, skill, rolls)
       {updated, acc ++ [entry]}
     end)
+  end
+
+  @doc """
+  Wound cap from CON. Minimum 1 (CON 3).
+  """
+  def wound_max(character) when is_map(character) do
+    con = character |> get_in(["stats", "CON"]) |> to_int(10)
+    max(1, 3 + div(con - 10, 2))
+  end
+
+  def vitality(character) when is_map(character) do
+    cond do
+      Map.get(character, "vitality") == "dead" -> "dead"
+      to_int(Map.get(character, "wounds", 0), 0) >= wound_max(character) -> "down"
+      to_int(Map.get(character, "wounds", 0), 0) > 0 -> "hurt"
+      true -> "ok"
+    end
+  end
+
+  def dead?(world_or_character) when is_map(world_or_character) do
+    Map.get(world_or_character, "vitality") == "dead" or
+      get_in(world_or_character, ["character", "vitality"]) == "dead"
+  end
+
+  def dead?(_), do: false
+
+  @doc """
+  Apply at most one wound or one death roll after the perception snapshot.
+  Inject `opts[:death_roll]` (1..20) in tests.
+  """
+  def apply_vitality(world, mechanical, opts \\ []) when is_map(world) do
+    character = Map.get(world, "character", %{})
+    facts = Map.get(world, "public_facts", [])
+    put_in(world, ["character"], apply_character_vitality(character, mechanical, facts, opts))
+  end
+
+  defp apply_character_vitality(character, mechanical, facts, opts) do
+    character = stamp_wound_max(character)
+
+    cond do
+      Map.get(character, "vitality") == "dead" ->
+        Map.put(character, "vitality", "dead")
+
+      harm?(mechanical, facts) ->
+        apply_harm(character, mechanical, opts)
+
+      true ->
+        stamp_vitality(character)
+    end
+  end
+
+  defp apply_harm(character, mechanical, opts) do
+    cap = wound_max(character)
+    wounds = character |> Map.get("wounds", 0) |> to_int(0) |> max(0)
+
+    if wounds >= cap do
+      resolve_death_roll(character, mechanical, cap, opts)
+    else
+      new_wounds = wounds + 1
+
+      character
+      |> Map.put("wounds", new_wounds)
+      |> Map.put("wound_max", cap)
+      |> Map.put("vitality", if(new_wounds >= cap, do: "down", else: "hurt"))
+    end
+  end
+
+  defp resolve_death_roll(character, mechanical, cap, opts) do
+    character =
+      character
+      |> Map.put("wounds", cap)
+      |> Map.put("wound_max", cap)
+
+    if fatal_death_roll?(character, opts) do
+      character
+      |> Map.put("vitality", "dead")
+      |> strip_turn_lp(mechanical)
+    else
+      Map.put(character, "vitality", "down")
+    end
+  end
+
+  defp fatal_death_roll?(character, opts) do
+    con = character |> get_in(["stats", "CON"]) |> to_int(10)
+    roll = opts[:death_roll] || :rand.uniform(20)
+    roll > div(con, 2)
+  end
+
+  defp strip_turn_lp(character, %MechanicalResolution{skill: skill, lp_awarded: lp})
+       when is_binary(skill) and is_number(lp) and lp > 0 do
+    lp_map = Map.get(character, "learning_points", %{})
+    remaining = Float.round(max(to_float(Map.get(lp_map, skill, 0)) - lp, 0.0), 1)
+    Map.put(character, "learning_points", Map.put(lp_map, skill, remaining))
+  end
+
+  defp strip_turn_lp(character, _), do: character
+
+  defp harm?(mechanical, facts), do: combat_failure?(mechanical) or wound_fact?(facts)
+
+  defp combat_failure?(%MechanicalResolution{outcome: "failure", skill: skill})
+       when skill in @combat_skills,
+       do: true
+
+  defp combat_failure?(_), do: false
+
+  defp wound_fact?(facts) do
+    facts
+    |> List.wrap()
+    |> Enum.any?(fn
+      %{"harm" => "wound"} -> true
+      _ -> false
+    end)
+  end
+
+  defp stamp_wound_max(character), do: Map.put(character, "wound_max", wound_max(character))
+
+  defp stamp_vitality(character) do
+    cap = wound_max(character)
+    wounds = character |> Map.get("wounds", 0) |> to_int(0) |> max(0) |> min(cap)
+
+    character
+    |> Map.put("wounds", wounds)
+    |> Map.put("wound_max", cap)
+    |> Map.put("vitality", vitality(Map.put(character, "wounds", wounds)))
   end
 
   defp no_check_resolution do

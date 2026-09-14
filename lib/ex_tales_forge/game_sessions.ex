@@ -24,6 +24,7 @@ defmodule TalesForge.GameSessions do
   alias TalesForge.Fronts
   alias TalesForge.Game.Context
   alias TalesForge.Game.Intent
+  alias TalesForge.Game.Mechanics
   alias TalesForge.Game.Pack
   alias TalesForge.Game.SceneProcessor
   alias TalesForge.Game.Schemas.PlayerAction
@@ -171,6 +172,7 @@ defmodule TalesForge.GameSessions do
       {:error, :empty_message}
     else
       with %GameSession{} = session <- Repo.get(GameSession, session_id),
+           :ok <- reject_if_dead(session),
            :ok <- ensure_runtime_started(session),
            :ok <- require_scene_ready(session),
            {:ok, outcome} <- resolve_and_enqueue(session, trimmed, opts) do
@@ -296,6 +298,16 @@ defmodule TalesForge.GameSessions do
       pending
     else
       raise ArgumentError, "clarification expired"
+    end
+  end
+
+  defp reject_if_dead(%GameSession{status: "dead"}), do: {:error, :dead}
+
+  defp reject_if_dead(%GameSession{world_state: world}) do
+    if Mechanics.dead?(world) do
+      {:error, :dead}
+    else
+      :ok
     end
   end
 

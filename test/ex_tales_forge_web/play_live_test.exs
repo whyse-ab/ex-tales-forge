@@ -6,7 +6,7 @@ defmodule TalesForgeWeb.PlayLiveTest do
   alias TalesForge.GameSessions
   alias TalesForge.Jido
   alias TalesForge.Repo
-  alias TalesForge.Schemas.Turn
+  alias TalesForge.Schemas.{GameSession, Turn}
 
   setup do
     on_exit(fn ->
@@ -48,6 +48,24 @@ defmodule TalesForgeWeb.PlayLiveTest do
     refute html =~ "Outcome:"
     refute html =~ "Roll:"
     refute html =~ "+LP"
+  end
+
+  test "dead session disables play input", %{conn: conn} do
+    {:ok, session} =
+      GameSessions.create_session(%{name: "Dead Elara", adventure_id: "tin_valley"})
+
+    world = put_in(session.world_state, ["character", "vitality"], "dead")
+
+    session
+    |> GameSession.changeset(%{status: "dead", world_state: world})
+    |> Repo.update!()
+
+    {:ok, view, html} = live(conn, ~p"/play/#{session.id}")
+
+    assert html =~ "You are dead."
+    assert html =~ "dead"
+    assert has_element?(view, "input[name=message][disabled]")
+    assert has_element?(view, "button[type=submit][disabled]")
   end
 
   defp refute_sheet(html) do

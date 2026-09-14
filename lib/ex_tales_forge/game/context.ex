@@ -196,7 +196,9 @@ defmodule TalesForge.Game.Context do
   defp character_summary(character) do
     %{
       "name" => Map.get(character, "name"),
+      "vitality" => Map.get(character, "vitality", "ok"),
       "wounds" => Map.get(character, "wounds", 0),
+      "wound_max" => Map.get(character, "wound_max", 3),
       "location_id" => Map.get(character, "location_id"),
       "coins" => Map.get(character, "coins", %{}),
       "inventory" => Map.get(character, "inventory", [])

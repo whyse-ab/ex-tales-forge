@@ -8,6 +8,7 @@ defmodule TalesForge.Game.SceneProcessor do
   import Ecto.Query
 
   alias TalesForge.Game.Context
+  alias TalesForge.Game.Mechanics
   alias TalesForge.Game.Prompts
   alias TalesForge.Game.World
   alias TalesForge.LLM
@@ -19,7 +20,8 @@ defmodule TalesForge.Game.SceneProcessor do
   def needs_scene?(world_state) when is_map(world_state) do
     location_id = Map.get(world_state, "location_id")
     last_scene = Map.get(world_state, "last_scene_location")
-    is_binary(location_id) and location_id != last_scene
+
+    not Mechanics.dead?(world_state) and is_binary(location_id) and location_id != last_scene
   end
 
   def needs_scene?(_), do: true

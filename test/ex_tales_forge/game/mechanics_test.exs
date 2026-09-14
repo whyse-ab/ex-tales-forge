@@ -16,6 +16,14 @@ defmodule TalesForge.Game.MechanicsTest do
     "learning_failures" => %{}
   }
 
+  test "wound_max is 3 plus half CON above 10, minimum 1" do
+    assert Mechanics.wound_max(%{"stats" => %{"CON" => 18}}) == 7
+    assert Mechanics.wound_max(%{"stats" => %{"CON" => 10}}) == 3
+    assert Mechanics.wound_max(%{"stats" => %{"CON" => 11}}) == 3
+    assert Mechanics.wound_max(%{"stats" => %{"CON" => 3}}) == 1
+    assert Mechanics.wound_max(%{}) == 3
+  end
+
   test "perform_and_apply awards LP and returns resolution" do
     {updated, resolution} = Mechanics.perform_and_apply(@character, "insight")
 

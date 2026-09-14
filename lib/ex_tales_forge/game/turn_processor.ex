@@ -138,6 +138,7 @@ defmodule TalesForge.Game.TurnProcessor do
       world_paused
       |> Perception.scrub_situation_lines(hidden)
       |> Perception.snapshot_public_facts(sim.fronts ++ sim.people)
+      |> Mechanics.apply_vitality(mechanical, opts)
 
     %{world: world, events: events, sim: sim, improvements: improvements}
   end
@@ -184,7 +185,7 @@ defmodule TalesForge.Game.TurnProcessor do
              Map.get(world_after, "world_tick")
            ),
          :ok <- NPCRegistry.sync(session),
-         :ok <- NPCSignals.emit_turn_signals(session.id, world_after, handler, raw_action) do
+         :ok <- maybe_emit_turn_signals(session, world_after, handler, raw_action) do
       {:ok,
        %{
          session_id: session.id,
@@ -195,8 +196,19 @@ defmodule TalesForge.Game.TurnProcessor do
          llm_source: LLM.llm_source(LLM.provider()),
          location_name: Map.get(world_after, "location_name"),
          world_state: world_after,
+         session_status: session.status,
          needs_scene: SceneProcessor.needs_scene?(world_after)
        }}
+    end
+  end
+
+  defp maybe_emit_turn_signals(%{status: "dead"}, _world_after, _handler, _raw_action), do: :ok
+
+  defp maybe_emit_turn_signals(session, world_after, handler, raw_action) do
+    if Mechanics.dead?(world_after) do
+      :ok
+    else
+      NPCSignals.emit_turn_signals(session.id, world_after, handler, raw_action)
     end
   end
 
@@ -206,28 +218,7 @@ defmodule TalesForge.Game.TurnProcessor do
   end
 
   defp apply_allowlisted_patches(world, gm_result) do
-    world
-    |> apply_wound_patches(gm_result.state_updates)
-    |> maybe_apply_context_summary(gm_result.context_summary)
-  end
-
-  defp apply_wound_patches(world, state_updates) do
-    wounds =
-      state_updates
-      |> List.wrap()
-      |> Enum.filter(fn
-        %{"path" => "characters/" <> _} -> true
-        _ -> false
-      end)
-      |> Enum.map(&get_in(&1, ["patch", "wounds"]))
-      |> Enum.reject(&is_nil/1)
-      |> List.last()
-
-    if is_nil(wounds) do
-      world
-    else
-      put_in(world, ["character", "wounds"], wounds)
-    end
+    maybe_apply_context_summary(world, gm_result.context_summary)
   end
 
   defp apply_location_presence(world_state, %GameSession{} = session) do
@@ -302,6 +293,8 @@ defmodule TalesForge.Game.TurnProcessor do
         mechanical_resolution: MechanicalResolution.encode(mechanical)
       })
 
+    attrs = session_attrs(world_state)
+
     event_multi =
       events
       |> Enum.with_index()
@@ -309,7 +302,7 @@ defmodule TalesForge.Game.TurnProcessor do
         Ecto.Multi.new()
         |> Ecto.Multi.update(
           :session,
-          GameSession.changeset(session, %{world_state: world_state})
+          GameSession.changeset(session, attrs)
         )
         |> Ecto.Multi.insert(:turn, turn_cs),
         fn {ev, idx}, acc ->
@@ -335,6 +328,16 @@ defmodule TalesForge.Game.TurnProcessor do
          |> Repo.transaction() do
       {:ok, result} -> {:ok, result}
       {:error, _step, reason, _} -> {:error, reason}
+    end
+  end
+
+  defp session_attrs(world_state) do
+    attrs = %{world_state: world_state}
+
+    if Mechanics.dead?(world_state) do
+      Map.put(attrs, :status, "dead")
+    else
+      attrs
     end
   end
 

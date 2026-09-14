@@ -81,9 +81,16 @@ defmodule TalesForge.Game.Fronts.Moves do
       "text" => fact["text"],
       "visibility" => List.wrap(fact["visibility"])
     }
+    |> maybe_keep_harm(fact)
   end
 
   defp stringify_fact(_), do: %{}
+
+  defp maybe_keep_harm(row, %{"harm" => harm}) when is_binary(harm) and harm != "" do
+    Map.put(row, "harm", harm)
+  end
+
+  defp maybe_keep_harm(row, _), do: row
 
   defp stringify_memory(memory) when is_map(memory) do
     Map.new(memory, fn {k, v} -> {to_string(k), v} end)

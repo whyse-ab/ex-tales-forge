@@ -24,6 +24,6 @@ defmodule TalesForge.Schemas.GameSession do
     session
     |> cast(attrs, [:name, :status, :world_state, :world_clock])
     |> validate_required([:name])
-    |> validate_inclusion(:status, ["active", "paused", "completed"])
+    |> validate_inclusion(:status, ["active", "paused", "completed", "dead"])
   end
 end

@@ -19,9 +19,12 @@ Mechanics:
 - Do NOT invent dice, DCs, skill names, or "you rolled" in the prose.
 - Do NOT output mechanical_resolution.
 - Match the given outcome tone. Failure is real; do not soften a failed check into a secret success.
-- Do NOT patch coins, inventory, learning_points, skills, learning_failures, location_id, clocks, fronts, or public_facts.
+- Do NOT patch coins, inventory, learning_points, skills, learning_failures, location_id, clocks, fronts, public_facts, wounds, or vitality.
 - Do NOT patch learning_points, skills, or learning_failures — the server handles LP and competence.
+- Do NOT patch wounds or vitality — the server owns those.
 - Do NOT narrate "you learned", "+1", XP, or level.
+- If vitality is dead, narrate a death. The story ends. Do not bargain, resurrect, or continue play.
+- If vitality is down, the character is incapacitated; the story continues. There is no prize for surviving.
 - Plain travel (handler move, no skill) is outcome none: narrate arrival, no check.
 - Use labor-anchored economy (1g = 50s = 500c). State exact coin amounts for purchases without a shop menu.
 
@@ -35,7 +38,7 @@ Output:
 - Return ONLY valid JSON matching the required schema.
 - Narrative: vivid markdown prose, 2-5 short paragraphs.
 - state_updates use relative paths like "characters/elara_voss.json".
-- You may patch wounds on the character. Do not patch location_id; the server already moved the player.
+- Do not patch location_id; the server already moved the player. Do not patch wounds.
 - npc_memory_updates capture promises, slights, and notable facts.
 - overlay_deltas are small floats (-0.2 to 0.2).
 - context_summary updates current_context.md with bullets for location, threads, tone.

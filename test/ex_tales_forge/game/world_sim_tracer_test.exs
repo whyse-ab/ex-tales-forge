@@ -59,6 +59,8 @@ defmodule TalesForge.Game.WorldSimTracerTest do
     scene = Prompts.build_scene_user(session)
     assert prompt =~ @arms
     assert scene =~ @arms
+    assert get_in(session.world_state, ["character", "wounds"]) == 1
+    assert get_in(session.world_state, ["character", "vitality"]) == "hurt"
     refute prompt =~ ~r/"clocks"/
     refute prompt =~ ~r/"alert"/
     refute prompt =~ "resources.coin"
@@ -213,11 +215,41 @@ defmodule TalesForge.Game.WorldSimTracerTest do
     guild = Fronts.get_instance(session.id, "miners_guild")
     assert get_in(guild.runtime_state, ["clocks", "clear_orcs", "value"]) == 288
     assert Enum.any?(guild.runtime_state["public_facts"], &(&1["id"] == "hiring_steel"))
+    refute Enum.any?(guild.runtime_state["public_facts"], &(&1["harm"] == "wound"))
+    assert get_in(session.world_state, ["character", "wounds"]) == 0
 
     prompt = Context.format_gm_prompt(Context.build_gm_context(session))
     scene = Prompts.build_scene_user(session)
     assert prompt =~ @hiring
     assert scene =~ @hiring
+  end
+
+  test "raise_alert keeps harm on the public fact" do
+    state = %{
+      "since_tick" => 1,
+      "clocks" => %{"alert" => %{"value" => "asleep"}},
+      "memories" => [],
+      "public_facts" => []
+    }
+
+    defn = %{
+      "id" => "orc_nest",
+      "moves" => %{
+        "raise_alert" => %{
+          "public_fact" => %{
+            "id" => "nest_standing_to_arms",
+            "text" => @arms,
+            "visibility" => ["orc_nest"],
+            "harm" => "wound"
+          }
+        }
+      }
+    }
+
+    assert {:ok, updated} = Moves.apply(state, "raise_alert", defn)
+    fact = Enum.find(updated["public_facts"], &(&1["id"] == "nest_standing_to_arms"))
+    assert fact["harm"] == "wound"
+    assert fact["visibility"] == ["orc_nest"]
   end
 
   test "hire_extra with coin 0 is illegal" do

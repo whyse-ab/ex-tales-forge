@@ -94,7 +94,10 @@ defmodule TalesForgeWeb.PlayLive do
   end
 
   def handle_info({:turn_completed, payload}, socket) do
-    session = Map.put(socket.assigns.session, :world_state, payload.world_state)
+    session =
+      socket.assigns.session
+      |> Map.put(:world_state, payload.world_state)
+      |> Map.put(:status, Map.get(payload, :session_status, socket.assigns.session.status))
 
     socket =
       socket
@@ -138,7 +141,10 @@ defmodule TalesForgeWeb.PlayLive do
       |> assign(:character, character)
       |> assign(:present_npcs, present_npcs(world))
       |> assign(:quick_stats, quick_stats(character))
-      |> assign(:input_disabled, assigns.thinking or assigns.scene_loading)
+      |> assign(
+        :input_disabled,
+        assigns.thinking or assigns.scene_loading or session_dead?(assigns.session)
+      )
 
     ~H"""
     <Layouts.play flash={@flash}>
@@ -158,6 +164,7 @@ defmodule TalesForgeWeb.PlayLive do
             thinking={@thinking}
             clarification={@clarification}
             input_disabled={@input_disabled}
+            session_status={@session.status}
           />
         </div>
         <.visual_panel
@@ -172,6 +179,12 @@ defmodule TalesForgeWeb.PlayLive do
       </div>
     </Layouts.play>
     """
+  end
+
+  defp session_dead?(%{status: "dead"}), do: true
+
+  defp session_dead?(session) do
+    get_in(session.world_state || %{}, ["character", "vitality"]) == "dead"
   end
 
   defp maybe_start_scene_after_travel(socket, %{needs_scene: true}, session) do
@@ -201,6 +214,12 @@ defmodule TalesForgeWeb.PlayLive do
          socket
          |> assign(:thinking, false)
          |> put_flash(:error, "Wait for the GM to describe the scene before you act.")}
+
+      {:error, :dead} ->
+        {:noreply,
+         socket
+         |> assign(:thinking, false)
+         |> put_flash(:error, "You are dead.")}
 
       {:error, _reason} ->
         {:noreply,

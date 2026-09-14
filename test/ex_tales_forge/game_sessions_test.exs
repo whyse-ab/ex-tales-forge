@@ -4,7 +4,7 @@ defmodule TalesForge.GameSessionsTest do
   alias TalesForge.GameSessions
   alias TalesForge.Jido
   alias TalesForge.Repo
-  alias TalesForge.Schemas.Turn
+  alias TalesForge.Schemas.{GameSession, Turn}
 
   setup do
     on_exit(fn ->
@@ -50,5 +50,22 @@ defmodule TalesForge.GameSessionsTest do
     session = GameSessions.get_session!(session.id)
     lp = get_in(session.world_state, ["character", "learning_points"])
     assert is_map(lp)
+  end
+
+  test "submit_message rejects dead sessions before intent" do
+    assert {:ok, session} = GameSessions.create_session(%{name: "Dead"})
+
+    session
+    |> GameSession.changeset(%{status: "dead"})
+    |> Repo.update!()
+
+    assert {:error, :dead} = GameSessions.submit_message(session.id, "look around the tavern")
+
+    turns =
+      Turn
+      |> Repo.all()
+      |> Enum.filter(&(&1.game_session_id == session.id))
+
+    assert turns == []
   end
 end

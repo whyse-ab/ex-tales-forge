@@ -31,7 +31,8 @@
       "public_fact": {
         "id": "nest_standing_to_arms",
         "text": "The camp is standing to arms — sentries doubled, fires banked, blades out.",
-        "visibility": ["orc_nest"]
+        "visibility": ["orc_nest"],
+        "harm": "wound"
       }
     }
   },
