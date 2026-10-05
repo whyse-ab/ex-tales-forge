@@ -58,12 +58,12 @@ config :ex_tales_forge, TalesForgeWeb.Endpoint,
     web_console_logger: true,
     patterns: [
       # Static assets, except user uploads
-      ~r"priv/static/(?!uploads/).*\.(js|css|png|jpeg|jpg|gif|svg)$"E,
+      ~r"priv/static/(?!uploads/).*\.(js|css|png|jpeg|jpg|gif|svg)$",
       # Gettext translations
-      ~r"priv/gettext/.*\.po$"E,
+      ~r"priv/gettext/.*\.po$",
       # Router, Controllers, LiveViews and LiveComponents
-      ~r"lib/ex_tales_forge_web/router\.ex$"E,
-      ~r"lib/ex_tales_forge_web/(controllers|live|components)/.*\.(ex|heex)$"E
+      ~r"lib/ex_tales_forge_web/router\.ex$",
+      ~r"lib/ex_tales_forge_web/(controllers|live|components)/.*\.(ex|heex)$"
     ]
   ]
 
@@ -90,3 +90,5 @@ config :phoenix_live_view,
 
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
+
+config :ex_tales_forge, :admin_emails, ["founder@example.com"]

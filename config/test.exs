@@ -42,4 +42,6 @@ config :phoenix_live_view,
 config :phoenix,
   sort_verified_routes_query_params: true
 
-config :ex_tales_forge, :admin_auth, enabled: false
+config :ex_tales_forge, :admin_emails, ["founder@example.com", "other@example.com"]
+
+# Bypass nothing — tests log in via session helper.
