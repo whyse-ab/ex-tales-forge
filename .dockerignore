@@ -1,0 +1,15 @@
+/_build
+/cover
+/deps
+/doc
+/.fetch
+erl_crash.dump
+*.ez
+ex_tales_forge-*.tar
+/tmp
+.env
+.env.*
+/assets/node_modules
+/test
+/.git
+/.grok

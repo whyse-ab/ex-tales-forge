@@ -1,8 +1,11 @@
-# Fly.io deployment stub — configure after Phase 1 deploy
+# Fly.io deployment for Tales Forge
 app = "tales-forge"
-primary_region = "iad"
+primary_region = "arn"
 
 [build]
+
+[deploy]
+  release_command = "/app/bin/migrate"
 
 [env]
   PHX_HOST = "tales-forge.fly.dev"
@@ -14,8 +17,16 @@ primary_region = "iad"
   auto_stop_machines = "stop"
   auto_start_machines = true
   min_machines_running = 0
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "30s"
+    method = "GET"
+    path = "/"
 
 [[vm]]
-  memory = "1gb"
-  cpu_kind = "shared"
+  size = "shared-cpu-1x"
+  memory = "1024"
   cpus = 1
