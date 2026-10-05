@@ -35,4 +35,15 @@ defmodule TalesForgeWeb.ConnCase do
     TalesForge.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
+
+  @doc """
+  Logs the conn in as an allowlisted admin email (session magic-link).
+  """
+  def log_in_admin(conn, email \\ "founder@example.com") do
+    email = String.downcase(email)
+
+    conn
+    |> Phoenix.ConnTest.init_test_session(%{})
+    |> Plug.Conn.put_session(TalesForge.AdminAuth.session_key(), email)
+  end
 end

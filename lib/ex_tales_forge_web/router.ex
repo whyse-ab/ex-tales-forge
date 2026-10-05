@@ -14,6 +14,19 @@ defmodule TalesForgeWeb.Router do
     plug :accepts, ["json"]
   end
 
+  # Public admin auth routes (login / magic link) — no session required.
+  pipeline :admin_public do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {TalesForgeWeb.Layouts, :root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
+    plug TalesForgeWeb.Plugs.AdminEmail
+  end
+
+  # Protected admin — allowlisted magic-link session only.
+  # Player routes never pipe through this; admin data stays isolated.
   pipeline :admin do
     plug :accepts, ["html"]
     plug :fetch_session
@@ -24,17 +37,34 @@ defmodule TalesForgeWeb.Router do
     plug TalesForgeWeb.Plugs.AdminAuth
   end
 
+  scope "/admin", TalesForgeWeb do
+    pipe_through :admin_public
+
+    live_session :admin_login, on_mount: [{TalesForgeWeb.AdminLive.Hooks, :maybe_admin}] do
+      live "/login", AdminLive.LoginLive, :index
+    end
+
+    post "/login", AdminSessionController, :create
+    get "/magic/:token", AdminSessionController, :magic
+    delete "/logout", AdminSessionController, :delete
+  end
+
   scope "/admin", TalesForgeWeb.AdminLive do
     pipe_through :admin
 
-    live "/", DashboardLive, :index
-    live "/sessions", SessionLive.Index, :index
-    live "/sessions/:id", SessionLive.Show, :show
-    live "/sessions/:id/npcs", NpcLive.Index, :index
-    live "/sessions/:id/npcs/:npc_id", NpcLive.Show, :show
-    live "/sessions/:id/turns", TurnLive.Index, :index
-    live "/npc-definitions", NpcDefinitionLive.Index, :index
-    live "/npc-definitions/:id", NpcDefinitionLive.Show, :show
+    live_session :admin, on_mount: [{TalesForgeWeb.AdminLive.Hooks, :require_admin}] do
+      live "/", DashboardLive, :index
+      live "/sessions", SessionLive.Index, :index
+      live "/sessions/:id", SessionLive.Show, :show
+      live "/sessions/:id/npcs", NpcLive.Index, :index
+      live "/sessions/:id/npcs/:npc_id", NpcLive.Show, :show
+      live "/sessions/:id/turns", TurnLive.Index, :index
+      live "/npc-definitions", NpcDefinitionLive.Index, :index
+      live "/npc-definitions/:id", NpcDefinitionLive.Show, :show
+      live "/decisions", DecisionLive.Index, :index
+      live "/decisions/:slug", DecisionLive.Show, :show
+      live "/docs", DocLive.Index, :index
+    end
   end
 
   scope "/admin" do
@@ -51,11 +81,6 @@ defmodule TalesForgeWeb.Router do
     live "/", HomeLive, :index
     live "/play/:id", PlayLive, :show
   end
-
-  # Other scopes may use custom stacks.
-  # scope "/api", TalesForgeWeb do
-  #   pipe_through :api
-  # end
 
   # Swoosh mailbox preview in development (LiveDashboard lives at /admin/oban)
   if Application.compile_env(:ex_tales_forge, :dev_routes) do

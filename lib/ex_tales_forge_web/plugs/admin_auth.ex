@@ -1,19 +1,28 @@
 defmodule TalesForgeWeb.Plugs.AdminAuth do
-  @moduledoc false
+  @moduledoc """
+  Requires an allowlisted admin session for /admin routes.
+  Player routes never go through this plug.
+  """
 
   @behaviour Plug
+
+  import Plug.Conn
+  import Phoenix.Controller
+
+  alias TalesForge.AdminAuth
 
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    config = Application.get_env(:ex_tales_forge, :admin_auth, [])
+    case AdminAuth.current_email(conn) do
+      nil ->
+        conn
+        |> put_session("admin_return_to", conn.request_path)
+        |> redirect(to: "/admin/login")
+        |> halt()
 
-    if config[:enabled] == false do
-      conn
-    else
-      username = Keyword.get(config, :username, "admin")
-      password = Keyword.get(config, :password, "admin")
-      Plug.BasicAuth.basic_auth(conn, username: username, password: password)
+      email ->
+        assign(conn, :admin_email, email)
     end
   end
 end
