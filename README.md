@@ -86,23 +86,27 @@ Default model is fast non-reasoning Grok (`grok-4.20-0309-non-reasoning`). Verif
 
 ## Admin console
 
-Open http://localhost:4000/admin (HTTP Basic Auth).
+Open http://localhost:4000/admin/login (email magic link, allowlisted founders only — no GitHub login).
 
-Set credentials in `.env`:
+Set allowlist in `.env`:
 
 ```
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=admin
+ADMIN_EMAILS=you@example.com,cofounder@example.com
 ```
+
+In development the magic link appears in the Swoosh mailbox at `/dev/mailbox`.
 
 From the admin UI you can:
 
+- **Decision queue** and **shared docs** (synced from `tales-forge-docs`)
 - List and delete game sessions; edit `world_state` JSON
 - Inspect and edit per-session NPC runtime state (stock, mood, memories)
 - Browse turn history (read-only)
 - Edit authored NPC definitions (Ash) and runtime session/NPC state (via Ash admin resources, but play uses Ecto)
 - Admin LiveViews use AshPhoenix.Form for simple fields; JSON editors kept for complex state like `world_state`
 - Open LiveDashboard at `/admin/oban` for Oban/telemetry
+
+See [docs/DEPLOY-FLY.md](docs/DEPLOY-FLY.md) for Fly.io deploy steps.
 
 ## Project layout
 

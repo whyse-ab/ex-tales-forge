@@ -35,6 +35,12 @@ defmodule TalesForgeWeb.AdminLive.DashboardLive do
       <.section_card title="Quick links">
         <ul class="space-y-2 text-sm">
           <li>
+            <.link navigate={~p"/admin/decisions"} class="text-[var(--paper-accent)]">Decision queue</.link>
+          </li>
+          <li>
+            <.link navigate={~p"/admin/docs"} class="text-[var(--paper-accent)]">Shared docs</.link>
+          </li>
+          <li>
             <.link navigate={~p"/admin/sessions"} class="text-[var(--paper-accent)]">Manage sessions</.link>
           </li>
           <li>

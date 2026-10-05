@@ -9,6 +9,8 @@ defmodule TalesForgeWeb.AdminComponents do
     ~H"""
     <nav class="space-y-1 text-sm">
       <.nav_link href={~p"/admin"} label="Dashboard" active={@active == "dashboard"} />
+      <.nav_link href={~p"/admin/decisions"} label="Decisions" active={@active == "decisions"} />
+      <.nav_link href={~p"/admin/docs"} label="Docs" active={@active == "docs"} />
       <.nav_link href={~p"/admin/sessions"} label="Sessions" active={@active == "sessions"} />
       <.nav_link
         href={~p"/admin/npc-definitions"}
@@ -17,6 +19,13 @@ defmodule TalesForgeWeb.AdminComponents do
       />
       <.nav_link href={~p"/admin/oban"} label="Oban / telemetry" active={@active == "oban"} />
       <.nav_link href={~p"/"} label="← Player home" active={false} />
+      <.link
+        href={~p"/admin/logout"}
+        method="delete"
+        class="block rounded px-3 py-2 text-[var(--paper-muted)] hover:bg-[var(--paper-panel)]"
+      >
+        Sign out
+      </.link>
     </nav>
     """
   end
