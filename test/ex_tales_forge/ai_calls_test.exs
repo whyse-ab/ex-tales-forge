@@ -212,6 +212,48 @@ defmodule TalesForge.AICallsTest do
       assert AICalls.check_spend_caps(session.id) == {:error, {:day, 1000, 1000}}
     end
 
+    test "bot calls (persona, scorer) are outside the session cap and game cost, inside the day cap" do
+      {:ok, session} = GameSessions.create_session(%{name: "Bot Spend"})
+      :ok = AICalls.record(call_attrs(session.id, %{cost_ticks: 10_000_000}))
+
+      for purpose <- ~w(persona scorer) do
+        :ok =
+          AICalls.record(%{call_attrs(session.id, %{cost_ticks: 50_000_000}) | purpose: purpose})
+      end
+
+      assert AICalls.total_cost_for_session(session.id) == 1000
+      put_caps(session_micro_usd: 1000)
+
+      assert AICalls.check_spend_caps(session.id, "gm") == {:error, {:session, 1000, 1000}}
+      assert AICalls.check_spend_caps(session.id, "persona") == :ok
+      assert AICalls.check_spend_caps(session.id, "scorer") == :ok
+
+      put_caps(day_micro_usd: 11_000)
+      assert AICalls.check_spend_caps(session.id, "persona") == {:error, {:day, 11_000, 11_000}}
+      assert AICalls.check_spend_caps(session.id, "scorer") == {:error, {:day, 11_000, 11_000}}
+    end
+
+    test "persona calls have a per-run cap that defaults to 0.50 USD" do
+      {:ok, session} = GameSessions.create_session(%{name: "Persona Cap"})
+
+      :ok =
+        AICalls.record(%{
+          call_attrs(session.id, %{cost_ticks: 4_999_990_000})
+          | purpose: "persona"
+        })
+
+      assert AICalls.check_spend_caps(session.id, "persona") == :ok
+
+      :ok = AICalls.record(%{call_attrs(session.id, %{cost_ticks: 10_000}) | purpose: "persona"})
+
+      assert AICalls.check_spend_caps(session.id, "persona") ==
+               {:error, {:persona_run, 500_000, 500_000}}
+
+      assert AICalls.check_spend_caps(session.id, "gm") == :ok
+      put_caps(persona_run_micro_usd: 600_000)
+      assert AICalls.check_spend_caps(session.id, "persona") == :ok
+    end
+
     test "the day starts at midnight Europe/Stockholm" do
       assert AICalls.day_start(~U[2026-10-06 21:59:59Z]) == ~U[2026-10-05 22:00:00Z]
       assert AICalls.day_start(~U[2026-10-06 22:00:00Z]) == ~U[2026-10-06 22:00:00Z]
@@ -222,10 +264,10 @@ defmodule TalesForge.AICallsTest do
       insert_cost!(1000, ~U[2026-10-05 22:00:00Z])
       put_caps(day_micro_usd: 1000)
 
-      assert AICalls.check_spend_caps(nil, ~U[2026-10-06 21:30:00Z]) ==
+      assert AICalls.check_spend_caps(nil, "gm", ~U[2026-10-06 21:30:00Z]) ==
                {:error, {:day, 1000, 1000}}
 
-      assert AICalls.check_spend_caps(nil, ~U[2026-10-06 22:00:00Z]) == :ok
+      assert AICalls.check_spend_caps(nil, "gm", ~U[2026-10-06 22:00:00Z]) == :ok
     end
 
     test "a capped GM turn sends no request, writes a capped row and tells the player" do

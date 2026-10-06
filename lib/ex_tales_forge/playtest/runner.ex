@@ -2,7 +2,8 @@ defmodule TalesForge.Playtest.Runner do
   @moduledoc """
   Plays a new session as a persona bot in an adventure module, through the same
   paths a player uses, until the session ends, the character dies, a cap or
-  timeout stops it, or the turn limit is reached. Each run is a `playtest_runs` row.
+  timeout stops it, or the turn limit is reached. Each run is a `playtest_runs` row,
+  scored by `TalesForge.Playtest.Scorer` when it finishes or stops.
 
   Off unless `PLAYTEST_RUNNER_ENABLED=true`; never set it in production. On playtest:
 
@@ -20,7 +21,7 @@ defmodule TalesForge.Playtest.Runner do
   alias TalesForge.Game.SceneProcessor
   alias TalesForge.GameSessions
   alias TalesForge.LLM
-  alias TalesForge.Playtest.{Personas, PlayerView}
+  alias TalesForge.Playtest.{Personas, PlayerView, Scorer}
   alias TalesForge.PubSub.GameSession, as: SessionPubSub
   alias TalesForge.Repo
   alias TalesForge.Schemas.{PlaytestRun, Turn}
@@ -37,6 +38,7 @@ defmodule TalesForge.Playtest.Runner do
     ended: {"finished", "ended"},
     turn_limit: {"finished", "turn_limit"},
     spend_cap: {"stopped", "spend_cap"},
+    persona_cap: {"stopped", "persona_cap"},
     dead: {"stopped", "dead"},
     timeout: {"stopped", "timeout"}
   }
@@ -72,9 +74,18 @@ defmodule TalesForge.Playtest.Runner do
          :turn_limit,
          :started_at,
          :finished_at,
-         :notes
+         :notes,
+         :game_ms,
+         :persona_calls,
+         :persona_ms,
+         :persona_input_tokens,
+         :persona_output_tokens,
+         :persona_cost_micro_usd
        ])
-       |> Map.put(:cost_usd, AICalls.total_cost_for_session(run.game_session_id) / 1_000_000)}
+       |> Map.put(
+         :game_cost_usd,
+         AICalls.total_cost_for_session(run.game_session_id) / 1_000_000
+       )}
     else
       _ -> {:error, :not_found}
     end
@@ -101,17 +112,16 @@ defmodule TalesForge.Playtest.Runner do
     end
   end
 
-  defp check_enabled do
-    if Application.get_env(:ex_tales_forge, :playtest_runner_enabled, false),
-      do: :ok,
-      else: {:error, :disabled}
+  def enabled?, do: Application.get_env(:ex_tales_forge, :playtest_runner_enabled, false)
+
+  def modules do
+    Application.app_dir(:ex_tales_forge, "priv/adventures") |> File.ls!() |> Enum.sort()
   end
 
-  defp check_module(module) do
-    if module in File.ls!(Application.app_dir(:ex_tales_forge, "priv/adventures")),
-      do: :ok,
-      else: {:error, :unknown_module}
-  end
+  defp check_enabled, do: if(enabled?(), do: :ok, else: {:error, :disabled})
+
+  defp check_module(module),
+    do: if(module in modules(), do: :ok, else: {:error, :unknown_module})
 
   defp start_run(persona, module, opts) do
     if Task.Supervisor.children(@supervisor) == [] do
@@ -206,11 +216,15 @@ defmodule TalesForge.Playtest.Runner do
         :ended
 
       SceneProcessor.needs_scene?(session.world_state) ->
-        with {:ok, _} <- GameSessions.ensure_scene(session), do: await_event(state, :scene)
+        timed(state, fn -> describe_scene(state, session) end)
 
       true ->
         :ok
     end
+  end
+
+  defp describe_scene(state, session) do
+    with {:ok, _} <- GameSessions.ensure_scene(session), do: await_event(state, :scene)
   end
 
   defp play_turn(state) do
@@ -222,9 +236,11 @@ defmodule TalesForge.Playtest.Runner do
   defp submit(state, text, opts, clarifications) do
     turns_before = turn_count(state)
 
-    case GameSessions.submit_message(state.run.game_session_id, text, opts) do
+    case timed(state, fn -> GameSessions.submit_message(state.run.game_session_id, text, opts) end) do
       {:ok, %{status: :processing}} ->
-        state |> await_event({:turn, turns_before}) |> after_turn(state)
+        state
+        |> timed(fn -> await_event(state, {:turn, turns_before}) end)
+        |> after_turn(state)
 
       {:ok, %{status: :clarification, clarification: clarification}} ->
         clarify(state, clarification, clarifications + 1)
@@ -259,7 +275,7 @@ defmodule TalesForge.Playtest.Runner do
 
   defp after_turn({:completed, payload}, state) do
     played = state.turns_played + 1
-    update_run(state.run, %{turns_played: played})
+    update_run(state.run, Map.put(persona_totals(state.run), :turns_played, played))
 
     case Map.get(payload, :session_status) do
       "dead" -> :dead
@@ -292,6 +308,9 @@ defmodule TalesForge.Playtest.Runner do
 
       {:ok, move} ->
         {:error, {:invalid_persona_move, move}}
+
+      {:error, {:spend_cap, :persona_run}} ->
+        :persona_cap
 
       {:error, {:spend_cap, _kind}} ->
         :spend_cap
@@ -375,14 +394,25 @@ defmodule TalesForge.Playtest.Runner do
 
     if error, do: Logger.error("playtest run failed run=#{run.id} reason=#{inspect(error)}")
 
-    update_run(run, %{
-      status: status,
-      stop_reason: stop_reason,
-      finished_at: now(),
-      notes: notes(run.notes, error)
-    })
+    update_run(
+      run,
+      Map.merge(persona_totals(run), %{
+        status: status,
+        stop_reason: stop_reason,
+        finished_at: now(),
+        notes: notes(run.notes, error)
+      })
+    )
 
     Logger.info("playtest run done run=#{run.id} status=#{status} stop_reason=#{stop_reason}")
+    if status != "failed", do: auto_score(run)
+  end
+
+  # A scoring failure is logged and leaves the run as it is; it can be re-scored.
+  defp auto_score(run) do
+    Scorer.score(run.id)
+  rescue
+    e -> Logger.warning("playtest scoring crashed run=#{run.id} #{Exception.message(e)}")
   end
 
   defp notes(notes, nil), do: notes
@@ -391,6 +421,30 @@ defmodule TalesForge.Playtest.Runner do
     [notes, "error: " <> String.slice(inspect(error), 0, 500)]
     |> Enum.reject(&is_nil/1)
     |> Enum.join("\n")
+  end
+
+  # Game time only: the persona's think time is measured apart, from its ai_calls.
+  defp timed(state, fun) do
+    started = System.monotonic_time(:millisecond)
+    result = fun.()
+    ms = System.monotonic_time(:millisecond) - started
+
+    from(r in PlaytestRun, where: r.id == ^state.run.id)
+    |> Repo.update_all(inc: [game_ms: ms])
+
+    result
+  end
+
+  defp persona_totals(run) do
+    totals = AICalls.persona_totals(run.game_session_id)
+
+    %{
+      persona_calls: totals.calls,
+      persona_ms: totals.latency_ms,
+      persona_input_tokens: totals.input_tokens,
+      persona_output_tokens: totals.output_tokens,
+      persona_cost_micro_usd: totals.cost_micro_usd
+    }
   end
 
   defp update_run(run, attrs) do

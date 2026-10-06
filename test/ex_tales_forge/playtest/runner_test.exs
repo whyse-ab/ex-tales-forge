@@ -2,16 +2,13 @@ defmodule TalesForge.Playtest.RunnerTest do
   use TalesForge.DataCase, async: false
 
   import Ecto.Query
+  import ExUnit.CaptureLog
+  import TalesForge.PlaytestHelpers
 
   alias TalesForge.GMReasoning
   alias TalesForge.Jido
   alias TalesForge.Playtest.Runner
   alias TalesForge.Schemas.{AICall, GameSession, SessionEvent, Turn}
-
-  @gm_reply %{
-    "narrative" => "The lamp gutters as the innkeeper eyes you.",
-    "gm_notes" => "SECRET-GM-NOTE"
-  }
 
   setup do
     Application.put_env(:ex_tales_forge, :playtest_runner_enabled, true)
@@ -56,31 +53,64 @@ defmodule TalesForge.Playtest.RunnerTest do
     assert Repo.aggregate(GameSession, :count) == sessions
   end
 
-  test "stops on a spend cap at the persona's call" do
-    put_caps(session_micro_usd: 1_000)
-    stub_llm(fn _kind, _user -> :default end)
-
-    {:ok, run_id} = Runner.start("hawk", "tin_valley")
-
-    assert {:ok, %{status: "stopped", stop_reason: "spend_cap", turns_played: 0} = run} =
-             await(run_id)
-
-    assert %AICall{status: "capped"} =
-             Repo.get_by(AICall, game_session_id: run.game_session_id, purpose: "persona")
-  end
-
-  test "stops when the GM turn hits the spend cap" do
-    put_caps(session_micro_usd: 3_000)
+  test "the session cap counts only the game, not the persona" do
+    # Scene 2000 + GM 2000 reach the 4000 cap after turn 1; the persona's 2000s don't count.
+    put_caps(session_micro_usd: 4_000)
     stub_llm(fn _kind, _user -> :default end)
 
     {:ok, run_id} = Runner.start("lars", "tin_valley")
 
-    assert {:ok, %{status: "stopped", stop_reason: "spend_cap", turns_played: 0} = run} =
+    assert {:ok, %{status: "stopped", stop_reason: "spend_cap", turns_played: 1} = run} =
              await(run_id)
 
     calls = calls(run.game_session_id)
-    assert {"persona", "ok"} in calls
+    assert Enum.count(calls, &(&1 == {"persona", "ok"})) == 2
     assert {"gm", "capped"} in calls
+    refute {"persona", "capped"} in calls
+    assert {:ok, %{game_cost_usd: 0.004}} = Runner.status(run_id)
+  end
+
+  test "the persona's own per-run cap stops the run" do
+    put_caps(persona_run_micro_usd: 3_000)
+    stub_llm(fn _kind, _user -> :default end)
+
+    {result, log} =
+      with_log(fn ->
+        {:ok, run_id} = Runner.start("ronny", "tin_valley", turn_limit: 5)
+        await(run_id)
+      end)
+
+    assert {:ok, %{status: "stopped", stop_reason: "persona_cap", turns_played: 2} = run} = result
+    assert log =~ "llm spend cap hit cap=persona_run"
+
+    assert %{persona_calls: 3, persona_cost_micro_usd: 4_000} = run
+    assert {"persona", "capped"} in calls(run.game_session_id)
+  end
+
+  test "stores persona totals apart from the game, and game time without the bot's thinking" do
+    stub_llm(fn
+      :persona, _user ->
+        Process.sleep(600)
+        :default
+
+      :gm, _user ->
+        Process.sleep(100)
+        :default
+
+      _kind, _user ->
+        :default
+    end)
+
+    {:ok, run_id} = Runner.start("paul", "tin_valley", turn_limit: 1)
+    assert {:ok, run} = await(run_id)
+
+    assert %{persona_calls: 1, persona_input_tokens: 2000, persona_output_tokens: 100} = run
+    assert run.persona_cost_micro_usd == 2_000
+    assert run.persona_ms >= 600
+    assert run.game_ms >= 100
+    assert run.game_ms < 600
+    # Opening scene and GM turn only; the persona's call and the scorer's are separate.
+    assert run.game_cost_usd == 0.004
   end
 
   test "answers a clarification by picking an option" do
@@ -158,20 +188,6 @@ defmodule TalesForge.Playtest.RunnerTest do
     refute second =~ ~r/roll|difficulty|gm_notes/i
   end
 
-  defp await(run_id) do
-    result = Runner.await(run_id, 10_000, 20)
-    wait_until(fn -> Task.Supervisor.children(TalesForge.Playtest.Supervisor) == [] end)
-    result
-  end
-
-  defp wait_until(fun, tries \\ 100) do
-    cond do
-      fun.() -> :ok
-      tries == 0 -> flunk("timed out waiting")
-      true -> Process.sleep(10) && wait_until(fun, tries - 1)
-    end
-  end
-
   defp turns(session_id) do
     Repo.all(from(t in Turn, where: t.game_session_id == ^session_id, order_by: t.turn_number))
   end
@@ -226,63 +242,4 @@ defmodule TalesForge.Playtest.RunnerTest do
       ]
     }
   end
-
-  # Answers every LLM call like xAI would, 2000 micro-USD each. `reply.(kind, user)`
-  # returns the JSON for that call, or :default.
-  defp stub_llm(reply) do
-    Req.Test.stub(TalesForge.LLM, fn conn ->
-      {:ok, body, conn} = Plug.Conn.read_body(conn)
-      %{"messages" => [%{"content" => system}, %{"content" => user}]} = Jason.decode!(body)
-      kind = kind(system, user)
-
-      content =
-        case reply.(kind, user) do
-          :default -> default_reply(kind)
-          map -> map
-        end
-
-      Req.Test.json(conn, %{
-        "choices" => [
-          %{"message" => %{"role" => "assistant", "content" => Jason.encode!(content)}}
-        ],
-        "usage" => %{
-          "prompt_tokens" => 2000,
-          "completion_tokens" => 100,
-          "cost_in_usd_ticks" => 20_000_000
-        }
-      })
-    end)
-
-    System.put_env("LLM_PROVIDER", "xai")
-    System.put_env("XAI_API_KEY", "test-key")
-  end
-
-  defp kind(system, user) do
-    cond do
-      system =~ "You are a playtest bot" -> :persona
-      user =~ "gm_notes" -> :gm
-      user =~ "overall_intent" -> :intent
-      true -> :scene
-    end
-  end
-
-  defp default_reply(:persona), do: %{"action" => "I look around the inn.", "option_id" => nil}
-  defp default_reply(:gm), do: @gm_reply
-
-  defp default_reply(:scene),
-    do: %{"location_name" => "Valley Inn", "narrative" => "Rain drums on the inn's shutters."}
-
-  defp default_reply(:intent) do
-    %{
-      "overall_intent" => "look around",
-      "actions" => [
-        %{"action_type" => "observe", "target" => nil, "parameters" => %{"skill" => "insight"}}
-      ],
-      "primary_index" => 0,
-      "confidence" => 0.95,
-      "needs_clarification" => false
-    }
-  end
-
-  defp put_caps(caps), do: Application.put_env(:ex_tales_forge, :ai_spend_caps, caps)
 end

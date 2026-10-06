@@ -1,6 +1,9 @@
 defmodule TalesForge.Schemas.PlaytestRun do
   @moduledoc """
   One persona bot run (`TalesForge.Playtest.Runner`). Its session is a bot session.
+
+  `game_ms` is the game's time (action submitted to turn done, plus scene waits);
+  the persona_* totals are the bot's own calls, kept apart from the game's cost.
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -9,7 +12,7 @@ defmodule TalesForge.Schemas.PlaytestRun do
   @foreign_key_type :binary_id
 
   @statuses ~w(running finished stopped failed)
-  @stop_reasons ~w(ended turn_limit spend_cap dead error timeout)
+  @stop_reasons ~w(ended turn_limit spend_cap persona_cap dead error timeout)
 
   schema "playtest_runs" do
     field :persona, :string
@@ -22,6 +25,12 @@ defmodule TalesForge.Schemas.PlaytestRun do
     field :started_at, :utc_datetime
     field :finished_at, :utc_datetime
     field :notes, :string
+    field :game_ms, :integer, default: 0
+    field :persona_calls, :integer, default: 0
+    field :persona_ms, :integer, default: 0
+    field :persona_input_tokens, :integer, default: 0
+    field :persona_output_tokens, :integer, default: 0
+    field :persona_cost_micro_usd, :integer, default: 0
 
     belongs_to :game_session, TalesForge.Schemas.GameSession
 
@@ -39,7 +48,12 @@ defmodule TalesForge.Schemas.PlaytestRun do
     :stop_reason,
     :started_at,
     :finished_at,
-    :notes
+    :notes,
+    :persona_calls,
+    :persona_ms,
+    :persona_input_tokens,
+    :persona_output_tokens,
+    :persona_cost_micro_usd
   ]
 
   def changeset(run, attrs) do

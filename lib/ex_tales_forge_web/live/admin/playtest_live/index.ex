@@ -1,0 +1,129 @@
+defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
+  use TalesForgeWeb, :live_view
+
+  import TalesForgeWeb.AdminComponents
+
+  alias TalesForge.Playtest.{Personas, Reports, Runner}
+
+  @impl true
+  def mount(_params, _session, socket) do
+    {:ok,
+     socket
+     |> assign(:page_title, "Playtest runs")
+     |> assign(:enabled, Runner.enabled?())
+     |> assign(:personas, Enum.map(Personas.list(), &{"#{&1.name} (#{&1.style})", &1.id}))
+     |> assign(:modules, Runner.modules())
+     |> assign(
+       :form,
+       to_form(%{"persona" => "paul", "module" => "tin_valley", "turn_limit" => "5"})
+     )
+     |> assign(:rows, Reports.list_runs())}
+  end
+
+  @impl true
+  def handle_event("start", %{"persona" => persona, "module" => module} = params, socket) do
+    turn_limit =
+      case Integer.parse(params["turn_limit"] || "") do
+        {n, ""} when n in 1..30 -> n
+        _ -> 5
+      end
+
+    case Runner.start(persona, module, turn_limit: turn_limit, notes: "started from admin") do
+      {:ok, run_id} ->
+        {:noreply, push_navigate(socket, to: ~p"/admin/playtest/#{run_id}")}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, "Could not start the run: #{inspect(reason)}")}
+    end
+  end
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <Layouts.admin flash={@flash} active="playtest">
+      <header>
+        <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Playtest runs</h2>
+        <p class="text-sm text-[var(--paper-muted)]">
+          Persona bot sessions and their judge scores. Game cost and time leave out the bot's own calls.
+        </p>
+      </header>
+
+      <.section_card :if={@enabled} title="Start a run" id="start-run">
+        <.form
+          for={@form}
+          id="start-run-form"
+          phx-submit="start"
+          class="grid gap-3 sm:grid-cols-4 sm:items-end"
+        >
+          <.input field={@form[:persona]} type="select" label="Persona" options={@personas} />
+          <.input field={@form[:module]} type="select" label="Module" options={@modules} />
+          <.input field={@form[:turn_limit]} type="number" label="Turn limit" min="1" max="30" />
+          <button
+            type="submit"
+            class="mb-2 rounded bg-[var(--paper-accent)] px-4 py-2 text-sm text-white"
+          >
+            Start run
+          </button>
+        </.form>
+      </.section_card>
+
+      <p :if={@rows == []} class="text-sm text-[var(--paper-muted)]">No runs yet.</p>
+
+      <div :if={@rows != []} class="overflow-x-auto rounded-lg border border-[var(--paper-rule)]">
+        <table class="min-w-full divide-y divide-[var(--paper-rule)] text-sm">
+          <thead class="bg-[var(--paper-panel)] text-left text-[var(--paper-muted)]">
+            <tr>
+              <th class="px-3 py-2">Persona</th>
+              <th class="hidden px-3 py-2 sm:table-cell">Module</th>
+              <th class="hidden px-3 py-2 md:table-cell">Build</th>
+              <th class="px-3 py-2">Status</th>
+              <th class="px-3 py-2">Turns</th>
+              <th class="hidden px-3 py-2 sm:table-cell">Game time</th>
+              <th class="px-3 py-2">Game cost</th>
+              <th class="hidden px-3 py-2 sm:table-cell">Persona cost</th>
+              <th class="px-3 py-2">Score</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-[var(--paper-rule)] bg-[var(--paper-bg)]">
+            <tr :for={row <- @rows} id={"run-#{row.run.id}"}>
+              <td class="px-3 py-2">
+                <.link
+                  navigate={~p"/admin/playtest/#{row.run.id}"}
+                  class="font-medium text-[var(--paper-accent)]"
+                >
+                  {row.run.persona}
+                </.link>
+                <div class="text-xs text-[var(--paper-muted)]">
+                  {Calendar.strftime(row.run.started_at, "%m-%d %H:%M UTC")}
+                </div>
+                <div class="text-xs text-[var(--paper-muted)] sm:hidden">{row.run.module}</div>
+              </td>
+              <td class="hidden px-3 py-2 sm:table-cell">{row.run.module}</td>
+              <td class="hidden max-w-[10rem] truncate px-3 py-2 text-xs md:table-cell">
+                {row.run.build}
+              </td>
+              <td class="px-3 py-2">
+                {row.run.status}
+                <div :if={row.run.stop_reason} class="text-xs text-[var(--paper-muted)]">
+                  {row.run.stop_reason}
+                </div>
+              </td>
+              <td class="px-3 py-2">{row.run.turns_played}/{row.run.turn_limit}</td>
+              <td class="hidden px-3 py-2 sm:table-cell">{format_ms(row.run.game_ms)}</td>
+              <td class="px-3 py-2">{format_usd(row.game_cost_micro_usd)}</td>
+              <td class="hidden px-3 py-2 sm:table-cell">
+                {format_usd(row.run.persona_cost_micro_usd)}
+              </td>
+              <td class="px-3 py-2">{overall(row.score)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </Layouts.admin>
+    """
+  end
+
+  defp overall(nil), do: "—"
+  defp overall(%{overall: nil}), do: "n/a"
+  defp overall(%{overall: overall}), do: "#{overall}/5"
+end
