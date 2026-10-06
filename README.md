@@ -86,7 +86,7 @@ Default model is fast non-reasoning Grok (`grok-4.20-0309-non-reasoning`). Verif
 
 ## Admin console
 
-Open http://localhost:4000/admin/login (email magic link, allowlisted founders only — no GitHub login).
+Open http://localhost:4000/admin/login (email magic link for allowlisted founders; "Sign in with GitHub" appears when `GITHUB_OAUTH_CLIENT_ID`/`GITHUB_OAUTH_CLIENT_SECRET` are set, see `docs/DEPLOY-FLY.md`).
 
 Set allowlist in `.env`:
 

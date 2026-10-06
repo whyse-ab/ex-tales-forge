@@ -77,7 +77,9 @@ fly secrets set \
 | `MAIL_ADAPTER` | `resend` (default) or `postmark` |
 | `RESEND_API_KEY` / `POSTMARK_API_KEY` / `MAIL_API_KEY` | Swoosh API key for magic-link email |
 | `ADMIN_MAIL_FROM` | From address (must be verified with the mail provider) |
-| `GITHUB_DOCS_TOKEN` | Fine-grained or classic PAT with read access to `whyse-ab/tales-forge-docs` |
+| `GITHUB_DOCS_TOKEN` | Fine-grained or classic PAT with read access to `whyse-ab/tales-forge-docs` (and to `whyse-ab` members if `ADMIN_GITHUB_TEAM` is used) |
+| `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` | Optional. GitHub OAuth app for "Sign in with GitHub" on `/admin` (callback `https://tales-forge.fly.dev/admin/auth/github/callback`, scopes `read:org user:email`). Without both, the button is hidden |
+| `ADMIN_GITHUB_TEAM` | Optional, `org/team-slug` (e.g. `whyse-ab/tales-forge`). Active team members may sign in with GitHub; unset = off |
 | `XAI_API_KEY` | Existing Grok LLM key for the game |
 
 Optional: `TALES_FORGE_DOCS_PATH` is for local/dev sync only; production should use `GITHUB_DOCS_TOKEN`.
