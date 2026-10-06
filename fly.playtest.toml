@@ -1,0 +1,49 @@
+# Fly.io config for the long-lived PLAYTEST environment of Tales Forge.
+# Derived from fly.toml (production); keep the two in sync apart from the
+# app name, PHX_HOST, VM memory and swap.
+#
+# Deploy (main -> playtest):
+#   flyctl deploy --remote-only --depot=false -c fly.playtest.toml -a tales-forge-playtest --ha=false
+# or run the "Deploy to playtest" GitHub Actions workflow.
+#
+# Database: Fly Postgres app tales-forge-playtest-db (attached, sets DATABASE_URL).
+app = "tales-forge-playtest"
+primary_region = "arn"
+# 512MB is tight for the BEAM at boot (OOM-killed without swap); swap on the
+# rootfs costs nothing extra and keeps the VM at the cheap 512MB size.
+swap_size_mb = 512
+
+[build]
+
+[deploy]
+  release_command = "/app/bin/migrate"
+
+[env]
+  PHX_HOST = "tales-forge-playtest.fly.dev"
+  PORT = "4000"
+  # Fly private networking (.internal / .flycast) is IPv6-only
+  ECTO_IPV6 = "true"
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  # Always on: one machine is kept running for playtesters.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "2s"
+    grace_period = "30s"
+    method = "GET"
+    path = "/"
+    # force_ssl would 301 the plain-HTTP internal check; mark it as already HTTPS
+    [http_service.checks.headers]
+      X-Forwarded-Proto = "https"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512"
+  cpus = 1

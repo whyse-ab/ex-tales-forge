@@ -1,0 +1,57 @@
+# Deploy main to the long-lived PLAYTEST environment (Fly app tales-forge-playtest,
+# config fly.playtest.toml).
+#
+# Runs automatically after a successful CI run for a push to main (i.e. right
+# after the production deploy), and can be started by hand from the Actions tab.
+# This is a separate workflow on purpose: a failed or unconfigured playtest
+# deploy never fails the production CI run.
+#
+# Needs the repo secret FLY_API_TOKEN_PLAYTEST: an app-scoped deploy token for
+# tales-forge-playtest (Fly dashboard -> tales-forge-playtest -> Tokens, or
+# `flyctl tokens create deploy -a tales-forge-playtest`). Without it the deploy
+# step fails with a clear message; nothing else is affected.
+name: Deploy to playtest
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to playtest
+    # workflow_run: only after a green CI run for a push to main (prod deployed).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # One playtest deploy at a time; a running deploy is never cancelled.
+    concurrency:
+      group: deploy-playtest
+      cancel-in-progress: false
+    steps:
+      # Deploy exactly the commit CI tested and deployed to prod; by hand, deploy main.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || 'main' }}
+
+      - uses: superfly/flyctl-actions/setup-flyctl@1.5
+
+      # --depot=false: same reason as the prod deploy in ci.yml (Depot builds hung).
+      - name: flyctl deploy
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::error::Repo secret FLY_API_TOKEN_PLAYTEST is not set (app-scoped deploy token for tales-forge-playtest)."
+            exit 1
+          fi
+          flyctl deploy --remote-only -c fly.playtest.toml -a tales-forge-playtest --ha=false --depot="${FLY_USE_DEPOT:-false}"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_PLAYTEST }}
+          FLY_USE_DEPOT: ${{ vars.FLY_USE_DEPOT }}
