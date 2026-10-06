@@ -7,7 +7,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
   alias TalesForge.GameSessions
   alias TalesForge.Jido
   alias TalesForge.Repo
-  alias TalesForge.Schemas.{AICall, PlaytestRun, PlaytestScore, SessionEvent, Turn}
+  alias TalesForge.Schemas.{AICall, PlaytestRun, PlaytestScore, Scene, SessionEvent, Turn}
 
   setup %{conn: conn} do
     on_exit(fn ->
@@ -85,7 +85,20 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
   } do
     run = seed_run(score: true, reasoning: true)
 
-    {:ok, _view, html} = live(conn, ~p"/admin/playtest/#{run.id}")
+    opening =
+      GameSessions.opening_scene(run.game_session_id) ||
+        Repo.insert!(%Scene{
+          game_session_id: run.game_session_id,
+          location_id: "valley_inn",
+          location_name: "Valley Inn",
+          narrative: "Rain drums on the shutters of the Valley Inn."
+        })
+
+    {:ok, view, html} = live(conn, ~p"/admin/playtest/#{run.id}")
+
+    # The GM's opening comes before turn 1, so the persona is seen responding to it.
+    assert has_element?(view, "#turn-opening", "Opening · GM narration")
+    assert view |> element("#turn-opening") |> render() =~ opening.location_name
 
     assert html =~ "I ask the innkeeper about the orcs."
     assert html =~ "Brenna wipes the bar and lowers her voice."

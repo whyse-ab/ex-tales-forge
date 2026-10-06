@@ -3,8 +3,13 @@ defmodule TalesForge.Playtest.PlayerView do
   The persona bot's turn prompt, built only from what the play page shows: the
   transcript, header, NPC panel, character panel and clarification card. Never
   session events, GM reasoning or roll details.
+
+  The GM always opens: the prompt starts with the opening scene narration (kept
+  on every turn, even once the transcript window has moved past it), and the
+  persona responds to it rather than making the first move.
   """
 
+  alias TalesForge.Game.SceneProcessor
   alias TalesForge.GameSessions
   alias TalesForge.Repo
   alias TalesForgeWeb.PlayComponents
@@ -15,19 +20,24 @@ defmodule TalesForge.Playtest.PlayerView do
     session = session_id |> GameSessions.get_session!() |> Repo.preload([:turns, :scenes])
     world = session.world_state || %{}
     character = Map.get(world, "character", %{})
+    opening = GameSessions.opening_scene(session.id)
 
     [
+      opening(opening),
       "Turn #{turn} of #{turn_limit}.",
       "Where: #{Map.get(world, "location_name", "Unknown")} · Time: #{Map.get(world, "world_clock", "—")}",
       "Character: #{Map.get(character, "name", "—")} · #{PlayComponents.quick_stats(character)}",
       "Inventory: #{inventory(character)}",
       "Here: #{npcs(world)}",
-      "Story so far (latest last):\n" <> transcript(session),
+      "Story since the opening (latest last):\n" <> transcript(session, opening),
       question(clarification)
     ]
     |> Enum.reject(&is_nil/1)
     |> Enum.join("\n\n")
   end
+
+  defp opening(nil), do: nil
+  defp opening(scene), do: "The Game Master opens the scene:\n#{scene.narrative}"
 
   defp inventory(character) do
     case Map.get(character, "inventory", []) do
@@ -49,11 +59,17 @@ defmodule TalesForge.Playtest.PlayerView do
     end
   end
 
-  defp transcript(session) do
+  defp transcript(session, opening) do
+    opening_id = opening && SceneProcessor.build_entry(opening).id
+
     session
     |> GameSessions.transcript()
+    |> Enum.reject(&(&1.id == opening_id))
     |> Enum.take(-@transcript_entries)
-    |> Enum.map_join("\n\n", &"[#{label(&1.role)}] #{&1.text}")
+    |> case do
+      [] -> "(nothing yet: you are answering the opening)"
+      entries -> Enum.map_join(entries, "\n\n", &"[#{label(&1.role)}] #{&1.text}")
+    end
   end
 
   defp label("player"), do: "You"

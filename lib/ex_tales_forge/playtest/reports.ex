@@ -66,6 +66,14 @@ defmodule TalesForge.Playtest.Reports do
     end)
   end
 
+  @doc "The GM's opening narration the player (or persona) saw before turn 1, or nil."
+  def opening(session_id) do
+    case TalesForge.GameSessions.opening_scene(session_id) do
+      nil -> nil
+      scene -> %{location_name: scene.location_name, narrative: scene.narrative}
+    end
+  end
+
   @doc "Calls, cost, tokens, latency and capped/error counts per AI purpose for a session."
   def cost_by_purpose(session_id) do
     AICall
