@@ -3,9 +3,9 @@
 #
 # https://hub.docker.com/r/hexpm/elixir/tags?page=1&name=ubuntu
 # https://hub.docker.com/_/ubuntu?tab=tags
-ARG ELIXIR_VERSION=1.17.3
-ARG OTP_VERSION=27.1.2
-ARG DEBIAN_VERSION=bookworm-20250317-slim
+ARG ELIXIR_VERSION=1.18.4
+ARG OTP_VERSION=27.3.4.16
+ARG DEBIAN_VERSION=bookworm-20260824-slim
 
 ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
 ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
@@ -30,10 +30,13 @@ RUN mix deps.compile
 
 COPY priv priv
 COPY lib lib
-COPY assets assets
 
-RUN mix assets.deploy
+# Compile before building assets: Phoenix 1.8 colocated hooks/CSS
+# (phoenix-colocated/*) are generated during compilation.
 RUN mix compile
+
+COPY assets assets
+RUN mix assets.deploy
 
 COPY config/runtime.exs config/
 COPY rel rel

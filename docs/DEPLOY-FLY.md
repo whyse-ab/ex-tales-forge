@@ -90,6 +90,15 @@ fly deploy -a tales-forge
 
 `release_command` runs `/app/bin/migrate` (Ecto migrations) before the new machines take traffic.
 
+Notes from the first deploy:
+
+- If the Depot builder hangs at "Waiting for depot builder...", use Fly's own builder:
+  `fly deploy --remote-only --depot=false -a tales-forge --ha=false`.
+- The Docker image uses Elixir 1.18 (jido / jido_ai require `~> 1.18`).
+- `mix compile` must run before `mix assets.deploy` (Phoenix 1.8 colocated hooks/CSS).
+- `ECTO_IPV6=true` is set in `fly.toml` because `.flycast` / `.internal` addresses are IPv6-only.
+- The HTTP health check sends `X-Forwarded-Proto: https` so `force_ssl` doesn't 301 it.
+
 ## 5. Seed decisions / docs
 
 SSH into a machine (or use `fly machine exec`) and run the sync once the app is up:

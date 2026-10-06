@@ -10,6 +10,8 @@ primary_region = "arn"
 [env]
   PHX_HOST = "tales-forge.fly.dev"
   PORT = "4000"
+  # Fly private networking (.internal / .flycast) is IPv6-only
+  ECTO_IPV6 = "true"
 
 [http_service]
   internal_port = 4000
@@ -25,6 +27,9 @@ primary_region = "arn"
     grace_period = "30s"
     method = "GET"
     path = "/"
+    # force_ssl would 301 the plain-HTTP internal check; mark it as already HTTPS
+    [http_service.checks.headers]
+      X-Forwarded-Proto = "https"
 
 [[vm]]
   size = "shared-cpu-1x"
