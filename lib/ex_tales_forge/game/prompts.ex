@@ -1,9 +1,6 @@
 defmodule TalesForge.Game.Prompts do
   @moduledoc false
 
-  @global_rules_dir Path.join([:code.priv_dir(:ex_tales_forge), "rules"])
-  @adventures_base Path.join([:code.priv_dir(:ex_tales_forge), "adventures"])
-
   def intent_system, do: read_prompt("intent_system.txt")
   def gm_system, do: read_prompt("gm_system.txt")
   def scene_system, do: read_prompt("scene_system.txt")
@@ -16,7 +13,7 @@ defmodule TalesForge.Game.Prompts do
   Load rules for the global system (default, used for legacy / non-pack adventures).
   """
   def load_rules do
-    load_rules_from_dir(@global_rules_dir)
+    load_rules_from_dir(priv_path("rules"))
   end
 
   @doc """
@@ -27,7 +24,7 @@ defmodule TalesForge.Game.Prompts do
   actually drive the GM prompts.
   """
   def load_rules(adventure_id) when is_binary(adventure_id) do
-    pack_rules_dir = Path.join([@adventures_base, adventure_id, "rules"])
+    pack_rules_dir = Path.join([priv_path("adventures"), adventure_id, "rules"])
 
     if File.dir?(pack_rules_dir) and has_markdown?(pack_rules_dir) do
       load_rules_from_dir(pack_rules_dir)
@@ -57,7 +54,11 @@ defmodule TalesForge.Game.Prompts do
   end
 
   defp read_prompt(name) do
-    path = Path.join(:code.priv_dir(:ex_tales_forge), "prompts/#{name}")
+    path = priv_path("prompts/#{name}")
     File.read!(path)
   end
+
+  # Resolved at runtime: in a release priv lives under /app/lib/ex_tales_forge-<vsn>/priv,
+  # not under the _build path a compile-time module attribute would capture.
+  defp priv_path(rel), do: Path.join(:code.priv_dir(:ex_tales_forge), rel)
 end

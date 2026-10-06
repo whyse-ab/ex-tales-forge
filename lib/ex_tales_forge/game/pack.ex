@@ -10,10 +10,8 @@ defmodule TalesForge.Game.Pack do
   alias TalesForge.Game.World
   alias TalesForge.Game.WorldClock
 
-  @adventures_dir Path.join(:code.priv_dir(:ex_tales_forge), "adventures")
-
   def load(adventure_id) when is_binary(adventure_id) and adventure_id != "" do
-    dir = Path.join(@adventures_dir, adventure_id)
+    dir = Path.join(adventures_dir(), adventure_id)
 
     unless File.dir?(dir) do
       raise ArgumentError, "adventure pack missing: #{adventure_id}"
@@ -359,4 +357,7 @@ defmodule TalesForge.Game.Pack do
       _ -> nil
     end
   end
+
+  # Resolved at runtime (not a module attribute): in a release priv is not at its build path.
+  defp adventures_dir, do: Path.join(:code.priv_dir(:ex_tales_forge), "adventures")
 end
