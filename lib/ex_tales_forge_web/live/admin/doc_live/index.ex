@@ -86,7 +86,14 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
           class="-mx-3 scroll-mt-2 rounded-none border-x-0 px-4 py-5 sm:mx-0 sm:rounded-lg sm:border-x sm:px-6"
         >
           <%= if @selected do %>
-            <article class="prose prose-sm max-w-none text-[var(--paper-ink)]">
+            <%!-- id changes per doc + phx-update="ignore": LiveView swaps the whole
+                 element on selection, so the Mermaid hook's SVGs are not patched away --%>
+            <article
+              id={"doc-body-#{@selected.id}-#{:erlang.phash2(@selected.body)}"}
+              phx-hook="Mermaid"
+              phx-update="ignore"
+              class="prose prose-sm max-w-none text-[var(--paper-ink)]"
+            >
               {@body_html}
             </article>
           <% else %>

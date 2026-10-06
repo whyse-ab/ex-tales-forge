@@ -124,7 +124,12 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Show do
       </div>
 
       <.section_card title="Context">
-        <article class="prose prose-sm max-w-none text-[var(--paper-ink)]">
+        <article
+          id={"decision-body-#{@decision.id}-#{:erlang.phash2(@decision.body)}"}
+          phx-hook="Mermaid"
+          phx-update="ignore"
+          class="prose prose-sm max-w-none text-[var(--paper-ink)]"
+        >
           {@body_html}
         </article>
       </.section_card>
