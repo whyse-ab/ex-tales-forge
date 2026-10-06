@@ -43,3 +43,4 @@ Output:
 - npc_memory_updates capture promises, slights, and notable facts.
 - overlay_deltas are small floats (-0.2 to 0.2).
 - context_summary updates current_context.md with bullets for location, threads, tone.
+- gm_notes is hidden from the player: 1-3 terse sentences on how you read the intent and the outcome, and what you are withholding or planning. Do not repeat the narrative.

@@ -46,9 +46,13 @@ defmodule TalesForge.LLM do
       "state_updates" => %{"type" => "array"},
       "npc_memory_updates" => %{"type" => "array"},
       "overlay_deltas" => %{"type" => "object"},
-      "context_summary" => %{"type" => ["string", "null"]}
+      "context_summary" => %{"type" => ["string", "null"]},
+      "gm_notes" => %{"type" => ["string", "null"]}
     }
   }
+
+  # Output budget for gm_notes on top of the narration's TIER2_MAX_TOKENS.
+  @gm_notes_max_tokens 100
 
   def provider, do: Config.llm_provider()
 
@@ -119,7 +123,7 @@ defmodule TalesForge.LLM do
 
       complete_json(model, system, user_prompt, @gm_schema, Config.tier2_temperature(),
         tier: :tier2,
-        max_tokens: Config.tier2_max_tokens(),
+        max_tokens: Config.tier2_max_tokens() + @gm_notes_max_tokens,
         session_id: opts[:session_id],
         turn_number: turn_number
       )
@@ -161,12 +165,12 @@ defmodule TalesForge.LLM do
          %HandlerResult{} = _handler,
          turn_number
        ) do
-    %GMStructuredResponse{
-      narrative:
-        "**Turn #{turn_number}** — The world reacts to your action.\n\n" <>
-          "#{player_action.overall_intent}\n\n" <>
-          "_Mock GM: set XAI_API_KEY for full LLM narration._"
-    }
+    narrative =
+      "**Turn #{turn_number}** — The world reacts to your action.\n\n" <>
+        "#{player_action.overall_intent}\n\n" <>
+        "_Mock GM: set XAI_API_KEY for full LLM narration._"
+
+    %GMStructuredResponse{narrative: narrative, raw: %{"narrative" => narrative}}
   end
 
   defp complete_json(model, system, user, schema, temperature, opts) do

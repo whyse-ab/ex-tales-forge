@@ -25,6 +25,7 @@ defmodule TalesForge.Game.TurnProcessor do
   alias TalesForge.Game.World
   alias TalesForge.Game.WorldClock
   alias TalesForge.Game.WorldSim
+  alias TalesForge.GMReasoning
   alias TalesForge.LLM
   alias TalesForge.NPC
   alias TalesForge.NPCRegistry
@@ -368,7 +369,8 @@ defmodule TalesForge.Game.TurnProcessor do
           :session,
           GameSession.changeset(session, attrs)
         )
-        |> Ecto.Multi.insert(:turn, turn_cs),
+        |> Ecto.Multi.insert(:turn, turn_cs)
+        |> GMReasoning.multi_insert(session.id, Map.get(world_state, "world_tick"), gm_result),
         fn {ev, idx}, acc ->
           cs =
             %SessionEvent{}
