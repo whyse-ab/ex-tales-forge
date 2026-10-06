@@ -102,6 +102,62 @@ defmodule TalesForge.AICalls do
   def bot_purposes, do: @bot_purposes
 
   @doc """
+  Spend buckets, in display order: "game" (gm, intent, scene and any other game
+  call) and one bucket per playtest bot purpose ("persona", "scorer").
+  """
+  def buckets, do: ["game" | @bot_purposes]
+
+  @doc "The spend bucket of a call purpose: a bot purpose is its own bucket, the rest is \"game\"."
+  def bucket(purpose) when purpose in @bot_purposes, do: purpose
+  def bucket(_game_purpose), do: "game"
+
+  @doc """
+  Calls, micro-USD cost and capped/error counts per bucket for calls inserted in
+  `[from, to]` (UTC). Every bucket is present, zeroed when it had no calls.
+  Calls with unknown cost count as 0.
+  """
+  def spend_by_bucket(%DateTime{} = from, %DateTime{} = to) do
+    {from, to} = {DateTime.truncate(from, :second), DateTime.truncate(to, :second)}
+
+    rows =
+      AICall
+      |> where([c], c.inserted_at >= ^from and c.inserted_at <= ^to)
+      |> group_by([c], c.purpose)
+      |> select([c], %{
+        purpose: c.purpose,
+        calls: count(c.id),
+        cost_micro_usd: type(coalesce(sum(c.cost_micro_usd), 0), :integer),
+        capped: filter(count(c.id), c.status == "capped"),
+        errors: filter(count(c.id), c.status == "error")
+      })
+      |> Repo.all()
+
+    empty = Map.new(buckets(), &{&1, %{calls: 0, cost_micro_usd: 0, capped: 0, errors: 0}})
+
+    Enum.reduce(rows, empty, fn row, acc ->
+      Map.update!(acc, bucket(row.purpose), fn totals ->
+        %{
+          calls: totals.calls + row.calls,
+          cost_micro_usd: totals.cost_micro_usd + row.cost_micro_usd,
+          capped: totals.capped + row.capped,
+          errors: totals.errors + row.errors
+        }
+      end)
+    end)
+  end
+
+  @doc "Number of game sessions with at least one game-bucket call in `[from, to]` (UTC)."
+  def game_session_count(%DateTime{} = from, %DateTime{} = to) do
+    {from, to} = {DateTime.truncate(from, :second), DateTime.truncate(to, :second)}
+
+    AICall
+    |> where([c], c.inserted_at >= ^from and c.inserted_at <= ^to)
+    |> where([c], c.purpose not in ^@bot_purposes and not is_nil(c.game_session_id))
+    |> select([c], count(c.game_session_id, :distinct))
+    |> Repo.one()
+  end
+
+  @doc """
   Micro-USD the game spent in a session (gm, intent, scene). Playtest bot calls
   (persona, scorer) are left out. Calls with unknown cost count as 0.
   """
@@ -158,10 +214,19 @@ defmodule TalesForge.AICalls do
   end
 
   @doc "UTC instant of the latest midnight in Europe/Stockholm at `now`."
-  def day_start(%DateTime{} = now) do
+  def day_start(%DateTime{} = now), do: local_midnight(local_date(now))
+
+  @doc "Start of the Europe/Stockholm calendar month containing `now`, as UTC."
+  def month_start(%DateTime{} = now), do: local_midnight(Date.beginning_of_month(local_date(now)))
+
+  @doc "The Europe/Stockholm calendar date of `now` (the day used by the day cap)."
+  def local_date(%DateTime{} = now) do
+    now |> DateTime.shift_zone!(@day_zone, TimeZoneInfo.TimeZoneDatabase) |> DateTime.to_date()
+  end
+
+  defp local_midnight(%Date{} = date) do
     db = TimeZoneInfo.TimeZoneDatabase
-    local = DateTime.shift_zone!(now, @day_zone, db)
-    {:ok, midnight} = DateTime.new(DateTime.to_date(local), ~T[00:00:00], @day_zone, db)
+    {:ok, midnight} = DateTime.new(date, ~T[00:00:00], @day_zone, db)
     DateTime.shift_zone!(midnight, "Etc/UTC")
   end
 
