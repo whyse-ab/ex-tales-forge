@@ -65,4 +65,14 @@ defmodule TalesForge.AdminAuthTest do
     conn = get(build_conn(), ~p"/admin")
     assert redirected_to(conn) == "/admin/login"
   end
+
+  # test.exs doesn't enable :dev_routes, so this is the prod behaviour.
+  test "login page and flash don't point at /dev/mailbox without dev routes" do
+    refute get(build_conn(), ~p"/admin/login") |> html_response(200) =~ "/dev/mailbox"
+
+    conn = post(build_conn(), ~p"/admin/login", %{"email" => "founder@example.com"})
+    assert redirected_to(conn) == "/admin/login"
+    flash = Phoenix.Flash.get(conn.assigns.flash, :info)
+    assert flash == "If that email is allowlisted, a login link is on its way."
+  end
 end

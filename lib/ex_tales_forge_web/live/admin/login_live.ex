@@ -1,12 +1,15 @@
 defmodule TalesForgeWeb.AdminLive.LoginLive do
   use TalesForgeWeb, :live_view
 
+  # Only point at /dev/mailbox when the router actually mounts it.
+  @dev_routes Application.compile_env(:ex_tales_forge, :dev_routes, false)
+
   @impl true
   def mount(_params, _session, socket) do
     if socket.assigns[:admin_email] do
       {:ok, push_navigate(socket, to: ~p"/admin")}
     else
-      {:ok, assign(socket, page_title: "Admin login", email: "")}
+      {:ok, assign(socket, page_title: "Admin login", email: "", dev_routes: @dev_routes)}
     end
   end
 
@@ -51,7 +54,7 @@ defmodule TalesForgeWeb.AdminLive.LoginLive do
           </button>
         </form>
 
-        <p class="text-xs text-[var(--paper-muted)]">
+        <p :if={@dev_routes} class="text-xs text-[var(--paper-muted)]">
           In development, open
           <.link href="/dev/mailbox" class="underline text-[var(--paper-accent)]">/dev/mailbox</.link>
           to grab the link.
