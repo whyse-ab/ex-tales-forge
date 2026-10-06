@@ -33,7 +33,8 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
     {:noreply,
      socket
      |> assign(:selected, doc)
-     |> assign(:body_html, Markdown.to_html(doc.body))}
+     |> assign(:body_html, Markdown.to_html(doc.body))
+     |> push_event("scroll-into-view", %{id: "doc-preview", mobile_only: true})}
   end
 
   @impl true
@@ -55,32 +56,35 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
         />
       </form>
 
-      <div class="grid gap-4 lg:grid-cols-[18rem_1fr]">
-        <.section_card title="Files">
-          <ul class="space-y-1 text-sm">
-            <li :for={doc <- @docs}>
-              <button
-                type="button"
-                phx-click="select"
-                phx-value-path={doc.path}
-                class={[
-                  "w-full text-left rounded px-2 py-1",
-                  @selected && @selected.path == doc.path && "bg-[var(--paper-accent)] text-white",
-                  (!@selected || @selected.path != doc.path) &&
-                    "hover:bg-[var(--paper-bg)] text-[var(--paper-ink)]"
-                ]}
-              >
-                <span class="block font-medium">{doc.title}</span>
-                <span class="block text-xs opacity-75">{doc.path}</span>
-              </button>
-            </li>
-          </ul>
-          <%= if @docs == [] do %>
-            <p class="text-sm text-[var(--paper-muted)]">No docs indexed yet. Sync from the queue.</p>
-          <% end %>
+      <div class="grid gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
+        <%!-- Small screens: collapsible file list that closes once a doc is picked --%>
+        <details
+          id="doc-files-mobile"
+          class="min-w-0 rounded-lg border border-[var(--paper-rule)] bg-[var(--paper-panel)] lg:hidden"
+          open={is_nil(@selected)}
+        >
+          <summary class="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-sm">
+            <span class="font-serif font-semibold text-[var(--paper-ink)]">
+              Files <span class="font-sans font-normal text-[var(--paper-muted)]">({length(@docs)})</span>
+            </span>
+            <span :if={@selected} class="truncate text-xs text-[var(--paper-muted)]">
+              {@selected.path}
+            </span>
+          </summary>
+          <div class="border-t border-[var(--paper-rule)] p-2">
+            <.doc_list docs={@docs} selected={@selected} />
+          </div>
+        </details>
+
+        <.section_card title="Files" class="hidden lg:block lg:self-start">
+          <.doc_list docs={@docs} selected={@selected} />
         </.section_card>
 
-        <.section_card title={(@selected && @selected.title) || "Preview"}>
+        <.section_card
+          id="doc-preview"
+          title={(@selected && @selected.title) || "Preview"}
+          class="-mx-3 scroll-mt-2 rounded-none border-x-0 px-4 py-5 sm:mx-0 sm:rounded-lg sm:border-x sm:px-6"
+        >
           <%= if @selected do %>
             <article class="prose prose-sm max-w-none text-[var(--paper-ink)]">
               {@body_html}
@@ -91,6 +95,35 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
         </.section_card>
       </div>
     </Layouts.admin>
+    """
+  end
+
+  attr :docs, :list, required: true
+  attr :selected, :any, default: nil
+
+  defp doc_list(assigns) do
+    ~H"""
+    <ul class="space-y-1 text-sm">
+      <li :for={doc <- @docs}>
+        <button
+          type="button"
+          phx-click="select"
+          phx-value-path={doc.path}
+          class={[
+            "w-full text-left rounded px-2 py-1.5",
+            @selected && @selected.path == doc.path && "bg-[var(--paper-accent)] text-white",
+            (!@selected || @selected.path != doc.path) &&
+              "hover:bg-[var(--paper-bg)] text-[var(--paper-ink)]"
+          ]}
+        >
+          <span class="block font-medium">{doc.title}</span>
+          <span class="block break-all text-xs opacity-75">{doc.path}</span>
+        </button>
+      </li>
+    </ul>
+    <p :if={@docs == []} class="text-sm text-[var(--paper-muted)]">
+      No docs indexed yet. Sync from the queue.
+    </p>
     """
   end
 end

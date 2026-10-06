@@ -13,11 +13,19 @@ defmodule TalesForge.Collab.Markdown do
 
     case Earmark.as_html(markdown, escape: false, compact_output: true) do
       {:ok, html, _warnings} ->
-        {:safe, html}
+        {:safe, wrap_tables(html)}
 
       {:error, html, _warnings} ->
-        {:safe, html}
+        {:safe, wrap_tables(html)}
     end
+  end
+
+  # Wide tables scroll sideways inside their own box instead of squashing the
+  # columns (or pushing the whole page wider than a phone screen).
+  defp wrap_tables(html) do
+    html
+    |> String.replace(~r/<table(\s[^>]*)?>/, ~s(<div class="prose-table"><table\\1>))
+    |> String.replace("</table>", "</table></div>")
   end
 
   def strip_front_matter(markdown) when is_binary(markdown) do
