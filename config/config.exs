@@ -13,6 +13,10 @@ config :ex_tales_forge,
   generators: [timestamp_type: :utc_datetime],
   ash_domains: [TalesForge.Authoring, TalesForge.AdminResources]
 
+# Required since Ash 3.33 (EEF-CVE-2026-82752): count string length in codepoints,
+# matching Postgres, so max_length really bounds stored values.
+config :ash, default_string_length_count: :codepoints
+
 config :ex_tales_forge, TalesForge.Jido,
   max_tasks: 1000,
   agent_pools: []

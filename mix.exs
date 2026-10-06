@@ -11,7 +11,13 @@ defmodule TalesForge.MixProject do
       aliases: aliases(),
       deps: deps(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
-      listeners: [Phoenix.CodeReloader]
+      listeners: [Phoenix.CodeReloader],
+      releases: [
+        ex_tales_forge: [
+          include_executables_for: [:unix],
+          applications: [runtime_tools: :permanent]
+        ]
+      ]
     ]
   end
 
@@ -59,7 +65,11 @@ defmodule TalesForge.MixProject do
        compile: false,
        depth: 1},
       {:swoosh, "~> 1.16"},
+      {:dotenvy, "~> 1.0"},
+      {:yaml_elixir, "~> 2.12"},
+      {:mdex, "~> 0.14"},
       {:req, "~> 0.5"},
+      {:assent, "~> 0.3.1"},
       {:jido, "~> 2.3"},
       {:jido_ai, "~> 2.2"},
       {:oban, "~> 2.23"},
@@ -111,7 +121,8 @@ defmodule TalesForge.MixProject do
       ],
       "dev.check": ["compile", "dev.check"],
       "e2e.smoke": ["compile", "e2e.smoke"],
-      "tales.import_pack": ["tales.import_pack"]
+      "tales.import_pack": ["tales.import_pack"],
+      "tales.sync_docs": ["tales.sync_docs"]
     ]
   end
 end

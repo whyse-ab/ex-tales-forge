@@ -24,18 +24,27 @@ import {Socket} from "phoenix"
 import {LiveSocket} from "phoenix_live_view"
 import {hooks as colocatedHooks} from "phoenix-colocated/ex_tales_forge"
 import topbar from "../vendor/topbar"
+import {Mermaid} from "./mermaid_hook"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks},
+  hooks: {...colocatedHooks, Mermaid},
 })
 
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
 window.addEventListener("phx:page-loading-start", _info => topbar.show(300))
 window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
+
+// Server-pushed "scroll-into-view" (e.g. admin docs: jump to the article after
+// picking a file). `mobile_only` skips it when the list and article sit side by side.
+window.addEventListener("phx:scroll-into-view", ({detail}) => {
+  if (detail.mobile_only && window.matchMedia("(min-width: 1024px)").matches) return
+  const el = document.getElementById(detail.id)
+  if (el) requestAnimationFrame(() => el.scrollIntoView({behavior: "smooth", block: "start"}))
+})
 
 // connect if there are any LiveViews on the page
 liveSocket.connect()

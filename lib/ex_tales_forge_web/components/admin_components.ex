@@ -7,8 +7,10 @@ defmodule TalesForgeWeb.AdminComponents do
 
   def nav(assigns) do
     ~H"""
-    <nav class="space-y-1 text-sm">
+    <nav class="-mx-0.5 flex gap-1 overflow-x-auto whitespace-nowrap text-sm lg:mx-0 lg:block lg:space-y-1 lg:overflow-visible lg:whitespace-normal">
       <.nav_link href={~p"/admin"} label="Dashboard" active={@active == "dashboard"} />
+      <.nav_link href={~p"/admin/decisions"} label="Decisions" active={@active == "decisions"} />
+      <.nav_link href={~p"/admin/docs"} label="Docs" active={@active == "docs"} />
       <.nav_link href={~p"/admin/sessions"} label="Sessions" active={@active == "sessions"} />
       <.nav_link
         href={~p"/admin/npc-definitions"}
@@ -17,6 +19,13 @@ defmodule TalesForgeWeb.AdminComponents do
       />
       <.nav_link href={~p"/admin/oban"} label="Oban / telemetry" active={@active == "oban"} />
       <.nav_link href={~p"/"} label="← Player home" active={false} />
+      <.link
+        href={~p"/admin/logout"}
+        method="delete"
+        class="block shrink-0 rounded px-3 py-2 text-[var(--paper-muted)] hover:bg-[var(--paper-panel)]"
+      >
+        Sign out
+      </.link>
     </nav>
     """
   end
@@ -30,7 +39,7 @@ defmodule TalesForgeWeb.AdminComponents do
     <.link
       navigate={@href}
       class={[
-        "block rounded px-3 py-2",
+        "block shrink-0 rounded px-3 py-2",
         @active && "bg-[var(--paper-accent)] text-white",
         !@active && "text-[var(--paper-ink)] hover:bg-[var(--paper-panel)]"
       ]}
@@ -72,11 +81,19 @@ defmodule TalesForgeWeb.AdminComponents do
   end
 
   attr :title, :string, required: true
+  attr :id, :string, default: nil
+  attr :class, :any, default: nil
   slot :inner_block, required: true
 
   def section_card(assigns) do
     ~H"""
-    <section class="rounded-lg border border-[var(--paper-rule)] bg-[var(--paper-panel)] p-4 space-y-3">
+    <section
+      id={@id}
+      class={[
+        "min-w-0 rounded-lg border border-[var(--paper-rule)] bg-[var(--paper-panel)] p-3 sm:p-4 space-y-3",
+        @class
+      ]}
+    >
       <h2 class="font-serif text-lg font-semibold text-[var(--paper-ink)]">{@title}</h2>
       {render_slot(@inner_block)}
     </section>

@@ -38,7 +38,7 @@ defmodule TalesForgeWeb.Layouts do
   def app(assigns) do
     ~H"""
     <div class="paper-home min-h-dvh">
-      <header class="border-b border-[var(--paper-rule)] bg-[var(--paper-panel)] px-4 py-3 sm:px-6">
+      <header class="border-b border-[var(--paper-rule)] bg-[var(--paper-panel)] px-3 py-3 sm:px-6">
         <div class="mx-auto flex max-w-3xl items-center justify-between gap-4">
           <.link navigate={~p"/"} class="font-serif text-lg font-semibold text-[var(--paper-ink)]">
             Tales Forge
@@ -75,7 +75,7 @@ defmodule TalesForgeWeb.Layouts do
   def admin(assigns) do
     ~H"""
     <div class="paper-home min-h-dvh">
-      <header class="border-b border-[var(--paper-rule)] bg-[var(--paper-panel)] px-4 py-3 sm:px-6">
+      <header class="border-b border-[var(--paper-rule)] bg-[var(--paper-panel)] px-3 py-3 sm:px-6">
         <div class="mx-auto flex max-w-6xl items-center justify-between">
           <div>
             <p class="play-label text-[var(--paper-accent)]">Tales Forge</p>
@@ -85,11 +85,11 @@ defmodule TalesForgeWeb.Layouts do
         </div>
       </header>
 
-      <div class="mx-auto grid max-w-6xl gap-6 px-4 py-8 sm:px-6 lg:grid-cols-[12rem_1fr]">
-        <aside class="rounded-lg border border-[var(--paper-rule)] bg-[var(--paper-panel)] p-3">
+      <div class="mx-auto grid max-w-6xl gap-4 px-3 py-4 sm:gap-6 sm:px-6 sm:py-8 lg:grid-cols-[12rem_minmax(0,1fr)]">
+        <aside class="min-w-0 rounded-lg border border-[var(--paper-rule)] bg-[var(--paper-panel)] p-1.5 lg:p-3 lg:self-start">
           <.nav active={@active} />
         </aside>
-        <main class="space-y-4">
+        <main class="min-w-0 space-y-4">
           {render_slot(@inner_block)}
         </main>
       </div>

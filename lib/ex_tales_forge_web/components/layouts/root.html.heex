@@ -6,6 +6,8 @@
     <meta name="csrf-token" content={get_csrf_token()} />
     <.live_title default="TalesForge" suffix=" · Tales Forge" phx-no-format>{assigns[:page_title]}</.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
+    <%!-- Loaded on demand by the Mermaid hook (assets/js/mermaid_hook.js) --%>
+    <meta name="mermaid-src" content={~p"/vendor/mermaid-12.1.0.min.js"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
     </script>
     <script>

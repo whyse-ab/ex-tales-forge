@@ -20,6 +20,9 @@ config :ex_tales_forge, TalesForgeWeb.Endpoint,
     ]
   ]
 
+# Session cookie only over https (read at compile time by the endpoint).
+config :ex_tales_forge, :secure_session_cookie, true
+
 # Configure Swoosh API Client
 config :swoosh, api_client: Swoosh.ApiClient.Req
 

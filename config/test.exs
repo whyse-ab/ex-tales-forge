@@ -42,4 +42,11 @@ config :phoenix_live_view,
 config :phoenix,
   sort_verified_routes_query_params: true
 
-config :ex_tales_forge, :admin_auth, enabled: false
+config :ex_tales_forge, :admin_emails, ["founder@example.com", "other@example.com"]
+
+# Bypass nothing — tests log in via session helper.
+
+# GitHub admin sign-in: off unless a test turns it on; HTTP goes to Req.Test stubs.
+config :ex_tales_forge, :github_oauth, client_id: nil, client_secret: nil
+config :ex_tales_forge, :admin_github_team, nil
+config :ex_tales_forge, :github_req_options, plug: {Req.Test, TalesForge.AdminAuth.GitHub}

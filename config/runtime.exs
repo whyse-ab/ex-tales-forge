@@ -136,10 +136,60 @@ if config_env() == :prod do
   #
   #     config :swoosh, :api_client, Swoosh.ApiClient.Req
   #
-  # See https://swoosh.hexdocs.pm/Swoosh.html#module-installation for details.
+
+  # Mail adapter for admin magic links (Resend by default; Postmark also supported).
+  mail_adapter = System.get_env("MAIL_ADAPTER") || "resend"
+
+  mailer_config =
+    case mail_adapter do
+      "postmark" ->
+        [
+          adapter: Swoosh.Adapters.Postmark,
+          api_key: System.get_env("POSTMARK_API_KEY") || System.get_env("MAIL_API_KEY")
+        ]
+
+      _ ->
+        [
+          adapter: Swoosh.Adapters.Resend,
+          api_key: System.get_env("RESEND_API_KEY") || System.get_env("MAIL_API_KEY")
+        ]
+    end
+
+  config :ex_tales_forge, TalesForge.Mailer, mailer_config
 end
 
-config :ex_tales_forge, :admin_auth,
-  enabled: config_env() != :test,
-  username: System.get_env("ADMIN_USERNAME") || "admin",
-  password: System.get_env("ADMIN_PASSWORD") || "admin"
+# Founder admin allowlist (comma-separated emails), for magic links and for
+# "Sign in with GitHub" (any verified GitHub email on the list).
+# In test, prefer config/test.exs defaults unless ADMIN_EMAILS is explicitly set.
+admin_emails_env = System.get_env("ADMIN_EMAILS")
+
+if admin_emails_env || config_env() != :test do
+  admin_emails =
+    (admin_emails_env || "")
+    |> String.split(",")
+    |> Enum.map(&String.trim/1)
+    |> Enum.map(&String.downcase/1)
+    |> Enum.reject(&(&1 == ""))
+
+  config :ex_tales_forge, :admin_emails, admin_emails
+end
+
+config :ex_tales_forge, :github_docs_token, System.get_env("GITHUB_DOCS_TOKEN")
+
+# "Sign in with GitHub" for /admin. Both values are needed, otherwise the button
+# is hidden and the routes redirect back to the login page.
+# ADMIN_GITHUB_TEAM ("org/team-slug", optional): active members of that team
+# get in too; unset = team access off. Membership is checked with
+# GITHUB_DOCS_TOKEN, which then needs read access to the org's members.
+if config_env() != :test do
+  config :ex_tales_forge, :github_oauth,
+    client_id: System.get_env("GITHUB_OAUTH_CLIENT_ID"),
+    client_secret: System.get_env("GITHUB_OAUTH_CLIENT_SECRET")
+
+  config :ex_tales_forge, :admin_github_team, System.get_env("ADMIN_GITHUB_TEAM")
+end
+
+config :ex_tales_forge, :tales_forge_docs_path, System.get_env("TALES_FORGE_DOCS_PATH")
+
+# Existing LLM key (also loaded elsewhere via System.get_env)
+# XAI_API_KEY is read by TalesForge.Config / LLM at runtime.
