@@ -86,8 +86,12 @@ Optional: `TALES_FORGE_DOCS_PATH` is for local/dev sync only; production should 
 
 ## 4. Deploy
 
+Normally you don't deploy by hand: GitHub Actions (`.github/workflows/ci.yml`) deploys every push to `main` after the tests pass, using the Actions secret `FLY_API_TOKEN` (a deploy token scoped to `tales-forge`, created with `fly tokens create deploy -a tales-forge`). Deploys run one at a time and are never cancelled mid-way.
+
+Manual deploy (same command CI runs):
+
 ```bash
-fly deploy -a tales-forge
+fly deploy --remote-only --depot=false -a tales-forge --ha=false
 ```
 
 `release_command` runs `/app/bin/migrate` (Ecto migrations) before the new machines take traffic.
