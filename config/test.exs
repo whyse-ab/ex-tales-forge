@@ -50,3 +50,6 @@ config :ex_tales_forge, :admin_emails, ["founder@example.com", "other@example.co
 config :ex_tales_forge, :github_oauth, client_id: nil, client_secret: nil
 config :ex_tales_forge, :admin_github_team, nil
 config :ex_tales_forge, :github_req_options, plug: {Req.Test, TalesForge.AdminAuth.GitHub}
+
+# LLM HTTP goes to Req.Test stubs (tests that switch LLM_PROVIDER away from mock).
+config :ex_tales_forge, :llm_req_options, plug: {Req.Test, TalesForge.LLM}

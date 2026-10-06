@@ -5,6 +5,7 @@ defmodule TalesForge.LLM do
 
   require Logger
 
+  alias TalesForge.AICalls
   alias TalesForge.Config
 
   alias TalesForge.Game.Schemas.{
@@ -54,7 +55,7 @@ defmodule TalesForge.LLM do
   def llm_source("mock"), do: "mock"
   def llm_source(_), do: "api"
 
-  def complete_intent(system, user) do
+  def complete_intent(system, user, opts \\ []) do
     model = tier1_model()
 
     if mock?(model) do
@@ -62,7 +63,8 @@ defmodule TalesForge.LLM do
     else
       complete_json(model, system, user, @intent_schema, Config.tier1_temperature(),
         tier: :tier1,
-        max_tokens: Config.tier1_max_tokens()
+        max_tokens: Config.tier1_max_tokens(),
+        session_id: opts[:session_id]
       )
       |> case do
         {:ok, map} -> {:ok, IntentExtraction.decode(map)}
@@ -71,7 +73,7 @@ defmodule TalesForge.LLM do
     end
   end
 
-  def complete_scene(system, user, intent_context) when is_map(intent_context) do
+  def complete_scene(system, user, intent_context, opts \\ []) when is_map(intent_context) do
     model = tier2_model()
 
     if mock?(model) do
@@ -79,7 +81,8 @@ defmodule TalesForge.LLM do
     else
       complete_json(model, system, user, @scene_schema, Config.tier2_temperature(),
         tier: :scene,
-        max_tokens: Config.tier2_max_tokens()
+        max_tokens: Config.tier2_max_tokens(),
+        session_id: opts[:session_id]
       )
       |> case do
         {:ok, %{"location_name" => location_name, "narrative" => narrative}} ->
@@ -99,7 +102,8 @@ defmodule TalesForge.LLM do
         user,
         %PlayerAction{} = player_action,
         %HandlerResult{} = handler,
-        turn_number
+        turn_number,
+        opts \\ []
       ) do
     model = tier2_model()
 
@@ -115,7 +119,9 @@ defmodule TalesForge.LLM do
 
       complete_json(model, system, user_prompt, @gm_schema, Config.tier2_temperature(),
         tier: :tier2,
-        max_tokens: Config.tier2_max_tokens()
+        max_tokens: Config.tier2_max_tokens(),
+        session_id: opts[:session_id],
+        turn_number: turn_number
       )
       |> case do
         {:ok, map} -> {:ok, GMStructuredResponse.decode(map)}
@@ -169,9 +175,7 @@ defmodule TalesForge.LLM do
         "\n\nReturn JSON matching this schema:\n" <>
         Jason.encode!(schema, pretty: true)
 
-    dispatch_opts = Keyword.take(opts, [:tier, :max_tokens])
-
-    with {:ok, raw} <- dispatch(model, system, user_with_schema, temperature, dispatch_opts),
+    with {:ok, raw} <- dispatch(model, system, user_with_schema, temperature, opts),
          {:ok, map} <- parse_json(raw) do
       {:ok, map}
     else
@@ -180,7 +184,7 @@ defmodule TalesForge.LLM do
           "Your previous response was invalid. Return ONLY valid JSON matching the schema.\n\n" <>
             user_with_schema
 
-        with {:ok, raw} <- dispatch(model, system, retry_user, temperature, dispatch_opts),
+        with {:ok, raw} <- dispatch(model, system, retry_user, temperature, opts),
              {:ok, map} <- parse_json(raw) do
           {:ok, map}
         end
@@ -233,10 +237,11 @@ defmodule TalesForge.LLM do
           {:error, {:unsupported_model, model}}
       end
 
-    case result do
-      {:ok, content} ->
-        elapsed = System.monotonic_time(:millisecond) - started
+    elapsed = System.monotonic_time(:millisecond) - started
+    record_call(model, tier, opts, result, elapsed)
 
+    case result do
+      {:ok, content, _usage} ->
         Logger.info(
           "llm call done tier=#{tier} provider=#{provider} model=#{model} duration_ms=#{elapsed} chars=#{String.length(content)}"
         )
@@ -247,6 +252,28 @@ defmodule TalesForge.LLM do
         error
     end
   end
+
+  defp record_call(model, tier, opts, result, latency_ms) do
+    {status, usage} =
+      case result do
+        {:ok, _content, usage} -> {"ok", usage}
+        _error -> {"error", %{}}
+      end
+
+    AICalls.record(%{
+      game_session_id: opts[:session_id],
+      turn_number: opts[:turn_number],
+      purpose: purpose(tier),
+      model: model,
+      status: status,
+      latency_ms: latency_ms,
+      usage: usage
+    })
+  end
+
+  defp purpose(:tier1), do: "intent"
+  defp purpose(:tier2), do: "gm"
+  defp purpose(tier), do: to_string(tier)
 
   defp call_openai_compatible(model, system, user, temperature, base_url, api_key, max_tokens) do
     if String.trim(api_key) == "" do
@@ -269,14 +296,20 @@ defmodule TalesForge.LLM do
 
       Req.post(
         base_url <> "/chat/completions",
-        headers: [{"authorization", "Bearer " <> api_key}, {"content-type", "application/json"}],
-        json: body,
-        receive_timeout: 120_000,
-        retry: false
+        [
+          headers: [{"authorization", "Bearer " <> api_key}, {"content-type", "application/json"}],
+          json: body,
+          receive_timeout: 120_000,
+          retry: false
+        ] ++ req_options()
       )
       |> case do
-        {:ok, %{status: 200, body: %{"choices" => [%{"message" => %{"content" => content}} | _]}}} ->
-          {:ok, content || "{}"}
+        {:ok,
+         %{
+           status: 200,
+           body: %{"choices" => [%{"message" => %{"content" => content}} | _]} = body
+         }} ->
+          {:ok, content || "{}", AICalls.usage(body)}
 
         {:ok, %{status: status, body: body}} ->
           {:error, {:api_error, status, body}}
@@ -307,7 +340,7 @@ defmodule TalesForge.LLM do
     )
     |> case do
       {:ok, %{status: 200, body: %{"message" => %{"content" => content}}}} ->
-        {:ok, content || "{}"}
+        {:ok, content || "{}", %{}}
 
       {:ok, %{status: status, body: body}} ->
         {:error, {:api_error, status, body}}
@@ -389,6 +422,9 @@ defmodule TalesForge.LLM do
 
   defp maybe_put_max_tokens(body, nil), do: body
   defp maybe_put_max_tokens(body, max_tokens), do: Map.put(body, :max_tokens, max_tokens)
+
+  # Test hook: config :ex_tales_forge, :llm_req_options, plug: {Req.Test, ...}
+  defp req_options, do: Application.get_env(:ex_tales_forge, :llm_req_options, [])
 
   defp xai_base, do: "https://api.x.ai/v1"
   defp openai_base, do: "https://api.openai.com/v1"

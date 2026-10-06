@@ -58,7 +58,8 @@ defmodule TalesForge.Game.TurnProcessor do
              user,
              player_action,
              handler,
-             turn_number
+             turn_number,
+             session_id: session_id
            ),
          world_final <- apply_allowlisted_patches(world_board, gm_result),
          {:ok, payload} <-
