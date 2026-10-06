@@ -10,7 +10,7 @@ defmodule TalesForge.Collab.Importer do
   alias TalesForge.Collab.Schemas.{Decision, Doc}
   alias TalesForge.Repo
 
-  @github_owner "fpahlen"
+  @github_owner "whyse-ab"
   @github_repo "tales-forge-docs"
 
   def import_from_path(root) when is_binary(root) do
