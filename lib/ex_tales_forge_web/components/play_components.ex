@@ -62,17 +62,18 @@ defmodule TalesForgeWeb.PlayComponents do
         <h2 class="play-label">Story</h2>
       </div>
 
-      <div
-        id="narrative-log"
-        class="min-h-0 flex-1 space-y-4 overflow-y-auto bg-[var(--paper-margin)] p-4"
-        phx-update="stream"
-      >
-        <div :for={{dom_id, entry} <- @streams.entries} id={dom_id} class="space-y-1">
-          <p class={entry_heading_class(entry)}>
-            {entry_heading(entry)}
-          </p>
-          <div class={entry_body_class(entry)}>
-            <span class="play-narrative-body">{entry.text}</span>
+      <%!-- The GM placeholders sit after the stream container, not inside it: every
+           child of a phx-update="stream" element must be a stream item with an id.
+           `contents` lets the entries and placeholders share one gap-4 column. --%>
+      <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto bg-[var(--paper-margin)] p-4">
+        <div id="narrative-log" class="contents" phx-update="stream">
+          <div :for={{dom_id, entry} <- @streams.entries} id={dom_id} class="space-y-1">
+            <p class={entry_heading_class(entry)}>
+              {entry_heading(entry)}
+            </p>
+            <div class={entry_body_class(entry)}>
+              <span class="play-narrative-body">{entry.text}</span>
+            </div>
           </div>
         </div>
 

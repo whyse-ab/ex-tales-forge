@@ -45,10 +45,6 @@ defmodule TalesForgeWeb.PlayLiveTest do
 
     {:ok, _view, html} = live(conn, ~p"/play/#{session.id}")
     refute_sheet(html)
-    refute html =~ "Skill:"
-    refute html =~ "Outcome:"
-    refute html =~ "Roll:"
-    refute html =~ "+LP"
   end
 
   test "dead session disables play input", %{conn: conn} do
@@ -69,15 +65,60 @@ defmodule TalesForgeWeb.PlayLiveTest do
     assert has_element?(view, "button[type=submit][disabled]")
   end
 
+  test "re-rendering mid-turn keeps the GM placeholder out of the stream", %{conn: conn} do
+    {:ok, session} =
+      GameSessions.create_session(%{name: "Thinking Tin Valley", adventure_id: "tin_valley"})
+
+    {:ok, view, _html} = live(conn, ~p"/play/#{session.id}")
+
+    send(view.pid, {:turn_processing, %{}})
+    assert render(view) =~ "The GM is thinking…"
+
+    # A stream insert while the placeholder is showing used to raise
+    # "setting phx-update to \"stream\" requires setting an ID on each child".
+    send(
+      view.pid,
+      {:npc_initiative,
+       %{npc_id: "brenna", npc_name: "Brenna", world_tick: 1, text: "Brenna waves."}}
+    )
+
+    html = render(view)
+    assert html =~ "Brenna waves."
+    assert html =~ "The GM is thinking…"
+    refute has_element?(view, "#narrative-log > p")
+
+    send(view.pid, {:turn_failed, "boom"})
+    refute render(view) =~ "The GM is thinking…"
+  end
+
+  # Checks rendered text only. Matching raw HTML also hits attributes, and the
+  # random data-phx-session / csrf tokens occasionally contain e.g. "XP".
   defp refute_sheet(html) do
-    refute html =~ "Skill:"
-    refute html =~ "Outcome:"
-    refute html =~ "Roll:"
-    refute html =~ "+LP"
-    refute html =~ "Learning points"
-    refute html =~ "insight +2"
-    refute html =~ "you learned"
-    refute html =~ "XP"
-    refute html =~ "learning_failures"
+    text = visible_text(html)
+    # Guard against an empty extraction making every refute pass.
+    assert text =~ "Location"
+
+    refute text =~ "Skill:"
+    refute text =~ "Outcome:"
+    refute text =~ "Roll:"
+    refute text =~ "+LP"
+    refute text =~ "Learning points"
+    refute text =~ "insight +2"
+    refute text =~ "you learned"
+    refute text =~ ~r/\bXP\b/
+    refute text =~ "learning_failures"
+  end
+
+  defp visible_text(html) do
+    html
+    |> LazyHTML.from_document()
+    |> LazyHTML.query("body")
+    |> LazyHTML.to_tree()
+    |> LazyHTML.Tree.postwalk(fn
+      {tag, _attrs, _children} when tag in ["script", "style", "template"] -> []
+      node -> node
+    end)
+    |> LazyHTML.from_tree()
+    |> LazyHTML.text(separator: " ")
   end
 end
