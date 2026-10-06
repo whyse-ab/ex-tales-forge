@@ -1,0 +1,106 @@
+# CI for Tales Forge: tests on every PR and on every push to main;
+# a push to main that passes the tests is deployed to production (Fly app tales-forge).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Cancel superseded runs of the same PR. Pushes to main get their own group per
+# commit, so every commit on main is tested (deploys are serialized below).
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Keep in sync with ELIXIR_VERSION / OTP_VERSION in the Dockerfile.
+  ELIXIR_VERSION: "1.18.4"
+  OTP_VERSION: "27.3.4.16"
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      MIX_ENV: test
+    services:
+      # config/test.exs: postgres/postgres@localhost:5432, DB ex_tales_forge_test
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: erlef/setup-beam@v1
+        id: beam
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+
+      - name: Cache deps and _build
+        uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+          key: mix-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            mix-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-
+
+      - name: Install deps
+        run: mix deps.get
+
+      - name: Check for unused deps in mix.lock
+        run: mix deps.unlock --check-unused
+
+      - name: Compile (warnings as errors)
+        run: mix compile --warnings-as-errors
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Credo
+        run: mix credo --strict
+
+      - name: Test
+        run: mix test --warnings-as-errors
+
+      - name: Hex audit (retired packages)
+        run: mix hex.audit
+
+  deploy:
+    name: Deploy to production
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # One prod deploy at a time; a running deploy is never cancelled.
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: superfly/flyctl-actions/setup-flyctl@1.5
+
+      # --depot=false: use Fly's classic remote builder. Every release so far was
+      # built that way because Depot builds hung at "Waiting for depot builder"
+      # for this org. Set the repo variable FLY_USE_DEPOT=true to try Depot again.
+      - name: flyctl deploy
+        run: flyctl deploy --remote-only -a tales-forge --ha=false --depot=${{ vars.FLY_USE_DEPOT || 'false' }}
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
