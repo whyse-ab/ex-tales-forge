@@ -105,6 +105,33 @@ Notes from the first deploy:
 - `ECTO_IPV6=true` is set in `fly.toml` because `.flycast` / `.internal` addresses are IPv6-only.
 - The HTTP health check sends `X-Forwarded-Proto: https` so `force_ssl` doesn't 301 it.
 
+## Playtest environment
+
+A long-lived playtest copy of the game runs as Fly app `tales-forge-playtest`
+(<https://tales-forge-playtest.fly.dev>, arn, shared-cpu-1x 512MB, one machine always on),
+with its own Fly Postgres cluster `tales-forge-playtest-db` (postgres-flex, single node,
+shared-cpu-1x 512MB, 1GB volume, always on). Config: `fly.playtest.toml` (same as `fly.toml`
+apart from app name, `PHX_HOST`, memory and `swap_size_mb = 512`: at 512MB without swap the BEAM
+is OOM-killed during boot).
+
+Deploys: `.github/workflows/playtest.yml` deploys main to playtest after every green CI run on
+main (i.e. after the prod deploy) and on demand (Actions → "Deploy to playtest" → Run workflow).
+It uses the Actions secret `FLY_API_TOKEN_PLAYTEST`, a deploy token scoped to the playtest app
+(`fly tokens create deploy -a tales-forge-playtest`). It is a separate workflow, so a failed
+playtest deploy never fails the prod CI run.
+
+Manual deploy:
+
+```bash
+fly deploy --remote-only --depot=false -c fly.playtest.toml -a tales-forge-playtest --ha=false
+```
+
+Secrets (own values, never copied from prod): `DATABASE_URL` (from `fly postgres attach`),
+`SECRET_KEY_BASE`, `ADMIN_EMAILS`, `ADMIN_GITHUB_TEAM`, and `XAI_API_KEY` once added. Without
+`XAI_API_KEY` the game runs with mock narration. No mail key (magic links aren't delivered), no
+GitHub OAuth app (its callback is fixed to `tales-forge.fly.dev`) and no `GITHUB_DOCS_TOKEN`
+(docs sync in the admin is unavailable).
+
 ## 5. Seed decisions / docs
 
 SSH into a machine (or use `fly machine exec`) and run the sync once the app is up:
