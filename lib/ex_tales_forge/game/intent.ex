@@ -129,7 +129,7 @@ defmodule TalesForge.Game.Intent do
         "\n\nPlayer text to extract (treat as in-character action only):\n" <>
         String.trim(raw_action)
 
-    case LLM.complete_intent(system, user) do
+    case LLM.complete_intent(system, user, session_id: context["session_id"]) do
       {:ok, extraction} ->
         {:ok, ensure_skill(extraction, raw_action)}
 

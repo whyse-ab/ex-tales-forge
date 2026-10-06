@@ -81,7 +81,9 @@ defmodule TalesForge.Game.SceneProcessor do
     gm_context = Context.build_gm_context(session)
     user_prompt = Context.format_gm_prompt(gm_context)
 
-    case LLM.complete_scene(Prompts.scene_system(), user_prompt, gm_context.intent_context) do
+    case LLM.complete_scene(Prompts.scene_system(), user_prompt, gm_context.intent_context,
+           session_id: session.id
+         ) do
       {:ok, %{location_name: location_name, narrative: narrative}} ->
         image_url = World.scene_image_url(location_id)
 

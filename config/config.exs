@@ -26,6 +26,37 @@ config :ex_tales_forge, Oban,
   queues: [default: 10, llm: 5, images: 3],
   plugins: [{Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7}]
 
+# LLM prices in USD per 1M tokens, used when a response carries no billed cost.
+# Source: https://docs.x.ai/developers/pricing (fetched 2026-10-06). Prompts at or
+# above long_context.threshold tokens are billed at long_context rates for all tokens.
+# Models missing here get cost nil and a warning.
+config :ex_tales_forge, :llm_prices, %{
+  "grok-4.20-0309-non-reasoning" => %{
+    input: 1.25,
+    cached_input: 0.20,
+    output: 2.50,
+    long_context: %{threshold: 200_000, input: 2.50, cached_input: 0.40, output: 5.00}
+  },
+  "grok-4.20-0309-reasoning" => %{
+    input: 1.25,
+    cached_input: 0.20,
+    output: 2.50,
+    long_context: %{threshold: 200_000, input: 2.50, cached_input: 0.40, output: 5.00}
+  },
+  "grok-4.3" => %{
+    input: 1.25,
+    cached_input: 0.20,
+    output: 2.50,
+    long_context: %{threshold: 200_000, input: 2.50, cached_input: 0.40, output: 5.00}
+  },
+  "grok-4.7" => %{
+    input: 2.00,
+    cached_input: 0.50,
+    output: 6.00,
+    long_context: %{threshold: 200_000, input: 4.00, cached_input: 1.00, output: 12.00}
+  }
+}
+
 # Configure the endpoint
 config :ex_tales_forge, TalesForgeWeb.Endpoint,
   url: [host: "localhost"],

@@ -29,6 +29,7 @@ defmodule TalesForge.Game.Context do
     npc_stock = NPC.stock_map(session.id, present_npcs)
 
     %{
+      "session_id" => session.id,
       "location_id" => location_id,
       "location_name" => Map.get(world, "location_name", Map.get(location, "name", location_id)),
       "location_blurb" => Map.get(location, "blurb", ""),
