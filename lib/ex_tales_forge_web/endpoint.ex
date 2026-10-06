@@ -3,12 +3,21 @@ defmodule TalesForgeWeb.Endpoint do
 
   # The session will be stored in the cookie and signed,
   # this means its contents can be read but not tampered with.
-  # Set :encryption_salt if you would also like to encrypt it.
+  # Set :encryption_salt if you would also like to encrypt it (note: changing
+  # the cookie format logs everyone out once).
+  #
+  # max_age makes it a persistent cookie, so an admin magic-link login lasts
+  # 30 days from sign-in; without it browsers (notably Safari) drop it as a
+  # browser-session cookie. secure is compile-time (true in config/prod.exs)
+  # because these options are also baked into the LiveView socket's
+  # connect_info, and local dev runs over plain http.
   @session_options [
     store: :cookie,
     key: "_ex_tales_forge_key",
     signing_salt: "0TBCbxzZ",
-    same_site: "Lax"
+    same_site: "Lax",
+    max_age: 60 * 60 * 24 * 30,
+    secure: Application.compile_env(:ex_tales_forge, :secure_session_cookie, false)
   ]
 
   socket "/live", Phoenix.LiveView.Socket,
