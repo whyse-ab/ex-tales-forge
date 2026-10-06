@@ -77,7 +77,7 @@ fly secrets set \
 | `MAIL_ADAPTER` | `resend` (default) or `postmark` |
 | `RESEND_API_KEY` / `POSTMARK_API_KEY` / `MAIL_API_KEY` | Swoosh API key for magic-link email |
 | `ADMIN_MAIL_FROM` | From address (must be verified with the mail provider) |
-| `GITHUB_DOCS_TOKEN` | Fine-grained or classic PAT with read access to `fpahlen/tales-forge-docs` |
+| `GITHUB_DOCS_TOKEN` | Fine-grained or classic PAT with read access to `whyse-ab/tales-forge-docs` |
 | `XAI_API_KEY` | Existing Grok LLM key for the game |
 
 Optional: `TALES_FORGE_DOCS_PATH` is for local/dev sync only; production should use `GITHUB_DOCS_TOKEN`.
