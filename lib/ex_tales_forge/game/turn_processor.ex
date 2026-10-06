@@ -84,7 +84,7 @@ defmodule TalesForge.Game.TurnProcessor do
 
       {:error, reason} = err ->
         Logger.error("turn processor failed session=#{session_id} reason=#{inspect(reason)}")
-        SessionPubSub.broadcast(session_id, {:turn_failed, inspect(reason)})
+        SessionPubSub.broadcast(session_id, {:turn_failed, SessionPubSub.failure_reason(reason)})
         err
     end
   end

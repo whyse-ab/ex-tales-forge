@@ -75,6 +75,13 @@ defmodule TalesForgeWeb.PlayLive do
      |> append_entries(payload.entries)}
   end
 
+  def handle_info({:scene_failed, {:spend_cap, kind}}, socket) do
+    {:noreply,
+     socket
+     |> assign(:scene_loading, false)
+     |> put_flash(:info, spend_cap_message(kind))}
+  end
+
   def handle_info({:scene_failed, reason}, socket) do
     {:noreply,
      socket
@@ -109,6 +116,13 @@ defmodule TalesForgeWeb.PlayLive do
       |> maybe_start_scene_after_travel(payload, session)
 
     {:noreply, socket}
+  end
+
+  def handle_info({:turn_failed, {:spend_cap, kind}}, socket) do
+    {:noreply,
+     socket
+     |> assign(:thinking, false)
+     |> put_flash(:info, spend_cap_message(kind))}
   end
 
   def handle_info({:turn_failed, reason}, socket) do
@@ -193,6 +207,14 @@ defmodule TalesForgeWeb.PlayLive do
   end
 
   defp maybe_start_scene_after_travel(socket, _payload, _session), do: socket
+
+  defp spend_cap_message(:session),
+    do:
+      "The Game Master lays down the dice: this session has used its AI budget, so the story pauses here. Your progress is saved."
+
+  defp spend_cap_message(:day),
+    do:
+      "The Game Master is resting until tomorrow: today's AI budget is used up. Your progress is saved; come back after midnight (Swedish time)."
 
   defp submit_action(socket, message, opts) do
     session_id = socket.assigns.session.id

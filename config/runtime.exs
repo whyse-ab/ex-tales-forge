@@ -191,5 +191,26 @@ end
 
 config :ex_tales_forge, :tales_forge_docs_path, System.get_env("TALES_FORGE_DOCS_PATH")
 
+# AI spending caps in decimal USD (e.g. "2.50"). Unset or empty = that cap is off;
+# "0" stops all AI calls. Read by TalesForge.AICalls.check_spend_caps/1.
+if config_env() != :test do
+  usd_cap = fn name ->
+    case String.trim(System.get_env(name, "")) do
+      "" ->
+        nil
+
+      value ->
+        case Float.parse(value) do
+          {usd, ""} when usd >= 0 -> round(usd * 1_000_000)
+          _ -> raise "#{name} must be a decimal USD amount like 2.50, got: #{inspect(value)}"
+        end
+    end
+  end
+
+  config :ex_tales_forge, :ai_spend_caps,
+    session_micro_usd: usd_cap.("AI_CAP_SESSION_USD"),
+    day_micro_usd: usd_cap.("AI_CAP_DAY_USD")
+end
+
 # Existing LLM key (also loaded elsewhere via System.get_env)
 # XAI_API_KEY is read by TalesForge.Config / LLM at runtime.

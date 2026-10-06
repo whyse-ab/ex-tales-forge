@@ -5,6 +5,9 @@ defmodule TalesForge.AICalls do
   Costs are integer micro-USD. The provider-billed cost (`usage.cost_in_usd_ticks`,
   1 USD = 10^10 ticks) wins when present; otherwise it is computed from the
   `:llm_prices` table in config. Recording never raises: gameplay must not depend on it.
+
+  Spending caps (`:ai_spend_caps`, set from `AI_CAP_SESSION_USD` / `AI_CAP_DAY_USD`)
+  are checked before each request. The day starts at midnight Europe/Stockholm.
   """
 
   require Logger
@@ -15,6 +18,7 @@ defmodule TalesForge.AICalls do
   alias TalesForge.Schemas.AICall
 
   @ticks_per_micro_usd 10_000
+  @day_zone "Europe/Stockholm"
 
   @doc "Inserts one ai_calls row. Always returns :ok; failures are logged."
   def record(attrs) do
@@ -116,6 +120,39 @@ defmodule TalesForge.AICalls do
     AICall
     |> where([c], c.inserted_at >= ^since)
     |> sum_cost()
+  end
+
+  @doc """
+  `:ok`, or `{:error, {:session | :day, limit, spent}}` (micro-USD) when spend has
+  reached a configured cap. Calls without a session only face the day cap.
+  """
+  def check_spend_caps(session_id, now \\ DateTime.utc_now()) do
+    caps = Application.get_env(:ex_tales_forge, :ai_spend_caps, [])
+
+    with :ok <- check_cap(:session, caps[:session_micro_usd], session_id, now) do
+      check_cap(:day, caps[:day_micro_usd], session_id, now)
+    end
+  end
+
+  @doc "UTC instant of the latest midnight in Europe/Stockholm at `now`."
+  def day_start(%DateTime{} = now) do
+    db = TimeZoneInfo.TimeZoneDatabase
+    local = DateTime.shift_zone!(now, @day_zone, db)
+    {:ok, midnight} = DateTime.new(DateTime.to_date(local), ~T[00:00:00], @day_zone, db)
+    DateTime.shift_zone!(midnight, "Etc/UTC")
+  end
+
+  defp check_cap(_kind, nil, _session_id, _now), do: :ok
+  defp check_cap(:session, _limit, nil, _now), do: :ok
+
+  defp check_cap(kind, limit, session_id, now) do
+    spent =
+      case kind do
+        :session -> total_cost_for_session(session_id)
+        :day -> total_cost_since(day_start(now))
+      end
+
+    if spent >= limit, do: {:error, {kind, limit, spent}}, else: :ok
   end
 
   defp sum_cost(query) do

@@ -197,6 +197,26 @@ defmodule TalesForge.LLM do
   defp dispatch("mock", _system, _user, _temp, _opts), do: {:error, :mock_model}
 
   defp dispatch(model, system, user, temperature, opts) do
+    case AICalls.check_spend_caps(opts[:session_id]) do
+      :ok -> request(model, system, user, temperature, opts)
+      {:error, {kind, limit, spent}} -> spend_capped(model, opts, kind, limit, spent)
+    end
+  end
+
+  defp spend_capped(model, opts, kind, limit, spent) do
+    tier = Keyword.get(opts, :tier, :unknown)
+
+    Logger.warning(
+      "llm spend cap hit cap=#{kind} limit_usd=#{usd(limit)} spent_usd=#{usd(spent)} session=#{opts[:session_id]} tier=#{tier} model=#{model}"
+    )
+
+    record_call(model, tier, opts, :capped, 0)
+    {:error, {:spend_cap, kind}}
+  end
+
+  defp usd(micro_usd), do: :erlang.float_to_binary(micro_usd / 1_000_000, decimals: 4)
+
+  defp request(model, system, user, temperature, opts) do
     started = System.monotonic_time(:millisecond)
     provider = provider()
     tier = Keyword.get(opts, :tier, :unknown)
@@ -257,6 +277,7 @@ defmodule TalesForge.LLM do
     {status, usage} =
       case result do
         {:ok, _content, usage} -> {"ok", usage}
+        :capped -> {"capped", %{}}
         _error -> {"error", %{}}
       end
 

@@ -15,6 +15,7 @@ defmodule TalesForge.Workers.ProcessScene do
   def perform(%Oban.Job{args: %{"session_id" => session_id}}) do
     case SceneProcessor.run(session_id) do
       {:ok, _} -> :ok
+      {:error, {:spend_cap, _kind} = reason} -> {:cancel, reason}
       {:error, reason} -> {:error, reason}
     end
   end

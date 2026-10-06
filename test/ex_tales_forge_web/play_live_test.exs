@@ -91,6 +91,21 @@ defmodule TalesForgeWeb.PlayLiveTest do
     refute render(view) =~ "The GM is thinking…"
   end
 
+  test "a spend cap shows a calm message, not a failure", %{conn: conn} do
+    {:ok, session} =
+      GameSessions.create_session(%{name: "Capped Tin Valley", adventure_id: "tin_valley"})
+
+    {:ok, view, _html} = live(conn, ~p"/play/#{session.id}")
+
+    send(view.pid, {:turn_processing, %{}})
+    send(view.pid, {:turn_failed, {:spend_cap, :day}})
+
+    html = render(view)
+    assert html =~ "resting until tomorrow"
+    refute html =~ "Turn failed"
+    refute html =~ "The GM is thinking…"
+  end
+
   # Checks rendered text only. Matching raw HTML also hits attributes, and the
   # random data-phx-session / csrf tokens occasionally contain e.g. "XP".
   defp refute_sheet(html) do

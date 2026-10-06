@@ -59,7 +59,7 @@ defmodule TalesForge.Game.SceneProcessor do
 
       {:error, reason} = err ->
         Logger.error("scene processor failed session=#{session_id} reason=#{inspect(reason)}")
-        SessionPubSub.broadcast(session_id, {:scene_failed, inspect(reason)})
+        SessionPubSub.broadcast(session_id, {:scene_failed, SessionPubSub.failure_reason(reason)})
         err
     end
   end
