@@ -149,7 +149,7 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Show do
         <button
           type="button"
           phx-click="toggle_interested"
-          class="rounded bg-[var(--paper-accent)] px-3 py-1.5 text-sm text-white"
+          class="rounded bg-[var(--paper-accent)] px-3 py-1.5 text-sm text-[var(--paper-on-accent)]"
         >
           {if @interested?, do: "I'm no longer interested", else: "I'm interested"}
         </button>
@@ -180,7 +180,7 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Show do
           >{@comment_body}</textarea>
           <button
             type="submit"
-            class="rounded bg-[var(--paper-accent)] px-3 py-1.5 text-sm text-white"
+            class="rounded bg-[var(--paper-accent)] px-3 py-1.5 text-sm text-[var(--paper-on-accent)]"
           >
             Comment
           </button>
@@ -227,7 +227,10 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Show do
                 class="w-full rounded border border-[var(--paper-rule)] bg-[var(--paper-bg)] p-2 text-sm"
               >{@outcome_rationale}</textarea>
             </label>
-            <button type="submit" class="rounded bg-emerald-700 px-3 py-1.5 text-sm text-white">
+            <button
+              type="submit"
+              class="rounded bg-[var(--paper-ok-solid)] px-3 py-1.5 text-sm text-white"
+            >
               Record as decided
             </button>
           </form>

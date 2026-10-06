@@ -8,6 +8,10 @@
 // scaled down to fit; anything wider keeps its size and scrolls sideways, so
 // the text never shrinks below ~2/3 of its natural size.
 //
+// Colours come from the page's --paper-* CSS variables (assets/css/app.css),
+// read at render time, so diagrams match the light or dark admin palette.
+// When the theme toggle flips data-theme on <html>, diagrams are re-rendered.
+//
 // Use on an element whose id changes with its content and that has
 // phx-update="ignore", so LiveView swaps the whole element (and calls
 // mounted) when another doc is selected instead of patching away the SVGs.
@@ -17,6 +21,7 @@ let renderSeq = 0
 
 const FIT_RATIO = 1.5
 
+// Fallback when the CSS variables are missing (light paper palette).
 const PAPER = {
   bg: "#f4ead5",
   panel: "#faf6ec",
@@ -25,6 +30,76 @@ const PAPER = {
   rule: "#d4c4a8",
   accent: "#9a3412",
   margin: "#ebe3d0",
+}
+
+function currentPalette() {
+  const style = getComputedStyle(document.documentElement)
+  const palette = {}
+  for (const [name, fallback] of Object.entries(PAPER)) {
+    palette[name] = style.getPropertyValue(`--paper-${name}`).trim() || fallback
+  }
+  palette.dark = document.documentElement.getAttribute("data-theme") === "dark" &&
+    style.getPropertyValue("color-scheme").trim() === "dark"
+  return palette
+}
+
+// Mermaid's config is global, so set it (with the current palette) right
+// before each batch of renders.
+function configure(mermaid) {
+  const p = currentPalette()
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: "strict",
+    theme: "base",
+    fontFamily: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif",
+    themeVariables: {
+      darkMode: p.dark,
+      background: p.panel,
+      fontSize: "14px",
+      mainBkg: p.panel,
+      nodeBorder: p.accent,
+      nodeTextColor: p.ink,
+      primaryColor: p.panel,
+      primaryTextColor: p.ink,
+      primaryBorderColor: p.accent,
+      secondaryColor: p.margin,
+      secondaryTextColor: p.ink,
+      secondaryBorderColor: p.rule,
+      tertiaryColor: p.bg,
+      tertiaryTextColor: p.ink,
+      tertiaryBorderColor: p.rule,
+      lineColor: p.muted,
+      textColor: p.ink,
+      clusterBkg: p.bg,
+      clusterBorder: p.rule,
+      titleColor: p.ink,
+      edgeLabelBackground: p.panel,
+      noteBkgColor: p.margin,
+      noteBorderColor: p.rule,
+      noteTextColor: p.ink,
+      actorBkg: p.panel,
+      actorBorder: p.accent,
+      actorTextColor: p.ink,
+      actorLineColor: p.muted,
+      signalColor: p.muted,
+      signalTextColor: p.ink,
+      labelBoxBkgColor: p.margin,
+      labelBoxBorderColor: p.rule,
+      labelTextColor: p.ink,
+      loopTextColor: p.ink,
+    },
+    // Keep natural size; fitDiagram() decides whether to scale down or
+    // let the wrapper scroll sideways.
+    flowchart: {useMaxWidth: false, htmlLabels: true},
+    sequence: {useMaxWidth: false},
+    gantt: {useMaxWidth: false},
+    class: {useMaxWidth: false},
+    state: {useMaxWidth: false},
+    er: {useMaxWidth: false},
+    journey: {useMaxWidth: false},
+    timeline: {useMaxWidth: false},
+    mindmap: {useMaxWidth: false},
+  })
 }
 
 function loadMermaid() {
@@ -42,45 +117,6 @@ function loadMermaid() {
     script.onload = () => {
       const mermaid = window.mermaid
       if (!mermaid) return reject(new Error("mermaid failed to initialise"))
-      mermaid.initialize({
-        startOnLoad: false,
-        securityLevel: "strict",
-        theme: "base",
-        fontFamily: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif",
-        themeVariables: {
-          background: PAPER.panel,
-          fontSize: "14px",
-          primaryColor: PAPER.panel,
-          primaryTextColor: PAPER.ink,
-          primaryBorderColor: PAPER.accent,
-          secondaryColor: PAPER.margin,
-          secondaryTextColor: PAPER.ink,
-          secondaryBorderColor: PAPER.rule,
-          tertiaryColor: PAPER.bg,
-          tertiaryTextColor: PAPER.ink,
-          tertiaryBorderColor: PAPER.rule,
-          lineColor: PAPER.muted,
-          textColor: PAPER.ink,
-          clusterBkg: PAPER.bg,
-          clusterBorder: PAPER.rule,
-          titleColor: PAPER.ink,
-          edgeLabelBackground: PAPER.panel,
-          noteBkgColor: PAPER.margin,
-          noteBorderColor: PAPER.rule,
-          noteTextColor: PAPER.ink,
-        },
-        // Keep natural size; fitDiagram() decides whether to scale down or
-        // let the wrapper scroll sideways.
-        flowchart: {useMaxWidth: false, htmlLabels: true},
-        sequence: {useMaxWidth: false},
-        gantt: {useMaxWidth: false},
-        class: {useMaxWidth: false},
-        state: {useMaxWidth: false},
-        er: {useMaxWidth: false},
-        journey: {useMaxWidth: false},
-        timeline: {useMaxWidth: false},
-        mindmap: {useMaxWidth: false},
-      })
       resolve(mermaid)
     }
     script.onerror = () => {
@@ -129,6 +165,8 @@ async function renderDiagrams(root) {
     return // leave the code blocks as they are
   }
 
+  configure(mermaid)
+
   for (const code of blocks) {
     const pre = code.parentElement
     if (!pre.isConnected || pre.dataset.mermaid) continue
@@ -163,9 +201,22 @@ async function renderDiagrams(root) {
   }
 }
 
+// Drop rendered diagrams (and error notes) and show the sources again, so
+// renderDiagrams() draws them afresh, e.g. in the new theme's colours.
+function resetDiagrams(root) {
+  root.querySelectorAll(".mermaid-diagram, .mermaid-error").forEach(el => el.remove())
+  root.querySelectorAll("pre[data-mermaid]").forEach(pre => {
+    delete pre.dataset.mermaid
+    pre.hidden = false
+  })
+}
+
 export const Mermaid = {
   mounted() {
-    renderDiagrams(this.el)
+    // Renders run one after another (theme flips can arrive mid-render).
+    this.queue = Promise.resolve()
+    this.render = () => { this.queue = this.queue.then(() => renderDiagrams(this.el)) }
+    this.render()
     // Re-fit on rotation/resize; only width changes matter, and at most once
     // per frame.
     let lastWidth = this.el.clientWidth
@@ -180,7 +231,16 @@ export const Mermaid = {
       })
     })
     this.resizeObserver.observe(this.el)
+    // Theme toggle (or OS change in "system" mode) flips data-theme on <html>.
+    this.themeObserver = new MutationObserver(() => {
+      this.queue = this.queue.then(() => resetDiagrams(this.el))
+      this.render()
+    })
+    this.themeObserver.observe(document.documentElement, {attributes: true, attributeFilter: ["data-theme"]})
   },
-  updated() { renderDiagrams(this.el) },
-  destroyed() { this.resizeObserver && this.resizeObserver.disconnect() },
+  updated() { this.render() },
+  destroyed() {
+    this.resizeObserver && this.resizeObserver.disconnect()
+    this.themeObserver && this.themeObserver.disconnect()
+  },
 }

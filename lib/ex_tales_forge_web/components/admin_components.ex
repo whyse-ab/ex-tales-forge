@@ -7,7 +7,15 @@ defmodule TalesForgeWeb.AdminComponents do
 
   def nav(assigns) do
     ~H"""
-    <nav class="-mx-0.5 flex gap-1 overflow-x-auto whitespace-nowrap text-sm lg:mx-0 lg:block lg:space-y-1 lg:overflow-visible lg:whitespace-normal">
+    <%!-- Phones: one row that scrolls sideways; the AdminNav hook scrolls the
+         active tab fully into view and fades whichever edge has more tabs.
+         Desktop: a plain vertical list. --%>
+    <nav
+      id="admin-nav"
+      phx-hook="AdminNav"
+      aria-label="Admin sections"
+      class="admin-nav -mx-0.5 flex gap-1 overflow-x-auto whitespace-nowrap text-sm lg:mx-0 lg:block lg:space-y-1 lg:overflow-visible lg:whitespace-normal"
+    >
       <.nav_link href={~p"/admin"} label="Dashboard" active={@active == "dashboard"} />
       <.nav_link href={~p"/admin/decisions"} label="Decisions" active={@active == "decisions"} />
       <.nav_link href={~p"/admin/docs"} label="Docs" active={@active == "docs"} />
@@ -23,7 +31,7 @@ defmodule TalesForgeWeb.AdminComponents do
       <.link
         href={~p"/admin/logout"}
         method="delete"
-        class="block shrink-0 rounded px-3 py-2 text-[var(--paper-muted)] hover:bg-[var(--paper-panel)]"
+        class="block shrink-0 rounded px-3 py-2 text-[var(--paper-muted)] hover:bg-[var(--paper-bg)]"
       >
         Sign out
       </.link>
@@ -39,10 +47,11 @@ defmodule TalesForgeWeb.AdminComponents do
     ~H"""
     <.link
       navigate={@href}
+      aria-current={@active && "page"}
       class={[
         "block shrink-0 rounded px-3 py-2",
-        @active && "bg-[var(--paper-accent)] text-white",
-        !@active && "text-[var(--paper-ink)] hover:bg-[var(--paper-panel)]"
+        @active && "bg-[var(--paper-accent)] text-[var(--paper-on-accent)]",
+        !@active && "text-[var(--paper-ink)] hover:bg-[var(--paper-bg)]"
       ]}
     >
       {@label}

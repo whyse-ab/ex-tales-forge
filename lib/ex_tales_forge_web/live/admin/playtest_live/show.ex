@@ -155,7 +155,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
           type="button"
           phx-click="score"
           disabled={@scoring}
-          class="rounded bg-[var(--paper-accent)] px-4 py-2 text-sm text-white disabled:opacity-50"
+          class="rounded bg-[var(--paper-accent)] px-4 py-2 text-sm text-[var(--paper-on-accent)] disabled:opacity-50"
         >
           {cond do
             @scoring -> "Scoring…"

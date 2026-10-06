@@ -49,7 +49,10 @@ defmodule TalesForgeWeb.AdminLive.NpcDefinitionLive.Show do
             value={@json}
             rows={28}
           />
-          <button type="submit" class="rounded bg-[var(--paper-accent)] px-4 py-2 text-sm text-white">
+          <button
+            type="submit"
+            class="rounded bg-[var(--paper-accent)] px-4 py-2 text-sm text-[var(--paper-on-accent)]"
+          >
             Save to disk
           </button>
         </form>

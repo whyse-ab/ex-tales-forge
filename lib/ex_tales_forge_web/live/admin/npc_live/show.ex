@@ -90,7 +90,10 @@ defmodule TalesForgeWeb.AdminLive.NpcLive.Show do
           class="max-w-xs space-y-3"
         >
           <.input field={@form[:disposition]} type="number" label="Disposition" step="0.1" />
-          <button type="submit" class="rounded bg-[var(--paper-accent)] px-4 py-2 text-sm text-white">
+          <button
+            type="submit"
+            class="rounded bg-[var(--paper-accent)] px-4 py-2 text-sm text-[var(--paper-on-accent)]"
+          >
             Save
           </button>
         </.form>
@@ -106,7 +109,10 @@ defmodule TalesForgeWeb.AdminLive.NpcLive.Show do
       <.section_card title="Runtime state (JSON)">
         <form phx-submit="save_runtime" class="space-y-3">
           <.json_editor id="runtime_json" label="runtime_state" value={@runtime_json} rows={20} />
-          <button type="submit" class="rounded bg-[var(--paper-accent)] px-4 py-2 text-sm text-white">
+          <button
+            type="submit"
+            class="rounded bg-[var(--paper-accent)] px-4 py-2 text-sm text-[var(--paper-on-accent)]"
+          >
             Save runtime state
           </button>
         </form>

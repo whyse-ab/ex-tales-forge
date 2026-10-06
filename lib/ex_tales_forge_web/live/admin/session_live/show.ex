@@ -103,7 +103,7 @@ defmodule TalesForgeWeb.AdminLive.SessionLive.Show do
       <div class="flex flex-wrap gap-2">
         <.link
           navigate={~p"/play/#{@session.id}"}
-          class="rounded bg-[var(--paper-accent)] px-3 py-1.5 text-sm text-white"
+          class="rounded bg-[var(--paper-accent)] px-3 py-1.5 text-sm text-[var(--paper-on-accent)]"
         >
           Open in play
         </.link>
@@ -160,7 +160,10 @@ defmodule TalesForgeWeb.AdminLive.SessionLive.Show do
             label="Status"
             options={[{"Active", "active"}, {"Paused", "paused"}, {"Completed", "completed"}]}
           />
-          <button type="submit" class="rounded bg-[var(--paper-accent)] px-4 py-2 text-sm text-white">
+          <button
+            type="submit"
+            class="rounded bg-[var(--paper-accent)] px-4 py-2 text-sm text-[var(--paper-on-accent)]"
+          >
             Save
           </button>
         </.form>
@@ -169,7 +172,10 @@ defmodule TalesForgeWeb.AdminLive.SessionLive.Show do
       <.section_card title="World state (JSON)">
         <form phx-submit="save_world_state" class="space-y-3">
           <.json_editor id="world_state_json" label="world_state" value={@world_state_json} rows={24} />
-          <button type="submit" class="rounded bg-[var(--paper-accent)] px-4 py-2 text-sm text-white">
+          <button
+            type="submit"
+            class="rounded bg-[var(--paper-accent)] px-4 py-2 text-sm text-[var(--paper-on-accent)]"
+          >
             Save world state
           </button>
         </form>
@@ -189,7 +195,7 @@ defmodule TalesForgeWeb.AdminLive.SessionLive.Show do
             type="button"
             phx-click="delete"
             data-confirm="Delete this session permanently?"
-            class="rounded border border-red-300 px-3 py-1.5 text-sm text-red-700"
+            class="rounded border border-[var(--paper-danger-rule)] px-3 py-1.5 text-sm text-[var(--paper-danger-ink)]"
           >
             Delete session
           </button>

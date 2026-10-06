@@ -155,10 +155,10 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Index do
     ~H"""
     <span class={[
       "rounded-full px-2 py-0.5 text-xs font-medium",
-      @status == "open" && "bg-amber-100 text-amber-900",
-      @status == "discussing" && "bg-sky-100 text-sky-900",
-      @status == "decided" && "bg-emerald-100 text-emerald-900",
-      @status == "superseded" && "bg-zinc-200 text-zinc-700"
+      @status == "open" && "bg-[var(--paper-warn-bg)] text-[var(--paper-warn-ink)]",
+      @status == "discussing" && "bg-[var(--paper-info-bg)] text-[var(--paper-info-ink)]",
+      @status == "decided" && "bg-[var(--paper-ok-bg)] text-[var(--paper-ok-ink)]",
+      @status == "superseded" && "bg-[var(--paper-quiet-bg)] text-[var(--paper-quiet-ink)]"
     ]}>
       {@status}
     </span>
