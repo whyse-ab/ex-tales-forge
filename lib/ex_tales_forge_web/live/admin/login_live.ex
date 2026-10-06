@@ -1,8 +1,6 @@
 defmodule TalesForgeWeb.AdminLive.LoginLive do
   use TalesForgeWeb, :live_view
 
-  on_mount {TalesForgeWeb.AdminLive.Hooks, :maybe_admin}
-
   @impl true
   def mount(_params, _session, socket) do
     if socket.assigns[:admin_email] do

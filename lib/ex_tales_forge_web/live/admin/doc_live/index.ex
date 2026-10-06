@@ -6,8 +6,6 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
   alias TalesForge.Collab
   alias TalesForge.Collab.Markdown
 
-  on_mount {TalesForgeWeb.AdminLive.Hooks, :require_admin}
-
   @impl true
   def mount(_params, _session, socket) do
     docs = Collab.list_docs()

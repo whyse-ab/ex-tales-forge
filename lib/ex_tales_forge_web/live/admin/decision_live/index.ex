@@ -5,8 +5,6 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Index do
 
   alias TalesForge.Collab
 
-  on_mount {TalesForgeWeb.AdminLive.Hooks, :require_admin}
-
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket), do: Collab.subscribe()

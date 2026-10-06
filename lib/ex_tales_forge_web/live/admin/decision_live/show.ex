@@ -6,8 +6,6 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Show do
   alias TalesForge.Collab
   alias TalesForge.Collab.Markdown
 
-  on_mount {TalesForgeWeb.AdminLive.Hooks, :require_admin}
-
   @impl true
   def mount(%{"slug" => slug}, _session, socket) do
     decision = Collab.get_decision_by_slug!(slug)
