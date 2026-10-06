@@ -1,11 +1,14 @@
 defmodule TalesForge.SceneProcessorTest do
   use TalesForge.DataCase, async: false
 
+  import Ecto.Query
+
   alias TalesForge.Game.SceneProcessor
   alias TalesForge.GameSessions
   alias TalesForge.Jido
   alias TalesForge.Repo
   alias TalesForge.Schemas.{Scene, Turn}
+  alias TalesForge.Workers.ProcessScene
 
   setup do
     on_exit(fn ->
@@ -42,6 +45,17 @@ defmodule TalesForge.SceneProcessorTest do
 
     assert turn
     assert turn.player_action == "look around the tavern"
+  end
+
+  test "a finished scene job does not block the next scene for the session" do
+    Oban.Testing.with_testing_mode(:manual, fn ->
+      args = %{session_id: Ecto.UUID.generate()}
+      {:ok, first} = Oban.insert(ProcessScene.new(args))
+      assert {:ok, %{conflict?: true}} = Oban.insert(ProcessScene.new(args))
+
+      Repo.update_all(from(j in Oban.Job, where: j.id == ^first.id), set: [state: "completed"])
+      assert {:ok, %{conflict?: false}} = Oban.insert(ProcessScene.new(args))
+    end)
   end
 
   test "travel sets needs_scene until a new scene is described" do

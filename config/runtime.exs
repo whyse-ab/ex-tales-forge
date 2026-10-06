@@ -210,6 +210,12 @@ if config_env() != :test do
   config :ex_tales_forge, :ai_spend_caps,
     session_micro_usd: usd_cap.("AI_CAP_SESSION_USD"),
     day_micro_usd: usd_cap.("AI_CAP_DAY_USD")
+
+  # Persona bot runner (TalesForge.Playtest.Runner). Only "true" enables it;
+  # set on playtest only, never in production.
+  config :ex_tales_forge,
+         :playtest_runner_enabled,
+         System.get_env("PLAYTEST_RUNNER_ENABLED") == "true"
 end
 
 # Existing LLM key (also loaded elsewhere via System.get_env)

@@ -184,6 +184,29 @@ defmodule TalesForge.GameSessions do
     end
   end
 
+  @doc "What the play page shows as the story so far. Needs `:turns` and `:scenes` preloaded."
+  def transcript(%GameSession{} = session) do
+    scene_rows =
+      Enum.map(session.scenes, fn scene ->
+        {scene.inserted_at, SceneProcessor.build_entry(scene)}
+      end)
+
+    turn_rows =
+      session.turns
+      |> Enum.sort_by(& &1.turn_number)
+      |> Enum.flat_map(fn turn ->
+        [
+          {turn.inserted_at,
+           %{id: "#{turn.id}-player", role: "player", text: turn.player_action}},
+          {turn.inserted_at, %{id: "#{turn.id}-gm", role: "gm", text: turn.narrative || ""}}
+        ]
+      end)
+
+    (scene_rows ++ turn_rows)
+    |> Enum.sort_by(fn {inserted_at, _} -> inserted_at end, DateTime)
+    |> Enum.map(fn {_inserted_at, entry} -> entry end)
+  end
+
   def ensure_agent_started(%GameSession{} = session) do
     ensure_runtime_started(session)
   end

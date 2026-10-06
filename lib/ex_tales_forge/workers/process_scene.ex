@@ -7,7 +7,7 @@ defmodule TalesForge.Workers.ProcessScene do
   use Oban.Worker,
     queue: :llm,
     max_attempts: 3,
-    unique: [period: 60, fields: [:args], keys: [:session_id]]
+    unique: [period: 60, fields: [:args], keys: [:session_id], states: :incomplete]
 
   alias TalesForge.Game.SceneProcessor
 

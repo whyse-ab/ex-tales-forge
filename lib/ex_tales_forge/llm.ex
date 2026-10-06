@@ -51,6 +51,17 @@ defmodule TalesForge.LLM do
     }
   }
 
+  @persona_schema %{
+    "type" => "object",
+    "required" => ["action"],
+    "properties" => %{
+      "action" => %{"type" => "string"},
+      "option_id" => %{"type" => ["string", "null"]}
+    }
+  }
+
+  @persona_max_tokens 200
+
   # Output budget for gm_notes on top of the narration's TIER2_MAX_TOKENS.
   @gm_notes_max_tokens 100
 
@@ -98,6 +109,21 @@ defmodule TalesForge.LLM do
         error ->
           error
       end
+    end
+  end
+
+  def complete_persona(system, user, opts \\ []) do
+    model = tier2_model()
+
+    if mock?(model) do
+      {:ok, %{"action" => "I look around and listen.", "option_id" => nil}}
+    else
+      complete_json(model, system, user, @persona_schema, Config.tier2_temperature(),
+        tier: :persona,
+        max_tokens: @persona_max_tokens,
+        session_id: opts[:session_id],
+        turn_number: opts[:turn_number]
+      )
     end
   end
 
