@@ -45,7 +45,7 @@ defmodule TalesForge.Schemas.AICall do
     ai_call
     |> cast(attrs, @fields)
     |> validate_required([:purpose, :model, :status, :latency_ms])
-    |> validate_inclusion(:status, ~w(ok error))
+    |> validate_inclusion(:status, ~w(ok error capped))
     |> validate_inclusion(:cost_source, ~w(provider price_table))
     |> foreign_key_constraint(:game_session_id)
   end

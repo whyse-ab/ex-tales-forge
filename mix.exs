@@ -72,6 +72,7 @@ defmodule TalesForge.MixProject do
       {:assent, "~> 0.3.1"},
       {:jido, "~> 2.3"},
       {:jido_ai, "~> 2.2"},
+      {:time_zone_info, "~> 0.7"},
       {:oban, "~> 2.23"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},

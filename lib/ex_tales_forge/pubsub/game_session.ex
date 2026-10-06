@@ -14,4 +14,8 @@ defmodule TalesForge.PubSub.GameSession do
   def broadcast(session_id, event) do
     Phoenix.PubSub.broadcast(@pubsub, topic(session_id), event)
   end
+
+  @doc "Reason for `:turn_failed` / `:scene_failed`: spend caps stay matchable, the rest is text."
+  def failure_reason({:spend_cap, _kind} = reason), do: reason
+  def failure_reason(reason), do: inspect(reason)
 end

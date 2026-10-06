@@ -8,7 +8,9 @@ defmodule TalesForge.AICallsTest do
   alias TalesForge.Game.Schemas.PlayerAction
   alias TalesForge.GameSessions
   alias TalesForge.Jido
+  alias TalesForge.PubSub.GameSession, as: SessionPubSub
   alias TalesForge.Schemas.{AICall, Turn}
+  alias TalesForge.Workers.ProcessTurn
 
   # Shape of an xAI /v1/chat/completions response (docs.x.ai chat-completions reference).
   @xai_body %{
@@ -54,6 +56,7 @@ defmodule TalesForge.AICallsTest do
       for {id, _pid} <- Jido.list_agents(), do: Jido.stop_agent(id)
       System.put_env("LLM_PROVIDER", "mock")
       System.delete_env("XAI_API_KEY")
+      Application.delete_env(:ex_tales_forge, :ai_spend_caps)
     end)
 
     :ok
@@ -159,6 +162,93 @@ defmodule TalesForge.AICallsTest do
     assert Repo.all(AICall) == []
   end
 
+  describe "spend caps" do
+    test "are off when unset" do
+      {:ok, session} = GameSessions.create_session(%{name: "Uncapped"})
+      :ok = AICalls.record(call_attrs(session.id, %{cost_ticks: 10_000_000_000}))
+
+      assert AICalls.check_spend_caps(session.id) == :ok
+      put_caps(session_micro_usd: nil, day_micro_usd: nil)
+      assert AICalls.check_spend_caps(session.id) == :ok
+    end
+
+    test "session cap blocks that session only; calls without a session skip it" do
+      {:ok, session} = GameSessions.create_session(%{name: "Session Cap"})
+      {:ok, other} = GameSessions.create_session(%{name: "Session Cap Other"})
+      :ok = AICalls.record(call_attrs(session.id, %{cost_ticks: 15_000_000}))
+      put_caps(session_micro_usd: 1500)
+
+      assert AICalls.check_spend_caps(session.id) == {:error, {:session, 1500, 1500}}
+      assert AICalls.check_spend_caps(other.id) == :ok
+      assert AICalls.check_spend_caps(nil) == :ok
+    end
+
+    test "day cap blocks every call, with or without a session" do
+      {:ok, session} = GameSessions.create_session(%{name: "Day Cap"})
+      :ok = AICalls.record(call_attrs(nil, %{cost_ticks: 10_000_000}))
+      put_caps(day_micro_usd: 1000)
+
+      assert AICalls.check_spend_caps(nil) == {:error, {:day, 1000, 1000}}
+      assert AICalls.check_spend_caps(session.id) == {:error, {:day, 1000, 1000}}
+    end
+
+    test "the day starts at midnight Europe/Stockholm" do
+      assert AICalls.day_start(~U[2026-10-06 21:59:59Z]) == ~U[2026-10-05 22:00:00Z]
+      assert AICalls.day_start(~U[2026-10-06 22:00:00Z]) == ~U[2026-10-06 22:00:00Z]
+      assert AICalls.day_start(~U[2026-10-25 12:00:00Z]) == ~U[2026-10-24 22:00:00Z]
+      assert AICalls.day_start(~U[2026-12-01 10:00:00Z]) == ~U[2026-11-30 23:00:00Z]
+
+      insert_cost!(5000, ~U[2026-10-05 21:59:59Z])
+      insert_cost!(1000, ~U[2026-10-05 22:00:00Z])
+      put_caps(day_micro_usd: 1000)
+
+      assert AICalls.check_spend_caps(nil, ~U[2026-10-06 21:30:00Z]) ==
+               {:error, {:day, 1000, 1000}}
+
+      assert AICalls.check_spend_caps(nil, ~U[2026-10-06 22:00:00Z]) == :ok
+    end
+
+    test "a capped GM turn sends no request, writes a capped row and tells the player" do
+      {session, player_action} = session_with_action()
+      :ok = AICalls.record(call_attrs(session.id, %{cost_ticks: 15_000_000}))
+      put_caps(session_micro_usd: 1000)
+      SessionPubSub.subscribe(session.id)
+      test_pid = self()
+
+      Req.Test.stub(TalesForge.LLM, fn conn ->
+        send(test_pid, :llm_request)
+        Req.Test.json(conn, @xai_body)
+      end)
+
+      log =
+        capture_log(fn ->
+          assert {:error, {:spend_cap, :session}} =
+                   TurnProcessor.run(session.id, "look around the tavern", player_action)
+        end)
+
+      refute_received :llm_request
+      assert_received {:turn_failed, {:spend_cap, :session}}
+
+      assert log =~
+               "llm spend cap hit cap=session limit_usd=0.0010 spent_usd=0.0015 session=#{session.id}"
+
+      refute Repo.get_by(Turn, game_session_id: session.id)
+
+      assert %AICall{purpose: "gm", turn_number: 1, latency_ms: 0, cost_micro_usd: nil} =
+               Repo.get_by!(AICall, game_session_id: session.id, status: "capped")
+
+      job = %Oban.Job{
+        args: %{
+          "session_id" => session.id,
+          "raw_action" => "look",
+          "player_action" => player_action
+        }
+      }
+
+      capture_log(fn -> assert {:cancel, {:spend_cap, :session}} = ProcessTurn.perform(job) end)
+    end
+  end
+
   defp session_with_action do
     {:ok, session} = GameSessions.create_session(%{name: "Cost Turn"})
     context = Context.build_intent_context(session)
@@ -183,5 +273,18 @@ defmodule TalesForge.AICallsTest do
       latency_ms: 5,
       usage: usage
     }
+  end
+
+  defp put_caps(caps), do: Application.put_env(:ex_tales_forge, :ai_spend_caps, caps)
+
+  defp insert_cost!(micro_usd, inserted_at) do
+    Repo.insert!(%AICall{
+      purpose: "gm",
+      model: "grok-4.3",
+      status: "ok",
+      latency_ms: 1,
+      cost_micro_usd: micro_usd,
+      inserted_at: inserted_at
+    })
   end
 end
