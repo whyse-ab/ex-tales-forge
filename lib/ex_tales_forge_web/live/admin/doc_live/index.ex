@@ -31,7 +31,11 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
     {:noreply,
      socket
      |> assign(:selected, doc)
-     |> assign(:body_html, Markdown.to_html(doc.body))
+     # The card heading already shows the title; don't repeat the doc's own H1.
+     |> assign(
+       :body_html,
+       doc.body |> Markdown.strip_title_heading(doc.title) |> Markdown.to_html()
+     )
      |> push_event("scroll-into-view", %{id: "doc-preview", mobile_only: true})}
   end
 
@@ -63,7 +67,8 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
         >
           <summary class="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-sm">
             <span class="font-serif font-semibold text-[var(--paper-ink)]">
-              Files <span class="font-sans font-normal text-[var(--paper-muted)]">({length(@docs)})</span>
+              Files
+              <span class="font-sans font-normal text-[var(--paper-muted)]">({length(@docs)})</span>
             </span>
             <span :if={@selected} class="truncate text-xs text-[var(--paper-muted)]">
               {@selected.path}
