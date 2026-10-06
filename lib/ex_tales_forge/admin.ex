@@ -12,8 +12,6 @@ defmodule TalesForge.Admin do
   alias TalesForge.Repo
   alias TalesForge.Schemas.{GameSession, NpcInstance, Scene, Turn}
 
-  @npc_dir Path.join(:code.priv_dir(:ex_tales_forge), "npcs")
-
   def stats do
     # Use Ash for admin stats where possible (falls back to Ecto)
     %{
@@ -190,7 +188,7 @@ defmodule TalesForge.Admin do
   end
 
   defp list_npc_definitions_from_files do
-    @npc_dir
+    npc_dir()
     |> File.ls!()
     |> Enum.filter(&String.ends_with?(&1, ".json"))
     |> Enum.map(&load_npc_definition_summary/1)
@@ -318,7 +316,7 @@ defmodule TalesForge.Admin do
   end
 
   defp load_npc_definition_summary(file) do
-    definition = @npc_dir |> Path.join(file) |> File.read!() |> Jason.decode!()
+    definition = npc_dir() |> Path.join(file) |> File.read!() |> Jason.decode!()
     id = Map.get(definition, "id", Path.rootname(file))
 
     %{
@@ -331,7 +329,7 @@ defmodule TalesForge.Admin do
   end
 
   defp npc_definition_path(npc_id) do
-    Path.join(@npc_dir, "#{npc_id}.json")
+    Path.join(npc_dir(), "#{npc_id}.json")
   end
 
   defp validate_npc_definition(definition) do
@@ -364,4 +362,7 @@ defmodule TalesForge.Admin do
   end
 
   defp blank?(value), do: is_nil(value) or to_string(value) |> String.trim() == ""
+
+  # Resolved at runtime (not a module attribute): in a release priv is not at its build path.
+  defp npc_dir, do: Path.join(:code.priv_dir(:ex_tales_forge), "npcs")
 end
