@@ -21,6 +21,11 @@ RUN mix local.hex --force && mix local.rebar --force
 
 ENV MIX_ENV="prod"
 
+# MDEx's precompiled NIF: use the baseline x86-64 build (no AVX/FMA) so the
+# release runs on any host CPU. Read by deps/mdex_native at deps.compile time;
+# without it the AVX/FMA build is always picked.
+ENV MDEX_NATIVE_USE_LEGACY_ARTIFACTS=1
+
 COPY mix.exs mix.lock ./
 RUN mix deps.get --only $MIX_ENV
 RUN mkdir config
