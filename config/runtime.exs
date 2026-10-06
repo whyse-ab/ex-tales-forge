@@ -158,7 +158,8 @@ if config_env() == :prod do
   config :ex_tales_forge, TalesForge.Mailer, mailer_config
 end
 
-# Founder admin allowlist (comma-separated emails). Magic-link only — no GitHub login.
+# Founder admin allowlist (comma-separated emails), for magic links and for
+# "Sign in with GitHub" (any verified GitHub email on the list).
 # In test, prefer config/test.exs defaults unless ADMIN_EMAILS is explicitly set.
 admin_emails_env = System.get_env("ADMIN_EMAILS")
 
@@ -174,6 +175,20 @@ if admin_emails_env || config_env() != :test do
 end
 
 config :ex_tales_forge, :github_docs_token, System.get_env("GITHUB_DOCS_TOKEN")
+
+# "Sign in with GitHub" for /admin. Both values are needed, otherwise the button
+# is hidden and the routes redirect back to the login page.
+# ADMIN_GITHUB_TEAM ("org/team-slug", optional): active members of that team
+# get in too; unset = team access off. Membership is checked with
+# GITHUB_DOCS_TOKEN, which then needs read access to the org's members.
+if config_env() != :test do
+  config :ex_tales_forge, :github_oauth,
+    client_id: System.get_env("GITHUB_OAUTH_CLIENT_ID"),
+    client_secret: System.get_env("GITHUB_OAUTH_CLIENT_SECRET")
+
+  config :ex_tales_forge, :admin_github_team, System.get_env("ADMIN_GITHUB_TEAM")
+end
+
 config :ex_tales_forge, :tales_forge_docs_path, System.get_env("TALES_FORGE_DOCS_PATH")
 
 # Existing LLM key (also loaded elsewhere via System.get_env)

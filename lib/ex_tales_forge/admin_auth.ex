@@ -1,10 +1,17 @@
 defmodule TalesForge.AdminAuth do
   @moduledoc """
-  Email magic-link auth for the /admin section, restricted to ADMIN_EMAILS.
+  Auth for the /admin section: email magic links restricted to ADMIN_EMAILS,
+  plus "Sign in with GitHub" (`TalesForge.AdminAuth.GitHub`).
+
+  The session holds `admin_email` (and `admin_github_login` after a GitHub
+  sign-in), never a token. Every request and LiveView mount rechecks it via
+  `current_email/1`: the email must still be allowlisted or, for GitHub
+  sessions, the login must still be an active member of ADMIN_GITHUB_TEAM.
   """
 
   import Ecto.Query
 
+  alias TalesForge.AdminAuth.GitHub
   alias TalesForge.Collab.Schemas.MagicToken
   alias TalesForge.Mailer
   alias TalesForge.Repo
@@ -12,6 +19,7 @@ defmodule TalesForge.AdminAuth do
 
   @token_ttl_minutes 30
   @session_key "admin_email"
+  @github_login_key "admin_github_login"
 
   def session_key, do: @session_key
 
@@ -84,31 +92,50 @@ defmodule TalesForge.AdminAuth do
     end
   end
 
+  @doc "Session for a magic-link login (drops any earlier GitHub identity)."
   def put_session(conn, email) do
-    Plug.Conn.put_session(conn, @session_key, normalize(email))
+    conn
+    |> Plug.Conn.put_session(@session_key, normalize(email))
+    |> Plug.Conn.delete_session(@github_login_key)
+  end
+
+  @doc "Session for a GitHub login."
+  def put_github_session(conn, %{login: login, email: email}) do
+    conn
+    |> Plug.Conn.put_session(@session_key, normalize(email))
+    |> Plug.Conn.put_session(@github_login_key, login)
   end
 
   def clear_session(conn) do
-    Plug.Conn.delete_session(conn, @session_key)
+    conn
+    |> Plug.Conn.delete_session(@session_key)
+    |> Plug.Conn.delete_session(@github_login_key)
   end
 
-  def current_email(%Plug.Conn{} = conn) do
-    case Plug.Conn.get_session(conn, @session_key) do
-      email when is_binary(email) -> normalize_if_allowed(email)
-      _ -> nil
-    end
-  end
+  @doc """
+  The signed-in admin email, or nil. Rechecked every time: allowlisted email,
+  or (GitHub sessions only) active membership of ADMIN_GITHUB_TEAM.
+  """
+  def current_email(%Plug.Conn{} = conn), do: current_email(Plug.Conn.get_session(conn))
 
   def current_email(session) when is_map(session) do
     case Map.get(session, @session_key) do
-      email when is_binary(email) -> normalize_if_allowed(email)
-      _ -> nil
+      email when is_binary(email) ->
+        recheck(normalize(email), Map.get(session, @github_login_key))
+
+      _ ->
+        nil
     end
   end
 
-  defp normalize_if_allowed(email) do
-    email = normalize(email)
-    if allowlisted?(email), do: email, else: nil
+  def current_email(_), do: nil
+
+  defp recheck(email, github_login) do
+    cond do
+      allowlisted?(email) -> email
+      GitHub.team_member?(github_login) -> email
+      true -> nil
+    end
   end
 
   defp magic_link_email(email, url) do
@@ -134,5 +161,5 @@ defmodule TalesForge.AdminAuth do
     :crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false)
   end
 
-  defp normalize(email) when is_binary(email), do: email |> String.trim() |> String.downcase()
+  def normalize(email) when is_binary(email), do: email |> String.trim() |> String.downcase()
 end

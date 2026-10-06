@@ -69,6 +69,7 @@ defmodule TalesForge.MixProject do
       {:yaml_elixir, "~> 2.12"},
       {:mdex, "~> 0.14"},
       {:req, "~> 0.5"},
+      {:assent, "~> 0.3.1"},
       {:jido, "~> 2.3"},
       {:jido_ai, "~> 2.2"},
       {:oban, "~> 2.23"},

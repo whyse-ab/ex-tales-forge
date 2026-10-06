@@ -46,6 +46,8 @@ defmodule TalesForgeWeb.Router do
 
     post "/login", AdminSessionController, :create
     get "/magic/:token", AdminSessionController, :magic
+    get "/auth/github", AdminGithubAuthController, :request
+    get "/auth/github/callback", AdminGithubAuthController, :callback
     delete "/logout", AdminSessionController, :delete
   end
 
