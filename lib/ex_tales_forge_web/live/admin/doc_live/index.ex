@@ -42,7 +42,7 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.admin flash={@flash} active="docs">
+    <Layouts.admin flash={@flash} active="docs" wide>
       <header class="space-y-1">
         <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Shared docs</h2>
         <p class="text-[var(--paper-muted)]">Indexed from the tales-forge-docs repo.</p>
@@ -79,7 +79,12 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
           </div>
         </details>
 
-        <.section_card title="Files" class="hidden lg:block lg:self-start">
+        <%!-- Desktop: sticky, independently scrolling file list, so the column
+             stays populated next to a long doc instead of going blank --%>
+        <.section_card
+          title="Files"
+          class="hidden lg:sticky lg:top-4 lg:block lg:max-h-[calc(100dvh-2rem)] lg:self-start lg:overflow-y-auto"
+        >
           <.doc_list docs={@docs} selected={@selected} />
         </.section_card>
 
@@ -95,7 +100,7 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
               id={"doc-body-#{@selected.id}-#{:erlang.phash2(@selected.body)}"}
               phx-hook="Mermaid"
               phx-update="ignore"
-              class="prose prose-sm max-w-none text-[var(--paper-ink)]"
+              class="prose prose-sm max-w-[80ch] text-[var(--paper-ink)]"
             >
               {@body_html}
             </article>

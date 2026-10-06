@@ -72,11 +72,15 @@ defmodule TalesForgeWeb.Layouts do
 
   attr :active, :string, default: "dashboard"
 
+  attr :wide, :boolean,
+    default: false,
+    doc: "wider page (max-w-7xl) for pages with their own sidebar column, e.g. docs"
+
   def admin(assigns) do
     ~H"""
     <div class="paper-home min-h-dvh">
       <header class="border-b border-[var(--paper-rule)] bg-[var(--paper-panel)] px-3 py-3 sm:px-6">
-        <div class="mx-auto flex max-w-6xl items-center justify-between">
+        <div class={["mx-auto flex items-center justify-between", admin_width(@wide)]}>
           <div>
             <p class="play-label text-[var(--paper-accent)]">Tales Forge</p>
             <h1 class="font-serif text-lg font-semibold text-[var(--paper-ink)]">Admin</h1>
@@ -85,8 +89,12 @@ defmodule TalesForgeWeb.Layouts do
         </div>
       </header>
 
-      <div class="mx-auto grid max-w-6xl gap-4 px-3 py-4 sm:gap-6 sm:px-6 sm:py-8 lg:grid-cols-[12rem_minmax(0,1fr)]">
-        <aside class="min-w-0 rounded-lg border border-[var(--paper-rule)] bg-[var(--paper-panel)] p-1.5 lg:p-3 lg:self-start">
+      <div class={[
+        "mx-auto grid gap-4 px-3 py-4 sm:gap-6 sm:px-6 sm:py-8 lg:grid-cols-[12rem_minmax(0,1fr)]",
+        admin_width(@wide)
+      ]}>
+        <%!-- Sticky on desktop so the nav column doesn't turn into blank space on long pages --%>
+        <aside class="min-w-0 rounded-lg border border-[var(--paper-rule)] bg-[var(--paper-panel)] p-1.5 lg:sticky lg:top-4 lg:self-start lg:p-3">
           <.nav active={@active} />
         </aside>
         <main class="min-w-0 space-y-4">
@@ -98,6 +106,9 @@ defmodule TalesForgeWeb.Layouts do
     </div>
     """
   end
+
+  defp admin_width(true), do: "max-w-7xl"
+  defp admin_width(false), do: "max-w-6xl"
 
   def play(assigns) do
     ~H"""

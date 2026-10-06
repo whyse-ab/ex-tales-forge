@@ -30,4 +30,23 @@ defmodule TalesForgeWeb.AdminLive.DocLiveTest do
     assert preview =~ "Q1"
     assert preview =~ "Plans."
   end
+
+  test "inline and fenced code render inside the prose article", %{conn: conn} do
+    {:ok, _} =
+      Importer.upsert_doc_markdown(
+        "# Code doc\n\nRun `mix test` first.\n\n```yaml\nturns: 14\n```\n",
+        "docs/code-doc.md"
+      )
+
+    {:ok, view, _html} = live(conn, ~p"/admin/docs")
+
+    view
+    |> element("#doc-files-mobile button[phx-value-path='docs/code-doc.md']")
+    |> render_click()
+
+    # Inline span: a bare <code> directly in the paragraph (styled by `.prose :not(pre) > code`).
+    assert has_element?(view, "#doc-preview article.prose p > code", "mix test")
+    # Fenced block: <code> inside <pre>, so it only gets the block style.
+    assert has_element?(view, "#doc-preview article.prose pre > code", "turns: 14")
+  end
 end
