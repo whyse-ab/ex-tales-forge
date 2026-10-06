@@ -88,7 +88,8 @@ defmodule TalesForge.Authoring.Adventure do
     define :update
     define :destroy
 
-    # Custom lookup example: use Ash.read!(Adventure, filter: [adventure_id: id]) or add a named :read action later
+    # Custom lookup example: Adventure |> Ash.Query.filter(adventure_id == ^id) |> Ash.read_one!()
+    # (or add a named :read action later)
   end
 
   identities do

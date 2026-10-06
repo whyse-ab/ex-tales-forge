@@ -131,6 +131,17 @@ defmodule TalesForge.Admin do
     |> Repo.one!()
   end
 
+  @doc """
+  The Ash admin NPC instance (what the AshPhoenix edit form needs) for the
+  `npc_id` slug in that session, or `nil` when the session has no such NPC.
+  Same lookup as `get_npc_instance!/2`, scoped to the session.
+  """
+  def get_admin_npc_instance(session_id, npc_id) do
+    TalesForge.AdminResources.NpcInstance
+    |> Ash.Query.filter(game_session_id == ^session_id and npc_id == ^npc_id)
+    |> Ash.read_one!()
+  end
+
   def update_npc_instance(%NpcInstance{} = instance, attrs) do
     instance
     |> NpcInstance.changeset(attrs)
