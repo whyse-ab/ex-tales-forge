@@ -31,7 +31,7 @@ defmodule TalesForge.AICalls do
     )
     |> Map.merge(%{cost_micro_usd: cost, cost_source: source})
     |> then(&AICall.changeset(%AICall{}, &1))
-    |> insert()
+    |> Repo.insert_isolated()
     |> case do
       {:ok, _} ->
         :ok
@@ -46,18 +46,6 @@ defmodule TalesForge.AICalls do
       Logger.error(
         "ai_call not recorded model=#{inspect(attrs[:model])} error=#{Exception.message(e)}"
       )
-  end
-
-  # A transaction outside one, a savepoint inside one: a failed insert never
-  # aborts the caller's transaction. (Query-level `mode: :savepoint` errors
-  # with "transaction is not started" when there is no transaction.)
-  defp insert(changeset) do
-    Repo.transaction(fn ->
-      case Repo.insert(changeset) do
-        {:ok, call} -> call
-        {:error, changeset} -> Repo.rollback(changeset)
-      end
-    end)
   end
 
   @doc "Token usage from an OpenAI-compatible (xAI) chat completion body."

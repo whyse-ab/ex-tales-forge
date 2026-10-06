@@ -99,7 +99,7 @@ defmodule TalesForge.Game.Perception do
 
   defp list_event_maps(session_id) do
     SessionEvent
-    |> where([e], e.game_session_id == ^session_id)
+    |> where([e], e.game_session_id == ^session_id and e.player_aware)
     |> order_by([e], e.tick)
     |> Repo.all()
   end

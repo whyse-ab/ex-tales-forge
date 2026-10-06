@@ -11,4 +11,14 @@ defmodule TalesForge.Repo do
   end
 
   def min_pg_version, do: %Version{major: 16, minor: 0, patch: 0}
+
+  @doc """
+  Insert whose failure never aborts an enclosing transaction: inside one it runs
+  under a savepoint (a nested `transaction/1` would not); outside one, plainly,
+  since `mode: :savepoint` there fails with "transaction is not started".
+  """
+  def insert_isolated(changeset) do
+    opts = if in_transaction?(), do: [mode: :savepoint], else: []
+    insert(changeset, opts)
+  end
 end

@@ -202,7 +202,9 @@ defmodule TalesForge.Game.Schemas do
       state_updates: [],
       npc_memory_updates: [],
       overlay_deltas: %{},
-      context_summary: nil
+      context_summary: nil,
+      gm_notes: nil,
+      raw: %{}
     ]
 
     def decode(map) when is_map(map) do
@@ -215,9 +217,14 @@ defmodule TalesForge.Game.Schemas do
         state_updates: Map.get(map, "state_updates", []),
         npc_memory_updates: Map.get(map, "npc_memory_updates", []),
         overlay_deltas: Map.get(map, "overlay_deltas", %{}),
-        context_summary: Map.get(map, "context_summary")
+        context_summary: Map.get(map, "context_summary"),
+        gm_notes: notes(Map.get(map, "gm_notes")),
+        raw: map
       }
     end
+
+    defp notes(notes) when is_binary(notes) and notes != "", do: notes
+    defp notes(_notes), do: nil
   end
 
   defmodule HandlerResult do
