@@ -228,9 +228,19 @@ defmodule TalesForge.Playtest.Runner do
   end
 
   defp play_turn(state) do
-    with {:ok, action} <- persona_move(state, nil) do
+    with :ok <- gm_opened(state),
+         {:ok, action} <- persona_move(state, nil) do
       submit(state, action, [], 0)
     end
+  end
+
+  # The GM always opens; the persona only ever responds. ready_scene/1 has
+  # already waited for the opening scene job, so this is a guard: never let
+  # the persona make the first move into a session without an opening.
+  defp gm_opened(state) do
+    if GameSessions.opening_scene(state.run.game_session_id),
+      do: :ok,
+      else: {:error, :no_opening_scene}
   end
 
   defp submit(state, text, opts, clarifications) do

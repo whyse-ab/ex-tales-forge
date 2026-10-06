@@ -5,29 +5,39 @@ defmodule TalesForgeWeb.AdminLive.NpcLive.Show do
 
   alias AshPhoenix.Form
   alias TalesForge.Admin
-  alias TalesForge.AdminResources.NpcInstance, as: AdminNpcInstance
 
   @impl true
   def mount(%{"id" => session_id, "npc_id" => npc_id}, _session, socket) do
     session = Admin.get_session!(session_id)
-    # Load via Ash admin resource for form
-    npc = Ash.get!(AdminNpcInstance, npc_id, filter: [game_session_id: session_id])
 
+    # The URL carries the NPC's slug (npc_id), unique per session.
+    case Admin.get_admin_npc_instance(session.id, npc_id) do
+      nil ->
+        {:ok,
+         socket
+         |> put_flash(:error, "No NPC #{inspect(npc_id)} in this session.")
+         |> push_navigate(to: ~p"/admin/sessions/#{session.id}/npcs")}
+
+      npc ->
+        {:ok, assign_npc(socket, session, npc)}
+    end
+  end
+
+  defp assign_npc(socket, session, npc) do
     ash_form =
       Form.for_update(npc, :update,
         domain: TalesForge.AdminResources,
         as: "npc"
       )
 
-    {:ok,
-     socket
-     |> assign(:page_title, npc.npc_id)
-     |> assign(:session, session)
-     |> assign(:npc, npc)
-     |> assign(:runtime_json, Admin.encode_json(npc.runtime_state || %{}))
-     |> assign(:personality_json, Admin.encode_json(npc.personality || %{}))
-     |> assign(:ash_form, ash_form)
-     |> assign(:form, to_form(ash_form))}
+    socket
+    |> assign(:page_title, npc.npc_id)
+    |> assign(:session, session)
+    |> assign(:npc, npc)
+    |> assign(:runtime_json, Admin.encode_json(npc.runtime_state || %{}))
+    |> assign(:personality_json, Admin.encode_json(npc.personality || %{}))
+    |> assign(:ash_form, ash_form)
+    |> assign(:form, to_form(ash_form))
   end
 
   @impl true
@@ -54,12 +64,18 @@ defmodule TalesForgeWeb.AdminLive.NpcLive.Show do
   end
 
   def handle_event("save_runtime", %{"runtime_json" => json}, socket) do
-    case Admin.update_npc_runtime_state(socket.assigns.npc, json) do
-      {:ok, npc} ->
+    %{session: session, npc: npc} = socket.assigns
+    # @npc is the Ash admin record (for the form); the JSON save goes through
+    # the Ecto context, then both are reloaded so the form isn't stale.
+    instance = Admin.get_npc_instance!(session.id, npc.npc_id)
+
+    case Admin.update_npc_runtime_state(instance, json) do
+      {:ok, _instance} ->
+        npc = Admin.get_admin_npc_instance(session.id, npc.npc_id)
+
         {:noreply,
          socket
-         |> assign(:npc, npc)
-         |> assign(:runtime_json, Admin.encode_json(npc.runtime_state))
+         |> assign_npc(session, npc)
          |> put_flash(:info, "Runtime state saved.")}
 
       {:error, reason} ->

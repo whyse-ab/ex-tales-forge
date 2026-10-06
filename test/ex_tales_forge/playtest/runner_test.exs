@@ -5,10 +5,11 @@ defmodule TalesForge.Playtest.RunnerTest do
   import ExUnit.CaptureLog
   import TalesForge.PlaytestHelpers
 
+  alias TalesForge.GameSessions
   alias TalesForge.GMReasoning
   alias TalesForge.Jido
   alias TalesForge.Playtest.Runner
-  alias TalesForge.Schemas.{AICall, GameSession, SessionEvent, Turn}
+  alias TalesForge.Schemas.{AICall, GameSession, Scene, SessionEvent, Turn}
 
   setup do
     Application.put_env(:ex_tales_forge, :playtest_runner_enabled, true)
@@ -186,6 +187,63 @@ defmodule TalesForge.Playtest.RunnerTest do
     assert second =~ "Character: Elara Voss"
     refute second =~ "SECRET"
     refute second =~ ~r/roll|difficulty|gm_notes/i
+  end
+
+  test "the GM opens the scene before the persona's first move, and the persona sees it first" do
+    test_pid = self()
+    opening = "OPENING: Rain drums on the Valley Inn's shutters; the innkeeper looks up."
+
+    stub_llm(fn
+      :scene, _user ->
+        send(test_pid, {:llm, :scene})
+        %{"location_name" => "Valley Inn", "narrative" => opening}
+
+      :persona, user ->
+        scene_exists = Repo.exists?(from(s in Scene, where: s.narrative == ^opening))
+        send(test_pid, {:llm, :persona, user, scene_exists})
+        :default
+
+      _kind, _user ->
+        :default
+    end)
+
+    {:ok, run_id} = Runner.start("paul", "tin_valley", turn_limit: 1)
+    assert {:ok, %{status: "finished"}} = await(run_id)
+
+    assert_received {:llm, :scene}
+    assert_received {:llm, :persona, first_prompt, true}
+    # The opening is the first thing the persona reads, before the turn and panels.
+    assert String.starts_with?(first_prompt, "The Game Master opens the scene:")
+    assert first_prompt =~ opening
+    refute_received {:llm, :persona, _, false}
+  end
+
+  test "without an opening scene the persona never moves" do
+    test_pid = self()
+
+    stub_llm(fn
+      :scene, _user ->
+        {:raw, "not json"}
+
+      :persona, _user ->
+        send(test_pid, :persona_called)
+        :default
+
+      _kind, _user ->
+        :default
+    end)
+
+    {result, _log} =
+      with_log(fn ->
+        {:ok, run_id} = Runner.start("paul", "tin_valley", turn_limit: 1, turn_timeout_ms: 300)
+        await(run_id)
+      end)
+
+    # The scene job keeps failing, so the run ends (timeout or error) with no move.
+    assert {:ok, %{status: status, turns_played: 0} = run} = result
+    assert status in ["stopped", "failed"]
+    assert GameSessions.opening_scene(run.game_session_id) == nil
+    refute_received :persona_called
   end
 
   defp turns(session_id) do

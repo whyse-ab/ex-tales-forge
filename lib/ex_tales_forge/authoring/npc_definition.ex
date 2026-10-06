@@ -127,7 +127,8 @@ defmodule TalesForge.Authoring.NpcDefinition do
     define(:update)
     define(:destroy)
 
-    # For lookup by npc_id (stable slug): Ash.read!(NpcDefinition, filter: [npc_id: "marta_kellen"])
+    # For lookup by npc_id (stable slug):
+    #   NpcDefinition |> Ash.Query.filter(npc_id == "marta_kellen") |> Ash.read_one!()
   end
 
   identities do

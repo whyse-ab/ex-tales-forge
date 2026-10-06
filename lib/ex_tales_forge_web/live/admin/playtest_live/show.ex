@@ -68,6 +68,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
 
     socket
     |> assign(:run, run)
+    |> assign(:opening, Reports.opening(run.game_session_id))
     |> assign(:turns, Reports.turn_records(run.game_session_id))
     |> assign(:game_costs, game)
     |> assign(:game_total, total(game))
@@ -233,6 +234,12 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
       </.section_card>
 
       <.section_card title="Turns" id="turns">
+        <article :if={@opening} id="turn-opening" class="space-y-1">
+          <h3 class="play-label text-[var(--paper-muted)]">
+            Opening · GM narration{if @opening.location_name, do: " · #{@opening.location_name}"}
+          </h3>
+          <p class="whitespace-pre-wrap text-sm text-[var(--paper-ink)]">{@opening.narrative}</p>
+        </article>
         <p :if={@turns == []} class="text-sm text-[var(--paper-muted)]">No turns yet.</p>
         <article
           :for={turn <- @turns}
