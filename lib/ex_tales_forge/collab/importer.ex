@@ -16,39 +16,40 @@ defmodule TalesForge.Collab.Importer do
   def import_from_path(root) when is_binary(root) do
     root = Path.expand(root)
 
-    unless File.dir?(root) do
-      {:error, {:not_a_directory, root}}
-    else
-      decisions_dir = Path.join(root, "decisions")
-      docs_dir = Path.join(root, "docs")
-
-      decision_stats =
-        if File.dir?(decisions_dir) do
-          decisions_dir
-          |> Path.join("*.md")
-          |> Path.wildcard()
-          |> Enum.reject(&(Path.basename(&1) == "README.md"))
-          |> Enum.map(&import_decision_file/1)
-          |> summarize()
-        else
-          %{upserted: 0, errors: []}
-        end
-
-      doc_stats =
-        if File.dir?(docs_dir) do
-          docs_dir
-          |> Path.join("**/*.md")
-          |> Path.wildcard()
-          |> Enum.map(fn path ->
-            rel = Path.relative_to(path, root)
-            import_doc_file(path, rel)
-          end)
-          |> summarize()
-        else
-          %{upserted: 0, errors: []}
-        end
+    if File.dir?(root) do
+      decision_stats = import_decisions_dir(Path.join(root, "decisions"))
+      doc_stats = import_docs_dir(root)
 
       {:ok, %{decisions: decision_stats, docs: doc_stats}}
+    else
+      {:error, {:not_a_directory, root}}
+    end
+  end
+
+  defp import_decisions_dir(decisions_dir) do
+    if File.dir?(decisions_dir) do
+      decisions_dir
+      |> Path.join("*.md")
+      |> Path.wildcard()
+      |> Enum.reject(&(Path.basename(&1) == "README.md"))
+      |> Enum.map(&import_decision_file/1)
+      |> summarize()
+    else
+      %{upserted: 0, errors: []}
+    end
+  end
+
+  defp import_docs_dir(root) do
+    docs_dir = Path.join(root, "docs")
+
+    if File.dir?(docs_dir) do
+      docs_dir
+      |> Path.join("**/*.md")
+      |> Path.wildcard()
+      |> Enum.map(&import_doc_file(&1, Path.relative_to(&1, root)))
+      |> summarize()
+    else
+      %{upserted: 0, errors: []}
     end
   end
 
@@ -57,32 +58,33 @@ defmodule TalesForge.Collab.Importer do
     repo = Keyword.get(opts, :repo, @github_repo)
     ref = Keyword.get(opts, :ref, "main")
 
+    source = {token, owner, repo, ref}
+
     with {:ok, decision_files} <- list_github_dir(token, owner, repo, "decisions", ref),
          {:ok, doc_files} <- list_github_dir(token, owner, repo, "docs", ref) do
       decision_stats =
         decision_files
         |> Enum.filter(&String.ends_with?(&1["path"], ".md"))
         |> Enum.reject(&(&1["name"] == "README.md"))
-        |> Enum.map(fn file ->
-          case fetch_github_file(token, owner, repo, file["path"], ref) do
-            {:ok, content} -> upsert_decision_markdown(content, file["path"])
-            {:error, reason} -> {:error, {file["path"], reason}}
-          end
-        end)
+        |> Enum.map(
+          &import_github_file(source, &1, fn c, p -> upsert_decision_markdown(c, p) end)
+        )
         |> summarize()
 
       doc_stats =
         doc_files
         |> Enum.filter(&String.ends_with?(&1["path"], ".md"))
-        |> Enum.map(fn file ->
-          case fetch_github_file(token, owner, repo, file["path"], ref) do
-            {:ok, content} -> upsert_doc_markdown(content, file["path"])
-            {:error, reason} -> {:error, {file["path"], reason}}
-          end
-        end)
+        |> Enum.map(&import_github_file(source, &1, fn c, p -> upsert_doc_markdown(c, p) end))
         |> summarize()
 
       {:ok, %{decisions: decision_stats, docs: doc_stats}}
+    end
+  end
+
+  defp import_github_file({token, owner, repo, ref}, file, upsert) do
+    case fetch_github_file(token, owner, repo, file["path"], ref) do
+      {:ok, content} -> upsert.(content, file["path"])
+      {:error, reason} -> {:error, {file["path"], reason}}
     end
   end
 
@@ -103,32 +105,30 @@ defmodule TalesForge.Collab.Importer do
           %Decision{}
           |> Decision.changeset(attrs)
           |> Repo.insert()
-          |> then(fn
-            {:ok, _} -> {:ok, :inserted}
-            {:error, cs} -> {:error, {source_path, cs}}
-          end)
+          |> tag_result(:inserted, source_path)
 
         existing ->
-          # Preserve DB-side outcome/rank if already decided or rank was moved in UI.
-          # Content fields (title, options, body, links, status from git) refresh from git
-          # unless the DB already recorded a decision outcome.
-          merge =
-            if existing.status == "decided" and present?(existing.decision) do
-              Map.drop(attrs, [:status, :decision, :rationale, :decided_at, :rank])
-            else
-              # Keep UI rank if it differs from a previous sync? Prefer git rank on sync
-              # so repo remains SoT for content; rank changes in UI are DB-local until export.
-              Map.put(attrs, :rank, existing.rank)
-            end
-
           existing
-          |> Decision.changeset(merge)
+          |> Decision.changeset(decision_merge_attrs(existing, attrs))
           |> Repo.update()
-          |> then(fn
-            {:ok, _} -> {:ok, :updated}
-            {:error, cs} -> {:error, {source_path, cs}}
-          end)
+          |> tag_result(:updated, source_path)
       end
+    end
+  end
+
+  defp tag_result({:ok, _}, tag, _source_path), do: {:ok, tag}
+  defp tag_result({:error, cs}, _tag, source_path), do: {:error, {source_path, cs}}
+
+  # Preserve DB-side outcome/rank if already decided or rank was moved in UI.
+  # Content fields (title, options, body, links, status from git) refresh from git
+  # unless the DB already recorded a decision outcome.
+  defp decision_merge_attrs(existing, attrs) do
+    if existing.status == "decided" and present?(existing.decision) do
+      Map.drop(attrs, [:status, :decision, :rationale, :decided_at, :rank])
+    else
+      # Keep UI rank if it differs from a previous sync? Prefer git rank on sync
+      # so repo remains SoT for content; rank changes in UI are DB-local until export.
+      Map.put(attrs, :rank, existing.rank)
     end
   end
 
@@ -142,19 +142,13 @@ defmodule TalesForge.Collab.Importer do
         %Doc{}
         |> Doc.changeset(attrs)
         |> Repo.insert()
-        |> then(fn
-          {:ok, _} -> {:ok, :inserted}
-          {:error, cs} -> {:error, {path, cs}}
-        end)
+        |> tag_result(:inserted, path)
 
       existing ->
         existing
         |> Doc.changeset(attrs)
         |> Repo.update()
-        |> then(fn
-          {:ok, _} -> {:ok, :updated}
-          {:error, cs} -> {:error, {path, cs}}
-        end)
+        |> tag_result(:updated, path)
     end
   end
 
@@ -193,8 +187,8 @@ defmodule TalesForge.Collab.Importer do
   end
 
   defp parse_doc(content, path) do
-    {_fm, body} = split_frontmatter(content)
-    body = String.trim(body || "")
+    {_fm, raw_body} = split_frontmatter(content)
+    body = String.trim(raw_body || "")
 
     title =
       case Regex.run(~r/^#\s+(.+)$/m, body) do

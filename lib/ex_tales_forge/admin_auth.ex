@@ -68,23 +68,19 @@ defmodule TalesForge.AdminAuth do
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
     case Repo.get_by(MagicToken, token: token) do
-      nil ->
-        {:error, :invalid}
+      nil -> {:error, :invalid}
+      %MagicToken{} = mt -> consume_token(mt, now)
+    end
+  end
 
-      %MagicToken{expires_at: expires_at} = mt ->
-        if DateTime.compare(expires_at, now) == :lt do
-          Repo.delete(mt)
-          {:error, :expired}
-        else
-          email = mt.email
-          Repo.delete(mt)
+  # Tokens are single-use: delete it whether or not it is still valid.
+  defp consume_token(%MagicToken{expires_at: expires_at, email: email} = mt, now) do
+    Repo.delete(mt)
 
-          if allowlisted?(email) do
-            {:ok, email}
-          else
-            {:error, :not_allowlisted}
-          end
-        end
+    cond do
+      DateTime.compare(expires_at, now) == :lt -> {:error, :expired}
+      allowlisted?(email) -> {:ok, email}
+      true -> {:error, :not_allowlisted}
     end
   end
 

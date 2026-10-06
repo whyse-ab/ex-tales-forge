@@ -46,38 +46,35 @@ defmodule TalesForge.Collab do
 
     Repo.transaction(fn ->
       decisions = list_decisions()
-      idx = Enum.find_index(decisions, &(&1.slug == slug))
 
-      cond do
-        is_nil(idx) ->
-          Repo.rollback(:not_found)
-
-        true ->
-          target_idx = idx + delta
-
-          if target_idx < 0 or target_idx >= length(decisions) do
-            Enum.at(decisions, idx)
-          else
-            a = Enum.at(decisions, idx)
-            b = Enum.at(decisions, target_idx)
-            rank_a = a.rank
-            rank_b = b.rank
-
-            {:ok, updated_a} =
-              a
-              |> Decision.changeset(%{rank: rank_b})
-              |> Repo.update()
-
-            {:ok, _} =
-              b
-              |> Decision.changeset(%{rank: rank_a})
-              |> Repo.update()
-
-            broadcast({:decisions_updated})
-            updated_a
-          end
+      case Enum.find_index(decisions, &(&1.slug == slug)) do
+        nil -> Repo.rollback(:not_found)
+        idx -> swap_ranks(decisions, idx, idx + delta)
       end
     end)
+  end
+
+  # Already at the top/bottom: nothing to swap.
+  defp swap_ranks(decisions, idx, target_idx)
+       when target_idx < 0 or target_idx >= length(decisions),
+       do: Enum.at(decisions, idx)
+
+  defp swap_ranks(decisions, idx, target_idx) do
+    a = Enum.at(decisions, idx)
+    b = Enum.at(decisions, target_idx)
+
+    {:ok, updated_a} =
+      a
+      |> Decision.changeset(%{rank: b.rank})
+      |> Repo.update()
+
+    {:ok, _} =
+      b
+      |> Decision.changeset(%{rank: a.rank})
+      |> Repo.update()
+
+    broadcast({:decisions_updated})
+    updated_a
   end
 
   def record_decision(%Decision{} = decision, attrs, author_email)
