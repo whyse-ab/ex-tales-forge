@@ -1,6 +1,12 @@
-// Renders ```mermaid fenced blocks (Earmark: <pre><code class="mermaid">) as
+// Renders ```mermaid fenced blocks (MDEx: <pre><code class="language-mermaid">,
+// with the source HTML-escaped so labels like `<br/>` survive as text) as
 // diagrams. Mermaid is ~5 MB, so it is vendored in priv/static/vendor and only
 // loaded the first time a page actually contains a diagram.
+//
+// Diagrams render at natural size. One that is only a little wider than its
+// box (natural width <= FIT_RATIO x available width) gets .mermaid-fit and is
+// scaled down to fit; anything wider keeps its size and scrolls sideways, so
+// the text never shrinks below ~2/3 of its natural size.
 //
 // Use on an element whose id changes with its content and that has
 // phx-update="ignore", so LiveView swaps the whole element (and calls
@@ -8,6 +14,8 @@
 
 let mermaidPromise = null
 let renderSeq = 0
+
+const FIT_RATIO = 1.5
 
 const PAPER = {
   bg: "#f4ead5",
@@ -61,8 +69,8 @@ function loadMermaid() {
           noteBorderColor: PAPER.rule,
           noteTextColor: PAPER.ink,
         },
-        // Keep natural size; the wrapper scrolls sideways on narrow screens
-        // instead of shrinking the diagram into unreadable text.
+        // Keep natural size; fitDiagram() decides whether to scale down or
+        // let the wrapper scroll sideways.
         flowchart: {useMaxWidth: false, htmlLabels: true},
         sequence: {useMaxWidth: false},
         gantt: {useMaxWidth: false},
@@ -83,6 +91,28 @@ function loadMermaid() {
   })
 
   return mermaidPromise
+}
+
+// Natural (unscaled) width of a rendered diagram, from its viewBox.
+function naturalWidth(svg) {
+  const vb = svg.viewBox && svg.viewBox.baseVal
+  if (vb && vb.width) return vb.width
+  return parseFloat(svg.getAttribute("width")) || 0
+}
+
+function fitDiagram(figure) {
+  const svg = figure.querySelector("svg")
+  if (!svg) return
+  const style = getComputedStyle(figure)
+  const available =
+    figure.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
+  const natural = naturalWidth(svg)
+  if (available <= 0 || natural <= 0) return
+  figure.classList.toggle("mermaid-fit", natural <= available * FIT_RATIO)
+}
+
+function fitDiagrams(root) {
+  root.querySelectorAll(".mermaid-diagram").forEach(fitDiagram)
 }
 
 async function renderDiagrams(root) {
@@ -119,6 +149,7 @@ async function renderDiagrams(root) {
       pre.dataset.mermaid = "rendered"
       pre.hidden = true
       pre.before(figure)
+      fitDiagram(figure)
     } catch (err) {
       // Bad syntax: keep the source visible and say why.
       pre.dataset.mermaid = "error"
@@ -133,6 +164,23 @@ async function renderDiagrams(root) {
 }
 
 export const Mermaid = {
-  mounted() { renderDiagrams(this.el) },
+  mounted() {
+    renderDiagrams(this.el)
+    // Re-fit on rotation/resize; only width changes matter, and at most once
+    // per frame.
+    let lastWidth = this.el.clientWidth
+    let frame = null
+    this.resizeObserver = new ResizeObserver(() => {
+      const width = this.el.clientWidth
+      if (width === lastWidth || frame) return
+      lastWidth = width
+      frame = requestAnimationFrame(() => {
+        frame = null
+        fitDiagrams(this.el)
+      })
+    })
+    this.resizeObserver.observe(this.el)
+  },
   updated() { renderDiagrams(this.el) },
+  destroyed() { this.resizeObserver && this.resizeObserver.disconnect() },
 }

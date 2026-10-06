@@ -350,7 +350,8 @@
   .prose img { max-width: 100%; height: auto; margin: 1em 0; }
 
   /* Mermaid diagrams (assets/js/mermaid_hook.js). Rendered at natural size;
-     wide ones scroll sideways on phones instead of overflowing the page. */
+     slightly-too-wide ones get .mermaid-fit and scale down to the box, much
+     wider ones scroll sideways instead of overflowing the page. */
   .prose .mermaid-diagram {
     max-width: 100%;
     margin: 0 0 1.25em;
@@ -368,6 +369,10 @@
     max-width: none;
     height: auto;
     margin: 0 auto;
+  }
+
+  .prose .mermaid-diagram.mermaid-fit svg {
+    max-width: 100%;
   }
 
   .prose .mermaid-error {
