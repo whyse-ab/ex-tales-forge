@@ -53,3 +53,7 @@ config :ex_tales_forge, :github_req_options, plug: {Req.Test, TalesForge.AdminAu
 
 # LLM HTTP goes to Req.Test stubs (tests that switch LLM_PROVIDER away from mock).
 config :ex_tales_forge, :llm_req_options, plug: {Req.Test, TalesForge.LLM}
+
+# Admin costs page peer HTTP goes to Req.Test stubs; the peer URL/token are
+# unset unless a test puts them.
+config :ex_tales_forge, :costs_peer_req_options, plug: {Req.Test, TalesForge.Costs.Peer}

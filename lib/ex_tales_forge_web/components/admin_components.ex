@@ -26,6 +26,7 @@ defmodule TalesForgeWeb.AdminComponents do
         label="NPC definitions"
         active={@active == "npc_definitions"}
       />
+      <.nav_link href={~p"/admin/costs"} label="Costs" active={@active == "costs"} />
       <.nav_link href={~p"/admin/oban"} label="Oban / telemetry" active={@active == "oban"} />
       <.nav_link href={~p"/"} label="← Player home" active={false} />
       <.link

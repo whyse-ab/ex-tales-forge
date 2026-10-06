@@ -68,6 +68,7 @@ defmodule TalesForgeWeb.Router do
       live "/decisions", DecisionLive.Index, :index
       live "/decisions/:slug", DecisionLive.Show, :show
       live "/docs", DocLive.Index, :index
+      live "/costs", CostsLive, :index
     end
   end
 
@@ -77,6 +78,14 @@ defmodule TalesForgeWeb.Router do
     import Phoenix.LiveDashboard.Router
 
     live_dashboard "/oban", metrics: TalesForgeWeb.Telemetry
+  end
+
+  # Machine-to-machine: the peer app's costs page reads this app's aggregated AI
+  # spend. Off (404) unless COSTS_PEER_TOKEN is set; see CostsPeerController.
+  scope "/internal", TalesForgeWeb do
+    pipe_through :api
+
+    get "/costs", CostsPeerController, :show
   end
 
   scope "/", TalesForgeWeb do
