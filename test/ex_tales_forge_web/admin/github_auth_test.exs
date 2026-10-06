@@ -127,6 +127,10 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
     assert redirected_to(conn) == "/admin/login"
     assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "@octo isn't allowed"
     assert get_session(conn, "admin_email") == nil
+
+    # The login page must actually show the reason, not swallow it.
+    {:ok, _view, html} = live(recycle(conn), ~p"/admin/login")
+    assert html =~ "@octo isn&#39;t allowed"
     refute signed_in?(conn)
   end
 

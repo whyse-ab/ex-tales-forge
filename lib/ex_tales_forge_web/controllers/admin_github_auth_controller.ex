@@ -40,6 +40,8 @@ defmodule TalesForgeWeb.AdminGithubAuthController do
         |> redirect(to: return_to)
 
       {:error, {:not_allowed, login}} ->
+        Logger.info("GitHub sign-in denied for @#{login}: no allowlisted verified email or team")
+
         fail(
           conn,
           "@#{login} isn't allowed into the admin. Ask Fredrik for access, or use an email link."

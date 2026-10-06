@@ -32,6 +32,7 @@ defmodule TalesForgeWeb.AdminLive.LoginLive do
   def render(assigns) do
     ~H"""
     <div class="paper-home min-h-dvh flex items-center justify-center px-4">
+      <Layouts.flash_group flash={@flash} />
       <div class="w-full max-w-md rounded-lg border border-[var(--paper-rule)] bg-[var(--paper-panel)] p-6 space-y-4">
         <header class="space-y-1">
           <p class="play-label text-[var(--paper-accent)]">Tales Forge</p>
