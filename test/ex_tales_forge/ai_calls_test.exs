@@ -105,6 +105,26 @@ defmodule TalesForge.AICallsTest do
     assert AICalls.usage(%{"choices" => []}) == %{}
   end
 
+  test "records outside any transaction, as in production" do
+    # The SQL sandbox wraps every test in a transaction; unboxed_run does not.
+    unboxed = from(c in AICall, where: c.purpose == "unboxed")
+
+    {rows, log} =
+      with_log(fn ->
+        Ecto.Adapters.SQL.Sandbox.unboxed_run(Repo, fn ->
+          try do
+            :ok = AICalls.record(%{call_attrs(nil, %{cost_ticks: 10_000}) | purpose: "unboxed"})
+            Repo.all(unboxed)
+          after
+            Repo.delete_all(unboxed)
+          end
+        end)
+      end)
+
+    refute log =~ "ai_call not recorded"
+    assert [%AICall{cost_micro_usd: 1}] = rows
+  end
+
   test "totals sum cost per session and since a time" do
     {:ok, session} = GameSessions.create_session(%{name: "Cost Totals"})
     {:ok, other} = GameSessions.create_session(%{name: "Other Totals"})
