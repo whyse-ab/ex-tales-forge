@@ -8,19 +8,27 @@ defmodule TalesForge.Collab.Markdown do
   # First line of the body when it is an ATX H1 ("# Title").
   @leading_h1 ~r/\A\s*#[ \t]+([^\r\n]+)(?:\r?\n|\z)/
 
+  # GFM-flavoured CommonMark (tables, strikethrough, bare-URL links, task
+  # lists, smart quotes). Raw HTML in the markdown is escaped and shown as
+  # text, never rendered (`unsafe: false` + `escape: true`); code block
+  # content is always escaped, so e.g. `<br/>` in a ```mermaid fence reaches
+  # the Mermaid hook intact via `code.textContent`.
+  @mdex_options [
+    extension: [table: true, strikethrough: true, autolink: true, tasklist: true],
+    parse: [smart: true],
+    render: [unsafe: false, escape: true]
+  ]
+
   def to_html(nil), do: {:safe, ""}
   def to_html(""), do: {:safe, ""}
 
   def to_html(markdown) when is_binary(markdown) do
-    markdown = strip_front_matter(markdown)
+    html =
+      markdown
+      |> strip_front_matter()
+      |> MDEx.to_html!(@mdex_options)
 
-    case Earmark.as_html(markdown, escape: false, compact_output: true) do
-      {:ok, html, _warnings} ->
-        {:safe, wrap_tables(html)}
-
-      {:error, html, _warnings} ->
-        {:safe, wrap_tables(html)}
-    end
+    {:safe, wrap_tables(html)}
   end
 
   # Wide tables scroll sideways inside their own box instead of squashing the

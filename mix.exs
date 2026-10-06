@@ -67,7 +67,7 @@ defmodule TalesForge.MixProject do
       {:swoosh, "~> 1.16"},
       {:dotenvy, "~> 1.0"},
       {:yaml_elixir, "~> 2.12"},
-      {:earmark, "~> 1.4"},
+      {:mdex, "~> 0.14"},
       {:req, "~> 0.5"},
       {:jido, "~> 2.3"},
       {:jido_ai, "~> 2.2"},
