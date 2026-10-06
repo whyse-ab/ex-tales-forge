@@ -62,6 +62,29 @@ defmodule TalesForge.LLM do
 
   @persona_max_tokens 200
 
+  @scorer_schema %{
+    "type" => "object",
+    "required" => ["scores", "rationale"],
+    "properties" => %{
+      "scores" => %{
+        "type" => "array",
+        "items" => %{
+          "type" => "object",
+          "required" => ["criterion", "score", "evidence"],
+          "properties" => %{
+            "criterion" => %{"type" => "integer"},
+            "score" => %{"type" => ["integer", "null"], "minimum" => 1, "maximum" => 5},
+            "evidence" => %{"type" => "string"}
+          }
+        }
+      },
+      "rationale" => %{"type" => "string"}
+    }
+  }
+
+  @scorer_max_tokens 800
+  @scorer_temperature 0.2
+
   # Output budget for gm_notes on top of the narration's TIER2_MAX_TOKENS.
   @gm_notes_max_tokens 100
 
@@ -125,6 +148,28 @@ defmodule TalesForge.LLM do
         turn_number: opts[:turn_number]
       )
     end
+  end
+
+  def complete_scorer(system, user, opts \\ []) do
+    model = tier2_model()
+
+    if mock?(model) do
+      {:ok, mock_scorecard(Keyword.get(opts, :criteria, 0))}
+    else
+      complete_json(model, system, user, @scorer_schema, @scorer_temperature,
+        tier: :scorer,
+        max_tokens: @scorer_max_tokens,
+        session_id: opts[:session_id]
+      )
+    end
+  end
+
+  defp mock_scorecard(criteria) do
+    %{
+      "scores" =>
+        for(n <- 1..criteria//1, do: %{"criterion" => n, "score" => nil, "evidence" => "mock"}),
+      "rationale" => "Mock judge: nothing was scored."
+    }
   end
 
   def complete_turn(
@@ -227,7 +272,7 @@ defmodule TalesForge.LLM do
   defp dispatch("mock", _system, _user, _temp, _opts), do: {:error, :mock_model}
 
   defp dispatch(model, system, user, temperature, opts) do
-    case AICalls.check_spend_caps(opts[:session_id]) do
+    case AICalls.check_spend_caps(opts[:session_id], purpose(Keyword.get(opts, :tier))) do
       :ok -> request(model, system, user, temperature, opts)
       {:error, {kind, limit, spent}} -> spend_capped(model, opts, kind, limit, spent)
     end

@@ -191,8 +191,9 @@ end
 
 config :ex_tales_forge, :tales_forge_docs_path, System.get_env("TALES_FORGE_DOCS_PATH")
 
-# AI spending caps in decimal USD (e.g. "2.50"). Unset or empty = that cap is off;
-# "0" stops all AI calls. Read by TalesForge.AICalls.check_spend_caps/1.
+# AI spending caps in decimal USD (e.g. "2.50"). Unset or empty = that cap is off,
+# except AI_CAP_PERSONA_RUN_USD (persona bot spend per playtest run), which then
+# defaults to 0.50; "0" stops those calls. Read by TalesForge.AICalls.check_spend_caps/3.
 if config_env() != :test do
   usd_cap = fn name ->
     case String.trim(System.get_env(name, "")) do
@@ -209,7 +210,8 @@ if config_env() != :test do
 
   config :ex_tales_forge, :ai_spend_caps,
     session_micro_usd: usd_cap.("AI_CAP_SESSION_USD"),
-    day_micro_usd: usd_cap.("AI_CAP_DAY_USD")
+    day_micro_usd: usd_cap.("AI_CAP_DAY_USD"),
+    persona_run_micro_usd: usd_cap.("AI_CAP_PERSONA_RUN_USD")
 
   # Persona bot runner (TalesForge.Playtest.Runner). Only "true" enables it;
   # set on playtest only, never in production.

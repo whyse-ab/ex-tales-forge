@@ -8,7 +8,9 @@ defmodule TalesForge.Playtest.Personas do
       cp ../tales-forge-docs/docs/personas.md priv/playtest/personas.md
 
   Each `## Name (play style)` section is one persona; its whole text goes into
-  the bot's system prompt.
+  the bot's system prompt. The bullets under its `### How we test it` heading
+  are the scorecard the judge scores against (Ronny's probes are what the bot
+  tries, not criteria).
   """
 
   @heading ~r/^(\w+) \((.+)\)$/
@@ -50,10 +52,28 @@ defmodule TalesForge.Playtest.Personas do
         notes =
           "## " <> (section |> String.trim() |> String.trim_trailing("---") |> String.trim())
 
-        [%{id: String.downcase(name), name: name, style: style, notes: notes}]
+        [
+          %{
+            id: String.downcase(name),
+            name: name,
+            style: style,
+            notes: notes,
+            scorecard: scorecard(notes)
+          }
+        ]
 
       nil ->
         []
     end
+  end
+
+  defp scorecard(notes) do
+    notes
+    |> String.split("\n### ")
+    |> Enum.find("", &String.starts_with?(&1, "How we test it"))
+    |> String.split("\n")
+    |> Enum.filter(&String.starts_with?(&1, "- "))
+    |> Enum.map(&String.trim_leading(&1, "- "))
+    |> Enum.reject(&String.starts_with?(&1, "**Probes:**"))
   end
 end

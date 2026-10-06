@@ -19,6 +19,9 @@ defmodule TalesForge.AICalls do
 
   @ticks_per_micro_usd 10_000
   @day_zone "Europe/Stockholm"
+  # Playtest bot calls: outside the session cap and the game's cost figures.
+  @bot_purposes ~w(persona scorer)
+  @default_persona_run_micro_usd 500_000
 
   @doc "Inserts one ai_calls row. Always returns :ok; failures are logged."
   def record(attrs) do
@@ -96,28 +99,60 @@ defmodule TalesForge.AICalls do
 
   def price_table_cost(_model, _usage), do: nil
 
-  @doc "Micro-USD spent in a session. Calls with unknown cost count as 0."
+  def bot_purposes, do: @bot_purposes
+
+  @doc """
+  Micro-USD the game spent in a session (gm, intent, scene). Playtest bot calls
+  (persona, scorer) are left out. Calls with unknown cost count as 0.
+  """
   def total_cost_for_session(session_id) do
     AICall
-    |> where([c], c.game_session_id == ^session_id)
+    |> where([c], c.game_session_id == ^session_id and c.purpose not in ^@bot_purposes)
     |> sum_cost()
   end
 
-  @doc "Micro-USD spent across all sessions since `since` (UTC)."
+  @doc "Micro-USD spent across all sessions since `since` (UTC), bot calls included."
   def total_cost_since(%DateTime{} = since) do
     AICall
     |> where([c], c.inserted_at >= ^since)
     |> sum_cost()
   end
 
-  @doc """
-  `:ok`, or `{:error, {:session | :day, limit, spent}}` (micro-USD) when spend has
-  reached a configured cap. Calls without a session only face the day cap.
-  """
-  def check_spend_caps(session_id, now \\ DateTime.utc_now()) do
-    caps = Application.get_env(:ex_tales_forge, :ai_spend_caps, [])
+  @doc "Totals of a session's persona bot calls: count, latency, tokens and cost."
+  def persona_totals(session_id) do
+    AICall
+    |> where([c], c.game_session_id == ^session_id and c.purpose == "persona")
+    |> select([c], %{
+      calls: count(c.id),
+      latency_ms: type(coalesce(sum(c.latency_ms), 0), :integer),
+      input_tokens: type(coalesce(sum(c.input_tokens), 0), :integer),
+      output_tokens: type(coalesce(sum(c.output_tokens), 0), :integer),
+      cost_micro_usd: type(coalesce(sum(c.cost_micro_usd), 0), :integer)
+    })
+    |> Repo.one()
+  end
 
-    with :ok <- check_cap(:session, caps[:session_micro_usd], session_id, now) do
+  @doc """
+  `:ok`, or `{:error, {:session | :persona_run | :day, limit, spent}}` (micro-USD)
+  when spend has reached a cap for a call with this `purpose`:
+
+  - session: game calls only, against the game's spend in that session;
+  - persona_run: persona calls, against that session's persona spend (one
+    playtest run per session), default #{@default_persona_run_micro_usd} when unset;
+  - day: every call, bot calls included.
+
+  Calls without a session only face the day cap.
+  """
+  def check_spend_caps(session_id, purpose \\ "gm", now \\ DateTime.utc_now()) do
+    caps = Application.get_env(:ex_tales_forge, :ai_spend_caps, [])
+    session_cap = if purpose not in @bot_purposes, do: caps[:session_micro_usd]
+
+    persona_cap =
+      if purpose == "persona",
+        do: caps[:persona_run_micro_usd] || @default_persona_run_micro_usd
+
+    with :ok <- check_cap(:session, session_cap, session_id, now),
+         :ok <- check_cap(:persona_run, persona_cap, session_id, now) do
       check_cap(:day, caps[:day_micro_usd], session_id, now)
     end
   end
@@ -131,12 +166,13 @@ defmodule TalesForge.AICalls do
   end
 
   defp check_cap(_kind, nil, _session_id, _now), do: :ok
-  defp check_cap(:session, _limit, nil, _now), do: :ok
+  defp check_cap(kind, _limit, nil, _now) when kind != :day, do: :ok
 
   defp check_cap(kind, limit, session_id, now) do
     spent =
       case kind do
         :session -> total_cost_for_session(session_id)
+        :persona_run -> persona_totals(session_id).cost_micro_usd
         :day -> total_cost_since(day_start(now))
       end
 

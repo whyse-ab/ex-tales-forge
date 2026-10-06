@@ -61,6 +61,8 @@ defmodule TalesForgeWeb.Router do
       live "/sessions/:id/npcs", NpcLive.Index, :index
       live "/sessions/:id/npcs/:npc_id", NpcLive.Show, :show
       live "/sessions/:id/turns", TurnLive.Index, :index
+      live "/playtest", PlaytestLive.Index, :index
+      live "/playtest/:id", PlaytestLive.Show, :show
       live "/npc-definitions", NpcDefinitionLive.Index, :index
       live "/npc-definitions/:id", NpcDefinitionLive.Show, :show
       live "/decisions", DecisionLive.Index, :index

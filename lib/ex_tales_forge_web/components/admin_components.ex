@@ -12,6 +12,7 @@ defmodule TalesForgeWeb.AdminComponents do
       <.nav_link href={~p"/admin/decisions"} label="Decisions" active={@active == "decisions"} />
       <.nav_link href={~p"/admin/docs"} label="Docs" active={@active == "docs"} />
       <.nav_link href={~p"/admin/sessions"} label="Sessions" active={@active == "sessions"} />
+      <.nav_link href={~p"/admin/playtest"} label="Playtest runs" active={@active == "playtest"} />
       <.nav_link
         href={~p"/admin/npc-definitions"}
         label="NPC definitions"
@@ -99,4 +100,13 @@ defmodule TalesForgeWeb.AdminComponents do
     </section>
     """
   end
+
+  def format_usd(nil), do: "—"
+
+  def format_usd(micro_usd),
+    do: "$" <> :erlang.float_to_binary(micro_usd / 1_000_000, decimals: 4)
+
+  def format_ms(nil), do: "—"
+  def format_ms(ms) when ms < 60_000, do: "#{Float.round(ms / 1000, 1)} s"
+  def format_ms(ms), do: "#{div(ms, 60_000)} min #{div(rem(ms, 60_000), 1000)} s"
 end
