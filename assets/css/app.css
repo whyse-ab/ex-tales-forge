@@ -109,7 +109,12 @@
 /* Make LiveView wrapper divs transparent for layout */
 [data-phx-session], [data-phx-teleported-src] { display: contents }
 
-/* Pen-and-paper palette (Tales Forge play + home) */
+/* Pen-and-paper palette: the one place the colours live.
+   Light ("paper") is the default for every page. Admin pages (any page that
+   contains .admin-shell) also follow the header theme toggle: system/light/dark
+   all resolve to data-theme on <html>, and the dark palette below swaps the
+   same variables, so components only ever use var(--paper-*). Player pages
+   (home, play) keep the light palette for now. */
 :root {
   --paper-bg: #f4ead5;
   --paper-panel: #faf6ec;
@@ -117,9 +122,62 @@
   --paper-muted: #6b5c4f;
   --paper-rule: #d4c4a8;
   --paper-accent: #9a3412;
+  --paper-on-accent: #ffffff;
   --paper-margin: #ebe3d0;
+  --paper-stripe: rgb(244 234 213 / 40%);
   --paper-code-bg: #ece8e1;
   --paper-code-ink: #2b211a;
+  /* Status chips and messages */
+  --paper-warn-bg: #fef3c7;
+  --paper-warn-ink: #78350f;
+  --paper-info-bg: #e0f2fe;
+  --paper-info-ink: #0c4a6e;
+  --paper-ok-bg: #d1fae5;
+  --paper-ok-ink: #064e3b;
+  --paper-ok-solid: #047857;
+  --paper-quiet-bg: #e4e4e7;
+  --paper-quiet-ink: #3f3f46;
+  --paper-danger-ink: #b91c1c;
+  --paper-danger-rule: #fca5a5;
+}
+
+:root[data-theme="dark"]:has(.admin-shell) {
+  --paper-bg: #1b1713;
+  --paper-panel: #25201b;
+  --paper-ink: #ede4d4;
+  --paper-muted: #b5a794;
+  --paper-rule: #4a3f34;
+  --paper-accent: #f0915e;
+  --paper-on-accent: #1b1713;
+  --paper-margin: #2f2822;
+  --paper-stripe: rgb(255 255 255 / 3%);
+  --paper-code-bg: #3a322a;
+  --paper-code-ink: #f6eee2;
+  --paper-warn-bg: #4a3512;
+  --paper-warn-ink: #fcd98b;
+  --paper-info-bg: #13334a;
+  --paper-info-ink: #a5d8f8;
+  --paper-ok-bg: #123d30;
+  --paper-ok-ink: #9de8c8;
+  --paper-ok-solid: #1f7a5c;
+  --paper-quiet-bg: #3a3a40;
+  --paper-quiet-ink: #e4e4e7;
+  --paper-danger-ink: #fca5a5;
+  --paper-danger-rule: #7f1d1d;
+  color-scheme: dark;
+}
+
+/* Admin: daisyUI components (form inputs, selects, the theme toggle) take
+   their colours from the paper palette, so they flip with it. */
+:root:has(.admin-shell) {
+  --color-base-100: var(--paper-panel);
+  --color-base-200: var(--paper-bg);
+  --color-base-300: var(--paper-rule);
+  --color-base-content: var(--paper-ink);
+  --color-primary: var(--paper-accent);
+  --color-primary-content: var(--paper-on-accent);
+  /* Also the colour iOS shows when you overscroll past the page. */
+  background-color: var(--paper-bg);
 }
 
 .paper-home {
@@ -153,6 +211,22 @@
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--paper-muted);
+}
+
+/* Admin nav on phones: one scrolling row (see assets/js/admin_nav_hook.js).
+   No scrollbar; an edge fades out while there are more tabs that way. */
+@media (max-width: 1023.98px) {
+  .admin-nav { scrollbar-width: none; }
+  .admin-nav::-webkit-scrollbar { display: none; }
+  .admin-nav[data-more-end="true"] {
+    mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+  }
+  .admin-nav[data-more-start="true"] {
+    mask-image: linear-gradient(to left, #000 calc(100% - 2.5rem), transparent);
+  }
+  .admin-nav[data-more-start="true"][data-more-end="true"] {
+    mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent);
+  }
 }
 
 .play-narrative-body {
@@ -367,7 +441,7 @@
   }
 
   .prose tbody tr:nth-child(even) td {
-    background-color: rgb(244 234 213 / 40%);
+    background-color: var(--paper-stripe);
   }
 
   .prose img { max-width: 100%; height: auto; margin: 1em 0; }

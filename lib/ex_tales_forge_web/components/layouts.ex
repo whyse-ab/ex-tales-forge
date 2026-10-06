@@ -78,7 +78,8 @@ defmodule TalesForgeWeb.Layouts do
 
   def admin(assigns) do
     ~H"""
-    <div class="paper-home min-h-dvh">
+    <%!-- .admin-shell opts the page into the theme toggle (paper palettes in app.css) --%>
+    <div class="admin-shell paper-home min-h-dvh">
       <header class="border-b border-[var(--paper-rule)] bg-[var(--paper-panel)] px-3 py-3 sm:px-6">
         <div class={["mx-auto flex items-center justify-between", admin_width(@wide)]}>
           <div>

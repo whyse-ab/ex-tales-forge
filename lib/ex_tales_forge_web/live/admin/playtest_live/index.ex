@@ -60,7 +60,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
           <.input field={@form[:turn_limit]} type="number" label="Turn limit" min="1" max="30" />
           <button
             type="submit"
-            class="mb-2 rounded bg-[var(--paper-accent)] px-4 py-2 text-sm text-white"
+            class="mb-2 rounded bg-[var(--paper-accent)] px-4 py-2 text-sm text-[var(--paper-on-accent)]"
           >
             Start run
           </button>

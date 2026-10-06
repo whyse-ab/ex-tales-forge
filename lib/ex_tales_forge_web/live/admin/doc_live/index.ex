@@ -126,7 +126,8 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
           phx-value-path={doc.path}
           class={[
             "w-full text-left rounded px-2 py-1.5",
-            @selected && @selected.path == doc.path && "bg-[var(--paper-accent)] text-white",
+            @selected && @selected.path == doc.path &&
+              "bg-[var(--paper-accent)] text-[var(--paper-on-accent)]",
             (!@selected || @selected.path != doc.path) &&
               "hover:bg-[var(--paper-bg)] text-[var(--paper-ink)]"
           ]}
