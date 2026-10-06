@@ -18,6 +18,10 @@
    Make sure to look at the daisyUI changelog: https://daisyui.com/docs/changelog/ */
 @plugin "../vendor/daisyui" {
   themes: false;
+  /* daisyUI's typography utility restyles `.prose code` with theme colours
+     (dark base-200 box in the dark theme) from the utilities layer, beating
+     our paper-palette .prose below. We ship our own .prose, so leave it out. */
+  exclude: typography;
 }
 
 /* daisyUI theme plugin. You can update this file by fetching the latest version with:
@@ -114,6 +118,8 @@
   --paper-rule: #d4c4a8;
   --paper-accent: #9a3412;
   --paper-margin: #ebe3d0;
+  --paper-code-bg: #ece8e1;
+  --paper-code-ink: #2b211a;
 }
 
 .paper-home {
@@ -264,30 +270,47 @@
 
   .prose blockquote p { margin: 0.4em 0; }
 
-  .prose code {
+  /* Inline code. Colours are explicit (not inherited, not theme tokens) so
+     spans stay dark-on-light-grey whichever theme the header toggle picks. */
+  .prose :not(pre) > code {
     font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 0.875em;
-    background-color: var(--paper-bg);
+    color: var(--paper-code-ink);
+    background-color: var(--paper-code-bg);
     border: 1px solid var(--paper-rule);
     border-radius: 0.25rem;
     padding: 0.1em 0.35em;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
   }
 
+  /* Code blocks scroll sideways instead of widening the page. */
   .prose pre {
+    max-width: 100%;
     margin: 0 0 1.2em;
     padding: 0.8em 1em;
     overflow-x: auto;
-    background-color: var(--paper-bg);
+    -webkit-overflow-scrolling: touch;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.875em;
+    line-height: 1.5;
+    white-space: pre;
+    overflow-wrap: normal;
+    color: var(--paper-code-ink);
+    background-color: var(--paper-code-bg);
     border: 1px solid var(--paper-rule);
     border-radius: 0.375rem;
-    line-height: 1.5;
   }
 
+  /* The <pre> draws the box; its <code> must not get a second one. */
   .prose pre code {
+    font: inherit;
+    color: inherit;
     background: none;
     border: 0;
+    border-radius: 0;
     padding: 0;
-    font-size: inherit;
+    white-space: inherit;
   }
 
   .prose hr {
