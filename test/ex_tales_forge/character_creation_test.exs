@@ -127,6 +127,15 @@ defmodule TalesForge.CharacterCreationTest do
       assert {:error, {:skills, _}} = CC.set_skill(d, "alchemy", 2)
     end
 
+    test "set_skills sets the whole build; unlisted skills drop to their free level" do
+      d = chosen("human", "warrior")
+      {:ok, d} = CC.set_skills(d, %{"melee_combat" => 6, "stealth" => 2})
+
+      assert d.skills == %{"melee_combat" => 6, "stealth" => 2}
+      assert CC.skill_levels(d)["tactics"] == 2
+      assert {:error, {:skills, _}} = CC.set_skills(d, %{"melee_combat" => 1})
+    end
+
     test "setting a skill back to its free level forgets the purchase" do
       {:ok, d} = chosen("human", "warrior") |> bare() |> CC.set_skill("tactics", 4)
       {:ok, d} = CC.set_skill(d, "tactics", 2)

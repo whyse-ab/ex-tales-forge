@@ -3,7 +3,8 @@ defmodule TalesForge.Playtest.PersonaCharacters do
   The character each playtest persona creates and plays, instead of the pack's
   default character (Elara).
 
-  The picks (name, race, class, base stats, race bonus and a one-line concept)
+  The picks (name, race, class, past occupation, base stats, race bonus, skill
+  levels and a one-line concept)
   are data in `priv/playtest/characters.json`, derived from the persona notes.
   The reasoning is in `docs/playtest-persona-characters.md` in tales-forge-docs.
   They are built through `TalesForge.CharacterCreation`, the same functions the
@@ -49,10 +50,12 @@ defmodule TalesForge.Playtest.PersonaCharacters do
 
   @doc """
   What the persona knows about the character it made, for its system prompt:
-  name, race, class and concept.
+  name, race, class, past occupation and concept.
 
       iex> TalesForge.Playtest.PersonaCharacters.describe(%{"name" => "Ann", "race" => "half_elf", "class" => "cleric", "concept" => "A healer."})
       "You created this character yourself: Ann, a half-elf cleric. A healer."
+      iex> TalesForge.Playtest.PersonaCharacters.describe(%{"name" => "Bo", "race" => "dwarf", "class" => "druid", "occupation" => "miner"})
+      "You created this character yourself: Bo, a dwarf druid, a former miner."
   """
   @spec describe(pick()) :: String.t()
   def describe(%{"name" => name, "race" => race, "class" => class} = pick) do
@@ -60,7 +63,8 @@ defmodule TalesForge.Playtest.PersonaCharacters do
     article = if String.first(race) in ~w(a e i o u), do: "an", else: "a"
 
     [
-      "You created this character yourself: #{name}, #{article} #{race} #{class}.",
+      "You created this character yourself: #{name}, #{article} #{race} #{class}" <>
+        if(pick["occupation"], do: ", a former #{pick["occupation"]}.", else: "."),
       pick["concept"]
     ]
     |> Enum.reject(&is_nil/1)
@@ -72,8 +76,10 @@ defmodule TalesForge.Playtest.PersonaCharacters do
 
     with {:ok, draft} <- CharacterCreation.choose_race(draft, pick["race"]),
          {:ok, draft} <- CharacterCreation.choose_class(draft, pick["class"]),
+         {:ok, draft} <- occupation(draft, pick["occupation"]),
          {:ok, draft} <- set_stats(draft, pick["base_stats"]),
          {:ok, draft} <- race_bonus(draft, pick["race_bonus"]),
+         {:ok, draft} <- skills(draft, pick["skills"]),
          {:ok, draft} <- CharacterCreation.set_name(draft, pick["name"]) do
       CharacterCreation.finalize(draft)
     end
@@ -87,6 +93,13 @@ defmodule TalesForge.Playtest.PersonaCharacters do
       end
     end)
   end
+
+  defp occupation(draft, nil), do: {:ok, draft}
+  defp occupation(draft, occupation), do: CharacterCreation.choose_occupation(draft, occupation)
+
+  # Without skills the suggested spread for the final stats is used.
+  defp skills(draft, nil), do: {:ok, CharacterCreation.suggest_skills(draft)}
+  defp skills(draft, levels), do: CharacterCreation.set_skills(draft, levels)
 
   defp race_bonus(draft, nil), do: {:ok, draft}
   defp race_bonus(draft, picks), do: CharacterCreation.pick_race_bonus(draft, picks)

@@ -200,7 +200,9 @@ defmodule TalesForge.Playtest.RunnerTest do
     assert character["stats"]["WIS"] == 15
 
     assert_received {:persona_system, system}
-    assert system =~ "You created this character yourself: Hilde Stonebrook, a dwarf druid."
+
+    assert system =~
+             "You created this character yourself: Hilde Stonebrook, a dwarf druid, a former miner."
   end
 
   test "character: :default keeps the pack's default character and a plain persona prompt" do
