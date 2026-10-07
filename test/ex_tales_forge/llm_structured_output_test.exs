@@ -41,8 +41,7 @@ defmodule TalesForge.LLMStructuredOutputTest do
 
   defp gm_turn(session) do
     LLM.complete_turn(
-      @system,
-      @user,
+      [%{role: "system", content: @system}, %{role: "user", content: @user}],
       %PlayerAction{overall_intent: "look around", action: %SingleAction{action_type: :observe}},
       %HandlerResult{handler: "observe"},
       1,
@@ -65,7 +64,7 @@ defmodule TalesForge.LLMStructuredOutputTest do
     {raw, request} = next_request()
 
     assert %{"type" => "json_schema", "json_schema" => format} = request["response_format"]
-    assert format["name"] == "gm_turn"
+    assert format["name"] == "narration"
     assert format["strict"] == true
     assert format["schema"]["required"] == ["narrative"]
 

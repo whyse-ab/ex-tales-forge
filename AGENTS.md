@@ -202,7 +202,7 @@ When rules or prompts change in text-forge, sync the corresponding files here. P
 
 - Authored defs: `priv/npcs/*.json` (from text-forge) — `marta_kellen` (Weary Pilgrim), `worried_merchant` (Crossroads Square)
 - Per-session persistence: `NpcInstance` (personality + `runtime_state` with memories, mood, `location_id`)
-- GM `npc_memory_updates` and `state_updates` (npc paths) are applied in `TurnProcessor`
+- GM `npc_memory_updates` are applied in `TurnProcessor` (the GM no longer returns `state_updates` or `overlay_deltas`; the server owns state)
 - `present_npcs` syncs from NPC `location_id` vs player location
 - `NPCRegistry` spawns/stops `TalesForge.Agents.NPCAgent` per present NPC; `NPCRecovery` re-syncs on boot
 
