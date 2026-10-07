@@ -1,4 +1,8 @@
 defmodule TalesForge.Schemas.Turn do
+  @moduledoc """
+  Ecto schema: one played turn (player action, narrative, mechanical resolution).
+  """
+
   use Ecto.Schema
   import Ecto.Changeset
 

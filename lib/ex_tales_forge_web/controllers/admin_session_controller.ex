@@ -1,4 +1,8 @@
 defmodule TalesForgeWeb.AdminSessionController do
+  @moduledoc """
+  Admin login and logout: sends magic-link emails to allowlisted addresses and turns a valid link into an admin session.
+  """
+
   use TalesForgeWeb, :controller
 
   alias TalesForge.AdminAuth

@@ -1,4 +1,8 @@
 defmodule TalesForgeWeb.AdminLive.TurnLive.Index do
+  @moduledoc """
+  Admin: the turns of one game session.
+  """
+
   use TalesForgeWeb, :live_view
 
   import TalesForgeWeb.AdminComponents

@@ -1,4 +1,8 @@
 defmodule TalesForgeWeb.AdminLive.NpcDefinitionLive.Show do
+  @moduledoc """
+  Admin: one NPC definition from the adventure pack, as JSON.
+  """
+
   use TalesForgeWeb, :live_view
 
   import TalesForgeWeb.AdminComponents

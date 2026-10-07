@@ -648,7 +648,7 @@ defmodule TalesForge.Game.Inventory do
         {:error, "Trade requires at least one item to give and one to receive."}
 
       true ->
-        {:ok, normalize_items(give), normalize_items(receive), counterparty || "ground"}
+        {:ok, normalize_items(give), normalize_items(receive), counterparty}
     end
   end
 

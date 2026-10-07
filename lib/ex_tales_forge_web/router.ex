@@ -1,4 +1,8 @@
 defmodule TalesForgeWeb.Router do
+  @moduledoc """
+  Routes: the public play pages, admin login (magic link or GitHub), the protected admin area (with LiveDashboard at /admin/oban) and, in dev, the Swoosh mailbox.
+  """
+
   use TalesForgeWeb, :router
 
   pipeline :browser do

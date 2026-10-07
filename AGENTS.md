@@ -49,6 +49,20 @@ Rules identity (same file, Rules philosophy): prices ≈ human labor; you learn 
 - `mix precommit` runs `mix format` then `mix quality` (format check + Credo)
 - [.formatter.exs](.formatter.exs) is authoritative (Phoenix, Ecto, LiveView HEEx)
 
+### Docs, types and tests (mandatory)
+
+Humans may need to understand the code one day. The full standard is
+`docs/coding-standards.md` in tales-forge-docs; CI enforces it.
+
+- `@moduledoc` on every module (`@moduledoc false` only for internals); Credo checks it.
+- `@doc` on every public function (`@doc false` if internal), with a doctest where an
+  example helps. `test/ex_tales_forge/coding_standards_test.exs` checks the backfilled modules.
+- `@spec` on every public function; Dialyzer (`mix dialyzer`) checks them. Credo
+  `Readability.Specs` enforces presence for the backfilled files listed in `.credo.exs`.
+- Tests for every change; `mix test --cover` fails below the threshold in `mix.exs`.
+- `mix docs` builds the docs site into `doc/`.
+- Backfill legacy modules when you touch them, then add them to the lists above.
+
 ### Idioms
 
 | Prefer | Over |
@@ -99,7 +113,10 @@ mix format          # auto-format
 mix format.check    # fail if not formatted (CI-friendly)
 mix credo           # lint lib/
 mix quality         # format.check + credo --strict
-mix precommit       # compile, format, quality, test — run before PR
+mix precommit       # compile, format, quality, test + coverage, docs, dialyzer — run before PR
+mix dialyzer        # type check (first run builds the PLT in priv/plts, a few minutes)
+mix test --cover    # tests with coverage summary (HTML in cover/)
+mix docs            # docs site in doc/
 ```
 
 ## Dev commands

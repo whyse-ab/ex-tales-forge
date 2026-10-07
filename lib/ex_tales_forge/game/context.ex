@@ -1,5 +1,17 @@
 defmodule TalesForge.Game.Context do
-  @moduledoc false
+  @moduledoc """
+  Builds what the intent step and the GM see of a game session.
+
+  - `build_intent_context/1`: the facts the intent step validates the
+    player's action against (location, exits, present NPCs, their stock,
+    the character, valid skills).
+  - `build_gm_context/1`: the GM/scene context (rules, intent context, world
+    state, opening scene). The turn adds `:npc_reactions`, `:world_facts`
+    and `:price_lines` before `TalesForge.Game.Prompts` turns it into messages.
+  - `session_stable_section/1` and `per_turn_section/1`: the two user
+    messages. Only the per-turn section may change between turns; see the
+    prompt-cache notes in `TalesForge.Game.Prompts`.
+  """
 
   # NON-NEGOTIABLE: Core runtime. Pure Ecto + game logic only.
   # No Ash (neither AdminResources nor Authoring) in context building for turns.
@@ -14,12 +26,16 @@ defmodule TalesForge.Game.Context do
   alias TalesForge.Repo
   alias TalesForge.Schemas.{GameSession, Scene, Turn}
 
+  @doc ~s(The session's adventure id, or the legacy default `"crossroads_ledger"`.)
+  @spec adventure_id(map() | nil) :: String.t()
   def adventure_id(world) when is_map(world) do
     Map.get(world, "adventure_id") || "crossroads_ledger"
   end
 
   def adventure_id(_), do: "crossroads_ledger"
 
+  @doc "The intent context: a string-keyed map of what the player can act on right now."
+  @spec build_intent_context(GameSession.t()) :: map()
   def build_intent_context(%GameSession{} = session) do
     world = session.world_state || %{}
     location_id = Map.get(world, "location_id", "weary_pilgrim")
@@ -49,6 +65,8 @@ defmodule TalesForge.Game.Context do
     }
   end
 
+  @doc "The intent context as prompt text (location, exits, NPCs and their stock, skills)."
+  @spec format_intent_context(map()) :: String.t()
   def format_intent_context(context) do
     exit_lines =
       Enum.map(context["exits"], fn exit_id ->
@@ -73,7 +91,7 @@ defmodule TalesForge.Game.Context do
       "Location features:",
       context["location_blurb"] || "(none)",
       "Fixtures:",
-      Enum.join(context["fixtures"] || [], ", ") || "none",
+      Enum.join(context["fixtures"] || [], ", "),
       "Ground items:",
       Jason.encode!(context["ground_items"] || [], pretty: true),
       "Player inventory:",
@@ -93,6 +111,8 @@ defmodule TalesForge.Game.Context do
     |> Enum.join("\n")
   end
 
+  @doc "The GM/scene context for a session (atom-keyed map)."
+  @spec build_gm_context(GameSession.t()) :: map()
   def build_gm_context(%GameSession{} = session) do
     intent = build_intent_context(session)
     world = session.world_state || %{}
@@ -114,6 +134,7 @@ defmodule TalesForge.Game.Context do
   messages (see `TalesForge.Game.Prompts.gm_messages/5`); this flat view is for
   tests and debugging.
   """
+  @spec format_gm_prompt(map()) :: String.t()
   def format_gm_prompt(context) do
     [context.rules, session_stable_section(context), per_turn_section(context)]
     |> join_sections()
@@ -126,12 +147,14 @@ defmodule TalesForge.Game.Context do
   inventory, turn numbers, clocks, NPC moods) here: it sits before the per-turn
   state so the prompt cache can reuse it on every turn.
   """
+  @spec session_stable_section(map()) :: String.t()
   def session_stable_section(context) do
     [character_sheet(context.world_state), opening_section(Map.get(context, :opening_scene))]
     |> join_sections()
   end
 
   @doc "Everything that can change from turn to turn. Always last in the prompt."
+  @spec per_turn_section(map()) :: String.t()
   def per_turn_section(context) do
     npc_sections =
       NPC.format_gm_sections(
@@ -185,6 +208,11 @@ defmodule TalesForge.Game.Context do
     |> String.trim()
   end
 
+  @doc """
+  The server's resolution of the action (skill, roll, outcome and what the GM
+  may and may not narrate) as prompt text; empty without a resolution.
+  """
+  @spec mechanical_bounds(MechanicalResolution.t() | term()) :: String.t()
   def mechanical_bounds(%MechanicalResolution{} = mechanical) do
     skill = mechanical.skill || "none"
     roll = if is_nil(mechanical.roll), do: "none", else: mechanical.roll

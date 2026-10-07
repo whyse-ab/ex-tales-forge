@@ -1,4 +1,8 @@
 defmodule TalesForgeWeb.AdminLive.NpcLive.Index do
+  @moduledoc """
+  Admin: the NPCs of one game session.
+  """
+
   use TalesForgeWeb, :live_view
 
   alias TalesForge.Admin

@@ -1,4 +1,8 @@
 defmodule TalesForge.Schemas.SessionEvent do
+  @moduledoc """
+  Ecto schema: an event in a game session's log. `player_aware: false` events (GM reasoning, world facts) are never shown to the player.
+  """
+
   use Ecto.Schema
   import Ecto.Changeset
 

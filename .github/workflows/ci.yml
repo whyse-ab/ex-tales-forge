@@ -1,5 +1,6 @@
-# CI for Tales Forge: tests on every PR and on every push to main;
-# a push to main that passes the tests is deployed to production (Fly app tales-forge).
+# CI for Tales Forge: format, Credo, tests with coverage, docs and Dialyzer on
+# every PR and on every push to main (tales-forge-docs docs/coding-standards.md);
+# a push to main that passes Test and Dialyzer is deployed to production (Fly app tales-forge).
 name: CI
 
 on:
@@ -76,15 +77,89 @@ jobs:
       - name: Credo
         run: mix credo --strict
 
-      - name: Test
-        run: mix test --warnings-as-errors
+      # Coverage: `mix test --cover` fails below the threshold in mix.exs
+      # (test_coverage). The HTML report is uploaded as an artifact.
+      - name: Test (with coverage)
+        run: mix test --cover --warnings-as-errors
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage
+          path: cover/
+          if-no-files-found: ignore
+
+      # ExDoc: the browsable docs site must build without warnings (broken
+      # references in @doc/@moduledoc fail here).
+      - name: Docs build
+        run: mix docs --warnings-as-errors
 
       - name: Hex audit (retired packages)
         run: mix hex.audit
 
+  # Dialyzer (dialyxir) on the whole app. The PLT (deps + OTP) is cached by
+  # mix.lock and OTP/Elixir version; building it from scratch takes a few
+  # minutes, a cached run well under one. Accepted warnings, if any, live in
+  # .dialyzer_ignore.exs.
+  dialyzer:
+    name: Dialyzer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      MIX_ENV: test
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: erlef/setup-beam@v1
+        id: beam
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+
+      - name: Cache deps and _build
+        uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+          key: mix-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            mix-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-
+
+      - name: Restore PLT cache
+        id: plt-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: priv/plts
+          key: plt-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            plt-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-ex${{ steps.beam.outputs.elixir-version }}-
+
+      - name: Install deps
+        run: mix deps.get
+
+      - name: Compile
+        run: mix compile --warnings-as-errors
+
+      - name: Build PLT
+        if: steps.plt-cache.outputs.cache-hit != 'true'
+        run: mix dialyzer --plt
+
+      # Saved even if the Dialyzer step below fails, so the next run is fast.
+      - name: Save PLT cache
+        if: steps.plt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: priv/plts
+          key: ${{ steps.plt-cache.outputs.cache-primary-key }}
+
+      - name: Dialyzer
+        run: mix dialyzer --format github
+
   deploy:
     name: Deploy to production
-    needs: test
+    needs: [test, dialyzer]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 30

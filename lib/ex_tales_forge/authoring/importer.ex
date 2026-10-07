@@ -116,7 +116,7 @@ defmodule TalesForge.Authoring.Importer do
         name: adventure_meta.name,
         synopsis: adventure_meta.synopsis,
         starting_location_id: adventure_meta.starting_location_id,
-        initial_present_npc_ids: adventure_meta.initial_present_npc_ids || [],
+        initial_present_npc_ids: adventure_meta.initial_present_npc_ids,
         rules: rules,
         locations: places,
         npcs: characters,
@@ -156,7 +156,7 @@ defmodule TalesForge.Authoring.Importer do
   defp parse_first_matching_section(pack_dir, candidates, entity_type, opts) do
     case Enum.find(candidates, fn c -> File.dir?(Path.join(pack_dir, c)) end) do
       nil ->
-        if Keyword.get(opts || [], :optional, false) do
+        if Keyword.get(opts, :optional, false) do
           {:ok, []}
         else
           {:error,
@@ -164,7 +164,7 @@ defmodule TalesForge.Authoring.Importer do
         end
 
       dir_name ->
-        parse_section(pack_dir, dir_name, entity_type, opts || [])
+        parse_section(pack_dir, dir_name, entity_type, opts)
     end
   end
 
@@ -183,9 +183,9 @@ defmodule TalesForge.Authoring.Importer do
         }
 
     Confirmer should return:
-      - true / {:ok, confirmed_attrs}  → accept (optionally with edits)
-      - false / {:skip, reason}        → skip this entity
-      - {:error, reason}               → abort
+      - `true` / `{:ok, confirmed_attrs}`: accept (optionally with edits)
+      - `false` / `{:skip, reason}`: skip this entity
+      - `{:error, reason}`: abort
 
   - After all confirmations, performs a final confirmation step.
   - On full success, writes to Ash (Adventure + child Locations + NpcDefinitions).
@@ -314,7 +314,7 @@ defmodule TalesForge.Authoring.Importer do
 
     if File.exists?(root_md) do
       {:ok, fm, body} = parse_md_file(root_md)
-      {:ok, merge_adventure_frontmatter(base, fm, to_string(body || ""))}
+      {:ok, merge_adventure_frontmatter(base, fm, to_string(body))}
     else
       {:ok, base}
     end
@@ -364,7 +364,7 @@ defmodule TalesForge.Authoring.Importer do
   end
 
   defp parse_section(pack_dir, section, entity_type, opts) do
-    optional = Keyword.get(opts || [], :optional, false)
+    optional = Keyword.get(opts, :optional, false)
     dir = Path.join(pack_dir, section)
 
     cond do

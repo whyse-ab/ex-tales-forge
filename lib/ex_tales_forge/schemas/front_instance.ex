@@ -1,4 +1,8 @@
 defmodule TalesForge.Schemas.FrontInstance do
+  @moduledoc """
+  Ecto schema: a front (a threat or pressure in the world) running in one game session, with its status and runtime state.
+  """
+
   use Ecto.Schema
   import Ecto.Changeset
 

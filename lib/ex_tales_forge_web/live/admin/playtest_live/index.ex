@@ -1,4 +1,8 @@
 defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
+  @moduledoc """
+  Admin: playtest runs, and a form to start a new run with a persona.
+  """
+
   use TalesForgeWeb, :live_view
 
   import TalesForgeWeb.AdminComponents

@@ -67,7 +67,7 @@ defmodule Mix.Tasks.Dev.Check do
     end
   end
 
-  defp key_present?(value), do: is_binary(value) and String.trim(value) != ""
+  defp key_present?(value), do: String.trim(value) != ""
 
   defp mask(key) when byte_size(key) <= 8, do: "****"
 

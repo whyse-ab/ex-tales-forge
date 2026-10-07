@@ -43,11 +43,35 @@ defmodule TalesForge.World do
   @kinds ~w(fact price promise)
   @fact_event "world_fact"
 
+  @typedoc """
+  A collected agent: the `TalesForge.World.Agent` state as a plain map plus
+  its `:role` this turn (`:here`, `:present`, `:held` or `:around`).
+  """
+  @type agent :: %{
+          required(:id) => String.t(),
+          required(:kind) => :person | :location | :item,
+          required(:name) => String.t(),
+          required(:facts) => [fact()],
+          required(:role) => :here | :present | :held | :around,
+          optional(atom()) => term()
+        }
+
+  @typedoc ~s(A fact: `%{"kind" => "fact" | "price" | "promise", "text" => ..., "source" => "pack" | "narration", ...}`.)
+  @type fact :: %{optional(String.t()) => term()}
+
+  @typedoc "A validated new fact and the id of the entity that owns it."
+  @type accepted :: {String.t(), fact()}
+
+  @doc "True when `WORLD_AGENTS` is on."
+  @spec enabled?() :: boolean()
   def enabled?, do: Config.world_agents?()
 
+  @doc "The fact kinds an agent can hold."
+  @spec kinds() :: [String.t()]
   def kinds, do: @kinds
 
   @doc "Pack definitions for an adventure: `%{locations: %{id => def}, persons: ..., items: ...}`."
+  @spec definitions(String.t() | nil) :: %{locations: map(), persons: map(), items: map()}
   def definitions(adventure_id) when is_binary(adventure_id) do
     key = {__MODULE__, :defs, adventure_id}
 
@@ -85,6 +109,7 @@ defmodule TalesForge.World do
   The agents relevant to this turn, started lazily, as plain maps in budget
   order, each with a `:role` (`:here`, `:present`, `:held` or `:around`).
   """
+  @spec collect(String.t(), map()) :: [agent()]
   def collect(session_id, world) do
     defs = definitions(world["adventure_id"])
     stored = stored_facts(session_id)
@@ -195,6 +220,7 @@ defmodule TalesForge.World do
   # --- 2. prompt -------------------------------------------------------------------
 
   @doc "Per-turn prompt lines for the collected agents, within the budget, or nil."
+  @spec prompt_section([agent()] | nil) :: String.t() | nil
   def prompt_section(nil), do: nil
   def prompt_section([]), do: nil
 
@@ -253,6 +279,7 @@ defmodule TalesForge.World do
   against this turn's agents. Returns `{accepted, rejected}`; accepted is
   `[{entity_id, fact}]`, rejected is `[{new_fact, reason}]`.
   """
+  @spec validate_facts([agent()], [map()], integer()) :: {[accepted()], [{map(), atom()}]}
   def validate_facts(_agents, [], _turn_number), do: {[], []}
 
   def validate_facts(agents, new_facts, turn_number) do
@@ -271,6 +298,7 @@ defmodule TalesForge.World do
   end
 
   @doc "Persists accepted facts as `world_fact` session events (never shown to the player)."
+  @spec store_facts(String.t(), [accepted()], integer() | nil) :: :ok
   def store_facts(_session_id, [], _tick), do: :ok
 
   def store_facts(session_id, accepted, tick) do
@@ -289,6 +317,7 @@ defmodule TalesForge.World do
   end
 
   @doc "The session's stored facts by entity id, oldest first."
+  @spec stored_facts(String.t()) :: %{String.t() => [fact()]}
   def stored_facts(session_id) do
     Repo.all(
       from e in SessionEvent,
@@ -379,6 +408,7 @@ defmodule TalesForge.World do
   # --- 4. commit -------------------------------------------------------------------
 
   @doc "After the turn is persisted: accepted facts and new moods go to the running agents."
+  @spec commit(String.t(), [accepted()], [map()]) :: :ok
   def commit(session_id, accepted, reactions) do
     accepted
     |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))

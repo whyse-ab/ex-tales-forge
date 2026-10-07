@@ -1,4 +1,8 @@
 defmodule TalesForgeWeb.HomeLive do
+  @moduledoc """
+  Home page: lists game sessions and starts new ones.
+  """
+
   use TalesForgeWeb, :live_view
 
   alias TalesForge.GameSessions

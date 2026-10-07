@@ -1,4 +1,8 @@
 defmodule TalesForge.Schemas.NpcInstance do
+  @moduledoc """
+  Ecto schema: an NPC as it exists in one game session (personality, runtime state, disposition).
+  """
+
   use Ecto.Schema
   import Ecto.Changeset
 

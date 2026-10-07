@@ -179,7 +179,7 @@ defmodule TalesForge.Collab.Importer do
        decision: decision,
        rationale: rationale,
        decided_at: decided_at,
-       body: String.trim(body || ""),
+       body: String.trim(body),
        source_path: to_string(source_path)
      }}
   rescue
@@ -188,7 +188,7 @@ defmodule TalesForge.Collab.Importer do
 
   defp parse_doc(content, path) do
     {_fm, raw_body} = split_frontmatter(content)
-    body = String.trim(raw_body || "")
+    body = String.trim(raw_body)
 
     title =
       case Regex.run(~r/^#\s+(.+)$/m, body) do
@@ -269,7 +269,9 @@ defmodule TalesForge.Collab.Importer do
     str = String.trim(str)
 
     cond do
-      match?({:ok, _}, DateTime.from_iso8601(str)) ->
+      # DateTime.from_iso8601/1 returns {:ok, datetime, offset} (found by Dialyzer:
+      # a {:ok, _} match never succeeded, so full timestamps were dropped).
+      match?({:ok, _, _}, DateTime.from_iso8601(str)) ->
         {:ok, dt, _} = DateTime.from_iso8601(str)
         DateTime.truncate(dt, :second)
 

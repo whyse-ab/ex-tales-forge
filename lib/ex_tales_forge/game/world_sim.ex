@@ -7,7 +7,11 @@ defmodule TalesForge.Game.WorldSim do
   alias TalesForge.Game.Fronts.Moves
   alias TalesForge.Game.Fronts.Rules
 
-  @spec tick(%{fronts: [map()], events: [map()]}) :: {:ok, map()}
+  @spec tick(%{
+          required(:fronts) => [map()],
+          required(:events) => [map()],
+          optional(:people) => [map()]
+        }) :: {:ok, map()}
   def tick(%{fronts: fronts, events: events} = input) do
     people = Map.get(input, :people, [])
     {updated_fronts, applied_fronts} = tick_actors(fronts, events)

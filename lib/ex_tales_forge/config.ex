@@ -70,5 +70,5 @@ defmodule TalesForge.Config do
   defp blank_to_nil(""), do: nil
   defp blank_to_nil(value), do: value
 
-  defp present?(value), do: is_binary(value) and String.trim(value) != ""
+  defp present?(value), do: String.trim(value) != ""
 end

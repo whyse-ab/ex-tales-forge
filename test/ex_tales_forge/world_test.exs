@@ -8,6 +8,8 @@ defmodule TalesForge.WorldTest do
   """
   use TalesForge.DataCase, async: false
 
+  doctest TalesForge.World.Prices
+
   import Ecto.Query
 
   alias TalesForge.Config

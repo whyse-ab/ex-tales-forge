@@ -1,4 +1,8 @@
 defmodule TalesForgeWeb.AdminLive.SessionLive.Index do
+  @moduledoc """
+  Admin: list of game sessions.
+  """
+
   use TalesForgeWeb, :live_view
 
   alias TalesForge.Admin

@@ -1,4 +1,8 @@
 defmodule TalesForgeWeb.AdminLive.DecisionLive.Index do
+  @moduledoc """
+  Admin: the founder decision queue; updates live.
+  """
+
   use TalesForgeWeb, :live_view
 
   import TalesForgeWeb.AdminComponents

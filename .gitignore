@@ -40,3 +40,7 @@ npm-debug.log
 .env.*
 !.env.example
 
+
+# Dialyzer PLTs (cached in CI)
+/priv/plts/*.plt
+/priv/plts/*.plt.hash

@@ -42,7 +42,12 @@ defmodule TalesForge.Game.TurnProcessor do
   Runs one turn. The main steps (rules, prompt build, GM call, persistence)
   are timed and recorded in `ai_calls` as `call_type` `function` rows
   (`TalesForge.AICalls.Steps`), whether the turn succeeds or fails.
+
+  `player_action_map` is the encoded `PlayerAction` from the intent step.
+  Returns `{:ok, payload}` once the turn is persisted and broadcast, or
+  `{:error, reason}` (also broadcast as `:turn_failed`).
   """
+  @spec run(String.t(), String.t(), map()) :: {:ok, map()} | {:error, term()}
   def run(session_id, raw_action, player_action_map) do
     started = System.monotonic_time(:millisecond)
     player_action = PlayerAction.decode(player_action_map)
@@ -182,6 +187,8 @@ defmodule TalesForge.Game.TurnProcessor do
   end
 
   @doc false
+  @spec simulate!(GameSession.t(), String.t(), struct(), struct(), struct(), keyword()) ::
+          {:ok, map()} | {:error, term()}
   def simulate!(session, raw_action, player_action, handler, mechanical, opts \\ []) do
     gm_result = %GMStructuredResponse{narrative: "ok", context_summary: nil}
 
@@ -207,6 +214,7 @@ defmodule TalesForge.Game.TurnProcessor do
   end
 
   @doc false
+  @spec apply_board(GameSession.t(), map(), struct(), struct(), struct(), keyword()) :: map()
   def apply_board(session, character, handler, player_action, mechanical, opts \\ []) do
     world_before = session.world_state || %{}
 
@@ -491,6 +499,7 @@ defmodule TalesForge.Game.TurnProcessor do
   end
 
   @doc false
+  @spec next_turn_number(String.t()) :: pos_integer()
   def next_turn_number(session_id) do
     import Ecto.Query
 

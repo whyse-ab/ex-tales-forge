@@ -18,9 +18,15 @@ defmodule TalesForge.PlaytestHelpers do
 
   def wait_until(fun, tries \\ 100) do
     cond do
-      fun.() -> :ok
-      tries == 0 -> flunk("timed out waiting")
-      true -> Process.sleep(10) && wait_until(fun, tries - 1)
+      fun.() ->
+        :ok
+
+      tries == 0 ->
+        flunk("timed out waiting")
+
+      true ->
+        Process.sleep(10)
+        wait_until(fun, tries - 1)
     end
   end
 

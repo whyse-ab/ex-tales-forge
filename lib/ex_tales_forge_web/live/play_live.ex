@@ -1,4 +1,8 @@
 defmodule TalesForgeWeb.PlayLive do
+  @moduledoc """
+  The play page for one game session: shows the scene and turns, takes the player's action and follows turn progress over PubSub.
+  """
+
   use TalesForgeWeb, :live_view
 
   import TalesForgeWeb.PlayComponents
