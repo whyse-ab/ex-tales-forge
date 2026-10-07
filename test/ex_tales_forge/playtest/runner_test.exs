@@ -300,4 +300,48 @@ defmodule TalesForge.Playtest.RunnerTest do
       ]
     }
   end
+
+  describe "a stale turn_completed (double turn 2)" do
+    # Turn 1 was settled by the database poll; its own broadcast lands after,
+    # while the runner already waits for turn 2. Taking it as turn 2's
+    # completion made the persona move again with turn 2 still running, so
+    # turn 2 was narrated twice (one copy failed on the unique turn number).
+    setup do
+      {:ok, session} = GameSessions.create_session(%{name: "Stale", adventure_id: "tin_valley"})
+      insert_turn(session.id, 1)
+      %{state: %{run: %{game_session_id: session.id}, timeout_ms: 200}, session: session}
+    end
+
+    test "is ignored, so the runner keeps waiting for turn 2", %{state: state} do
+      send(self(), {:turn_completed, %{turn_count: 1, session_status: "active"}})
+      assert Runner.await_event(state, {:turn, 1}) == :timeout
+    end
+
+    test "turn 2's own event still completes it", %{state: state} do
+      send(self(), {:turn_completed, %{turn_count: 1, session_status: "active"}})
+      send(self(), {:turn_completed, %{turn_count: 2, session_status: "active"}})
+      assert {:completed, %{turn_count: 2}} = Runner.await_event(state, {:turn, 1})
+    end
+
+    test "an event without a turn number counts once the turn is stored", %{
+      state: state,
+      session: session
+    } do
+      send(self(), {:turn_completed, %{session_status: "active"}})
+      assert Runner.await_event(state, {:turn, 1}) == :timeout
+
+      insert_turn(session.id, 2)
+      send(self(), {:turn_completed, %{session_status: "active"}})
+      assert {:completed, _} = Runner.await_event(state, {:turn, 1})
+    end
+  end
+
+  defp insert_turn(session_id, n) do
+    Repo.insert!(%Turn{
+      game_session_id: session_id,
+      turn_number: n,
+      player_action: "look",
+      narrative: "Turn #{n}."
+    })
+  end
 end
