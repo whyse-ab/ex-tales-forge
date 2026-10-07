@@ -66,6 +66,14 @@ defmodule TalesForge.LLM do
   # Output budget for gm_notes on top of the narration's TIER2_MAX_TOKENS.
   @gm_notes_max_tokens 100
 
+  # Hard caps on the GM's bookkeeping fields (characters; xAI strict output
+  # enforces maxLength up to 2048 and maxItems up to 256). gm_system.txt asks
+  # for less, so the caps only bite on a runaway reply. Like the old app's
+  # schema: small, capped bookkeeping; the tokens go to the narrative.
+  @gm_notes_max_chars 240
+  @context_summary_max_chars 300
+  @npc_memory_max_chars 160
+
   # Appended (never prepended) on a retry, so the retry re-sends the original
   # messages byte for byte and still hits the prompt cache.
   @retry_correction "Your previous reply was not valid JSON for the required schema. " <>
@@ -92,33 +100,22 @@ defmodule TalesForge.LLM do
         Jason.OrderedObject.new([
           {"narrative", %{"type" => "string"}},
           {"location_name", %{"type" => ["string", "null"]}},
-          {"state_updates",
-           %{
-             "type" => "array",
-             "items" => %{
-               "type" => "object",
-               "properties" => %{
-                 "path" => %{"type" => "string"},
-                 "patch" => %{"type" => "object", "additionalProperties" => true}
-               }
-             }
-           }},
           {"npc_memory_updates",
            %{
              "type" => "array",
+             "maxItems" => 3,
              "items" => %{
                "type" => "object",
                "required" => ["npc_id", "summary"],
                "properties" => %{
                  "npc_id" => %{"type" => "string"},
-                 "summary" => %{"type" => "string"}
+                 "summary" => %{"type" => "string", "maxLength" => @npc_memory_max_chars}
                }
              }
            }},
-          {"overlay_deltas",
-           %{"type" => "object", "additionalProperties" => %{"type" => "number"}}},
-          {"context_summary", %{"type" => ["string", "null"]}},
-          {"gm_notes", %{"type" => ["string", "null"]}}
+          {"context_summary",
+           %{"type" => ["string", "null"], "maxLength" => @context_summary_max_chars}},
+          {"gm_notes", %{"type" => ["string", "null"], "maxLength" => @gm_notes_max_chars}}
         ])
     }
   end
