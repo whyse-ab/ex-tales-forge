@@ -1,9 +1,7 @@
 {
   "id": "prospector",
-  "skills": {
-    "melee_combat": 8,
-    "climbing": 9
-  },
+  "derive": {"race": "human", "standing": "commoner", "occupation": "prospector"},
+  "skills": {"climbing": 9, "melee_combat": 8},
   "fee_copper": 50,
   "motivations": {
     "agency_tier": "normal",
