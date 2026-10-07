@@ -66,8 +66,8 @@ One `GameSession` (`lib/ex_tales_forge/schemas/game_session.ex`) is one instance
 | `turns` | Auditable history: `player_action`, `narrative`, `mechanical_resolution` |
 | `scenes` | Per `(session, location_id)` exposition + optional `image_url` |
 | `npc_instances` | Per-session NPC: `personality` (authored copy) + `runtime_state` |
-| `characters` | One row per character, player or NPC (`controller` `player` \| `gm` \| `bot`), with OCEAN, Maslow level and concerns. Written at session create; **nothing reads it yet** (phase 1 of the Character plan in tales-forge-docs) |
-| `character_memories` | One character's own view (felt, salience, secret) of an event in `session_events`. Not written by the game yet |
+| `characters` | One row per character, player or NPC (`controller` `player` \| `gm` \| `bot`), with OCEAN, Maslow level and concerns. Written at session create, kept in step after every turn (`TalesForge.Characters.mirror/1`, a double-write next to `npc_instances` and `world_state`), and backfilled for older sessions with `TalesForge.Characters.backfill/0`; **nothing reads it yet** (phase 1 of the Character plan in tales-forge-docs) |
+| `character_memories` | One character's own view (felt, salience, secret) of an event in `session_events`. Mirrored from each NPC's `runtime_state["memories"]` (matched on tick + text, never duplicated); nothing reads it yet |
 
 `world_state` today (seeded by `TalesForge.Game.World.default_world_state/0`) holds `adventure_id`, `location_id` / `location_name`, `present_npcs`, `world_tick` / `world_clock` label, `last_scene_location`, `situation_lines`, `character`, `npc_state` (display snapshot), and `locations`. Time is discrete: `TalesForge.Game.WorldClock.advance/2` adds **+1 tick per player turn** (1 tick ≈ 15 in-game minutes; 4 ≈ 1 hour; 96 ≈ 1 day). There is **no wall-clock while idle**. Off-screen actors currently do almost nothing.
 
