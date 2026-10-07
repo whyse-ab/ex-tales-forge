@@ -13,11 +13,11 @@ defmodule TalesForge.CodingStandardsTest do
     TalesForge.Game.Context,
     TalesForge.Game.Prompts,
     TalesForge.Game.NpcReactions,
-    TalesForge.Game.Features,
     TalesForge.World,
     TalesForge.World.Agent,
     TalesForge.World.Extract,
     TalesForge.World.Prices,
+    TalesForge.Game.Features,
     TalesForgeWeb.TimeAgo
   ]
 
