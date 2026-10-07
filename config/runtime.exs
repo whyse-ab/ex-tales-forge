@@ -137,7 +137,8 @@ if config_env() == :prod do
   #     config :swoosh, :api_client, Swoosh.ApiClient.Req
   #
 
-  # Mail adapter for admin magic links (Resend by default; Postmark also supported).
+  # Mail adapter (Resend by default; Postmark also supported). Nothing sends mail
+  # since the admin magic links were removed on 2026-10-07.
   mail_adapter = System.get_env("MAIL_ADAPTER") || "resend"
 
   mailer_config =
@@ -158,29 +159,14 @@ if config_env() == :prod do
   config :ex_tales_forge, TalesForge.Mailer, mailer_config
 end
 
-# Founder admin allowlist (comma-separated emails), for magic links and for
-# "Sign in with GitHub" (any verified GitHub email on the list).
-# In test, prefer config/test.exs defaults unless ADMIN_EMAILS is explicitly set.
-admin_emails_env = System.get_env("ADMIN_EMAILS")
-
-if admin_emails_env || config_env() != :test do
-  admin_emails =
-    (admin_emails_env || "")
-    |> String.split(",")
-    |> Enum.map(&String.trim/1)
-    |> Enum.map(&String.downcase/1)
-    |> Enum.reject(&(&1 == ""))
-
-  config :ex_tales_forge, :admin_emails, admin_emails
-end
-
 config :ex_tales_forge, :github_docs_token, System.get_env("GITHUB_DOCS_TOKEN")
 
-# "Sign in with GitHub" for /admin. Both values are needed, otherwise the button
-# is hidden and the routes redirect back to the login page.
-# ADMIN_GITHUB_TEAM ("org/team-slug", optional): active members of that team
-# get in too; unset = team access off. Membership is checked with
-# GITHUB_DOCS_TOKEN, which then needs read access to the org's members.
+# "Sign in with GitHub", the only login; every page needs it. Both OAuth values
+# are needed, otherwise the button is hidden and nobody can sign in.
+# ADMIN_GITHUB_TEAM ("org/team-slug", e.g. whyse-ab/tales-forge): only active
+# members of that team get in; unset = nobody gets in. Membership is checked with
+# GITHUB_DOCS_TOKEN, which needs read access to the org's members. The OAuth
+# app's callback URL must be https://$PHX_HOST/admin/auth/github/callback.
 if config_env() != :test do
   config :ex_tales_forge, :github_oauth,
     client_id: System.get_env("GITHUB_OAUTH_CLIENT_ID"),

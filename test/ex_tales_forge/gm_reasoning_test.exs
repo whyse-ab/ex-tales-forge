@@ -60,7 +60,7 @@ defmodule TalesForge.GMReasoningTest do
            )
 
     System.put_env("LLM_PROVIDER", "mock")
-    {:ok, _view, html} = live(conn, ~p"/play/#{session.id}")
+    {:ok, _view, html} = live(log_in_admin(conn), ~p"/play/#{session.id}")
     assert html =~ "Marta watches you"
     refute html =~ "smuggler"
   end

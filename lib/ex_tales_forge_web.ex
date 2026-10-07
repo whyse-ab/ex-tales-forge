@@ -48,7 +48,20 @@ defmodule TalesForgeWeb do
     end
   end
 
+  # Every LiveView requires a signed-in GitHub team member (TalesForgeWeb.LiveAuth),
+  # on top of the router's live_session hooks.
   def live_view do
+    quote do
+      use Phoenix.LiveView
+
+      on_mount TalesForgeWeb.LiveAuth
+
+      unquote(html_helpers())
+    end
+  end
+
+  # The login page only: a LiveView anyone may mount.
+  def public_live_view do
     quote do
       use Phoenix.LiveView
 

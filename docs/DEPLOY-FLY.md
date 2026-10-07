@@ -59,10 +59,9 @@ Set every secret (never commit these):
 fly secrets set \
   SECRET_KEY_BASE='<paste mix phx.gen.secret>' \
   PHX_HOST='tales-forge.fly.dev' \
-  ADMIN_EMAILS='founder1@example.com,founder2@example.com' \
-  MAIL_ADAPTER='resend' \
-  RESEND_API_KEY='re_...' \
-  ADMIN_MAIL_FROM='admin@tales-forge.ai' \
+  GITHUB_OAUTH_CLIENT_ID='...' \
+  GITHUB_OAUTH_CLIENT_SECRET='...' \
+  ADMIN_GITHUB_TEAM='whyse-ab/tales-forge' \
   GITHUB_DOCS_TOKEN='ghp_...' \
   XAI_API_KEY='xai-...' \
   -a tales-forge
@@ -73,13 +72,9 @@ fly secrets set \
 | `DATABASE_URL` | Set by `fly postgres attach` / Managed Postgres attach |
 | `SECRET_KEY_BASE` | Cookie / session signing |
 | `PHX_HOST` | Host for URL generation (update when adding a custom domain) |
-| `ADMIN_EMAILS` | Comma-separated founder emails allowed to magic-link into `/admin` |
-| `MAIL_ADAPTER` | `resend` (default) or `postmark` |
-| `RESEND_API_KEY` / `POSTMARK_API_KEY` / `MAIL_API_KEY` | Swoosh API key for magic-link email |
-| `ADMIN_MAIL_FROM` | From address (must be verified with the mail provider) |
-| `GITHUB_DOCS_TOKEN` | Fine-grained or classic PAT with read access to `whyse-ab/tales-forge-docs` (and to `whyse-ab` members if `ADMIN_GITHUB_TEAM` is used) |
-| `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` | Optional. GitHub OAuth app for "Sign in with GitHub" on `/admin` (callback `https://tales-forge.fly.dev/admin/auth/github/callback`, scopes `read:org user:email`). Without both, the button is hidden |
-| `ADMIN_GITHUB_TEAM` | Optional, `org/team-slug` (e.g. `whyse-ab/tales-forge`). Active team members may sign in with GitHub; unset = off |
+| `GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET` | Required. GitHub OAuth app for "Sign in with GitHub", the only login (every page needs it). One OAuth app per host: callback `https://<PHX_HOST>/admin/auth/github/callback` (prod: `https://tales-forge.fly.dev/admin/auth/github/callback`), scopes `read:org user:email`. Without both nobody can sign in |
+| `ADMIN_GITHUB_TEAM` | Required, `org/team-slug` (`whyse-ab/tales-forge`). Only active members of this team can sign in, and every member gets the admin pages too; unset = nobody can sign in |
+| `GITHUB_DOCS_TOKEN` | Fine-grained or classic PAT with read access to `whyse-ab/tales-forge-docs` and to `whyse-ab` members (the team check for sign-in uses it) |
 | `XAI_API_KEY` | Existing Grok LLM key for the game |
 
 Optional: `TALES_FORGE_DOCS_PATH` is for local/dev sync only; production should use `GITHUB_DOCS_TOKEN`.
@@ -103,7 +98,9 @@ Notes from the first deploy:
 - The Docker image uses Elixir 1.18 (jido / jido_ai require `~> 1.18`).
 - `mix compile` must run before `mix assets.deploy` (Phoenix 1.8 colocated hooks/CSS).
 - `ECTO_IPV6=true` is set in `fly.toml` because `.flycast` / `.internal` addresses are IPv6-only.
-- The HTTP health check sends `X-Forwarded-Proto: https` so `force_ssl` doesn't 301 it.
+- The HTTP health check hits `GET /health`, the only page that needs no sign-in (everything
+  else redirects to `/admin/login`). It sends `X-Forwarded-Proto: https` so `force_ssl`
+  doesn't 301 it.
 
 ## Playtest environment
 
@@ -127,10 +124,11 @@ fly deploy --remote-only --depot=false -c fly.playtest.toml -a tales-forge-playt
 ```
 
 Secrets (own values, never copied from prod): `DATABASE_URL` (from `fly postgres attach`),
-`SECRET_KEY_BASE`, `ADMIN_EMAILS`, `ADMIN_GITHUB_TEAM`, and `XAI_API_KEY` once added. Without
-`XAI_API_KEY` the game runs with mock narration. No mail key (magic links aren't delivered), no
-GitHub OAuth app (its callback is fixed to `tales-forge.fly.dev`) and no `GITHUB_DOCS_TOKEN`
-(docs sync in the admin is unavailable).
+`SECRET_KEY_BASE`, `XAI_API_KEY`, and the sign-in set: its own GitHub OAuth app
+(`GITHUB_OAUTH_CLIENT_ID` / `GITHUB_OAUTH_CLIENT_SECRET`, callback
+`https://tales-forge-playtest.fly.dev/admin/auth/github/callback`), `ADMIN_GITHUB_TEAM` and
+`GITHUB_DOCS_TOKEN` (same team and token as prod). Without `XAI_API_KEY` the game runs with
+mock narration.
 
 ## 5. Seed decisions / docs
 
@@ -157,6 +155,7 @@ In the UI: **Admin → Decisions → Sync from repo**.
 fly certs add admin.tales-forge.ai -a tales-forge
 # Add the DNS records Fly prints (A/AAAA or CNAME) at your DNS host.
 fly secrets set PHX_HOST='admin.tales-forge.ai' -a tales-forge
+# The GitHub OAuth app's callback must then be https://admin.tales-forge.ai/admin/auth/github/callback
 fly deploy -a tales-forge
 ```
 
@@ -164,7 +163,7 @@ Point the public game hostname separately if you use another domain; admin and p
 
 ## Smoke check
 
-1. Open `https://admin.tales-forge.ai/admin/login` (or `https://tales-forge.fly.dev/admin/login`)
-2. Request a magic link for an allowlisted email
-3. Confirm the email arrives (Resend/Postmark dashboard)
-4. Open the link → Decision queue → Sync from repo
+1. Open `https://tales-forge.fly.dev/` signed out: it must redirect to `/admin/login`
+2. `curl -i https://tales-forge.fly.dev/health` answers `200 ok`
+3. "Sign in with GitHub" as a `whyse-ab/tales-forge` team member → back in the app
+4. Admin → Decision queue → Sync from repo

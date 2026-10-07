@@ -1,10 +1,10 @@
 defmodule TalesForgeWeb.CodeDocsController do
   @moduledoc """
-  `GET /admin/code-docs/*path`: the ExDoc HTML site for this codebase, admin only.
+  `GET /admin/code-docs/*path`: the ExDoc HTML site for this codebase, team members only.
 
-  The route sits in the `:admin` pipeline (`TalesForgeWeb.Plugs.AdminAuth`), so
-  every page and asset under `/admin/code-docs` needs an allowlisted admin
-  session; anyone else is redirected to `/admin/login`, just like `/admin/costs`.
+  The route sits in the `:browser` pipeline (`TalesForgeWeb.Plugs.RequireTeamMember`),
+  so every page and asset under `/admin/code-docs` needs a signed-in GitHub team
+  member; anyone else is redirected to `/admin/login`, just like `/admin/costs`.
   The docs are not in `TalesForgeWeb.static_paths/0`, so the public
   `Plug.Static` never serves them.
 
@@ -75,7 +75,7 @@ defmodule TalesForgeWeb.CodeDocsController do
   # sidebar and search are static JS loaded by <script> tags, so they got 403.
   # Skipping that check here is safe: these files are static, hold no tokens,
   # and the session cookie is SameSite=Lax, so a cross-site <script> request
-  # carries no admin session and AdminAuth redirects it to the login page.
+  # carries no session and RequireTeamMember redirects it to the login page.
   defp allow_js(conn), do: put_private(conn, :plug_skip_csrf_protection, true)
 
   defp not_found(conn, message),

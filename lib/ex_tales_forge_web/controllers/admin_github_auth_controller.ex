@@ -1,5 +1,9 @@
 defmodule TalesForgeWeb.AdminGithubAuthController do
-  @moduledoc "Sign in with GitHub for /admin. Email magic links stay as the fallback."
+  @moduledoc """
+  "Sign in with GitHub": the app's only login. Signs in active members of the
+  ADMIN_GITHUB_TEAM GitHub team (`TalesForge.AdminAuth.GitHub`); anyone else is
+  sent back to the login page with a short message.
+  """
   use TalesForgeWeb, :controller
 
   require Logger
@@ -12,6 +16,8 @@ defmodule TalesForgeWeb.AdminGithubAuthController do
 
   plug :require_enabled
 
+  @doc "Starts the OAuth flow: redirects to GitHub."
+  @spec request(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def request(conn, _params) do
     case GitHub.authorize_url() do
       {:ok, %{url: url, state: state}} ->
@@ -21,10 +27,12 @@ defmodule TalesForgeWeb.AdminGithubAuthController do
 
       {:error, error} ->
         Logger.warning("GitHub sign-in could not start: #{inspect(error)}")
-        fail(conn, "GitHub sign-in isn't working right now. Use an email link instead.")
+        fail(conn, "GitHub sign-in isn't working right now. Please try again.")
     end
   end
 
+  @doc "OAuth callback: signs in a team member, refuses anyone else."
+  @spec callback(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def callback(conn, params) do
     state = get_session(conn, @state_key)
     conn = delete_session(conn, @state_key)
@@ -40,12 +48,9 @@ defmodule TalesForgeWeb.AdminGithubAuthController do
         |> redirect(to: return_to)
 
       {:error, {:not_allowed, login}} ->
-        Logger.info("GitHub sign-in denied for @#{login}: no allowlisted verified email or team")
+        Logger.info("GitHub sign-in denied for @#{login}: not an active member of the team")
 
-        fail(
-          conn,
-          "@#{login} isn't allowed into the admin. Ask Fredrik for access, or use an email link."
-        )
+        fail(conn, "@#{login} isn't on the Tales Forge GitHub team, so you can't sign in.")
 
       {:error, error} ->
         Logger.info("GitHub sign-in failed: #{inspect(error)}")
@@ -64,7 +69,7 @@ defmodule TalesForgeWeb.AdminGithubAuthController do
       conn
     else
       conn
-      |> fail("GitHub sign-in isn't set up. Use an email link instead.")
+      |> fail("GitHub sign-in isn't set up on this server.")
       |> halt()
     end
   end

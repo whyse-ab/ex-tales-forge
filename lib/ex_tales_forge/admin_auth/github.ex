@@ -1,11 +1,10 @@
 defmodule TalesForge.AdminAuth.GitHub do
   @moduledoc """
-  "Sign in with GitHub" for /admin (OAuth web flow via Assent).
+  "Sign in with GitHub", the app's only login (OAuth web flow via Assent).
 
-  A GitHub user gets in when either
-    * one of their *verified* GitHub emails is in ADMIN_EMAILS, or
-    * ADMIN_GITHUB_TEAM (`org/team-slug`) is set and they have an *active*
-      membership in that team (pending invites don't count).
+  A GitHub user gets in only when ADMIN_GITHUB_TEAM (`org/team-slug`, e.g.
+  `whyse-ab/tales-forge`) is set and they have an *active* membership in that
+  team (pending invites don't count). With the team unset nobody gets in.
 
   The user's OAuth access token is only used during the callback and is never
   stored. Team membership is checked, at login and on every later recheck,
@@ -69,17 +68,14 @@ defmodule TalesForge.AdminAuth.GitHub do
 
   def callback(_params, _state), do: {:error, :missing_state}
 
+  # Team membership is the only gate. The email (primary verified one first) is
+  # just the display identity, e.g. on decision comments.
   defp authorize(login, emails) do
-    cond do
-      email = Enum.find(emails, &AdminAuth.allowlisted?/1) ->
-        {:ok, %{login: login, email: AdminAuth.normalize(email)}}
-
-      team() && team_member?(login, fresh: true) ->
-        email = List.first(emails) || "#{login}@users.noreply.github.com"
-        {:ok, %{login: login, email: AdminAuth.normalize(email)}}
-
-      true ->
-        {:error, {:not_allowed, login}}
+    if team_member?(login, fresh: true) do
+      email = List.first(emails) || "#{login}@users.noreply.github.com"
+      {:ok, %{login: login, email: AdminAuth.normalize(email)}}
+    else
+      {:error, {:not_allowed, login}}
     end
   end
 

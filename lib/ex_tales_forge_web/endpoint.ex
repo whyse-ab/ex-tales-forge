@@ -10,8 +10,8 @@ defmodule TalesForgeWeb.Endpoint do
   # Set :encryption_salt if you would also like to encrypt it (note: changing
   # the cookie format logs everyone out once).
   #
-  # max_age makes it a persistent cookie, so an admin magic-link login lasts
-  # 30 days from sign-in; without it browsers (notably Safari) drop it as a
+  # max_age makes it a persistent cookie, so a GitHub sign-in lasts up to 30
+  # days (team membership is still rechecked on every request); without it browsers (notably Safari) drop it as a
   # browser-session cookie. secure is compile-time (true in config/prod.exs)
   # because these options are also baked into the LiveView socket's
   # connect_info, and local dev runs over plain http.
