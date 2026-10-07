@@ -3,10 +3,24 @@ defmodule TalesForge.Game.World do
   Authored world seed for Crossroads Hamlet (Phase 1/2 transition).
 
   Hardcoded defaults + helpers for the Crossroads world. New sessions get
-  their NPCs via NPC.seed_session (from the priv/npcs files).
+  their NPCs via NPC.seed_session (from the priv/npcs files) and the player
+  character from the pack file `priv/adventures/crossroads_ledger/characters/`.
   """
 
+  alias TalesForge.Characters.Levers
   alias TalesForge.Game.WorldClock
+
+  # Elara lives in the Crossroads pack (characters/elara_voss.json). Read at
+  # compile time, levers stripped, so the session's character map stays the same.
+  @player_character_path Path.expand(
+                           "../../../priv/adventures/crossroads_ledger/characters/elara_voss.json",
+                           __DIR__
+                         )
+  @external_resource @player_character_path
+  @player_character @player_character_path
+                    |> File.read!()
+                    |> Jason.decode!()
+                    |> Map.drop(Levers.lever_keys())
 
   @locations %{
     "weary_pilgrim" => %{
@@ -80,29 +94,7 @@ defmodule TalesForge.Game.World do
         "You have just pushed through the tavern door.",
         "Marta Kellen watches from behind the bar."
       ],
-      "character" => %{
-        "id" => "elara_voss",
-        "name" => "Elara Voss",
-        "race" => "human",
-        "location_id" => "weary_pilgrim",
-        "stats" => %{"STR" => 12, "DEX" => 14, "CON" => 11, "INT" => 13, "WIS" => 12, "CHA" => 14},
-        "skills" => %{
-          "insight" => 2,
-          "persuasion" => 3,
-          "stealth" => 2,
-          "melee_combat" => 1
-        },
-        "learning_points" => %{},
-        "learning_failures" => %{},
-        "wounds" => 0,
-        "wound_max" => 3,
-        "vitality" => "ok",
-        "coins" => %{"gold" => 2, "silver" => 10, "copper" => 0},
-        "inventory" => [
-          %{"id" => "travel_cloak", "name" => "travel cloak", "quantity" => 1},
-          %{"id" => "hunting_knife", "name" => "hunting knife", "quantity" => 1}
-        ]
-      },
+      "character" => @player_character,
       "npc_state" => @npcs,
       "locations" => @locations
     }

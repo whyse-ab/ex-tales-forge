@@ -43,5 +43,18 @@
       "price_copper": 15,
       "quantity": 10
     }
+  ],
+  "maslow": "safety",
+  "concerns": [
+    {
+      "text": "Find the missing ledger before anyone learns it is gone",
+      "focus": "missing ledger",
+      "priority": 8
+    },
+    {
+      "text": "Keep unwanted attention out of her tavern",
+      "focus": "unwanted attention",
+      "priority": 5
+    }
   ]
 }

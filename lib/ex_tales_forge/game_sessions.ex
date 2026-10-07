@@ -11,6 +11,7 @@ defmodule TalesForge.GameSessions do
 
   alias TalesForge.Agents.PlayerSessionAgent
   alias TalesForge.AICalls.{Steps, Tags}
+  alias TalesForge.Characters
   alias TalesForge.Fronts
   alias TalesForge.Game.Context
   alias TalesForge.Game.Intent
@@ -35,9 +36,21 @@ defmodule TalesForge.GameSessions do
 
   def get_session!(id), do: Repo.get!(GameSession, id)
 
+  @character_opts [:controller, :controller_ref, :owner_player_id]
+
+  @doc """
+  Creates a session with its world, NPCs, fronts and characters.
+
+  Besides the session fields, `attrs` takes `:adventure_id` and the player
+  character options `:controller` (`"player"` or `"bot"`), `:controller_ref`
+  and `:owner_player_id` (see `TalesForge.Characters.seed_session/2`).
+  """
   def create_session(attrs \\ %{}) do
     adventure_id = adventure_id_from(attrs)
     world = materialize_world(adventure_id)
+
+    character_opts =
+      Map.take(attrs, @character_opts ++ Enum.map(@character_opts, &Atom.to_string/1))
 
     session_attrs =
       %{
@@ -45,7 +58,7 @@ defmodule TalesForge.GameSessions do
         status: "active",
         world_state: world
       }
-      |> Map.merge(Map.drop(attrs, [:adventure_id, "adventure_id"]))
+      |> Map.merge(Map.drop(attrs, [:adventure_id, "adventure_id"] ++ Map.keys(character_opts)))
       |> Map.put(:world_state, world)
 
     with {:ok, session} <-
@@ -55,6 +68,7 @@ defmodule TalesForge.GameSessions do
          :ok <- NPC.seed_session(session),
          :ok <- Fronts.seed_session(session),
          {:ok, session} <- NPC.refresh_session_world_state(session),
+         :ok <- Characters.seed_session(session, character_opts),
          :ok <- ensure_agent(session),
          :ok <- NPCRegistry.sync(session),
          {:ok, _} <- ensure_scene(session) do

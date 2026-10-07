@@ -29,5 +29,18 @@
     },
     "mood": "anxious",
     "agency_tier": "normal"
-  }
+  },
+  "maslow": "safety",
+  "concerns": [
+    {
+      "text": "Get the stolen ledger back",
+      "focus": "stolen ledger",
+      "priority": 8
+    },
+    {
+      "text": "Save his reputation with the other merchants",
+      "focus": "ruined reputation",
+      "priority": 6
+    }
+  ]
 }

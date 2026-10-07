@@ -137,7 +137,9 @@ defmodule TalesForge.Playtest.Runner do
     with {:ok, session} <-
            GameSessions.create_session(%{
              name: "Playtest: #{persona.name} · #{module}",
-             adventure_id: module
+             adventure_id: module,
+             controller: "bot",
+             controller_ref: persona.id
            }),
          {:ok, run} <- insert_run(session, persona, module, opts),
          {:ok, _pid} <-

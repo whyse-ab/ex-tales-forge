@@ -64,5 +64,10 @@
         "secret": true
       }
     }
-  }
+  },
+  "maslow": "esteem",
+  "concerns": [
+    {"text": "Clear the orcs from the approach so the Guild can dig on schedule", "focus": "clear the orcs", "priority": 8},
+    {"text": "Keep the Guild's standing in the valley", "focus": "Guild standing", "priority": 5}
+  ]
 }

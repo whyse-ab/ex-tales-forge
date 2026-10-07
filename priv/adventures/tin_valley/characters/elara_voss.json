@@ -1,0 +1,57 @@
+{
+  "id": "elara_voss",
+  "name": "Elara Voss",
+  "race": "human",
+  "location_id": "valley_inn",
+  "stats": {
+    "STR": 12,
+    "DEX": 14,
+    "CON": 11,
+    "INT": 13,
+    "WIS": 12,
+    "CHA": 14
+  },
+  "skills": {
+    "insight": 2,
+    "persuasion": 3,
+    "stealth": 2,
+    "melee_combat": 1
+  },
+  "learning_points": {},
+  "learning_failures": {},
+  "wounds": 0,
+  "wound_max": 3,
+  "vitality": "ok",
+  "coins": {
+    "gold": 2,
+    "silver": 10,
+    "copper": 0
+  },
+  "inventory": [
+    {
+      "id": "travel_cloak",
+      "name": "travel cloak",
+      "quantity": 1
+    },
+    {
+      "id": "hunting_knife",
+      "name": "hunting knife",
+      "quantity": 1
+    }
+  ],
+  "ocean": {
+    "openness": 7,
+    "conscientiousness": 5,
+    "extraversion": 6,
+    "agreeableness": 6,
+    "neuroticism": 4
+  },
+  "maslow": "esteem",
+  "concerns": [
+    {
+      "text": "Make a name for herself on the road",
+      "focus": "reputation",
+      "priority": 5
+    }
+  ]
+}
