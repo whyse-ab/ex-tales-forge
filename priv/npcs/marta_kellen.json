@@ -3,6 +3,7 @@
   "backstory": "Has run The Weary Pilgrim through lean seasons and hard winters; knows every face that belongs in her common room.",
   "default_location_id": "weary_pilgrim",
   "id": "marta_kellen",
+  "derive": {"race": "human", "standing": "commoner", "occupation": "barkeep"},
   "motivations": {
     "agency_tier": "normal",
     "current_concern": {

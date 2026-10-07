@@ -1,5 +1,6 @@
 {
   "id": "worried_merchant",
+  "derive": {"race": "human", "standing": "merchant", "occupation": "merchant"},
   "name": "Henrik Bale",
   "race": "human",
   "role": "merchant",

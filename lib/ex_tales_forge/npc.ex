@@ -8,7 +8,7 @@ defmodule TalesForge.NPC do
 
   import Ecto.Query
 
-  alias TalesForge.Characters.Levers
+  alias TalesForge.Characters.{Defaults, Levers}
   alias TalesForge.Game.Pack
   alias TalesForge.Game.WorldClock
   alias TalesForge.Repo
@@ -30,53 +30,53 @@ defmodule TalesForge.NPC do
     |> Repo.update()
   end
 
-  def seed_session(%{id: session_id, world_state: world_state} = session) do
-    case Map.get(world_state, "adventure_id") do
-      "tin_valley" ->
-        seed_from_pack(session, Pack.load("tin_valley").npcs)
-
-      _ ->
-        seed_legacy(
-          session_id,
-          Map.get(world_state, "world_tick", WorldClock.default_start_tick())
-        )
-    end
-  end
-
-  defp seed_from_pack(%{id: session_id, world_state: world_state}, npcs) do
+  @doc """
+  Seeds the session's NPC instances from the pack (tin_valley) or the
+  `priv/npcs` files. Definitions with a `derive` block get their defaults from
+  `TalesForge.Characters.Defaults` (skills on the PC scale, stats, OCEAN), seeded
+  per session and NPC; the authored keys stay as overrides.
+  """
+  def seed_session(%{id: session_id, world_state: world_state}) do
+    adventure_id = Map.get(world_state, "adventure_id")
     world_tick = Map.get(world_state, "world_tick", WorldClock.default_start_tick())
+    rules = Defaults.rules(adventure_id)
 
-    Enum.each(npcs, fn definition ->
+    definitions =
+      case adventure_id do
+        "tin_valley" -> Pack.load("tin_valley").npcs
+        _ -> load_definitions_from_files(rules)
+      end
+
+    Enum.each(definitions, fn definition ->
       npc_id = Map.get(definition, "id") || Map.get(definition, :id)
 
       if npc_id do
-        insert_instance!(session_id, to_string(npc_id), definition, world_tick)
+        npc_id = to_string(npc_id)
+        definition = Defaults.apply(definition, rules, Defaults.seed(session_id, npc_id))
+        insert_instance!(session_id, npc_id, definition, world_tick)
       end
     end)
 
     :ok
   end
 
-  defp seed_legacy(session_id, world_tick) do
-    Enum.each(load_definitions_from_files(), fn definition ->
-      npc_id = Map.get(definition, "id") || Map.get(definition, :id)
-
-      if npc_id do
-        insert_instance!(session_id, to_string(npc_id), definition, world_tick)
-      end
-    end)
-
-    :ok
-  end
-
-  defp load_definitions_from_files do
+  defp load_definitions_from_files(rules) do
     npc_dir()
     |> File.ls!()
     |> Enum.filter(&String.ends_with?(&1, ".json"))
     |> Enum.map(fn file ->
-      file |> load_definition_file() |> tap(&Levers.validate!(&1, "priv/npcs/#{file}"))
+      source = "priv/npcs/#{file}"
+      definition = load_definition_file(file)
+      Levers.validate!(definition, source)
+      validate_derive!(definition, rules, source)
+      definition
     end)
   end
+
+  defp validate_derive!(%{"derive" => inputs}, rules, source),
+    do: Defaults.validate_inputs!(inputs, rules, source)
+
+  defp validate_derive!(_definition, _rules, _source), do: :ok
 
   def list_instances(session_id) do
     NpcInstance
