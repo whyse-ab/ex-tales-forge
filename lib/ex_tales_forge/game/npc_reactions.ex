@@ -56,16 +56,33 @@ defmodule TalesForge.Game.NpcReactions do
   @intensity ["none", "slight", "moderate", "strong", "intense"]
   @stances ["hostile", "cool", "neutral", "warm", "friendly"]
 
+  @typedoc """
+  One NPC's reaction: `"npc_id"`, `"name"`, `"emotion"`, `"intensity"` (0..1),
+  `"stance"`, `"stance_score"` (0..1), `"confidence"` and `"turn_number"`.
+  """
+  @type reaction :: %{optional(String.t()) => term()}
+
+  @doc "The `ai_calls` purpose of a reaction call."
+  @spec purpose() :: String.t()
   def purpose, do: @purpose
+
+  @doc "The emotions a reaction can have, sorted."
+  @spec emotions() :: [String.t()]
   def emotions, do: @emotions |> Map.keys() |> Enum.map(&Atom.to_string/1) |> Enum.sort()
+
+  @doc "The stances, from hostile to friendly."
+  @spec stances() :: [String.t()]
   def stances, do: @stances
 
   @doc """
   On when `NPC_REACTIONS` (or `WORLD_AGENTS`, where this is a Person agent's
   System 1 reaction) is on and a TypeSafe key is configured.
   """
+  @spec enabled?() :: boolean()
   def enabled?, do: (Config.npc_reactions?() or Config.world_agents?()) and configured?()
 
+  @doc "True when a TypeSafe (Jev) API key is configured."
+  @spec configured?() :: boolean()
   def configured? do
     case Application.get_env(:jev, :api_key) || System.get_env("TYPESAFE_API_KEY") do
       key when is_binary(key) and key != "" -> true
@@ -78,6 +95,7 @@ defmodule TalesForge.Game.NpcReactions do
   moods carried over in `"npc_moods"`. Returns `{reactions, world}`;
   `{[], world}` when off, nobody is present, or every call failed.
   """
+  @spec react(String.t(), map(), integer(), String.t(), struct() | nil) :: {[reaction()], map()}
   def react(session_id, world, turn_number, raw_action, mechanical) do
     present = List.wrap(world["present_npcs"])
 
@@ -164,6 +182,11 @@ defmodule TalesForge.Game.NpcReactions do
   # --- input --------------------------------------------------------------------
 
   @doc false
+  @spec situation(String.t(), String.t(), struct() | nil) :: %{
+          narration: String.t() | nil,
+          action: String.t(),
+          outcome: String.t() | nil
+        }
   def situation(session_id, raw_action, mechanical) do
     %{
       narration: last_narration(session_id),
@@ -173,6 +196,7 @@ defmodule TalesForge.Game.NpcReactions do
   end
 
   @doc false
+  @spec state(struct(), map() | nil, map()) :: String.t()
   def state(inst, mood, scene) do
     definition = inst.personality || %{}
     traits = get_in(definition, ["motivations", "personality_traits"]) || %{}
@@ -195,6 +219,7 @@ defmodule TalesForge.Game.NpcReactions do
   end
 
   @doc false
+  @spec questions(struct()) :: list()
   def questions(inst) do
     n = name(inst)
 
@@ -253,6 +278,7 @@ defmodule TalesForge.Game.NpcReactions do
   # --- output -------------------------------------------------------------------
 
   @doc false
+  @spec reaction(struct(), map(), integer()) :: reaction()
   def reaction(inst, reply, turn_number) do
     confidence = Map.get(reply, :confidence) || %{}
 
@@ -287,6 +313,7 @@ defmodule TalesForge.Game.NpcReactions do
   The per-turn prompt section for this turn's reactions, or nil. One short
   typed line per NPC, e.g. `- Brenna Holt — wary (0.7), stance cool, confidence 0.8`.
   """
+  @spec prompt_section([reaction()] | nil) :: String.t() | nil
   def prompt_section([]), do: nil
   def prompt_section(nil), do: nil
 

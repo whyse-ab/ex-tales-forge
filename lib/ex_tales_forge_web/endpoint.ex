@@ -1,4 +1,8 @@
 defmodule TalesForgeWeb.Endpoint do
+  @moduledoc """
+  Phoenix endpoint: static files, the signed session cookie, the LiveView socket and the router.
+  """
+
   use Phoenix.Endpoint, otp_app: :ex_tales_forge
 
   # The session will be stored in the cookie and signed,

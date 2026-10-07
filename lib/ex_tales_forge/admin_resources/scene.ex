@@ -1,4 +1,8 @@
 defmodule TalesForge.AdminResources.Scene do
+  @moduledoc """
+  Ash resource over the `scenes` table, for the admin UI.
+  """
+
   use Ash.Resource,
     otp_app: :ex_tales_forge,
     domain: TalesForge.AdminResources,

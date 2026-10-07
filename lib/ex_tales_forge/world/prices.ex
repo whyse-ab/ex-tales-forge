@@ -33,6 +33,8 @@ defmodule TalesForge.World.Prices do
   Resolves this turn's prices. `world_before` is the session state before the
   rules step, `world` after it. Returns `{world, lines}`.
   """
+  @spec resolve([TalesForge.World.agent()], map(), map(), String.t(), struct() | nil) ::
+          {map(), [String.t()]}
   def resolve(agents, world_before, world, raw_action, player_action) do
     spent = coins(world_before) - coins(world)
 
@@ -82,6 +84,7 @@ defmodule TalesForge.World.Prices do
     do: {world, "Price: #{fact["item"]}, #{money(fact["copper"])}"}
 
   @doc "Per-turn prompt section for the lines, or nil."
+  @spec prompt_section([String.t()] | nil) :: String.t() | nil
   def prompt_section([]), do: nil
   def prompt_section(nil), do: nil
 
@@ -96,6 +99,7 @@ defmodule TalesForge.World.Prices do
       )
 
   @doc false
+  @spec price_facts([TalesForge.World.agent()]) :: [map()]
   def price_facts(agents) do
     agents
     |> Enum.filter(&(&1.role in [:here, :present]))
@@ -106,6 +110,7 @@ defmodule TalesForge.World.Prices do
   end
 
   @doc false
+  @spec mentioned([map()], String.t()) :: [map()]
   def mentioned(facts, raw_action) do
     text = String.downcase(to_string(raw_action))
 
@@ -162,6 +167,7 @@ defmodule TalesForge.World.Prices do
   @unit %{"copper" => 1, "silver" => 10, "gold" => 500}
 
   @doc false
+  @spec amount(String.t()) :: non_neg_integer() | nil
   def amount(raw_action) do
     case Regex.scan(@amount, to_string(raw_action)) do
       [] ->
@@ -178,6 +184,7 @@ defmodule TalesForge.World.Prices do
   end
 
   @doc false
+  @spec payment?(String.t(), struct() | nil) :: boolean()
   def payment?(raw_action, player_action) do
     text = to_string(raw_action)
     coins_over? = Regex.match?(@hand_over, text) and Regex.match?(@coin_word, text)
@@ -210,7 +217,17 @@ defmodule TalesForge.World.Prices do
   defp coins(world),
     do: Inventory.coin_total_copper(get_in(world || %{}, ["character", "coins"]) || %{})
 
-  @doc ~s(Copper as the coins a person would say: 30 -> "3 silver", 35 -> "3 silver 5 copper".)
+  @doc """
+  Copper as the coins a person would say.
+
+      iex> TalesForge.World.Prices.money(30)
+      "3 silver"
+      iex> TalesForge.World.Prices.money(535)
+      "1 gold 3 silver 5 copper"
+      iex> TalesForge.World.Prices.money(0)
+      "0 copper"
+  """
+  @spec money(non_neg_integer()) :: String.t()
   def money(copper) when is_integer(copper) do
     gold = div(copper, 500)
     silver = div(rem(copper, 500), 10)

@@ -66,13 +66,29 @@
           {Credo.Check.Warning.UnusedRegexOperation, []},
           {Credo.Check.Warning.UnusedStringOperation, []},
           {Credo.Check.Warning.UnusedTupleOperation, []},
-          {Credo.Check.Warning.UnsafeExec, []}
+          {Credo.Check.Warning.UnsafeExec, []},
+          # Coding standards (tales-forge-docs docs/coding-standards.md): every
+          # module has a @moduledoc (`@moduledoc false` only for internals).
+          {Credo.Check.Readability.ModuleDoc, []},
+          # @spec on every public function, enforced for the modules backfilled
+          # so far. Add a file here once its public functions all have specs;
+          # the rest of lib/ is the legacy baseline, still to be backfilled.
+          {Credo.Check.Readability.Specs,
+           [
+             files: %{
+               included: [
+                 "lib/ex_tales_forge/llm.ex",
+                 "lib/ex_tales_forge/game/turn_processor.ex",
+                 "lib/ex_tales_forge/game/context.ex",
+                 "lib/ex_tales_forge/game/prompts.ex",
+                 "lib/ex_tales_forge/game/npc_reactions.ex",
+                 "lib/ex_tales_forge/world.ex",
+                 "lib/ex_tales_forge/world/"
+               ]
+             }
+           ]}
         ],
         disabled: [
-          # @spec coverage deferred until types stabilize
-          {Credo.Check.Readability.Specs, []},
-          # Many internal modules use @moduledoc false
-          {Credo.Check.Readability.ModuleDoc, []},
           # Nested module refs are common in Phoenix/Jido code; alias at top is optional
           {Credo.Check.Design.AliasUsage, []}
         ]

@@ -93,6 +93,7 @@ defmodule TalesForge.LLM do
   would stop it from warming the cache for GM turn 1. The scene fills
   `narrative` + `location_name`; the GM leaves `location_name` out.
   """
+  @spec narration_schema() :: map()
   def narration_schema do
     %{
       "type" => "object",
@@ -122,11 +123,27 @@ defmodule TalesForge.LLM do
     ]
   end
 
+  @typedoc "Options for the `complete_*` calls: `:session_id` (conv id and cost rows), `:turn_number`."
+  @type call_opts :: [session_id: String.t() | nil, turn_number: integer() | nil]
+
+  @typedoc "A decoded JSON reply, or why there is none."
+  @type result(reply) :: {:ok, reply} | {:error, term()}
+
+  @doc ~s[The configured LLM provider (`LLM_PROVIDER`), e.g. `"xai"` or `"mock"`.]
+  @spec provider() :: String.t()
   def provider, do: Config.llm_provider()
 
+  @doc ~s(How a reply was produced, for the stored rows: `"mock"` for the mock model, else `"api"`.)
+  @spec llm_source(String.t()) :: String.t()
   def llm_source("mock"), do: "mock"
   def llm_source(_), do: "api"
 
+  @doc """
+  Player intent extraction (tier 1): the player's free text as an
+  `IntentExtraction`. Returns `{:error, :mock_intent}` with the mock model, so
+  callers fall back to the heuristic.
+  """
+  @spec complete_intent(String.t(), String.t(), call_opts()) :: result(IntentExtraction.t())
   def complete_intent(system, user, opts \\ []) do
     model = tier1_model()
 
@@ -150,6 +167,8 @@ defmodule TalesForge.LLM do
   end
 
   @doc "Opening/arrival scene. `messages` come from `Prompts.scene_messages/1`."
+  @spec complete_scene([map()], map(), call_opts()) ::
+          result(%{location_name: String.t(), narrative: String.t()})
   def complete_scene(messages, intent_context, opts \\ [])
       when is_list(messages) and is_map(intent_context) do
     model = tier2_model()
@@ -178,6 +197,8 @@ defmodule TalesForge.LLM do
     end
   end
 
+  @doc "A playtest persona's next move (`action`, `option_id`). Persona cost is a bot bucket, not game cost."
+  @spec complete_persona(String.t(), String.t(), call_opts()) :: result(map())
   def complete_persona(system, user, opts \\ []) do
     model = tier2_model()
 
@@ -222,6 +243,7 @@ defmodule TalesForge.LLM do
   narration (`TalesForge.World.Extract`). Purpose `fact_extract`, conv id
   `<session>:facts`, temperature 0.
   """
+  @spec complete_fact_extract(String.t(), String.t(), call_opts()) :: result(map())
   def complete_fact_extract(system, user, opts \\ []) do
     model = tier1_model()
 
@@ -237,6 +259,8 @@ defmodule TalesForge.LLM do
     end
   end
 
+  @doc "The LLM judge's scorecard for a playtest (`scores`, `rationale`); `:criteria` sizes the mock reply."
+  @spec complete_scorer(String.t(), String.t(), keyword()) :: result(map())
   def complete_scorer(system, user, opts \\ []) do
     model = tier2_model()
 
@@ -259,7 +283,9 @@ defmodule TalesForge.LLM do
     }
   end
 
-  @doc "GM turn. `messages` come from `Prompts.gm_messages/5`."
+  @doc "GM turn. `messages` come from `Prompts.gm_messages/5`; the reply is decoded into a `GMStructuredResponse`."
+  @spec complete_turn([map()], PlayerAction.t(), HandlerResult.t(), integer(), call_opts()) ::
+          result(GMStructuredResponse.t())
   def complete_turn(
         messages,
         %PlayerAction{} = player_action,
@@ -352,6 +378,7 @@ defmodule TalesForge.LLM do
     do: [%{role: "system", content: system}, %{role: "user", content: user}]
 
   @doc false
+  @spec retry_messages([map()]) :: [map()]
   def retry_messages(messages), do: messages ++ [%{role: "user", content: @retry_correction}]
 
   defp prepare_schema(model, messages, schema, opts) do
@@ -511,6 +538,7 @@ defmodule TalesForge.LLM do
   rather than none: its prompt still starts with a static prefix worth reusing,
   and the id carries nothing about a player.
   """
+  @spec conv_id(keyword()) :: String.t()
   def conv_id(opts) do
     purpose = purpose(Keyword.get(opts, :tier, :unknown))
 
@@ -611,9 +639,16 @@ defmodule TalesForge.LLM do
     |> String.trim()
   end
 
+  @doc "Model for small calls (intent, fact extraction): `TIER1_MODEL`, else the first configured provider, else `\"mock\"`."
+  @spec tier1_model() :: String.t()
   def tier1_model, do: resolve_tier_model(Config.tier1_model())
+
+  @doc "Model for narration and bots (scene, GM, persona, scorer): `TIER2_MODEL`, else as `tier1_model/0`."
+  @spec tier2_model() :: String.t()
   def tier2_model, do: resolve_tier_model(Config.tier2_model())
 
+  @doc "`XAI_MODEL`, unless it is a reasoning model (too slow for turns); then the default xAI model."
+  @spec effective_xai_model() :: String.t()
   def effective_xai_model do
     model = Config.xai_model()
 
@@ -657,6 +692,15 @@ defmodule TalesForge.LLM do
   defp mock?("mock"), do: true
   defp mock?(_model), do: provider() == "mock"
 
+  @doc """
+  True for reasoning models.
+
+      iex> TalesForge.LLM.reasoning_model?("grok-4-fast-reasoning")
+      true
+      iex> TalesForge.LLM.reasoning_model?("grok-4-fast-non-reasoning")
+      false
+  """
+  @spec reasoning_model?(String.t()) :: boolean()
   def reasoning_model?(model) do
     lowered = String.downcase(model)
 

@@ -1,4 +1,8 @@
 defmodule TalesForgeWeb.AdminLive.SessionLive.Show do
+  @moduledoc """
+  Admin: one game session, with an Ash form to edit it.
+  """
+
   use TalesForgeWeb, :live_view
 
   import TalesForgeWeb.AdminComponents

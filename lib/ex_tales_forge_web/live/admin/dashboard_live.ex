@@ -1,4 +1,8 @@
 defmodule TalesForgeWeb.AdminLive.DashboardLive do
+  @moduledoc """
+  Admin start page: headline stats and links to the admin sections.
+  """
+
   use TalesForgeWeb, :live_view
 
   import TalesForgeWeb.AdminComponents

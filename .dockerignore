@@ -13,3 +13,7 @@ ex_tales_forge-*.tar
 /test
 /.git
 /.grok
+
+# Dialyzer PLTs
+/priv/plts/*.plt
+/priv/plts/*.plt.hash

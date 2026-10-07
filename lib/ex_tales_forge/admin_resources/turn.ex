@@ -1,4 +1,8 @@
 defmodule TalesForge.AdminResources.Turn do
+  @moduledoc """
+  Ash resource over the `turns` table, for the admin UI.
+  """
+
   use Ash.Resource,
     otp_app: :ex_tales_forge,
     domain: TalesForge.AdminResources,

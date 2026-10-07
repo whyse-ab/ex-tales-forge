@@ -1,4 +1,8 @@
 defmodule TalesForgeWeb.AdminLive.LoginLive do
+  @moduledoc """
+  Admin login page: email magic link or GitHub sign-in.
+  """
+
   use TalesForgeWeb, :live_view
 
   alias TalesForge.AdminAuth.GitHub

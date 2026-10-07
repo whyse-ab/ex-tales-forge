@@ -1,4 +1,8 @@
 defmodule TalesForgeWeb.AdminLive.DecisionLive.Show do
+  @moduledoc """
+  Admin: one founder decision (from the decision queue), rendered from Markdown.
+  """
+
   use TalesForgeWeb, :live_view
 
   import TalesForgeWeb.AdminComponents

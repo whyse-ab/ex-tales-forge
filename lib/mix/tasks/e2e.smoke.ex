@@ -449,5 +449,5 @@ defmodule Mix.Tasks.E2e.Smoke do
     end
   end
 
-  defp key_present?(value), do: is_binary(value) and String.trim(value) != ""
+  defp key_present?(value), do: String.trim(value) != ""
 end

@@ -1,9 +1,15 @@
 defmodule TalesForge.Schemas.GameSession do
+  @moduledoc """
+  Ecto schema: a game session and its `world_state` map (character, location, NPCs, clock, moods).
+  """
+
   use Ecto.Schema
   import Ecto.Changeset
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
+
+  @type t :: %__MODULE__{}
 
   schema "game_sessions" do
     field :name, :string

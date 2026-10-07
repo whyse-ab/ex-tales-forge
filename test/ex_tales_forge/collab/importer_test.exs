@@ -54,4 +54,19 @@ defmodule TalesForge.Collab.ImporterTest do
     assert d2.status == "decided"
     assert d2.decision == "Commit to ex-tales-forge"
   end
+
+  test "keeps a full ISO timestamp in decided_at" do
+    dir = Path.join(System.tmp_dir!(), "tf-importer-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(Path.join(dir, "decisions"))
+    on_exit(fn -> File.rm_rf!(dir) end)
+
+    @fixture
+    |> Path.join("decisions/d-012-closed-beta.md")
+    |> File.read!()
+    |> String.replace("decided_at:\n", "decided_at: \"2026-10-07T10:30:00Z\"\n")
+    |> then(&File.write!(Path.join(dir, "decisions/d-012-closed-beta.md"), &1))
+
+    assert {:ok, _} = Importer.import_from_path(dir)
+    assert [%{decided_at: ~U[2026-10-07 10:30:00Z]}] = Collab.list_decisions()
+  end
 end

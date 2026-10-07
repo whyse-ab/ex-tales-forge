@@ -22,7 +22,11 @@ defmodule TalesForge.Game.Schemas do
           | :other
 
   defmodule SingleAction do
-    @moduledoc false
+    @moduledoc """
+    One action the player wants to take: its type, target and parameters (e.g. `"item_id"`).
+    """
+    @type t :: %__MODULE__{}
+
     defstruct [:action_type, :target, parameters: %{}]
 
     def decode(map) when is_map(map) do
@@ -71,7 +75,11 @@ defmodule TalesForge.Game.Schemas do
   end
 
   defmodule ClarificationOption do
-    @moduledoc false
+    @moduledoc """
+    One option offered to the player when the intent step asks a clarifying question.
+    """
+    @type t :: %__MODULE__{}
+
     defstruct [:id, :label, :description, action_index: 0]
 
     def decode(map) do
@@ -85,7 +93,11 @@ defmodule TalesForge.Game.Schemas do
   end
 
   defmodule IntentExtraction do
-    @moduledoc false
+    @moduledoc """
+    The intent step's reading of the player's free text, before validation.
+    """
+    @type t :: %__MODULE__{}
+
     defstruct [
       :overall_intent,
       actions: [],
@@ -131,7 +143,11 @@ defmodule TalesForge.Game.Schemas do
   end
 
   defmodule PlayerAction do
-    @moduledoc false
+    @moduledoc """
+    The validated player action for a turn: overall intent, the primary `SingleAction`, confidence and any deferred actions.
+    """
+    @type t :: %__MODULE__{}
+
     defstruct [:overall_intent, :action, confidence: 1.0, deferred_actions: []]
 
     def decode(map) when is_map(map) do
@@ -155,7 +171,11 @@ defmodule TalesForge.Game.Schemas do
   end
 
   defmodule MechanicalResolution do
-    @moduledoc false
+    @moduledoc """
+    The server's resolution of an action (skill, roll, outcome, state changes) that bounds what the GM may narrate.
+    """
+    @type t :: %__MODULE__{}
+
     defstruct skill: nil,
               outcome: "none",
               roll: nil,
@@ -195,7 +215,9 @@ defmodule TalesForge.Game.Schemas do
   end
 
   defmodule GMStructuredResponse do
-    @moduledoc false
+    @moduledoc """
+    A decoded GM reply: the narrative plus bookkeeping (NPC memory updates, context summary, GM notes), capped when parsed.
+    """
 
     # Hard caps on the GM's bookkeeping, enforced here rather than with
     # maxLength / maxItems in the narration schema (those turn off xAI prompt
@@ -213,6 +235,8 @@ defmodule TalesForge.Game.Schemas do
         npc_memory_items: @npc_memory_max_items,
         npc_memory_summary: @npc_memory_max_chars
       }
+
+    @type t :: %__MODULE__{}
 
     defstruct [
       :narrative,
@@ -256,7 +280,11 @@ defmodule TalesForge.Game.Schemas do
   end
 
   defmodule HandlerResult do
-    @moduledoc false
+    @moduledoc """
+    Which action handler took the action, with its skill, target, notes and hints for the state update.
+    """
+    @type t :: %__MODULE__{}
+
     defstruct [:handler, :skill, :target, notes: "", state_hints: %{}]
   end
 end

@@ -1,4 +1,8 @@
 defmodule TalesForge.Repo do
+  @moduledoc """
+  The Postgres repo. An `AshPostgres.Repo`, so it serves both the Ash authoring resources and the plain Ecto runtime schemas.
+  """
+
   # Upgraded to AshPostgres.Repo for Phase 2 authoring resources.
   # Continues to work as a standard Ecto.Repo for existing runtime schemas.
   use AshPostgres.Repo,

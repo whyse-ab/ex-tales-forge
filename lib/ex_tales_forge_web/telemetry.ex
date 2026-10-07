@@ -1,4 +1,8 @@
 defmodule TalesForgeWeb.Telemetry do
+  @moduledoc """
+  Telemetry supervisor: periodic measurements and the metric definitions shown in LiveDashboard.
+  """
+
   use Supervisor
   import Telemetry.Metrics
 

@@ -1,4 +1,8 @@
 defmodule TalesForge.Schemas.Scene do
+  @moduledoc """
+  Ecto schema: a scene (opening or arrival narration at a location).
+  """
+
   use Ecto.Schema
   import Ecto.Changeset
 

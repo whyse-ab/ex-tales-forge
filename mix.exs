@@ -12,6 +12,13 @@ defmodule TalesForge.MixProject do
       deps: deps(),
       compilers: [:phoenix_live_view] ++ Mix.compilers(),
       listeners: [Phoenix.CodeReloader],
+      # Coding standards (tales-forge-docs docs/coding-standards.md): Dialyzer,
+      # ExDoc and test coverage. CI runs all of them.
+      dialyzer: dialyzer(),
+      name: "Tales Forge",
+      source_url: "https://github.com/whyse-ab/ex-tales-forge",
+      docs: docs(),
+      test_coverage: test_coverage(),
       releases: [
         ex_tales_forge: [
           include_executables_for: [:unix],
@@ -82,6 +89,8 @@ defmodule TalesForge.MixProject do
       {:dns_cluster, "~> 0.2.0"},
       {:bandit, "~> 1.5"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.38", only: [:dev, :test], runtime: false},
 
       # Ash for Phase 2 authoring layer (pre-play content only)
       {:ash, "~> 3.0"},
@@ -89,6 +98,40 @@ defmodule TalesForge.MixProject do
       {:ash_phoenix, "~> 2.0"},
       {:igniter, "~> 0.6", only: [:dev, :test]}
     ]
+  end
+
+  # Dialyzer: PLTs live in priv/plts (cached in CI). Known warnings in legacy
+  # code are listed in .dialyzer_ignore.exs; new code must add none.
+  defp dialyzer do
+    [
+      plt_local_path: "priv/plts",
+      plt_core_path: "priv/plts",
+      plt_add_apps: [:mix, :ex_unit],
+      ignore_warnings: ".dialyzer_ignore.exs",
+      list_unused_filters: true
+    ]
+  end
+
+  # `mix docs` builds the browsable docs site into doc/.
+  defp docs do
+    [
+      main: "readme",
+      extras: ["README.md", "AGENTS.md"],
+      # The guides link to repo files that are not part of the docs site.
+      skip_undefined_reference_warnings_on: ["README.md", "AGENTS.md"],
+      groups_for_modules: [
+        Game: ~r/^TalesForge\.Game\./,
+        "World agents": [TalesForge.World, ~r/^TalesForge\.World\./],
+        "LLM and AI calls": [TalesForge.LLM, ~r/^TalesForge\.AICalls/],
+        Playtest: ~r/^TalesForge\.Playtest/,
+        Web: ~r/^TalesForgeWeb/
+      ]
+    ]
+  end
+
+  # `mix test --cover`: fails below the threshold (raise it as coverage grows).
+  defp test_coverage do
+    [summary: [threshold: 72]]
   end
 
   # Aliases are shortcuts or tasks specific to the current project.
@@ -114,12 +157,15 @@ defmodule TalesForge.MixProject do
       quality: ["format.check", "credo --strict"],
       # Project warnings only (not Hex deps). Reprints even if already compiled.
       warnings: ["compile --force --all-warnings --warnings-as-errors"],
+      # Same checks as CI (tales-forge-docs docs/coding-standards.md).
       precommit: [
         "compile --warnings-as-errors",
         "deps.unlock --unused",
         "format",
         "quality",
-        "test --warnings-as-errors"
+        "test --cover --warnings-as-errors",
+        "docs --warnings-as-errors",
+        "dialyzer"
       ],
       "dev.check": ["compile", "dev.check"],
       "e2e.smoke": ["compile", "e2e.smoke"],

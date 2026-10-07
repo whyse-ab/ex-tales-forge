@@ -1,4 +1,8 @@
 defmodule TalesForgeWeb.AdminLive.NpcLive.Show do
+  @moduledoc """
+  Admin: one NPC in a session, with an Ash form to edit it.
+  """
+
   use TalesForgeWeb, :live_view
 
   import TalesForgeWeb.AdminComponents

@@ -26,7 +26,16 @@ defmodule TalesForge.World.Extract do
 
   @narration_chars 3_000
 
-  @doc "Starts `run/5` after the turn (synchronously when `:world_extract_mode` is `:sync`, for tests)."
+  @doc "Starts `run/6` after the turn (synchronously when `:world_extract_mode` is `:sync`, for tests)."
+  @spec run_async(
+          String.t(),
+          integer(),
+          String.t(),
+          String.t(),
+          [TalesForge.World.agent()],
+          map()
+        ) ::
+          :ok
   def run_async(session_id, turn_number, raw_action, narrative, agents, tags) do
     fun = fn -> run(session_id, turn_number, raw_action, narrative, agents, tags) end
 
@@ -39,6 +48,8 @@ defmodule TalesForge.World.Extract do
   end
 
   @doc "Extracts, validates, stores and commits. Returns `{:ok, accepted}` or `{:error, reason}`."
+  @spec run(String.t(), integer(), String.t(), String.t(), [TalesForge.World.agent()], map()) ::
+          {:ok, [TalesForge.World.accepted()]} | {:error, term()}
   def run(session_id, turn_number, raw_action, narrative, agents, tags \\ %{}) do
     case LLM.complete_fact_extract(system(), user(agents, raw_action, narrative),
            session_id: session_id,
@@ -87,10 +98,13 @@ defmodule TalesForge.World.Extract do
       {:error, :crashed}
   end
 
+  @doc "The extraction call's system prompt (`priv/prompts/fact_extract_system.txt`)."
+  @spec system() :: String.t()
   def system,
     do: File.read!(Path.join(:code.priv_dir(:ex_tales_forge), "prompts/fact_extract_system.txt"))
 
   @doc false
+  @spec user([TalesForge.World.agent()], String.t(), String.t()) :: String.t()
   def user(agents, raw_action, narrative) do
     entities =
       Enum.map_join(agents, "\n", fn a -> "- #{a.id}: #{a.name} (#{a.kind}, #{role(a.role)})" end)

@@ -1,4 +1,8 @@
 defmodule TalesForgeWeb.AdminLive.NpcDefinitionLive.Index do
+  @moduledoc """
+  Admin: list of NPC definitions from the adventure packs.
+  """
+
   use TalesForgeWeb, :live_view
 
   alias TalesForge.Admin

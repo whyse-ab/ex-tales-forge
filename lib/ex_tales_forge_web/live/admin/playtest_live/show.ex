@@ -1,4 +1,8 @@
 defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
+  @moduledoc """
+  Admin: one playtest run, with its turns, scores, costs and timings; refreshes while the run is going.
+  """
+
   use TalesForgeWeb, :live_view
 
   import TalesForgeWeb.AdminComponents

@@ -1,4 +1,8 @@
 defmodule TalesForgeWeb.AdminLive.DocLive.Index do
+  @moduledoc """
+  Admin: the project docs, rendered from Markdown.
+  """
+
   use TalesForgeWeb, :live_view
 
   import TalesForgeWeb.AdminComponents

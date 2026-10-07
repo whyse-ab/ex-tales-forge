@@ -1,6 +1,8 @@
 defmodule TalesForge.LLMTest do
   use ExUnit.Case, async: false
 
+  doctest TalesForge.LLM
+
   alias TalesForge.LLM
 
   setup do

@@ -18,19 +18,39 @@ defmodule TalesForge.Game.Prompts do
   """
 
   alias TalesForge.Game.Context
-  alias TalesForge.Game.Schemas.{HandlerResult, PlayerAction}
+  alias TalesForge.Game.Schemas.{HandlerResult, MechanicalResolution, PlayerAction}
 
+  @doc "System prompt of the intent step (`priv/prompts/intent_system.txt`)."
+  @spec intent_system() :: String.t()
   def intent_system, do: read_prompt("intent_system.txt")
+
+  @doc "Shared table voice, message 1 of every narration call (`narrator_system.txt`)."
+  @spec narrator_system() :: String.t()
   def narrator_system, do: read_prompt("narrator_system.txt")
+
+  @doc "Task prompt of a GM turn, message 3 (`gm_system.txt`)."
+  @spec gm_system() :: String.t()
   def gm_system, do: read_prompt("gm_system.txt")
+
+  @doc "Task prompt of the opening/arrival scene, message 3 (`scene_system.txt`)."
+  @spec scene_system() :: String.t()
   def scene_system, do: read_prompt("scene_system.txt")
 
   @doc "Messages for the opening/arrival scene call."
+  @spec scene_messages(map()) :: [%{role: String.t(), content: String.t()}]
   def scene_messages(gm_context) do
     narration_messages(gm_context, scene_system(), Context.per_turn_section(gm_context))
   end
 
   @doc "Messages for a GM turn. Per-turn content, including the action, goes last."
+  @spec gm_messages(
+          map(),
+          MechanicalResolution.t() | nil,
+          PlayerAction.t(),
+          HandlerResult.t(),
+          integer()
+        ) ::
+          [%{role: String.t(), content: String.t()}]
   def gm_messages(
         gm_context,
         mechanical,
@@ -68,6 +88,8 @@ defmodule TalesForge.Game.Prompts do
     }
   end
 
+  @doc "The whole scene context of a session as one flat string (for tests and debugging)."
+  @spec build_scene_user(TalesForge.Schemas.GameSession.t()) :: String.t()
   def build_scene_user(%TalesForge.Schemas.GameSession{} = session) do
     TalesForge.Game.Context.format_gm_prompt(TalesForge.Game.Context.build_gm_context(session))
   end
@@ -75,6 +97,7 @@ defmodule TalesForge.Game.Prompts do
   @doc """
   Load rules for the global system (default, used for legacy / non-pack adventures).
   """
+  @spec load_rules() :: String.t()
   def load_rules do
     load_rules_from_dir(priv_path("rules"))
   end
@@ -86,6 +109,7 @@ defmodule TalesForge.Game.Prompts do
   This is the key to making fully self-contained game packs (e.g. "Drakar och Demoner")
   actually drive the GM prompts.
   """
+  @spec load_rules(String.t() | nil) :: String.t()
   def load_rules(adventure_id) when is_binary(adventure_id) do
     pack_rules_dir = Path.join([priv_path("adventures"), adventure_id, "rules"])
 
@@ -102,6 +126,7 @@ defmodule TalesForge.Game.Prompts do
   Load rules from an explicit directory (used by the Importer and for pack-aware sessions).
   Walks recursively and concatenates all .md files, sorted by path.
   """
+  @spec load_rules_from_dir(String.t()) :: String.t()
   def load_rules_from_dir(dir) when is_binary(dir) do
     Path.wildcard(Path.join(dir, "**/*.md"))
     |> Enum.sort()
