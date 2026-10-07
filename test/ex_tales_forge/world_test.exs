@@ -174,6 +174,39 @@ defmodule TalesForge.WorldTest do
       refute Prices.payment?("Could I pay for a room tonight?", nil)
       refute Prices.payment?("Two copper? For that?", nil)
       refute Prices.payment?("Is there stew tonight?", nil)
+      refute Prices.payment?("I'll take the room gladly. Does the stew cost extra?", nil)
+    end
+
+    test "paying an amount without naming the item pays for what costs that", %{
+      agents: agents,
+      world: world
+    } do
+      text = "I place five copper coins on the bar. Any news from the valley?"
+      {after_pay, lines} = Prices.resolve(agents, world, world, text, nil)
+      assert lines == ["Purchase: Bowl of stew, 5 copper, paid (server)"]
+      assert TalesForge.Game.Inventory.coin_total_copper(after_pay["character"]["coins"]) == 1095
+      assert Prices.amount("three silver and five copper") == 35
+
+      text = "I count out three silver and five copper and slide them over, taking the bowl."
+      {_, lines} = Prices.resolve(agents, world, world, text, nil)
+
+      assert Enum.sort(lines) == [
+               "Purchase: Bowl of stew, 5 copper, paid (server)",
+               "Purchase: Private room, one night, 3 silver, paid (server)"
+             ]
+    end
+
+    test "paying buys what is named outside questions", %{agents: agents, world: world} do
+      {_, lines} =
+        Prices.resolve(agents, world, world, "I'll pay for the room. Is the stew any good?", nil)
+
+      assert lines == ["Purchase: Private room, one night, 3 silver, paid (server)"]
+    end
+
+    test "the amount picks among the items named", %{agents: agents, world: world} do
+      text = "Two copper it is for that fine ale. And aye, the stew sounds a blessing."
+      {_, lines} = Prices.resolve(agents, world, world, text, nil)
+      assert lines == ["Purchase: Mug of ale, 2 copper, paid (server)"]
     end
 
     test "too little money is reported, not charged", %{agents: agents, world: world} do

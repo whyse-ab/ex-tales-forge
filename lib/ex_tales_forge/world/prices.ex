@@ -5,9 +5,10 @@ defmodule TalesForge.World.Prices do
   After the rules step, for the price facts of the place the character is in
   (and the persons present) that the player's words mention:
 
-  - if the action is a payment or purchase ("I pay", "slide two coppers",
-    "buy", "rent", "I'll take the room"), the server charges the listed price
-    from the character's coins: `Purchase: Bowl of stew, 5 copper, paid`;
+  - if the action pays ("I pay for the room", "I slide two coppers over",
+    "Five copper it is"), the server charges the listed price from the
+    character's coins: `Purchase: Bowl of stew, 5 copper, paid`; the amount
+    handed over can pick the item when it isn't named;
   - if the character can't afford it: `... not paid (has 3 copper)`;
   - otherwise it is a price the GM must quote: `Price: Private room, one night, 3 silver`.
 
@@ -21,7 +22,9 @@ defmodule TalesForge.World.Prices do
   alias TalesForge.Game.Inventory
 
   @max_items 3
-  @pay ~r/\b(pay|pays|paid|paying|buy|buys|bought|purchase|purchases|rent|rents|order|orders|i'?ll take|i'?ll have|take the room)\b/i
+  # Only explicit payment: "I'll take the room" or "I'll have the stew" accept
+  # an offer, and the coins usually follow in a later turn.
+  @pay ~r/\b(pay|pays|paid|paying|buy|buys|bought|purchase|purchases)\b/i
   @hand_over ~r/\b(slide|slides|slid|place|places|hand|hands|count out|counts out|set down|sets down|offer|offers|give|gives|push|pushes)\b/i
   @coin_word ~r/\b(copper|coppers|silver|silvers|gold|coin|coins)\b/i
   @amount ~r/\b(\d+|a|one|two|three|four|five|six|seven|eight|nine|ten)\s+(copper|coppers|silver|silvers|gold)\b/i
@@ -37,12 +40,19 @@ defmodule TalesForge.World.Prices do
       item = Map.get(primary(player_action).parameters || %{}, "item_id") || "item"
       {world, ["Purchase: #{item}, #{money(spent)}, paid (server, from the seller's stock)"]}
     else
-      agents
-      |> price_facts()
-      |> mentioned(raw_action)
+      facts = price_facts(agents)
+      pay? = payment?(raw_action, player_action)
+
+      # When paying, the things paid for are the ones named outside questions
+      # ("I'll pay for the room. Is the stew good?" buys the room only).
+      named_in = if pay?, do: Enum.join(statements(raw_action), " "), else: raw_action
+
+      facts
+      |> mentioned(named_in)
+      |> by_amount(facts, raw_action, pay?)
       |> Enum.take(@max_items)
       |> Enum.reduce({world, []}, fn fact, {w, lines} ->
-        {w, line} = resolve_one(w, fact, payment?(raw_action, player_action))
+        {w, line} = resolve_one(w, fact, pay?)
         {w, lines ++ [line]}
       end)
     end
@@ -109,6 +119,64 @@ defmodule TalesForge.World.Prices do
     end)
   end
 
+  # The amount the player hands over can name what they pay for: "I place
+  # five copper coins on the bar" (the stew), "counting out three silver and
+  # five copper" for the room and the bowl they mention. When the items named
+  # cost less than the amount, the smallest set of priced things here that
+  # contains them and costs exactly that amount is used; when they cost more,
+  # the named items that add up to it.
+  defp by_amount(mentioned, facts, raw_action, true) do
+    amount = amount(raw_action)
+
+    cond do
+      is_nil(amount) or total(mentioned) == amount ->
+        mentioned
+
+      total(mentioned) < amount ->
+        facts
+        |> combinations(@max_items)
+        |> Enum.filter(&(total(&1) == amount and Enum.all?(mentioned, fn m -> m in &1 end)))
+        |> Enum.min_by(&length/1, fn -> mentioned end)
+
+      true ->
+        # "Two copper it is for the ale, and the stew sounds good": the ale.
+        mentioned
+        |> combinations(@max_items)
+        |> Enum.filter(&(&1 != [] and total(&1) == amount))
+        |> Enum.max_by(&length/1, fn -> mentioned end)
+    end
+  end
+
+  defp by_amount(mentioned, _facts, _raw_action, _pay?), do: mentioned
+
+  defp total(facts), do: facts |> Enum.map(& &1["copper"]) |> Enum.sum()
+
+  defp combinations(_list, 0), do: [[]]
+  defp combinations([], _n), do: [[]]
+
+  defp combinations([h | t], n),
+    do: Enum.map(combinations(t, n - 1), &[h | &1]) ++ combinations(t, n)
+
+  @numbers %{"a" => 1, "one" => 1, "two" => 2, "three" => 3, "four" => 4, "five" => 5}
+  @numbers Map.merge(@numbers, %{"six" => 6, "seven" => 7, "eight" => 8, "nine" => 9, "ten" => 10})
+  @unit %{"copper" => 1, "silver" => 10, "gold" => 500}
+
+  @doc false
+  def amount(raw_action) do
+    case Regex.scan(@amount, to_string(raw_action)) do
+      [] ->
+        nil
+
+      found ->
+        found
+        |> Enum.map(fn [_, n, unit] ->
+          count = @numbers[String.downcase(n)] || String.to_integer(n)
+          count * @unit[unit |> String.downcase() |> String.trim_trailing("s")]
+        end)
+        |> Enum.sum()
+    end
+  end
+
   @doc false
   def payment?(raw_action, player_action) do
     text = to_string(raw_action)
@@ -117,13 +185,14 @@ defmodule TalesForge.World.Prices do
     # A question ("Could I pay for a room?", "Two copper?") is still asking; a
     # statement that pays or names the amount ("Two copper it is for the ale.",
     # "I slide two coppers over. Enough?") is paying.
-    statements =
-      ~r/(?<=[.!?;])\s+/
-      |> Regex.split(text, trim: true)
-      |> Enum.reject(&String.ends_with?(String.trim(&1), "?"))
-
     bought?(player_action) or coins_over? or
-      Enum.any?(statements, &(Regex.match?(@pay, &1) or Regex.match?(@amount, &1)))
+      Enum.any?(statements(text), &(Regex.match?(@pay, &1) or Regex.match?(@amount, &1)))
+  end
+
+  defp statements(text) do
+    ~r/(?<=[.!?;])\s+/
+    |> Regex.split(to_string(text), trim: true)
+    |> Enum.reject(&String.ends_with?(String.trim(&1), "?"))
   end
 
   defp bought?(player_action), do: action_type(player_action) in [:buy, :spend, :trade]
