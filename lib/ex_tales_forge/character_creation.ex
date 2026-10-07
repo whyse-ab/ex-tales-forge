@@ -234,23 +234,23 @@ defmodule TalesForge.CharacterCreation do
         {:error, {:skills, "#{label(skill)} starts at #{free} for free; it can't go lower"}}
 
       true ->
-        buys =
+        skills =
           if level == free,
-            do: Map.delete(draft.skill_buys, skill),
-            else: Map.put(draft.skill_buys, skill, level - free)
+            do: Map.delete(draft.skills, skill),
+            else: Map.put(draft.skills, skill, level)
 
-        {:ok, %{draft | skill_buys: buys, edited: MapSet.put(draft.edited, :skills)}}
+        {:ok, %{draft | skills: skills, edited: MapSet.put(draft.edited, :skills)}}
     end
   end
 
-  @doc "Re-suggests a spread skill build and forgets the skill levels the player bought."
+  @doc "Re-suggests a spread skill build and forgets the skill levels the player set."
   @spec suggest_skills(Draft.t()) :: Draft.t()
   def suggest_skills(%Draft{} = draft) do
     rules = rules(draft.adventure_id)
 
     %{
       draft
-      | skill_buys: suggested_buys(draft, rules),
+      | skills: suggested_skills(draft, rules),
         edited: MapSet.delete(draft.edited, :skills)
     }
   end
@@ -282,7 +282,7 @@ defmodule TalesForge.CharacterCreation do
   def free_skills(%Draft{} = draft),
     do: draft.adventure_id |> rules() |> free_levels(draft) |> elem(0)
 
-  @doc "The final skill levels: the free levels plus the levels bought."
+  @doc "The final skill levels: for each skill the higher of its free level and the level set."
   @spec skill_levels(Draft.t()) :: %{optional(String.t()) => pos_integer()}
   def skill_levels(%Draft{} = draft), do: skill_levels(draft, rules(draft.adventure_id))
 
@@ -400,7 +400,7 @@ defmodule TalesForge.CharacterCreation do
            "base_stats" => draft.base_stats,
            "race_picks" => draft.race_picks,
            "points_spent" => points_spent(draft),
-           "skill_buys" => draft.skill_buys,
+           "skill_choices" => draft.skills,
            "skill_points_spent" => skill_points_spent(draft, rules),
            "derive" => creation["derive"]
          }
@@ -443,7 +443,7 @@ defmodule TalesForge.CharacterCreation do
     |> then(fn d ->
       if MapSet.member?(d.edited, :skills),
         do: d,
-        else: %{d | skill_buys: suggested_buys(d, rules)}
+        else: %{d | skills: suggested_skills(d, rules)}
     end)
   end
 
@@ -569,7 +569,7 @@ defmodule TalesForge.CharacterCreation do
     {free, _refund} = free_levels(rules, draft)
 
     free
-    |> Map.merge(draft.skill_buys, fn _skill, f, b -> f + b end)
+    |> Map.merge(draft.skills, fn _skill, f, set -> max(f, set) end)
     |> Map.reject(fn {_skill, level} -> level <= 0 end)
   end
 
@@ -583,9 +583,8 @@ defmodule TalesForge.CharacterCreation do
     sk = rules["creation"]["skills"]
     {free, _refund} = free_levels(rules, draft)
 
-    Enum.reduce(draft.skill_buys, 0, fn {skill, buys}, acc ->
-      from = Map.get(free, skill, 0)
-      acc + cost(sk, from, from + buys)
+    Enum.reduce(draft.skills, 0, fn {skill, level}, acc ->
+      acc + cost(sk, Map.get(free, skill, 0), level)
     end)
   end
 
@@ -608,49 +607,48 @@ defmodule TalesForge.CharacterCreation do
     ]
   end
 
-  # A spread build: the class, race and other leading skills plus fillers for the
-  # highest stats (at least one more than the minimum), raised lowest first, one
-  # level at a time, up to the normal cap, while the points last.
-  defp suggested_buys(draft, rules) do
+  # A spread build: the leading skills (class package, race bonus) plus
+  # fillers for the highest stats, at least one more than the minimum. Raised
+  # lowest first, one level at a time, up to the normal cap; when every one is
+  # at the cap and points are left, the next filler joins.
+  defp suggested_skills(draft, rules) do
     sk = rules["creation"]["skills"]
     {free, _refund} = free_levels(rules, draft)
-    {_raw, leading} = free_sources(draft, rules)
-    budget = skill_budget(draft, rules)
-    candidates = with_fillers(Enum.uniq(leading), final_stats(draft, rules), sk["min_skills"] + 1)
+    {_raw, sources} = free_sources(draft, rules)
+    leading = Enum.uniq(sources)
+    fillers = fillers(leading, final_stats(draft, rules))
+    {first, rest} = Enum.split(fillers, max(sk["min_skills"] + 1 - length(leading), 0))
+    candidates = leading ++ first
 
     candidates
     |> Map.new(&{&1, Map.get(free, &1, 0)})
-    |> raise_lowest(candidates, budget, sk)
-    |> Enum.flat_map(fn {skill, level} ->
-      bought = level - Map.get(free, skill, 0)
-      if bought > 0, do: [{skill, bought}], else: []
-    end)
-    |> Map.new()
+    |> raise_lowest(candidates, rest, skill_budget(draft, rules), sk)
+    |> Map.reject(fn {skill, level} -> level <= Map.get(free, skill, 0) end)
   end
 
-  defp with_fillers(leading, stats, size) do
-    fillers =
-      Mechanics.skill_stat_map()
-      |> Enum.sort_by(fn {skill, stat} -> {-Map.get(stats, stat, 10), skill} end)
-      |> Enum.map(&elem(&1, 0))
-      |> Enum.reject(&(&1 in leading))
-
-    leading ++ Enum.take(fillers, max(size - length(leading), 0))
+  defp fillers(leading, stats) do
+    Mechanics.skill_stat_map()
+    |> Enum.sort_by(fn {skill, stat} -> {-Map.get(stats, stat, 10), skill} end)
+    |> Enum.map(&elem(&1, 0))
+    |> Enum.reject(&(&1 in leading))
   end
 
-  defp raise_lowest(levels, candidates, left, sk) do
+  defp raise_lowest(levels, candidates, rest, left, sk) do
     next =
       candidates
       |> Enum.filter(&(levels[&1] < sk["cap"] and cost(sk, levels[&1], levels[&1] + 1) <= left))
       |> Enum.min_by(&levels[&1], fn -> nil end)
 
-    case next do
-      nil ->
+    case {next, rest} do
+      {nil, [filler | rest]} when left > 0 ->
+        levels |> Map.put(filler, 0) |> raise_lowest(candidates ++ [filler], rest, left, sk)
+
+      {nil, _rest} ->
         levels
 
-      skill ->
+      {skill, _rest} ->
         price = cost(sk, levels[skill], levels[skill] + 1)
-        raise_lowest(Map.update!(levels, skill, &(&1 + 1)), candidates, left - price, sk)
+        raise_lowest(Map.update!(levels, skill, &(&1 + 1)), candidates, rest, left - price, sk)
     end
   end
 

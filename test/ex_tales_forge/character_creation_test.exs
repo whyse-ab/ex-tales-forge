@@ -58,7 +58,7 @@ defmodule TalesForge.CharacterCreationTest do
     end
 
     # A clean slate: no bought levels, so only the free ones.
-    defp bare(d), do: %{d | skill_buys: %{}, edited: MapSet.put(d.edited, :skills)}
+    defp bare(d), do: %{d | skills: %{}, edited: MapSet.put(d.edited, :skills)}
 
     test "level costs: 1 each for levels 1-3, 2 each for 4-5, 3 each for 6-7" do
       assert CC.level_cost(@adventure, 0, 3) == 3
@@ -98,7 +98,7 @@ defmodule TalesForge.CharacterCreationTest do
       {:ok, d} = CC.set_skill(d, "climbing", 4)
 
       assert CC.skill_levels(d)["melee_combat"] == 5
-      assert d.skill_buys == %{"melee_combat" => 2, "climbing" => 4}
+      assert d.skills == %{"melee_combat" => 5, "climbing" => 4}
       assert CC.skill_points_spent(d) == 4 + 5
       assert CC.skill_points_left(d) == 30 - 9
     end
@@ -116,7 +116,7 @@ defmodule TalesForge.CharacterCreationTest do
       {:ok, d} = chosen("human", "warrior") |> bare() |> CC.set_skill("tactics", 4)
       {:ok, d} = CC.set_skill(d, "tactics", 2)
 
-      assert d.skill_buys == %{}
+      assert d.skills == %{}
     end
 
     test "overspending, a third signature skill and too few skills are errors" do
@@ -154,17 +154,19 @@ defmodule TalesForge.CharacterCreationTest do
       end
     end
 
-    test "levels the player bought are kept when the race or class changes" do
-      {:ok, d} = chosen("human", "warrior") |> CC.set_skill("stealth", 3)
+    test "levels the player set are kept when the race or class changes" do
+      {:ok, d} = chosen("human", "warrior") |> bare() |> CC.set_skill("stealth", 3)
+      assert CC.skill_points_left(d) == 27
       {:ok, d} = CC.choose_class(d, "thief")
 
-      # the bought levels stay bought, now on top of the thief's free Stealth 3
-      assert d.skill_buys["stealth"] == 3
-      assert CC.skill_levels(d)["stealth"] == 6
+      # Stealth stays 3, now free for a thief, so its 3 points come back
+      assert CC.skill_levels(d)["stealth"] == 3
       assert MapSet.member?(d.edited, :skills)
+      assert CC.skill_points_left(d) == 30
 
       d = CC.suggest_skills(d)
       refute MapSet.member?(d.edited, :skills)
+      assert :ok = d |> named() |> CC.validate()
     end
   end
 
@@ -363,10 +365,11 @@ defmodule TalesForge.CharacterCreationTest do
                "survival" => 5,
                "dodge" => 4,
                "lockpicking" => 4,
-               "stealth" => 4
+               "stealth" => 4,
+               "insight" => 1
              }
 
-      assert c["creation"]["skill_points_spent"] == 24
+      assert c["creation"]["skill_points_spent"] == 25
       assert c["wound_max"] == Mechanics.wound_max(%{"stats" => c["stats"]})
       assert c["coins"] == Defaults.rules(@adventure)["standings"]["commoner"]["coins"]
       assert [%{"id" => "travel_cloak"}, %{"id" => "hunting_knife"}] = c["inventory"]
