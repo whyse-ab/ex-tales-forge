@@ -8,6 +8,7 @@ defmodule TalesForge.Playtest.Reports do
   import Ecto.Query
 
   alias TalesForge.AICalls
+  alias TalesForge.AICalls.Metrics
   alias TalesForge.GMReasoning
   alias TalesForge.Repo
   alias TalesForge.Schemas.{AICall, PlaytestRun, PlaytestScore, Turn}
@@ -88,10 +89,53 @@ defmodule TalesForge.Playtest.Reports do
     end
   end
 
-  @doc "Calls, cost, tokens, latency and capped/error counts per AI purpose for a session."
+  @doc """
+  Call-type metrics for a run's session (`TalesForge.AICalls.Metrics.session_report/1`):
+  breakdown by call_type and purpose with p50/p90 latency, per-turn rows, cache
+  hit rate and GM idle gaps. Persona and scorer are their own sections.
+  """
+  def metrics(session_id), do: Metrics.session_report(session_id)
+
+  @doc """
+  Compact metrics for `Runner.status/1` (rpc and `mix playtest.run` output):
+  USD floats and ms, GM turns 2+ cache figures, one entry per turn.
+  """
+  def metrics_summary(session_id) do
+    m = metrics(session_id)
+    usd = fn micro -> micro && micro / 1_000_000 end
+    later = m.cache.gm_later
+
+    %{
+      turns: m.turns,
+      gm_p50_ms: m.gm.p50_ms,
+      gm_p90_ms: m.gm.p90_ms,
+      gm_cost_per_call_usd: usd.(m.gm.avg_cost_micro_usd),
+      game_cost_usd: usd.(m.game.cost_micro_usd),
+      game_cost_per_turn_usd: usd.(m.game_cost_per_turn),
+      persona_cost_usd: usd.(m.persona.cost_micro_usd),
+      gm_later_hits: "#{later.hits}/#{later.calls}",
+      gm_later_hit_rate: later.hit_rate && Float.round(later.hit_rate, 3),
+      gm_idle_gap_p50_ms: m.idle_gap.p50_ms,
+      per_turn:
+        Enum.map(m.per_turn, fn t ->
+          %{
+            turn: t.turn_number,
+            gm_ms: t.gm_latency_ms,
+            input: t.gm_input_tokens,
+            cached: t.gm_cached_tokens,
+            output: t.gm_output_tokens,
+            gm_cost_usd: usd.(t.gm_cost_micro_usd),
+            idle_gap_ms: t.idle_gap_ms,
+            steps_ms: t.steps
+          }
+        end)
+    }
+  end
+
+  @doc "Calls, cost, tokens, latency and capped/error counts per AI purpose for a session (no function rows)."
   def cost_by_purpose(session_id) do
     AICall
-    |> where([c], c.game_session_id == ^session_id)
+    |> where([c], c.game_session_id == ^session_id and c.call_type != "function")
     |> group_by([c], c.purpose)
     |> order_by([c], c.purpose)
     |> select([c], %{

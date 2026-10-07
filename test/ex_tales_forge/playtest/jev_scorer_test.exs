@@ -6,6 +6,7 @@ defmodule TalesForge.Playtest.JevScorerTest do
 
   alias TalesForge.Jido
   alias TalesForge.Playtest.{AffectLevels, JevScorer, Reports, Runner, Scorer}
+  alias TalesForge.Schemas.AICall
 
   setup do
     Application.put_env(:ex_tales_forge, :playtest_runner_enabled, true)
@@ -94,6 +95,20 @@ defmodule TalesForge.Playtest.JevScorerTest do
     assert Enum.map(turns, &{&1.turn_number, &1.overall}) == [{1, 3.0}, {2, 5.0}]
 
     assert Reports.latest_score(run.id).id == session_score.id
+
+    # The Jev call is its own call type, timed, tagged with the run's adventure.
+    assert %AICall{call_type: "jev", model: "jev-1.13.0", adventure_id: "tin_valley"} =
+             call =
+             Repo.get_by!(AICall, game_session_id: run.game_session_id, purpose: "scorer")
+
+    assert call.latency_ms >= 0
+    assert %DateTime{} = call.started_at
+
+    # Run status (rpc / mix playtest.run) carries the call-type metrics.
+    assert {:ok, %{metrics: metrics}} = Runner.status(run.id)
+    assert metrics.turns == 2
+    assert [%{turn: 1, steps_ms: steps}, %{turn: 2}] = metrics.per_turn
+    assert Map.keys(steps) |> Enum.sort() == ~w(gm intent persist prompt rules)
   end
 
   test "Scorer.score prefers Jev when configured" do

@@ -8,12 +8,18 @@ defmodule TalesForge.AICalls do
 
   Spending caps (`:ai_spend_caps`, set from `AI_CAP_SESSION_USD` / `AI_CAP_DAY_USD`)
   are checked before each request. The day starts at midnight Europe/Stockholm.
+
+  Every row has a `call_type` (`llm`, `jev` or `function`, see docs/call-types.md)
+  and the session's world/module and game-system tags (`TalesForge.AICalls.Tags`).
+  Function rows (timed Elixir turn steps, `TalesForge.AICalls.Steps`) cost 0 and
+  are left out of call counts; cost sums are unaffected by them.
   """
 
   require Logger
 
   import Ecto.Query
 
+  alias TalesForge.AICalls.Tags
   alias TalesForge.Repo
   alias TalesForge.Schemas.AICall
 
@@ -23,10 +29,19 @@ defmodule TalesForge.AICalls do
   @bot_purposes ~w(persona scorer)
   @default_persona_run_micro_usd 500_000
 
-  @doc "Inserts one ai_calls row. Always returns :ok; failures are logged."
+  @doc """
+  Inserts one ai_calls row. Always returns :ok; failures are logged.
+
+  Without an explicit `call_type` it follows the model: `jev-*` is `"jev"`,
+  `"elixir"` is `"function"`, anything else `"llm"`. Without explicit
+  `adventure_id` / `game_system`, the tags are read from the row's session.
+  """
   def record(attrs) do
     usage = Map.get(attrs, :usage, %{})
-    {cost, source} = cost(attrs.model, usage)
+    attrs = attrs |> Map.put_new(:call_type, call_type(attrs[:model])) |> put_tags()
+
+    {cost, source} =
+      if attrs.call_type == "function", do: {0, "free"}, else: cost(attrs.model, usage)
 
     attrs
     |> Map.merge(
@@ -50,6 +65,16 @@ defmodule TalesForge.AICalls do
         "ai_call not recorded model=#{inspect(attrs[:model])} error=#{Exception.message(e)}"
       )
   end
+
+  @doc "Call type implied by a model name (see `record/1`)."
+  def call_type("jev-" <> _version), do: "jev"
+  def call_type("elixir"), do: "function"
+  def call_type(_model), do: "llm"
+
+  defp put_tags(%{adventure_id: _, game_system: _} = attrs), do: attrs
+
+  defp put_tags(attrs),
+    do: Map.merge(Tags.for_session(attrs[:game_session_id]), attrs)
 
   @doc "Token usage from an OpenAI-compatible (xAI) chat completion body."
   def usage(%{"usage" => %{} = usage}) do
@@ -114,7 +139,7 @@ defmodule TalesForge.AICalls do
   @doc """
   Calls, micro-USD cost and capped/error counts per bucket for calls inserted in
   `[from, to]` (UTC). Every bucket is present, zeroed when it had no calls.
-  Calls with unknown cost count as 0.
+  Calls with unknown cost count as 0. Function rows (free Elixir steps) are not calls.
   """
   def spend_by_bucket(%DateTime{} = from, %DateTime{} = to) do
     {from, to} = {DateTime.truncate(from, :second), DateTime.truncate(to, :second)}
@@ -122,6 +147,7 @@ defmodule TalesForge.AICalls do
     rows =
       AICall
       |> where([c], c.inserted_at >= ^from and c.inserted_at <= ^to)
+      |> where([c], c.call_type != "function")
       |> group_by([c], c.purpose)
       |> select([c], %{
         purpose: c.purpose,
@@ -153,6 +179,7 @@ defmodule TalesForge.AICalls do
     AICall
     |> where([c], c.inserted_at >= ^from and c.inserted_at <= ^to)
     |> where([c], c.purpose not in ^@bot_purposes and not is_nil(c.game_session_id))
+    |> where([c], c.call_type != "function")
     |> select([c], count(c.game_session_id, :distinct))
     |> Repo.one()
   end

@@ -366,13 +366,14 @@ defmodule TalesForge.LLM do
       "llm spend cap hit cap=#{kind} limit_usd=#{usd(limit)} spent_usd=#{usd(spent)} session=#{opts[:session_id]} tier=#{tier} model=#{model}"
     )
 
-    record_call(model, tier, opts, :capped, 0)
+    record_call(model, tier, opts, :capped, 0, %{started_at: DateTime.utc_now()})
     {:error, {:spend_cap, kind}}
   end
 
   defp usd(micro_usd), do: :erlang.float_to_binary(micro_usd / 1_000_000, decimals: 4)
 
   defp request(model, messages, temperature, opts) do
+    started_at = DateTime.utc_now()
     started = System.monotonic_time(:millisecond)
     provider = provider()
     tier = Keyword.get(opts, :tier, :unknown)
@@ -409,7 +410,8 @@ defmodule TalesForge.LLM do
       end
 
     elapsed = System.monotonic_time(:millisecond) - started
-    record_call(model, tier, opts, result, elapsed)
+    conv = if xai_target?(model), do: conv_id(opts)
+    record_call(model, tier, opts, result, elapsed, %{started_at: started_at, conv_id: conv})
 
     case result do
       {:ok, content, _usage} ->
@@ -424,7 +426,7 @@ defmodule TalesForge.LLM do
     end
   end
 
-  defp record_call(model, tier, opts, result, latency_ms) do
+  defp record_call(model, tier, opts, result, latency_ms, extra) do
     {status, usage} =
       case result do
         {:ok, _content, usage} -> {"ok", usage}
@@ -439,7 +441,10 @@ defmodule TalesForge.LLM do
       model: model,
       status: status,
       latency_ms: latency_ms,
-      usage: usage
+      usage: usage,
+      call_type: "llm",
+      started_at: extra[:started_at],
+      conv_id: extra[:conv_id]
     })
   end
 

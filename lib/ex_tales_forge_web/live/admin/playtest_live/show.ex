@@ -3,7 +3,6 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
 
   import TalesForgeWeb.AdminComponents
 
-  alias TalesForge.AICalls
   alias TalesForge.Playtest.{Reports, Runner, Scorer}
 
   @refresh_ms 3_000
@@ -61,38 +60,13 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
     if run.status == "running" and connected?(socket),
       do: Process.send_after(self(), :refresh, @refresh_ms)
 
-    {game, bots} =
-      run.game_session_id
-      |> Reports.cost_by_purpose()
-      |> Enum.split_with(&(&1.purpose not in AICalls.bot_purposes()))
-
     socket
     |> assign(:run, run)
     |> assign(:opening, Reports.opening(run.game_session_id))
     |> assign(:turns, Reports.turn_records(run.game_session_id))
-    |> assign(:game_costs, game)
-    |> assign(:game_total, total(game))
-    |> assign(:scorer_cost, Enum.find(bots, &(&1.purpose == "scorer")))
+    |> assign(:metrics, Reports.metrics(run.game_session_id))
     |> assign(:score, Reports.latest_score(run.id))
     |> assign(:turn_affects, Reports.turn_affect_scores(run.id))
-  end
-
-  defp total(rows) do
-    Enum.reduce(
-      rows,
-      %{
-        calls: 0,
-        cost_micro_usd: 0,
-        input_tokens: 0,
-        output_tokens: 0,
-        latency_ms: 0,
-        capped: 0,
-        errors: 0
-      },
-      fn row, acc ->
-        Map.new(acc, fn {key, value} -> {key, value + Map.fetch!(row, key)} end)
-      end
-    )
   end
 
   @impl true
@@ -120,7 +94,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
         <.stat_card label="Status" value={status_text(@run)} />
         <.stat_card label="Turns" value={"#{@run.turns_played}/#{@run.turn_limit}"} />
         <.stat_card label="Game time" value={format_ms(@run.game_ms)} />
-        <.stat_card label="Game cost" value={format_usd(@game_total.cost_micro_usd)} />
+        <.stat_card label="Game cost" value={format_usd(@metrics.game.cost_micro_usd)} />
       </div>
 
       <.section_card title="Score" id="score">
@@ -204,51 +178,108 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
         </dl>
       </.section_card>
 
-      <.section_card title="AI cost" id="costs">
-        <div class="overflow-x-auto">
-          <table class="min-w-full text-sm">
+      <.section_card title="AI cost by call type" id="costs">
+        <dl id="run-cache" class="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+          <div class="flex flex-wrap justify-between gap-x-3">
+            <dt class="text-[var(--paper-muted)]">GM cache, turns 2+</dt>
+            <dd id="run-cache-gm-later" class="ml-auto tabular-nums">
+              {cache_line(@metrics.cache.gm_later)}
+            </dd>
+          </div>
+          <div class="flex flex-wrap justify-between gap-x-3">
+            <dt class="text-[var(--paper-muted)]">GM cache, all turns</dt>
+            <dd class="ml-auto tabular-nums">{cache_line(@metrics.cache.gm)}</dd>
+          </div>
+          <div class="flex flex-wrap justify-between gap-x-3">
+            <dt class="text-[var(--paper-muted)]">GM latency p50 / p90</dt>
+            <dd id="run-gm-latency" class="ml-auto tabular-nums">
+              {format_latency(@metrics.gm.p50_ms)} / {format_latency(@metrics.gm.p90_ms)}
+            </dd>
+          </div>
+          <div class="flex flex-wrap justify-between gap-x-3">
+            <dt class="text-[var(--paper-muted)]">GM idle gap p50 / p90</dt>
+            <dd class="ml-auto tabular-nums">
+              {format_latency(@metrics.idle_gap.p50_ms)} / {format_latency(@metrics.idle_gap.p90_ms)}
+            </dd>
+          </div>
+          <div class="flex flex-wrap justify-between gap-x-3">
+            <dt class="text-[var(--paper-muted)]">Game cost per turn</dt>
+            <dd id="run-game-per-turn" class="ml-auto tabular-nums">
+              {format_usd(@metrics.game_cost_per_turn)}
+            </dd>
+          </div>
+          <div class="flex flex-wrap justify-between gap-x-3">
+            <dt class="text-[var(--paper-muted)]">Persona (bot) cost</dt>
+            <dd id="persona-line" class="ml-auto tabular-nums">
+              {format_usd(@metrics.persona.cost_micro_usd)} · {@metrics.persona.calls} calls
+            </dd>
+          </div>
+        </dl>
+        <.call_breakdown id="run-breakdown" rows={@metrics.breakdown} />
+        <p class="text-xs text-[var(--paper-muted)]">
+          The session cap counts only the game; the persona has its own per-run cap and the day cap counts everything.
+          Function rows are timed Elixir turn steps: free, and not counted as calls.
+        </p>
+
+        <div class="min-w-0 overflow-x-auto">
+          <table id="run-per-turn" class="w-full text-sm">
+            <caption class="play-label pb-1 text-left text-[var(--paper-muted)]">
+              Per turn
+            </caption>
             <thead class="text-left text-[var(--paper-muted)]">
               <tr>
-                <th class="py-1 pr-3">Purpose</th>
-                <th class="py-1 pr-3">Calls</th>
-                <th class="hidden py-1 pr-3 sm:table-cell">Tokens in/out</th>
-                <th class="hidden py-1 pr-3 sm:table-cell">Avg latency</th>
-                <th class="py-1 pr-3">Cost</th>
-                <th class="py-1 pr-3">Capped</th>
-                <th class="py-1">Errors</th>
+                <th class="py-1 pr-2 font-medium">Turn</th>
+                <th class="py-1 pr-2 text-right font-medium">GM</th>
+                <th class="hidden py-1 pr-2 text-right font-medium sm:table-cell">Idle before</th>
+                <th class="hidden py-1 pr-2 text-right font-medium md:table-cell">
+                  In / cached / out
+                </th>
+                <th class="py-1 pr-2 text-right font-medium">Cache</th>
+                <th class="py-1 pr-2 text-right font-medium">Game</th>
+                <th class="hidden py-1 pr-2 text-right font-medium sm:table-cell">Persona</th>
+                <th class="hidden py-1 text-right font-medium lg:table-cell">
+                  Steps rules / prompt / persist
+                </th>
               </tr>
             </thead>
             <tbody class="divide-y divide-[var(--paper-rule)]">
-              <tr :for={row <- @game_costs}>
-                <td class="py-1 pr-3">{row.purpose}</td>
-                <.cost_cells row={row} />
-              </tr>
-              <tr class="font-semibold">
-                <td class="py-1 pr-3">Game total</td>
-                <.cost_cells row={@game_total} />
-              </tr>
-              <tr :if={@scorer_cost}>
-                <td class="py-1 pr-3">Scorer</td>
-                <.cost_cells row={@scorer_cost} />
-              </tr>
-              <tr id="persona-line">
-                <td class="py-1 pr-3">Persona (bot)</td>
-                <td class="py-1 pr-3">{@run.persona_calls}</td>
-                <td class="hidden py-1 pr-3 sm:table-cell">
-                  {@run.persona_input_tokens}/{@run.persona_output_tokens}
+              <tr :for={t <- @metrics.per_turn} id={"run-turn-#{t.turn_number}"}>
+                <td class="py-1 pr-2">{t.turn_number}</td>
+                <td class="whitespace-nowrap py-1 pr-2 text-right tabular-nums">
+                  {if t.gm_calls > 0, do: format_latency(t.gm_latency_ms), else: "—"}
                 </td>
-                <td class="hidden py-1 pr-3 sm:table-cell">
-                  {avg_ms(@run.persona_ms, @run.persona_calls)}
+                <td class="hidden whitespace-nowrap py-1 pr-2 text-right tabular-nums sm:table-cell">
+                  {format_latency(t.idle_gap_ms)}
                 </td>
-                <td class="py-1 pr-3">{format_usd(@run.persona_cost_micro_usd)}</td>
-                <td class="py-1 pr-3" colspan="2"></td>
+                <td class="hidden whitespace-nowrap py-1 pr-2 text-right tabular-nums md:table-cell">
+                  {t.gm_input_tokens} / {t.gm_cached_tokens} / {t.gm_output_tokens}
+                </td>
+                <td class="whitespace-nowrap py-1 pr-2 text-right">
+                  {cond do
+                    t.gm_calls == 0 -> "—"
+                    t.gm_hit -> "hit"
+                    true -> "miss"
+                  end}
+                </td>
+                <td class="whitespace-nowrap py-1 pr-2 text-right tabular-nums">
+                  {format_usd(t.game_cost_micro_usd)}
+                </td>
+                <td class="hidden whitespace-nowrap py-1 pr-2 text-right tabular-nums sm:table-cell">
+                  {format_usd(t.persona_cost_micro_usd)}
+                </td>
+                <td class="hidden whitespace-nowrap py-1 text-right tabular-nums lg:table-cell">
+                  {step_ms(t.steps, "rules")} / {step_ms(t.steps, "prompt")} / {step_ms(
+                    t.steps,
+                    "persist"
+                  )}
+                </td>
               </tr>
             </tbody>
           </table>
+          <p :if={@metrics.per_turn == []} class="text-sm text-[var(--paper-muted)]">
+            No turns recorded yet.
+          </p>
         </div>
-        <p class="text-xs text-[var(--paper-muted)]">
-          The session cap counts only the game; the persona has its own per-run cap and the day cap counts everything.
-        </p>
       </.section_card>
 
       <.section_card title="Turns" id="turns">
@@ -283,19 +314,6 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
     """
   end
 
-  attr :row, :map, required: true
-
-  defp cost_cells(assigns) do
-    ~H"""
-    <td class="py-1 pr-3">{@row.calls}</td>
-    <td class="hidden py-1 pr-3 sm:table-cell">{@row.input_tokens}/{@row.output_tokens}</td>
-    <td class="hidden py-1 pr-3 sm:table-cell">{avg_ms(@row.latency_ms, @row.calls)}</td>
-    <td class="py-1 pr-3">{format_usd(@row.cost_micro_usd)}</td>
-    <td class="py-1 pr-3">{@row.capped}</td>
-    <td class="py-1">{@row.errors}</td>
-    """
-  end
-
   defp score_headline(%{source: "jev", overall: overall}) when is_number(overall),
     do: "#{overall}/5 persona affect"
 
@@ -310,8 +328,17 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
   defp status_text(%{stop_reason: nil, status: status}), do: status
   defp status_text(%{stop_reason: reason, status: status}), do: "#{status} · #{reason}"
 
-  defp avg_ms(_ms, 0), do: "—"
-  defp avg_ms(ms, calls), do: format_ms(div(ms, calls))
+  defp cache_line(%{calls: 0}), do: "—"
+
+  defp cache_line(cache),
+    do: "#{format_pct(cache.hit_rate)} of input · #{cache.hits}/#{cache.calls} hit"
+
+  defp step_ms(steps, name) do
+    case steps[name] do
+      nil -> "—"
+      ms -> "#{ms} ms"
+    end
+  end
 
   defp wall_clock_ms(%{finished_at: nil}), do: nil
   defp wall_clock_ms(run), do: DateTime.diff(run.finished_at, run.started_at, :millisecond)

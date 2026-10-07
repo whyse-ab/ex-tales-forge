@@ -7,14 +7,18 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
 
   use TalesForgeWeb, :live_view
 
-  import TalesForgeWeb.AdminComponents, only: [section_card: 1]
+  import TalesForgeWeb.AdminComponents,
+    only: [section_card: 1, call_breakdown: 1, format_latency: 1, format_pct: 1, format_usd: 1]
 
+  alias TalesForge.AICalls
+  alias TalesForge.AICalls.Metrics
   alias TalesForge.Costs
   alias TalesForge.Costs.Peer
 
   @impl true
   def mount(_params, _session, socket) do
-    local = Costs.ai_summary()
+    now = DateTime.utc_now()
+    local = Costs.ai_summary(now)
     configured? = Peer.url() != nil and Peer.token() != nil
 
     peer = if configured?, do: :loading, else: {:error, :not_configured}
@@ -30,6 +34,7 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
      |> assign(:local, local)
      |> assign(:peer_label, Costs.peer_label(local["app"]))
      |> assign(:rate, Costs.usd_sek())
+     |> assign(:metrics, Metrics.period(AICalls.month_start(now), now))
      |> assign_peer(peer)}
   end
 
@@ -112,6 +117,103 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
         title={Costs.env_label(@local["app"])}
       />
 
+      <.section_card title="Calls by type · this month (this app)" id="costs-call-types">
+        <dl id="costs-cache" class="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+          <.metric_row
+            id="costs-cache-gm-later"
+            label="GM cache, turns 2+"
+            value={cache_line(@metrics.cache.gm_later)}
+          />
+          <.metric_row
+            id="costs-cache-gm"
+            label="GM cache, all turns"
+            value={cache_line(@metrics.cache.gm)}
+          />
+          <.metric_row
+            id="costs-cache-game"
+            label="All game LLM calls"
+            value={cache_line(@metrics.cache.game)}
+          />
+          <.metric_row
+            id="costs-idle-gap"
+            label="GM idle gap p50 / p90"
+            value={"#{format_latency(@metrics.idle_gap.p50_ms)} / #{format_latency(@metrics.idle_gap.p90_ms)}"}
+          />
+        </dl>
+        <.call_breakdown id="costs-breakdown" rows={@metrics.breakdown} per_session />
+        <p class="text-xs text-[var(--paper-muted)]">
+          Call types as in docs/call-types.md: <code>llm</code>
+          (xAI), <code>jev</code>
+          (TypeSafe) and <code>function</code>
+          (timed Elixir turn steps, free, not counted as calls).
+          Persona and scorer are the playtest bots and are never added to game cost.
+          /session and /turn divide by the {@metrics.counts["game"].sessions} game sessions and {@metrics.counts[
+            "game"
+          ].turns} GM turns this month (persona rows by persona sessions and turns).
+          Cache: cached / input tokens, and calls with more than {Metrics.cache_floor()} cached tokens
+          (xAI reports {Metrics.cache_floor()} even when nothing was reused).
+          Idle gap: time since the previous xAI call on the same conversation id ended.
+        </p>
+
+        <div class="min-w-0 overflow-x-auto">
+          <table id="costs-sessions" class="w-full text-sm">
+            <caption class="play-label pb-1 text-left text-[var(--paper-muted)]">
+              Recent sessions
+            </caption>
+            <thead class="text-left text-[var(--paper-muted)]">
+              <tr>
+                <th class="py-1 pr-2 font-medium">Session</th>
+                <th class="hidden py-1 pr-2 font-medium sm:table-cell">Adventure</th>
+                <th class="py-1 pr-2 text-right font-medium">Turns</th>
+                <th class="py-1 pr-2 text-right font-medium">Game</th>
+                <th class="hidden py-1 pr-2 text-right font-medium sm:table-cell">/turn</th>
+                <th class="py-1 pr-2 text-right font-medium">Persona</th>
+                <th class="hidden py-1 pr-2 text-right font-medium md:table-cell">GM p50</th>
+                <th class="py-1 text-right font-medium">GM cache</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[var(--paper-rule)]">
+              <tr :for={s <- @metrics.sessions} id={"costs-session-#{s.game_session_id}"}>
+                <td class="whitespace-nowrap py-1 pr-2">
+                  <.link
+                    navigate={~p"/admin/sessions/#{s.game_session_id}"}
+                    class="text-[var(--paper-accent)]"
+                  >
+                    {String.slice(s.game_session_id, 0, 8)}
+                  </.link>
+                  <span class="block text-xs text-[var(--paper-muted)]">
+                    {stockholm_time(s.last_at)}
+                  </span>
+                </td>
+                <td class="hidden py-1 pr-2 sm:table-cell">{s.adventure_id || "—"}</td>
+                <td class="py-1 pr-2 text-right tabular-nums">{s.turns}</td>
+                <td class="whitespace-nowrap py-1 pr-2 text-right tabular-nums">
+                  {format_usd(s.game_cost_micro_usd)}
+                </td>
+                <td class="hidden whitespace-nowrap py-1 pr-2 text-right tabular-nums sm:table-cell">
+                  {format_usd(s.game_cost_per_turn)}
+                </td>
+                <td class="whitespace-nowrap py-1 pr-2 text-right tabular-nums">
+                  {format_usd(s.persona_cost_micro_usd)}
+                </td>
+                <td class="hidden whitespace-nowrap py-1 pr-2 text-right tabular-nums md:table-cell">
+                  {format_latency(s.gm_p50_ms)}
+                </td>
+                <td class="whitespace-nowrap py-1 text-right tabular-nums">
+                  {format_pct(s.gm_hit_rate)}
+                  <span class="block text-xs text-[var(--paper-muted)]">
+                    {s.gm_hits}/{s.gm_calls} hits
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p :if={@metrics.sessions == []} class="text-sm text-[var(--paper-muted)]">
+            No sessions this month.
+          </p>
+        </div>
+      </.section_card>
+
       <%= case @peer do %>
         <% {:ok, summary} -> %>
           <.env_section
@@ -190,6 +292,19 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
       <dd class="ml-auto whitespace-nowrap tabular-nums text-[var(--paper-ink)]">
         {usd(@micro)} <span class="text-[var(--paper-muted)]">· {sek(@micro, @rate)}</span>
       </dd>
+    </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :label, :string, required: true
+  attr :value, :string, required: true
+
+  defp metric_row(assigns) do
+    ~H"""
+    <div id={@id} class="flex flex-wrap justify-between gap-x-3">
+      <dt class="text-[var(--paper-muted)]">{@label}</dt>
+      <dd class="ml-auto tabular-nums text-[var(--paper-ink)]">{@value}</dd>
     </div>
     """
   end
@@ -395,6 +510,14 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
   defp reason_text({:http_status, 404}), do: "HTTP 404, endpoint off there (no COSTS_PEER_TOKEN)"
   defp reason_text({:http_status, status}), do: "HTTP #{status}"
   defp reason_text(_reason), do: "error"
+
+  defp cache_line(%{calls: 0}), do: "— (no calls)"
+
+  defp cache_line(cache) do
+    "#{format_pct(cache.hit_rate)} of input tokens · #{cache.hits}/#{cache.calls} calls hit"
+  end
+
+  defp stockholm_time(%DateTime{} = dt), do: stockholm_time(DateTime.to_iso8601(dt))
 
   defp stockholm_time(iso) do
     with {:ok, dt, _} <- DateTime.from_iso8601(iso),

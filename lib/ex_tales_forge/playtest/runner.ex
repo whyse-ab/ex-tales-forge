@@ -21,7 +21,7 @@ defmodule TalesForge.Playtest.Runner do
   alias TalesForge.Game.SceneProcessor
   alias TalesForge.GameSessions
   alias TalesForge.LLM
-  alias TalesForge.Playtest.{Personas, PlayerView, Scorer}
+  alias TalesForge.Playtest.{Personas, PlayerView, Reports, Scorer}
   alias TalesForge.PubSub.GameSession, as: SessionPubSub
   alias TalesForge.Repo
   alias TalesForge.Schemas.{PlaytestRun, Turn}
@@ -85,7 +85,8 @@ defmodule TalesForge.Playtest.Runner do
        |> Map.put(
          :game_cost_usd,
          AICalls.total_cost_for_session(run.game_session_id) / 1_000_000
-       )}
+       )
+       |> Map.put(:metrics, Reports.metrics_summary(run.game_session_id))}
     else
       _ -> {:error, :not_found}
     end
