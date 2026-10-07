@@ -132,25 +132,6 @@ defmodule TalesForge.Playtest.Reports do
     }
   end
 
-  @doc "Calls, cost, tokens, latency and capped/error counts per AI purpose for a session (no function rows)."
-  def cost_by_purpose(session_id) do
-    AICall
-    |> where([c], c.game_session_id == ^session_id and c.call_type != "function")
-    |> group_by([c], c.purpose)
-    |> order_by([c], c.purpose)
-    |> select([c], %{
-      purpose: c.purpose,
-      calls: count(c.id),
-      cost_micro_usd: type(coalesce(sum(c.cost_micro_usd), 0), :integer),
-      input_tokens: type(coalesce(sum(c.input_tokens), 0), :integer),
-      output_tokens: type(coalesce(sum(c.output_tokens), 0), :integer),
-      latency_ms: type(coalesce(sum(c.latency_ms), 0), :integer),
-      capped: filter(count(c.id), c.status == "capped"),
-      errors: filter(count(c.id), c.status == "error")
-    })
-    |> Repo.all()
-  end
-
   def roll_text(%{"roll" => roll} = mechanical) when is_integer(roll) do
     against =
       if mechanical["effective_skill"], do: " vs #{mechanical["effective_skill"]}", else: ""

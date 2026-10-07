@@ -1,4 +1,4 @@
-defmodule TalesForgeWeb.PageControllerTest do
+defmodule TalesForgeWeb.HomeLiveTest do
   use TalesForgeWeb.ConnCase
 
   test "GET / renders the home live view", %{conn: conn} do

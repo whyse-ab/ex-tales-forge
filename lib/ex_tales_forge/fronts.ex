@@ -29,13 +29,6 @@ defmodule TalesForge.Fronts do
     |> Repo.all()
   end
 
-  def list_live(session_id) when is_binary(session_id) do
-    FrontInstance
-    |> where([f], f.game_session_id == ^session_id and f.status == "live")
-    |> order_by([f], f.front_id)
-    |> Repo.all()
-  end
-
   def get_instance(session_id, front_id)
       when is_binary(session_id) and is_binary(front_id) do
     Repo.get_by(FrontInstance, game_session_id: session_id, front_id: front_id)

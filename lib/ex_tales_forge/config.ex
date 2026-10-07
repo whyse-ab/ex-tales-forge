@@ -38,7 +38,6 @@ defmodule TalesForge.Config do
   def world_agents?, do: System.get_env("WORLD_AGENTS", "off") in ~w(on true 1)
 
   def ollama_api_base, do: System.get_env("OLLAMA_API_BASE", "http://localhost:11434")
-  def log_level, do: System.get_env("LOG_LEVEL", "info")
 
   defp auto_provider do
     cond do

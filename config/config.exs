@@ -23,7 +23,7 @@ config :ex_tales_forge, TalesForge.Jido,
 
 config :ex_tales_forge, Oban,
   repo: TalesForge.Repo,
-  queues: [default: 10, llm: 5, images: 3],
+  queues: [default: 10, llm: 5],
   plugins: [{Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7}]
 
 # LLM prices in USD per 1M tokens, used when a response carries no billed cost.
