@@ -47,7 +47,7 @@ defmodule TalesForge.Playtest.Runner do
   Starts a run and returns `{:ok, run_id}` at once.
 
   Options: `:turn_limit` (default #{@default_turn_limit}), `:turn_timeout_ms`
-  (per turn or scene, default #{@default_turn_timeout_ms}), `:notes`, and
+  (per turn or scene, default #{@default_turn_timeout_ms}), `:notes`,
   `:variant` (`"default"` or `"baseline"`, see `TalesForge.Game.Variant`; nil
   means `GAME_VARIANT`), so both arms of a comparison run on one deploy, and
   `:character`: `:persona` (default) plays the character the persona created
