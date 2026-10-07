@@ -43,6 +43,12 @@ RUN mix compile
 COPY assets assets
 RUN mix assets.deploy
 
+# ExDoc HTML for /admin/code-docs (admin only, see CodeDocsController). Built
+# here in the builder and written into priv/, so the release carries only the
+# HTML; ex_doc itself is runtime: false and never enters the release.
+COPY README.md AGENTS.md ./
+RUN mix docs --formatter html --output priv/code_docs
+
 COPY config/runtime.exs config/
 COPY rel rel
 RUN mix release

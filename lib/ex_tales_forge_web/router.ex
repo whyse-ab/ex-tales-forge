@@ -1,6 +1,6 @@
 defmodule TalesForgeWeb.Router do
   @moduledoc """
-  Routes: the public play pages, admin login (magic link or GitHub), the protected admin area (with LiveDashboard at /admin/oban) and, in dev, the Swoosh mailbox.
+  Routes: the public play pages, admin login (magic link or GitHub), the protected admin area (with LiveDashboard at /admin/oban and the ExDoc code docs at /admin/code-docs) and, in dev, the Swoosh mailbox.
   """
 
   use TalesForgeWeb, :router
@@ -82,6 +82,14 @@ defmodule TalesForgeWeb.Router do
     import Phoenix.LiveDashboard.Router
 
     live_dashboard "/oban", metrics: TalesForgeWeb.Telemetry
+  end
+
+  # ExDoc site built into the release (CodeDocsController). Same :admin
+  # pipeline as /admin/costs, so every page and asset needs an admin session.
+  scope "/admin", TalesForgeWeb do
+    pipe_through :admin
+
+    get "/code-docs/*path", CodeDocsController, :show
   end
 
   # Machine-to-machine: the peer app's costs page reads this app's aggregated AI

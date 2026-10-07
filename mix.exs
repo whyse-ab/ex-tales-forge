@@ -90,7 +90,9 @@ defmodule TalesForge.MixProject do
       {:bandit, "~> 1.5"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.38", only: [:dev, :test], runtime: false},
+      # Not dev-only: the Docker builder (MIX_ENV=prod) runs `mix docs` for
+      # /admin/code-docs. runtime: false keeps it out of the release itself.
+      {:ex_doc, "~> 0.38", runtime: false},
 
       # Ash for Phase 2 authoring layer (pre-play content only)
       {:ash, "~> 3.0"},

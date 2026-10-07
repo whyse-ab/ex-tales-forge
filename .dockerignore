@@ -17,3 +17,6 @@ ex_tales_forge-*.tar
 # Dialyzer PLTs
 /priv/plts/*.plt
 /priv/plts/*.plt.hash
+
+# ExDoc HTML for /admin/code-docs (built in the Docker builder stage)
+/priv/code_docs/

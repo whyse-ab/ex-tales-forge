@@ -28,6 +28,8 @@ defmodule TalesForgeWeb.AdminComponents do
       />
       <.nav_link href={~p"/admin/costs"} label="Costs" active={@active == "costs"} />
       <.nav_link href={~p"/admin/oban"} label="Oban / telemetry" active={@active == "oban"} />
+      <%!-- Plain page, not a LiveView: full page load --%>
+      <.nav_link href="/admin/code-docs/" label="Code docs" active={false} external />
       <.nav_link href={~p"/"} label="← Player home" active={false} />
       <.link
         href={~p"/admin/logout"}
@@ -43,11 +45,13 @@ defmodule TalesForgeWeb.AdminComponents do
   attr :href, :string, required: true
   attr :label, :string, required: true
   attr :active, :boolean, default: false
+  attr :external, :boolean, default: false, doc: "non-LiveView page: plain href"
 
   defp nav_link(assigns) do
     ~H"""
     <.link
-      navigate={@href}
+      navigate={if !@external, do: @href}
+      href={if @external, do: @href}
       aria-current={@active && "page"}
       class={[
         "block shrink-0 rounded px-3 py-2",
