@@ -225,6 +225,8 @@ Player input is blocked in `PlayLive` while `scene_loading` or `thinking` (`inpu
 
 Raw player text never reaches Tier 2 (`Intent.sanitize_summary/1` strips instruction-injection phrases; `gm_system.txt` restates this). `TalesForge.LLM` is the only LLM client. Config lives in `TalesForge.Config`. Target: full turn < 3s (`mix e2e.smoke`).
 
+**Narration prompt layout (prompt caching).** Scene and GM calls send five messages in a fixed order (`TalesForge.Game.Prompts`): system `narrator_system.txt` (shared voice) → system adventure rules → system task (`scene_system.txt` / `gm_system.txt`) → user session-stable (character sheet, adventure, opening scene) → user per-turn state (facts, location, inventory, NPCs, recent turns, server resolution, PlayerAction, handler). The first two are byte-identical across the scene call and every GM turn, and both calls use one strict `narration` `json_schema` (xAI caches `response_format` ahead of the messages), so with `x-grok-conv-id` = session id the cache covers narrator + rules from the scene onwards, and narrator → session-stable on later turns. Never put per-turn values in messages 1–4; `test/ex_tales_forge/game/prompt_prefix_test.exs` guards the order. A JSON retry re-sends the same messages with a short correction appended.
+
 ### Server dice (kept, later bounded)
 
 `TalesForge.Game.Mechanics.apply_server_mechanics/4` rolls 1d20 vs effective skill (base + stat bonus). Outcomes: success / partial_success / failure. LP written onto `character.learning_points`. The GM is told not to invent rolls (`priv/prompts/gm_system.txt`) and not to patch LP or inventory. Skill is skipped for `move` and `inventory` handlers.
