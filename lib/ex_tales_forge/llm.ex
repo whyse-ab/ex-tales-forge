@@ -311,7 +311,8 @@ defmodule TalesForge.LLM do
             temperature,
             xai_base(),
             Config.xai_api_key(),
-            max_tokens
+            max_tokens,
+            [{"x-grok-conv-id", conv_id(opts)}]
           )
 
         String.starts_with?(model, "gpt-") or provider == "openai" ->
@@ -322,7 +323,8 @@ defmodule TalesForge.LLM do
             temperature,
             openai_base(),
             Config.openai_api_key(),
-            max_tokens
+            max_tokens,
+            []
           )
 
         String.starts_with?(model, "ollama/") ->
@@ -371,7 +373,35 @@ defmodule TalesForge.LLM do
   defp purpose(:tier2), do: "gm"
   defp purpose(tier), do: to_string(tier)
 
-  defp call_openai_compatible(model, system, user, temperature, base_url, api_key, max_tokens) do
+  @doc """
+  The `x-grok-conv-id` sent with every xAI call.
+
+  xAI keeps its prompt cache per server; requests with the same conversation id
+  are routed to the same server. Every call made for a game session (scene,
+  intent, GM, persona, scorer) uses the session id, so the rules prefix those
+  calls share stays warm on one server across the whole session.
+
+  A call without a session gets a stable per-purpose id (`tales-forge-<purpose>`)
+  rather than none: its prompt still starts with a static prefix worth reusing,
+  and the id carries nothing about a player.
+  """
+  def conv_id(opts) do
+    case opts[:session_id] do
+      id when is_binary(id) and id != "" -> id
+      _ -> "tales-forge-" <> purpose(Keyword.get(opts, :tier, :unknown))
+    end
+  end
+
+  defp call_openai_compatible(
+         model,
+         system,
+         user,
+         temperature,
+         base_url,
+         api_key,
+         max_tokens,
+         extra_headers
+       ) do
     if String.trim(api_key) == "" do
       {:error, :missing_api_key}
     else
@@ -393,7 +423,9 @@ defmodule TalesForge.LLM do
       Req.post(
         base_url <> "/chat/completions",
         [
-          headers: [{"authorization", "Bearer " <> api_key}, {"content-type", "application/json"}],
+          headers:
+            [{"authorization", "Bearer " <> api_key}, {"content-type", "application/json"}] ++
+              extra_headers,
           json: body,
           receive_timeout: 120_000,
           retry: false
