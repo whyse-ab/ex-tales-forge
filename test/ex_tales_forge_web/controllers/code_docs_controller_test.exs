@@ -41,6 +41,17 @@ defmodule TalesForgeWeb.CodeDocsControllerTest do
       assert get_resp_header(css, "content-type") == ["text/css"]
     end
 
+    # ConnTest skips CSRF protection by default, which hid a 403 on every
+    # docs .js file in the browser. Turn it back on as a real request has it.
+    test "JS assets pass the CSRF cross-origin JS check", %{conn: conn} do
+      js =
+        conn
+        |> Plug.Conn.put_private(:plug_skip_csrf_protection, false)
+        |> get("/admin/code-docs/dist/app.js")
+
+      assert response(js, 200) == "console.log('docs')"
+    end
+
     test "no trailing slash redirects so relative links resolve", %{conn: conn} do
       assert redirected_to(get(conn, "/admin/code-docs")) == "/admin/code-docs/"
     end
