@@ -9,9 +9,10 @@ defmodule TalesForge.Game.Context do
   alias TalesForge.Game.Perception
   alias TalesForge.Game.Schemas.MechanicalResolution
   alias TalesForge.Game.World
+  alias TalesForge.GameSessions
   alias TalesForge.NPC
   alias TalesForge.Repo
-  alias TalesForge.Schemas.{GameSession, Turn}
+  alias TalesForge.Schemas.{GameSession, Scene, Turn}
 
   def adventure_id(world) when is_map(world) do
     Map.get(world, "adventure_id") || "crossroads_ledger"
@@ -102,7 +103,8 @@ defmodule TalesForge.Game.Context do
       rules: TalesForge.Game.Prompts.load_rules(adventure_id),
       intent_context: intent,
       formatted_intent: format_intent_context(intent),
-      world_state: world
+      world_state: world,
+      opening_scene: GameSessions.opening_scene(session.id)
     }
   end
 
@@ -115,21 +117,32 @@ defmodule TalesForge.Game.Context do
 
     facts = perceived_facts_section(context)
 
+    [
+      context.rules,
+      facts,
+      opening_section(Map.get(context, :opening_scene)),
+      context.formatted_intent,
+      npc_sections
+    ]
+    |> Enum.reject(&(is_nil(&1) or &1 == ""))
+    |> Enum.join("\n\n---\n\n")
+  end
+
+  # Already told to the player before turn 1. Keep it on every GM turn so the
+  # model doesn't re-narrate the arrival as if it just happened (humans and bots).
+  defp opening_section(nil), do: nil
+
+  defp opening_section(%Scene{} = scene) do
+    where = if(scene.location_name, do: " (#{scene.location_name})", else: "")
+
     """
-    #{context.rules}
+    ## Opening scene#{where} — already told to the player
+    Do not rewrite or re-narrate this as if it just happened. The player has
+    already heard it; respond to their action from here.
 
-    ---
-
-    #{facts}
-
-    ---
-
-    #{context.formatted_intent}
-
-    ---
-
-    #{npc_sections}
+    #{scene.narrative}
     """
+    |> String.trim()
   end
 
   def mechanical_bounds(%MechanicalResolution{} = mechanical) do
