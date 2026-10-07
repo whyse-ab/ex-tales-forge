@@ -39,18 +39,30 @@ defmodule TalesForgeWeb.CreateCharacterLiveTest do
     view
   end
 
+  defp to_name(view) do
+    view |> element("#next-skills") |> render_click()
+    view |> element("#next-name") |> render_click()
+    view
+  end
+
+  defp skill_points(view), do: view |> element("#skill-points-left") |> render() |> text_int()
+  defp level(view, skill), do: view |> element("#skill-level-#{skill}") |> render() |> text_int()
+
   describe "the happy path" do
     test "race, class, stats, race bonus, name, then a game with that character", %{conn: conn} do
       {:ok, view, html} = live(conn, ~p"/new/tin_valley")
 
       assert html =~ "Create your character"
       assert html =~ "Your first character is free"
-      assert html =~ "Coming later: Background · Standing · Origin · Occupation"
+      assert html =~ "Coming later: Background · Standing · Origin · Personality"
+      refute html =~ "Coming later: Background · Standing · Origin · Occupation"
 
       view |> element("#race-elf") |> render_click()
       view |> element("#class-ranger") |> render_click()
       assert view |> element("#race-elf[aria-checked=true]") |> has_element?()
       assert view |> element("#class-ranger[aria-checked=true]") |> has_element?()
+      # the ranger suggests the hunter occupation
+      assert view |> element("#occupation-hunter[aria-checked=true]") |> has_element?()
 
       to_stats(view)
       # ranger: DEX 14, WIS 13; the elf bonus defaults to WIS (the higher one)
@@ -69,8 +81,15 @@ defmodule TalesForgeWeb.CreateCharacterLiveTest do
       assert points(view) == 0
       assert total(view, "CON") == 12
 
+      view |> element("#next-skills") |> render_click()
+      assert has_element?(view, "#skills-step")
+      assert level(view, "ranged_combat") == 7
+      assert view |> element("#skill-ranged_combat") |> render() =~ "Signature"
+
       view |> element("#next-name") |> render_click()
       assert has_element?(view, "#name-step")
+      assert view |> element("#summary") |> render() =~ "Elf · Ranger · former hunter"
+      assert view |> element("#summary-skills") |> render() =~ "Ranged combat 7"
       view |> element("#name-form") |> render_change(%{"name" => "Sela Vorn"})
       assert view |> element("#summary") |> render() =~ "Sela Vorn"
 
@@ -113,8 +132,7 @@ defmodule TalesForgeWeb.CreateCharacterLiveTest do
     test "Crossroads Hamlet works the same way", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/new/crossroads_ledger")
       view |> element("#class-warrior") |> render_click()
-      to_stats(view)
-      view |> element("#next-name") |> render_click()
+      view |> to_stats() |> to_name()
       view |> element("#name-form") |> render_submit(%{"name" => "Brann"})
       {"/play/" <> id, _} = assert_redirect(view)
 
@@ -154,12 +172,13 @@ defmodule TalesForgeWeb.CreateCharacterLiveTest do
       assert view |> element("#stats-errors") |> render() =~
                "DEX would be 19 after the elf modifier (+2); it must be 3–18"
 
-      assert view |> element("#next-name[disabled]") |> has_element?()
+      assert view |> element("#next-skills[disabled]") |> has_element?()
+      assert view |> element("#step-skills[disabled]") |> has_element?()
       assert view |> element("#step-name[disabled]") |> has_element?()
 
       view |> element("#dec-DEX") |> render_click()
       refute has_element?(view, "#stats-errors")
-      view |> element("#next-name") |> render_click()
+      to_name(view)
       assert has_element?(view, "#name-step")
     end
 
@@ -200,11 +219,81 @@ defmodule TalesForgeWeb.CreateCharacterLiveTest do
     end
   end
 
+  describe "past occupation and skills" do
+    setup %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/new/tin_valley")
+      view |> element("#class-warrior") |> render_click()
+      %{view: view}
+    end
+
+    test "an occupation gives free levels and re-suggests the build", %{view: view} do
+      assert view |> element("#occupation-soldier[aria-checked=true]") |> has_element?()
+      assert view |> element("#occupation-soldier") |> render() =~ "Melee combat +2"
+
+      view |> element("#occupation-merchant") |> render_click()
+      view |> to_stats() |> element("#next-skills") |> render_click()
+
+      # Persuasion 2 from the merchant, Melee Combat 3 from the class package
+      assert view |> element("#skill-persuasion") |> render() =~ ~r/>\s*2\s*</
+      assert view |> element("#skill-dec-melee_combat") |> has_element?()
+      assert skill_points(view) in 0..1
+    end
+
+    test "levels cost points, stop at the budget and come back", %{view: view} do
+      view |> to_stats() |> element("#next-skills") |> render_click()
+      view |> element("#suggest-skills") |> render_click()
+      left = skill_points(view)
+
+      # Melee Combat is free at 5 (3 class + 2 soldier); a 6th level makes it a
+      # signature skill for 3 points
+      assert level(view, "melee_combat") == 5
+      assert view |> element("#skill-dec-melee_combat[disabled]") |> has_element?()
+
+      view |> element("#skill-dec-climbing") |> render_click()
+      view |> element("#skill-dec-climbing") |> render_click()
+      assert skill_points(view) == left + 4
+
+      view |> element("#skill-inc-melee_combat") |> render_click()
+      assert level(view, "melee_combat") == 6
+      assert skill_points(view) == left + 1
+      assert view |> element("#signature-count") |> render() =~ "1"
+      assert view |> element("#skill-melee_combat") |> render() =~ "Signature"
+    end
+
+    test "too few skills are shown inline and block the name step", %{conn: conn} do
+      # no class, laborer: Climbing 2, Unarmed Combat 2, Survival 1 are free
+      {:ok, view, _html} = live(conn, ~p"/new/tin_valley")
+      view |> to_stats() |> element("#next-skills") |> render_click()
+
+      for %{id: skill} <- TalesForge.CharacterCreation.options("tin_valley").skill_list,
+          _ <- 1..7,
+          has_element?(view, "#skill-dec-#{skill}:not([disabled])") do
+        view |> element("#skill-dec-#{skill}") |> render_click()
+      end
+
+      assert view |> element("#skill-count") |> render() =~ "3"
+      assert view |> element("#skills-errors") |> render() =~ "Choose at least 5 skills; 3 so far"
+      assert view |> element("#next-name[disabled]") |> has_element?()
+      assert view |> element("#step-name[disabled]") |> has_element?()
+
+      view |> element("#skill-inc-dodge") |> render_click()
+      view |> element("#skill-inc-stealth") |> render_click()
+      refute has_element?(view, "#skills-errors")
+      view |> element("#next-name") |> render_click()
+      assert has_element?(view, "#name-step")
+    end
+
+    test "a forced level below the free one is refused", %{view: view} do
+      view |> to_stats() |> element("#next-skills") |> render_click()
+      html = render_click(view, "skill", %{"skill" => "melee_combat", "delta" => "-3"})
+      assert html =~ "Melee combat starts at 5 for free"
+    end
+  end
+
   describe "the name" do
     setup %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/new/tin_valley")
-      to_stats(view)
-      view |> element("#next-name") |> render_click()
+      view |> to_stats() |> to_name()
       %{view: view}
     end
 

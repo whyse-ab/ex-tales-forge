@@ -3,9 +3,11 @@ defmodule TalesForgeWeb.CreateCharacterLive do
   Player character creation screen (`/new/:adventure`), step 2 of the creation
   port (tales-forge-docs `docs/character-creation-port.md`).
 
-  Three steps on one LiveView: race and class, then the 75-point stat buy with
-  the race bonus choices, then a typed name and "Begin adventure", which starts
-  a session with the created character in place of Elara. All rules live in
+  Four steps on one LiveView: race, class and past occupation; the 75-point
+  stat buy with the race bonus choices; the skill budget (free levels from the
+  class package, race and occupation, a suggested spread build, up to two
+  signature skills); then a typed name and "Begin adventure", which starts a
+  session with the created character in place of Elara. All rules live in
   `TalesForge.CharacterCreation`; this module only keeps the draft and renders
   it. Creation makes no AI calls, so it costs nothing (the first character is
   free). The draft lives in the LiveView process and is lost on reload.
@@ -17,8 +19,8 @@ defmodule TalesForgeWeb.CreateCharacterLive do
   alias TalesForge.GameSessions
 
   @adventures %{"tin_valley" => "Tin Valley", "crossroads_ledger" => "Crossroads Hamlet"}
-  @steps [{"origin", "Race & class"}, {"stats", "Stats"}, {"name", "Name"}]
-  @later ["Background", "Standing", "Origin", "Occupation", "Personality & concerns", "AI assist"]
+  @steps [{"origin", "Race & class"}, {"stats", "Stats"}, {"skills", "Skills"}, {"name", "Name"}]
+  @later ["Background", "Standing", "Origin", "Personality & concerns", "AI assist"]
   @stats [
     {"STR", "Strength"},
     {"DEX", "Dexterity"},
@@ -58,6 +60,18 @@ defmodule TalesForgeWeb.CreateCharacterLive do
 
   def handle_event("class", %{"id" => class}, socket),
     do: update_draft(socket, CC.choose_class(socket.assigns.draft, class))
+
+  def handle_event("occupation", %{"id" => occupation}, socket),
+    do: update_draft(socket, CC.choose_occupation(socket.assigns.draft, occupation))
+
+  def handle_event("skill", %{"skill" => skill, "delta" => delta}, socket) do
+    draft = socket.assigns.draft
+    level = Map.get(CC.skill_levels(draft), skill, 0) + String.to_integer(delta)
+    update_draft(socket, CC.set_skill(draft, skill, level))
+  end
+
+  def handle_event("suggest_skills", _params, socket),
+    do: update_draft(socket, {:ok, CC.suggest_skills(socket.assigns.draft)})
 
   def handle_event("stat", %{"stat" => stat, "delta" => delta}, socket) do
     draft = socket.assigns.draft
@@ -113,9 +127,10 @@ defmodule TalesForgeWeb.CreateCharacterLive do
   end
 
   defp show_finalize_errors(socket, errors) do
-    case Keyword.get(errors, :name) do
-      nil -> assign(socket, step: "stats", name_error: nil)
-      message -> assign(socket, :name_error, sentence(message))
+    cond do
+      message = Keyword.get(errors, :name) -> assign(socket, :name_error, sentence(message))
+      Keyword.has_key?(errors, :skills) -> assign(socket, step: "skills", name_error: nil)
+      true -> assign(socket, step: "stats", name_error: nil)
     end
   end
 
@@ -134,16 +149,17 @@ defmodule TalesForgeWeb.CreateCharacterLive do
 
   defp step_open?("origin", _draft), do: true
   defp step_open?("stats", _draft), do: true
-  defp step_open?("name", draft), do: stats_errors(draft) == []
+  defp step_open?("skills", draft), do: stats_errors(draft) == []
+  defp step_open?("name", draft), do: stats_errors(draft) == [] and skill_errors(draft) == []
   defp step_open?(_, _draft), do: false
 
-  defp stats_errors(draft) do
-    case CC.validate(draft) do
-      :ok ->
-        []
+  defp stats_errors(draft), do: errors_for(draft, [:stats, :race_picks])
+  defp skill_errors(draft), do: errors_for(draft, [:skills])
 
-      {:error, errors} ->
-        for {field, msg} <- errors, field in [:stats, :race_picks], do: sentence(msg)
+  defp errors_for(draft, fields) do
+    case CC.validate(draft) do
+      :ok -> []
+      {:error, errors} -> for {field, msg} <- errors, field in fields, do: sentence(msg)
     end
   end
 
@@ -158,6 +174,7 @@ defmodule TalesForgeWeb.CreateCharacterLive do
       |> assign(:steps, @steps)
       |> assign(:later, @later)
       |> assign(:stats_errors, stats_errors(assigns.draft))
+      |> assign(:skill_errors, skill_errors(assigns.draft))
       |> assign(:points_left, CC.points_left(assigns.draft))
 
     ~H"""
@@ -182,7 +199,10 @@ defmodule TalesForgeWeb.CreateCharacterLive do
                 id={"step-#{id}"}
                 phx-click="go"
                 phx-value-step={id}
-                disabled={id == "name" and @stats_errors != []}
+                disabled={
+                  (id in ["skills", "name"] and @stats_errors != []) or
+                    (id == "name" and @skill_errors != [])
+                }
                 aria-current={@step == id && "step"}
                 class={[
                   "rounded-full border px-3 py-1 text-sm font-medium disabled:opacity-40",
@@ -219,6 +239,12 @@ defmodule TalesForgeWeb.CreateCharacterLive do
           points_left={@points_left}
           errors={@stats_errors}
         />
+        <.skills_step
+          :if={@step == "skills"}
+          draft={@draft}
+          options={@options}
+          errors={@skill_errors}
+        />
         <.name_step :if={@step == "name"} draft={@draft} options={@options} name_error={@name_error} />
       </div>
     </Layouts.app>
@@ -229,6 +255,9 @@ defmodule TalesForgeWeb.CreateCharacterLive do
   attr :options, :map, required: true
 
   defp origin_step(assigns) do
+    class = Enum.find(assigns.options.classes, &(&1.id == assigns.draft.class))
+    assigns = assign(assigns, :default_occupation, class && class.occupation)
+
     ~H"""
     <section id="origin-step" class="space-y-6">
       <fieldset class="space-y-2">
@@ -255,6 +284,26 @@ defmodule TalesForgeWeb.CreateCharacterLive do
             label={class_label(class.id)}
             description={class.description}
             selected={@draft.class == class.id}
+          />
+        </div>
+      </fieldset>
+
+      <fieldset class="space-y-2">
+        <legend class="play-label mb-2">Past occupation</legend>
+        <p class="text-sm text-[var(--paper-muted)]">
+          What you did before adventuring: free skill levels on top of your class.
+          <span :if={@default_occupation}>
+            Suggested for {class_label(@draft.class)}: {label(@default_occupation)}.
+          </span>
+        </p>
+        <div role="radiogroup" aria-label="Past occupation" class="grid gap-2 sm:grid-cols-2">
+          <.choice
+            :for={occupation <- @options.occupations}
+            event="occupation"
+            id={occupation.id}
+            label={label(occupation.id)}
+            description={occupation.description <> " " <> skill_bonus_text(occupation.skills)}
+            selected={@draft.occupation == occupation.id}
           />
         </div>
       </fieldset>
@@ -432,9 +481,152 @@ defmodule TalesForgeWeb.CreateCharacterLive do
         <li :for={error <- @errors} class="text-sm text-[var(--paper-danger-ink)]">{error}</li>
       </ul>
 
-      <.step_nav back="origin" next="name" next_disabled={@errors != []} />
+      <.step_nav back="origin" next="skills" next_disabled={@errors != []} />
     </section>
     """
+  end
+
+  attr :draft, :map, required: true
+  attr :options, :map, required: true
+  attr :errors, :list, required: true
+
+  defp skills_step(assigns) do
+    rules = assigns.options.skills
+    levels = CC.skill_levels(assigns.draft)
+
+    assigns =
+      assigns
+      |> assign(:rules, rules)
+      |> assign(:levels, levels)
+      |> assign(:free, CC.free_skills(assigns.draft))
+      |> assign(:left, CC.skill_points_left(assigns.draft))
+      |> assign(:budget, CC.skill_budget(assigns.draft))
+      |> assign(:signatures, Enum.count(levels, fn {_s, l} -> l > rules["cap"] end))
+      |> assign(:skill_count, map_size(levels))
+
+    ~H"""
+    <section id="skills-step" class="space-y-4">
+      <div class="play-panel flex items-center justify-between gap-3 rounded-lg px-4 py-3">
+        <div class="min-w-0">
+          <p class="play-label">Skill points left</p>
+          <p class="text-xs text-[var(--paper-muted)]">
+            {@budget} to spend. Levels 1–3 cost 1, 4–5 cost 2. Up to {@rules["signature_max"]} signature skills may go to {@rules[
+              "signature_cap"
+            ]} (3 per level).
+          </p>
+        </div>
+        <p
+          id="skill-points-left"
+          class={[
+            "font-serif text-3xl font-bold",
+            if(@left < 0, do: "text-[var(--paper-danger-ink)]", else: "text-[var(--paper-ink)]")
+          ]}
+        >
+          {@left}
+        </p>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <p class="text-sm text-[var(--paper-muted)]">
+          <span id="skill-count">{@skill_count}</span>
+          skills (at least {@rules["min_skills"]}) · <span id="signature-count">{@signatures}</span>
+          of {@rules["signature_max"]} signature
+        </p>
+        <button
+          type="button"
+          id="suggest-skills"
+          phx-click="suggest_skills"
+          class="rounded border border-[var(--paper-rule)] px-3 py-1 text-sm font-medium text-[var(--paper-ink)] hover:opacity-80"
+        >
+          Suggest a spread
+        </button>
+      </div>
+
+      <div class="play-panel rounded-lg">
+        <div class="grid grid-cols-[1fr_3rem_auto] items-center gap-x-3 border-b border-[var(--paper-rule)] px-4 py-2">
+          <span class="play-label">Skill</span>
+          <span class="play-label text-center">Free</span>
+          <span class="play-label text-center">Level</span>
+        </div>
+        <div
+          :for={%{id: skill, stat: stat} <- @options.skill_list}
+          id={"skill-#{skill}"}
+          class="grid grid-cols-[1fr_3rem_auto] items-center gap-x-3 border-b border-[var(--paper-rule)] px-4 py-2 last:border-b-0"
+        >
+          <span class="min-w-0">
+            <span class="font-semibold text-[var(--paper-ink)]">{label(skill)}</span>
+            <span class="ml-1 text-xs text-[var(--paper-muted)]">{stat}</span>
+            <span
+              :if={Map.get(@levels, skill, 0) > @rules["cap"]}
+              class="ml-1 inline-block rounded bg-[var(--paper-margin)] px-1.5 py-0.5 text-xs font-medium text-[var(--paper-accent)]"
+            >
+              Signature
+            </span>
+          </span>
+          <span class="text-center text-sm text-[var(--paper-muted)]">
+            {free_text(Map.get(@free, skill, 0))}
+          </span>
+          <span class="flex items-center gap-2">
+            <button
+              type="button"
+              id={"skill-dec-#{skill}"}
+              phx-click="skill"
+              phx-value-skill={skill}
+              phx-value-delta="-1"
+              disabled={Map.get(@levels, skill, 0) <= Map.get(@free, skill, 0)}
+              aria-label={"Lower #{label(skill)}"}
+              class="size-9 rounded border border-[var(--paper-rule)] text-lg text-[var(--paper-ink)] disabled:opacity-30"
+            >
+              −
+            </button>
+            <span
+              id={"skill-level-#{skill}"}
+              class="w-6 text-center font-serif text-lg font-semibold text-[var(--paper-ink)]"
+            >
+              {Map.get(@levels, skill, 0)}
+            </span>
+            <button
+              type="button"
+              id={"skill-inc-#{skill}"}
+              phx-click="skill"
+              phx-value-skill={skill}
+              phx-value-delta="1"
+              disabled={not can_raise?(Map.get(@levels, skill, 0), @left, @signatures, @rules)}
+              aria-label={"Raise #{label(skill)}"}
+              class="size-9 rounded border border-[var(--paper-rule)] text-lg text-[var(--paper-ink)] disabled:opacity-30"
+            >
+              +
+            </button>
+          </span>
+        </div>
+      </div>
+
+      <ul :if={@errors != []} id="skills-errors" role="alert" class="space-y-1">
+        <li :for={error <- @errors} class="text-sm text-[var(--paper-danger-ink)]">{error}</li>
+      </ul>
+
+      <.step_nav back="stats" next="name" next_disabled={@errors != []} />
+    </section>
+    """
+  end
+
+  # One more level is affordable, under the signature cap, and a new signature
+  # skill only while there is room for one.
+  defp can_raise?(level, left, signatures, rules) do
+    costs = rules["level_costs"]
+    price = Enum.at(costs, level, List.last(costs))
+
+    level < rules["signature_cap"] and price <= left and
+      (level != rules["cap"] or signatures < rules["signature_max"])
+  end
+
+  defp free_text(0), do: "—"
+  defp free_text(level), do: to_string(level)
+
+  defp skill_bonus_text(skills) do
+    skills
+    |> Enum.sort_by(fn {skill, level} -> {-level, skill} end)
+    |> Enum.map_join(", ", fn {skill, level} -> "#{label(skill)} +#{level}" end)
   end
 
   attr :draft, :map, required: true
@@ -442,12 +634,13 @@ defmodule TalesForgeWeb.CreateCharacterLive do
   attr :name_error, :string, default: nil
 
   defp name_step(assigns) do
-    class = Enum.find(assigns.options.classes, &(&1.id == assigns.draft.class))
-
     assigns =
       assigns
       |> assign(:final, CC.final_stats(assigns.draft))
-      |> assign(:skills, class.skills)
+      |> assign(
+        :skills,
+        assigns.draft |> CC.skill_levels() |> Enum.sort_by(fn {s, l} -> {-l, s} end)
+      )
       |> assign(:stat_names, @stats)
 
     ~H"""
@@ -484,7 +677,9 @@ defmodule TalesForgeWeb.CreateCharacterLive do
             {if @draft.name == "", do: "Your character", else: @draft.name}
           </p>
           <p class="text-sm text-[var(--paper-muted)]">
-            {label(@draft.race)} · {class_label(@draft.class)}
+            {label(@draft.race)} · {class_label(@draft.class)} · former {String.downcase(
+              label(@draft.occupation)
+            )}
           </p>
           <dl class="grid grid-cols-3 gap-2 sm:grid-cols-6">
             <div
@@ -495,7 +690,7 @@ defmodule TalesForgeWeb.CreateCharacterLive do
               <dd class="font-serif text-lg font-semibold text-[var(--paper-ink)]">{@final[stat]}</dd>
             </div>
           </dl>
-          <p :if={@skills != %{}} class="text-sm text-[var(--paper-ink)]">
+          <p :if={@skills != []} id="summary-skills" class="text-sm text-[var(--paper-ink)]">
             <span class="play-label">Skills</span>
             {Enum.map_join(@skills, ", ", fn {skill, level} -> "#{label(skill)} #{level}" end)}
           </p>
@@ -505,7 +700,7 @@ defmodule TalesForgeWeb.CreateCharacterLive do
           <button
             type="button"
             phx-click="go"
-            phx-value-step="stats"
+            phx-value-step="skills"
             class="rounded border border-[var(--paper-rule)] px-4 py-2 font-medium text-[var(--paper-ink)] hover:opacity-80"
           >
             Back

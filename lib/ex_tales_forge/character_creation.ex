@@ -273,6 +273,23 @@ defmodule TalesForge.CharacterCreation do
     end
   end
 
+  @doc """
+  Sets the whole skill build at once: exactly these final levels (each as in
+  `set_skill/3`); every other skill stays at its free level.
+  """
+  @spec set_skills(Draft.t(), %{optional(String.t()) => integer()}) ::
+          {:ok, Draft.t()} | {:error, error()}
+  def set_skills(%Draft{} = draft, levels) when is_map(levels) do
+    cleared = %{draft | skills: %{}, edited: MapSet.put(draft.edited, :skills)}
+
+    Enum.reduce_while(levels, {:ok, cleared}, fn {skill, level}, {:ok, acc} ->
+      case set_skill(acc, skill, level) do
+        {:ok, acc} -> {:cont, {:ok, acc}}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
   @doc "Re-suggests a spread skill build and forgets the skill levels the player set."
   @spec suggest_skills(Draft.t()) :: Draft.t()
   def suggest_skills(%Draft{} = draft) do

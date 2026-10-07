@@ -41,12 +41,28 @@ defmodule TalesForge.Playtest.PersonaCharactersTest do
     end
 
     {:ok, paul} = PersonaCharacters.build("paul", "tin_valley")
-    assert paul["skills"]["persuasion"]
+    assert paul["skills"]["persuasion"] == 7
+  end
+
+  test "every pick spends its whole skill budget within the skill rules" do
+    for {id, pick} <- PersonaCharacters.picks() do
+      {:ok, c} = PersonaCharacters.build(id, "tin_valley")
+      assert Map.take(c["skills"], Map.keys(pick["skills"])) == pick["skills"], id
+      assert c["creation"]["occupation"] == pick["occupation"], id
+      assert map_size(c["skills"]) >= 6, id
+      assert Enum.count(c["skills"], fn {_s, l} -> l > 5 end) in 1..2, id
+
+      budget =
+        if c["race"] == "human", do: 30, else: if(c["race"] == "half_elf", do: 28, else: 25)
+
+      free_refund = if id == "lars", do: 3, else: 0
+      assert c["creation"]["skill_points_spent"] == budget + free_refund, id
+    end
   end
 
   test "describes the character the persona made, and rejects unknown personas" do
     assert PersonaCharacters.describe(PersonaCharacters.pick("lars")) =~
-             "You created this character yourself: Taren Swiftbrook, an elf ranger."
+             "You created this character yourself: Taren Swiftbrook, an elf ranger, a former hunter."
 
     assert PersonaCharacters.build("nobody", "tin_valley") == {:error, :no_pick}
     assert PersonaCharacters.pick("nobody") == nil
