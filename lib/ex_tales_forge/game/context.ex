@@ -14,7 +14,6 @@ defmodule TalesForge.Game.Context do
   """
 
   # NON-NEGOTIABLE: Core runtime. Pure Ecto + game logic only.
-  # No Ash (neither AdminResources nor Authoring) in context building for turns.
   # Rules come from Prompts (which may be pack-aware), but state is Ecto.
 
   alias TalesForge.Game.Mechanics

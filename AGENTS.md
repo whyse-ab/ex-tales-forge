@@ -15,12 +15,13 @@ Rules identity (same file, Rules philosophy): prices ≈ human labor; you learn 
 - **UI:** Phoenix LiveView + Tailwind
 - **Runtime:** Jido 2.x agents + actions
 - **Persistence:** Ecto + PostgreSQL (`GameSession`, `Turn`, `NpcInstance`)
-- **Jobs:** Oban (LLM + images later)
-- **Authoring (Phase 2+):** Ash domains for pre-play (Authoring.*) and admin-only runtime tables (AdminResources.* over existing Ecto tables). Core game loop (GameSessions, NPC, workers, Jido, Context) is 100% Ecto. Admin LiveViews use AshPhoenix.Form for UX; JSON kept for complex maps. See admin_domain.ex and comments in game_sessions.ex / npc.ex.
+- **Jobs:** Oban (LLM, sim)
+- **Authored content:** pack files under `priv/` (`priv/adventures/*`, `priv/npcs/*.json`, `priv/rules`, `priv/prompts`), loaded by `Game.Pack` / `NPC` and copied into each session at creation. Edited in git; the admin NPC definition pages are read-only.
+- **Admin:** `TalesForge.Admin` + LiveViews on plain Ecto changesets (`to_form/2`); JSON editors for complex maps like `world_state`. Ash was removed on 2026-10-07 (tales-forge-docs `docs/decisions.md`); revisit only if an in-app adventure editor needs it.
 
 ## Non-negotiables
 
-1. Ash owns **pre-play authoring** (Authoring.*) and **admin surfaces only** (AdminResources.* for runtime tables). Core runtime (play loop, Jido, Oban, GameSessions, NPC logic) is strictly Ecto + Repo. Never mix in core paths.
+1. Persistence is plain Ecto + Repo everywhere (play loop, Jido, Oban, GameSessions, NPC logic, admin). Authored content lives in pack files, not database tables. Don't add a second data layer without a decision entry.
 2. Tier 1 intent must run before Tier 2 GM; raw player text never reaches Tier 2
 3. Server rolls dice and applies LP/inventory — the LLM narrates, not invents mechanics
 4. Important authored state stays human-readable: `priv/rules/*.md`, `priv/prompts/*.txt`
@@ -155,7 +156,7 @@ mix setup
 
 `$PGDATA` is set from `.mise.toml`. Role `postgres` / trust on localhost. Stop with `pg_ctl -D "$PGDATA" stop`.
 
-**See this project's compiler warnings** (not Ash/Phoenix dep noise):
+**See this project's compiler warnings** (not Hex dep noise):
 
 ```bash
 mix warnings                 # compile --force --all-warnings --warnings-as-errors

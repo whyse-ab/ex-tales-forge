@@ -60,4 +60,34 @@ defmodule TalesForgeWeb.AdminLive.NpcLiveTest do
 
     assert to == ~p"/admin/sessions/#{session.id}/npcs"
   end
+
+  test "the disposition form saves to the database", %{conn: conn, session: session, npc: npc} do
+    {:ok, view, _html} = live(conn, ~p"/admin/sessions/#{session.id}/npcs/#{npc.npc_id}")
+
+    view
+    |> form("#npc-form", npc: %{disposition: "0.7"})
+    |> render_submit()
+
+    assert render(view) =~ "Disposition updated."
+    assert Admin.get_npc_instance!(session.id, npc.npc_id).disposition == 0.7
+  end
+
+  test "the disposition form shows validation errors and saves nothing",
+       %{conn: conn, session: session, npc: npc} do
+    {:ok, view, _html} = live(conn, ~p"/admin/sessions/#{session.id}/npcs/#{npc.npc_id}")
+
+    html =
+      view
+      |> form("#npc-form", npc: %{disposition: "lots"})
+      |> render_change()
+
+    assert html =~ "is invalid"
+
+    view
+    |> form("#npc-form", npc: %{disposition: "lots"})
+    |> render_submit()
+
+    refute render(view) =~ "Disposition updated."
+    assert Admin.get_npc_instance!(session.id, npc.npc_id).disposition == npc.disposition
+  end
 end

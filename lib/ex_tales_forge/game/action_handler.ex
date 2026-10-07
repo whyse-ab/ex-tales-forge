@@ -1,7 +1,7 @@
 defmodule TalesForge.Game.ActionHandler do
   @moduledoc false
 
-  # Core pure game logic. Ecto state only. No Ash.
+  # Core pure game logic. Ecto state only.
 
   alias TalesForge.Game.Mechanics
   alias TalesForge.Game.Schemas.{HandlerResult, PlayerAction}

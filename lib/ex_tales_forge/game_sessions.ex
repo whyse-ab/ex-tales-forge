@@ -2,19 +2,8 @@ defmodule TalesForge.GameSessions do
   @moduledoc """
   Coordinates database sessions, Tier 1 intent, and Tier 2 Oban jobs.
 
-  ## NON-NEGOTIABLE SEPARATION (per AGENTS.md and Phase 2 plan)
-  This is a **core game runtime** module.
-  - MUST use ONLY Ecto schemas (TalesForge.Schemas.*) + direct Repo.
-  - MUST NOT import or call into Ash resources for runtime data
-    (AdminResources.GameSession, Turn, etc.).
-  - Ash is used *only* for pre-play Authoring resources (Adventure,
-    Location, NpcDefinition) during session *creation/materialization*.
-  - Play paths, Jido agents, Oban workers, Context builders etc. must
-    remain 100% Ecto.
-  - Admin surfaces may use Ash (via TalesForge.Admin + AdminResources).
+  A core game runtime module: Ecto schemas (TalesForge.Schemas.*) and Repo only.
   """
-
-  # Guard comment: if you are editing this for play logic, do not touch Ash.
 
   import Ecto.Query
 
@@ -83,69 +72,7 @@ defmodule TalesForge.GameSessions do
   # Dual path: complete packs fail-fast via Pack; Crossroads keeps today's seed.
   defp materialize_world("tin_valley"), do: Pack.materialize("tin_valley")
 
-  defp materialize_world(adventure_id) do
-    case resolve_adventure_world_state(%{adventure_id: adventure_id}) do
-      world when is_map(world) -> world
-      _ -> World.default_world_state()
-    end
-  end
-
-  defp resolve_adventure_world_state(attrs) do
-    adventure_id =
-      Map.get(attrs, :adventure_id) || Map.get(attrs, "adventure_id") ||
-        World.default_world_state()["adventure_id"]
-
-    case Ash.read(TalesForge.Authoring.Adventure,
-           filter: [adventure_id: adventure_id],
-           load: []
-         ) do
-      {:ok, [adv | _]} ->
-        base = World.default_world_state()
-
-        locations =
-          load_authored_locations(adventure_id) || base["locations"] || %{}
-
-        base
-        |> Map.put("adventure_id", adv.adventure_id)
-        |> Map.put("location_id", adv.starting_location_id || base["location_id"])
-        |> Map.put("location_name", base["location_name"])
-        |> Map.put("present_npcs", adv.initial_present_npc_ids || base["present_npcs"])
-        |> Map.put("last_scene_location", nil)
-        |> Map.put("locations", locations)
-
-      _ ->
-        nil
-    end
-  rescue
-    _ -> nil
-  end
-
-  defp load_authored_locations(adventure_id) do
-    case Ash.read(TalesForge.Authoring.Location,
-           filter: [adventure_id: adventure_id],
-           load: []
-         ) do
-      {:ok, locs} when locs != [] ->
-        locs
-        |> Enum.into(%{}, fn loc ->
-          {loc.location_id,
-           %{
-             "id" => loc.location_id,
-             "name" => loc.name,
-             "exits" => loc.exits || [],
-             "blurb" => loc.blurb,
-             "fixtures" => loc.fixtures || [],
-             "ground_items" => loc.ground_items || [],
-             "scene_image_url" => loc.scene_image_url
-           }}
-        end)
-
-      _ ->
-        nil
-    end
-  rescue
-    _ -> nil
-  end
+  defp materialize_world(_adventure_id), do: World.default_world_state()
 
   def scene_status(session_id) do
     session_id

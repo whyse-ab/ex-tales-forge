@@ -1,6 +1,6 @@
 defmodule TalesForge.Fronts do
   @moduledoc """
-  Ecto persistence for session fronts. Play-loop only — no Ash.
+  Ecto persistence for session fronts. Play-loop only.
 
   `seed_session/1` is a no-op for Crossroads (zero fronts). tin_valley copies
   pack JSON into `FrontInstance.definition` and mutable clocks into `runtime_state`.

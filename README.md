@@ -102,8 +102,8 @@ From the admin UI you can:
 - List and delete game sessions; edit `world_state` JSON
 - Inspect and edit per-session NPC runtime state (stock, mood, memories)
 - Browse turn history (read-only)
-- Edit authored NPC definitions (Ash) and runtime session/NPC state (via Ash admin resources, but play uses Ecto)
-- Admin LiveViews use AshPhoenix.Form for simple fields; JSON editors kept for complex state like `world_state`
+- Edit session fields and NPC disposition (Ecto changeset forms); JSON editors for complex state like `world_state`
+- View the authored NPC definitions in `priv/npcs` (read-only; edit the files in git)
 - Open LiveDashboard at `/admin/oban` for Oban/telemetry
 
 See [docs/DEPLOY-FLY.md](docs/DEPLOY-FLY.md) for Fly.io deploy steps.
@@ -130,7 +130,7 @@ Who it is for: [PRODUCT.md](PRODUCT.md) (Hawk, Paul, Lotta, Lars — not Ronny).
 
 - [x] Phase 0: Phoenix + Jido + LiveView play loop with mock GM
 - [x] Phase 1: Two-tier LLM pipeline + server mechanics (mock GM when no API key)
-- [x] Phase 2: Ash for pre-play authoring + admin surfaces (AshPhoenix.Forms on runtime tables via AdminResources, but **core play paths remain 100% Ecto**). Generic linked-MD pack importer + `mix tales.import_pack`. Materialization and admin LiveViews updated. See plan.
+- [x] Phase 2: pack files for authored content + admin surfaces. (Ash was used here at first and removed on 2026-10-07; admin and play are plain Ecto.)
 - [ ] Phase 3: NPC agents + world clock
 
 ## Development

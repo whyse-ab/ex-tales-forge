@@ -22,7 +22,7 @@ defmodule TalesForgeWeb.AdminLive.NpcDefinitionLive.Index do
       <header class="space-y-1">
         <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">NPC definitions</h2>
         <p class="text-sm text-[var(--paper-muted)]">
-          Authored files in priv/npcs. Changes apply to new sessions unless you reseed NPC instances.
+          Read-only view of the pack files in priv/npcs; edit them in git. Changes apply to new sessions unless you reseed NPC instances.
         </p>
       </header>
 

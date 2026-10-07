@@ -2,13 +2,9 @@ defmodule TalesForge.NPC do
   @moduledoc """
   Per-session NPC runtime: definitions, NpcInstance persistence, memories, presence.
 
-  ## NON-NEGOTIABLE SEPARATION
-  Core runtime module. Only Ecto (Schemas.NpcInstance + Repo) for live state.
-  Ash usage is restricted to pre-play Authoring.NpcDefinition reads
-  during seeding/materialization. Never use AdminResources for runtime NPCs.
+  Core runtime module: Ecto (Schemas.NpcInstance + Repo) for live state;
+  definitions come from the pack files in `priv/npcs` (or the pack's own NPCs).
   """
-
-  # Core play code — Ecto only for mutability. Ash only for initial authored defs.
 
   import Ecto.Query
 
@@ -19,35 +15,6 @@ defmodule TalesForge.NPC do
 
   @memory_limit 20
   @memory_context_limit 5
-
-  # Phase 2: prefer Ash Authoring for pre-play NPC defs when present.
-  defp load_authored_definitions do
-    case Ash.read(TalesForge.Authoring.NpcDefinition, load: []) do
-      {:ok, records} when records != [] ->
-        Enum.map(records, &ash_npc_to_definition_map/1)
-
-      _ ->
-        nil
-    end
-  rescue
-    _ -> nil
-  end
-
-  defp ash_npc_to_definition_map(%TalesForge.Authoring.NpcDefinition{} = rec) do
-    %{
-      "id" => rec.npc_id,
-      "name" => rec.name,
-      "race" => rec.race,
-      "role" => rec.role,
-      "default_location_id" => rec.default_location_id,
-      "appearance" => rec.appearance,
-      "personality" => rec.personality,
-      "backstory" => rec.backstory,
-      "motivations" => rec.motivations || %{},
-      "stock" => rec.stock || []
-      # portrait_url available on rec but not needed in seed map
-    }
-  end
 
   def refresh_session_world_state(%GameSession{} = session) do
     location_id = Map.get(session.world_state, "location_id", "weary_pilgrim")
@@ -90,13 +57,7 @@ defmodule TalesForge.NPC do
   end
 
   defp seed_legacy(session_id, world_tick) do
-    definitions =
-      case load_authored_definitions() do
-        defs when is_list(defs) and defs != [] -> defs
-        _ -> load_definitions_from_files()
-      end
-
-    Enum.each(definitions, fn definition ->
+    Enum.each(load_definitions_from_files(), fn definition ->
       npc_id = Map.get(definition, "id") || Map.get(definition, :id)
 
       if npc_id do
