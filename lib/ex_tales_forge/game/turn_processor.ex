@@ -135,6 +135,9 @@ defmodule TalesForge.Game.TurnProcessor do
       {world, lines} =
         Prices.resolve(agents, session.world_state, board.world, raw_action, player_action)
 
+      if lines != [],
+        do: Logger.info("world prices session=#{session.id} lines=#{inspect(lines)}")
+
       {lines, %{board | world: world}}
     end)
   end
