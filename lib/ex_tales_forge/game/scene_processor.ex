@@ -79,9 +79,8 @@ defmodule TalesForge.Game.SceneProcessor do
 
   defp generate_scene(%GameSession{} = session, location_id) do
     gm_context = Context.build_gm_context(session)
-    user_prompt = Context.format_gm_prompt(gm_context)
 
-    case LLM.complete_scene(Prompts.scene_system(), user_prompt, gm_context.intent_context,
+    case LLM.complete_scene(Prompts.scene_messages(gm_context), gm_context.intent_context,
            session_id: session.id
          ) do
       {:ok, %{location_name: location_name, narrative: narrative}} ->

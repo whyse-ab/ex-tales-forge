@@ -52,14 +52,10 @@ defmodule TalesForge.Game.TurnProcessor do
            apply_board(session, character, handler, player_action, mechanical),
          mechanical <- %{mechanical | improvements: improvements, training: training},
          gm_context <- Context.build_gm_context(%{session | world_state: world_board}),
-         user <- Context.format_gm_prompt(gm_context) <> Context.mechanical_bounds(mechanical),
+         messages <-
+           Prompts.gm_messages(gm_context, mechanical, player_action, handler, turn_number),
          {:ok, gm_result} <-
-           LLM.complete_turn(
-             Prompts.gm_system(),
-             user,
-             player_action,
-             handler,
-             turn_number,
+           LLM.complete_turn(messages, player_action, handler, turn_number,
              session_id: session_id
            ),
          world_final <- apply_allowlisted_patches(world_board, gm_result),
@@ -92,11 +88,7 @@ defmodule TalesForge.Game.TurnProcessor do
 
   @doc false
   def simulate!(session, raw_action, player_action, handler, mechanical, opts \\ []) do
-    gm_result = %GMStructuredResponse{
-      narrative: "ok",
-      state_updates: [],
-      context_summary: nil
-    }
+    gm_result = %GMStructuredResponse{narrative: "ok", context_summary: nil}
 
     character = Map.get(session.world_state || %{}, "character", %{})
     turn_number = next_turn_number(session.id)
@@ -238,11 +230,7 @@ defmodule TalesForge.Game.TurnProcessor do
              sim
            ),
          :ok <-
-           NPC.apply_gm_updates(
-             session.id,
-             %{gm_result | state_updates: []},
-             Map.get(world_after, "world_tick")
-           ),
+           NPC.apply_gm_updates(session.id, gm_result, Map.get(world_after, "world_tick")),
          :ok <- NPCRegistry.sync(session),
          :ok <- maybe_emit_turn_signals(session, world_after, handler, raw_action) do
       {:ok,

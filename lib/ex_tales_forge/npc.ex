@@ -310,12 +310,6 @@ defmodule TalesForge.NPC do
       append_memory(session_id, update, world_tick)
     end)
 
-    gm_result.state_updates
-    |> List.wrap()
-    |> Enum.each(fn update ->
-      apply_state_update(session_id, update)
-    end)
-
     :ok
   end
 
@@ -483,34 +477,6 @@ defmodule TalesForge.NPC do
     :ok
   end
 
-  defp apply_state_update(session_id, %{"path" => path, "patch" => patch})
-       when is_binary(path) and is_map(patch) do
-    cond do
-      String.starts_with?(path, "npcs/") ->
-        npc_id = path |> String.split("/") |> Enum.at(1)
-        apply_npc_patch(session_id, npc_id, patch)
-
-      String.starts_with?(path, "characters/") ->
-        :ok
-
-      true ->
-        :ok
-    end
-  end
-
-  defp apply_state_update(_session_id, _update), do: :ok
-
-  defp apply_npc_patch(session_id, npc_id, patch) when is_binary(npc_id) do
-    case get_instance(session_id, npc_id) do
-      %NpcInstance{} = inst ->
-        runtime = deep_merge(inst.runtime_state, patch)
-        update_runtime!(inst, runtime)
-
-      nil ->
-        :ok
-    end
-  end
-
   defp update_runtime!(%NpcInstance{} = inst, runtime_state) do
     inst
     |> NpcInstance.changeset(%{runtime_state: runtime_state})
@@ -587,14 +553,6 @@ defmodule TalesForge.NPC do
     |> File.read!()
     |> Jason.decode!()
   end
-
-  defp deep_merge(left, right) when is_map(left) and is_map(right) do
-    Map.merge(left, right, fn _key, l, r ->
-      if is_map(l) and is_map(r), do: deep_merge(l, r), else: r
-    end)
-  end
-
-  defp deep_merge(_left, right), do: right
 
   defp maybe_escalate_concern(waiting, concern) when waiting >= 4 do
     priority = min(10, Map.get(concern, "priority", 5) + 1)
