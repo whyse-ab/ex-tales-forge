@@ -16,7 +16,8 @@ defmodule TalesForge.CodingStandardsTest do
     TalesForge.World,
     TalesForge.World.Agent,
     TalesForge.World.Extract,
-    TalesForge.World.Prices
+    TalesForge.World.Prices,
+    TalesForgeWeb.TimeAgo
   ]
 
   for module <- @documented do

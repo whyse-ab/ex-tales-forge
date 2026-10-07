@@ -8,13 +8,18 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
   import TalesForgeWeb.AdminComponents
 
   alias TalesForge.Playtest.{Reports, Runner, Scorer}
+  alias TalesForgeWeb.TimeAgo
 
   @refresh_ms 3_000
+  # Re-render the "N minutes ago" words this often, also once the run is done.
+  @tick_ms 60_000
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
     case Reports.get_run(id) do
       {:ok, run} ->
+        if connected?(socket), do: :timer.send_interval(@tick_ms, :tick)
+
         {:ok,
          socket
          |> assign(:page_title, "Playtest run")
@@ -29,6 +34,8 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
   end
 
   @impl true
+  def handle_info(:tick, socket), do: {:noreply, assign(socket, :now, DateTime.utc_now())}
+
   def handle_info(:refresh, socket) do
     {:ok, run} = Reports.get_run(socket.assigns.run.id)
     {:noreply, load(socket, run)}
@@ -65,6 +72,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
       do: Process.send_after(self(), :refresh, @refresh_ms)
 
     socket
+    |> assign(:now, DateTime.utc_now())
     |> assign(:run, run)
     |> assign(:opening, Reports.opening(run.game_session_id))
     |> assign(:turns, Reports.turn_records(run.game_session_id))
@@ -83,7 +91,9 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
           <span class="capitalize">{@run.persona}</span> · {@run.module}
         </h2>
         <p class="text-sm text-[var(--paper-muted)]">
-          Build {@run.build || "—"} · started {Calendar.strftime(@run.started_at, "%Y-%m-%d %H:%M")} UTC ·
+          Build {@run.build || "—"} · started
+          <.time_ago id="run-started" at={@run.started_at} now={@now} />
+          ({TimeAgo.stockholm(@run.started_at)}) ·
           <.link
             navigate={~p"/admin/sessions/#{@run.game_session_id}"}
             class="text-[var(--paper-accent)]"
@@ -107,7 +117,8 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
             {score_headline(@score)}
           </p>
           <p class="text-xs text-[var(--paper-muted)]">
-            {score_meta(@score)} · {Calendar.strftime(@score.inserted_at, "%Y-%m-%d %H:%M")} UTC
+            {score_meta(@score)} ·
+            <.time_ago id="score-scored-at" at={@score.inserted_at} now={@now} />
           </p>
           <p
             :if={@score.source == "jev" and @score.confidence}

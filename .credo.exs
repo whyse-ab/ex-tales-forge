@@ -83,7 +83,8 @@
                  "lib/ex_tales_forge/game/prompts.ex",
                  "lib/ex_tales_forge/game/npc_reactions.ex",
                  "lib/ex_tales_forge/world.ex",
-                 "lib/ex_tales_forge/world/"
+                 "lib/ex_tales_forge/world/",
+                 "lib/ex_tales_forge_web/time_ago.ex"
                ]
              }
            ]}
