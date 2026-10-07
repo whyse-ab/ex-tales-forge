@@ -74,6 +74,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
     |> assign(:game_total, total(game))
     |> assign(:scorer_cost, Enum.find(bots, &(&1.purpose == "scorer")))
     |> assign(:score, Reports.latest_score(run.id))
+    |> assign(:turn_affects, Reports.turn_affect_scores(run.id))
   end
 
   defp total(rows) do
@@ -125,15 +126,32 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
       <.section_card title="Score" id="score">
         <%= if @score do %>
           <p class="font-serif text-xl font-semibold text-[var(--paper-ink)]">
-            {if @score.overall, do: "#{@score.overall}/5", else: "No criterion could be scored"}
+            {score_headline(@score)}
           </p>
           <p class="text-xs text-[var(--paper-muted)]">
-            Rubric {@score.rubric_version} · {@score.model} · {Calendar.strftime(
-              @score.inserted_at,
-              "%Y-%m-%d %H:%M"
-            )} UTC
+            {score_meta(@score)} · {Calendar.strftime(@score.inserted_at, "%Y-%m-%d %H:%M")} UTC
           </p>
-          <ul class="space-y-2 text-sm">
+          <p
+            :if={@score.source == "jev" and @score.confidence}
+            id="score-confidence"
+            class="text-sm text-[var(--paper-ink)]"
+          >
+            Confidence {Float.round(@score.confidence * 100, 1)}%
+          </p>
+          <div
+            :if={@score.source == "jev" and @turn_affects != []}
+            id="turn-affect-strip"
+            class="flex flex-wrap gap-2 text-sm"
+          >
+            <span
+              :for={ta <- @turn_affects}
+              class="rounded border border-[var(--paper-rule)] bg-[var(--paper-bg)] px-2 py-1 tabular-nums"
+              title={"confidence #{ta.confidence && Float.round(ta.confidence * 100, 1)}%"}
+            >
+              T{ta.turn_number}: {ta.overall || "—"}
+            </span>
+          </div>
+          <ul :if={@score.source != "jev"} class="space-y-2 text-sm">
             <li
               :for={{criterion, result} <- Enum.sort(@score.scores)}
               class="rounded border border-[var(--paper-rule)] bg-[var(--paper-bg)] p-2"
@@ -277,6 +295,17 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
     <td class="py-1">{@row.errors}</td>
     """
   end
+
+  defp score_headline(%{source: "jev", overall: overall}) when is_number(overall),
+    do: "#{overall}/5 persona affect"
+
+  defp score_headline(%{overall: overall}) when is_number(overall), do: "#{overall}/5"
+  defp score_headline(_score), do: "No criterion could be scored"
+
+  defp score_meta(%{source: "jev"} = score),
+    do: "Jev #{score.kind} · #{score.rubric_version} · #{score.model}"
+
+  defp score_meta(score), do: "Rubric #{score.rubric_version} · #{score.model}"
 
   defp status_text(%{stop_reason: nil, status: status}), do: status
   defp status_text(%{stop_reason: reason, status: status}), do: "#{status} · #{reason}"

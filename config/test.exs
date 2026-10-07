@@ -57,3 +57,11 @@ config :ex_tales_forge, :llm_req_options, plug: {Req.Test, TalesForge.LLM}
 # Admin costs page peer HTTP goes to Req.Test stubs; the peer URL/token are
 # unset unless a test puts them.
 config :ex_tales_forge, :costs_peer_req_options, plug: {Req.Test, TalesForge.Costs.Peer}
+
+# Jev HTTP goes to Req.Test stubs; no real TypeSafe calls in CI.
+# Jev HTTP goes to Req.Test when a test sets :api_key; default nil so Scorer
+# keeps using the LLM stub unless a Jev test opts in.
+config :jev,
+  api_key: nil,
+  model: "jev-1.13.0",
+  req_options: [plug: {Req.Test, Jev.HTTP}, retry_delay: 0]

@@ -1,9 +1,12 @@
 defmodule TalesForge.Playtest.Scorer do
   @moduledoc """
-  LLM judge for a finished playtest run. One call reads the session record (the
-  transcript as the player saw it, plus the server rolls and the GM's hidden
-  notes) and scores it against the persona's scorecard from personas.md, quoting
-  the turn behind each score. Each call stores a `playtest_scores` row.
+  Scores a finished playtest run.
+
+  When `TYPESAFE_API_KEY` is set, the primary path is
+  `TalesForge.Playtest.JevScorer` (persona-affect, player-visible text only).
+  When the key is unset, falls back to the LLM rubric judge: one call reads the
+  transcript plus server rolls and GM hidden notes, scores against the persona's
+  scorecard from personas.md, and stores a `playtest_scores` row with evidence.
 
   Off unless `PLAYTEST_RUNNER_ENABLED=true`. Calls are recorded in ai_calls as
   `scorer`: outside the session cap and the game's cost, inside the day cap.
@@ -13,7 +16,7 @@ defmodule TalesForge.Playtest.Scorer do
 
   alias TalesForge.GameSessions
   alias TalesForge.LLM
-  alias TalesForge.Playtest.{Personas, Reports, Runner}
+  alias TalesForge.Playtest.{JevScorer, Personas, Reports, Runner}
   alias TalesForge.Repo
   alias TalesForge.Schemas.PlaytestScore
 
@@ -27,6 +30,14 @@ defmodule TalesForge.Playtest.Scorer do
   """
 
   def score(run_id) do
+    if JevScorer.configured?() do
+      JevScorer.score(run_id)
+    else
+      llm_score(run_id)
+    end
+  end
+
+  defp llm_score(run_id) do
     case do_score(run_id) do
       {:ok, score} ->
         {:ok, score}
@@ -56,7 +67,9 @@ defmodule TalesForge.Playtest.Scorer do
         rubric_version: rubric_version(persona.scorecard),
         scores: scores,
         overall: overall(scores),
-        rationale: rationale
+        rationale: rationale,
+        source: "llm",
+        kind: "rubric"
       })
       |> Repo.insert()
     end
