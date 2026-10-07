@@ -235,12 +235,29 @@ defmodule TalesForge.CharacterCreationTest do
       assert :ok = d |> named() |> CC.validate()
     end
 
-    test "is recorded in creation; the levers still come from 'adventurer'" do
+    test "is recorded in creation and drives the levers, as for an NPC" do
       {:ok, c} = draft() |> CC.choose_class("warrior") |> ok!() |> named() |> CC.finalize()
+      soldier = Defaults.rules(@adventure)["occupations"]["soldier"]
 
       assert c["creation"]["occupation"] == "soldier"
-      assert c["creation"]["derive"]["occupation"] == "adventurer"
-      assert c["maslow"] == "esteem"
+      assert c["creation"]["derive"]["occupation"] == "soldier"
+      assert c["maslow"] == soldier["maslow"]
+
+      assert Enum.map(c["concerns"], & &1["focus"]) ==
+               Enum.map(soldier["concerns"], & &1["focus"])
+
+      {:ok, scholar} =
+        draft()
+        |> CC.choose_class("warrior")
+        |> ok!()
+        |> CC.choose_occupation("scholar")
+        |> ok!()
+        |> named()
+        |> CC.finalize()
+
+      assert scholar["maslow"] == "esteem"
+      assert [%{"focus" => "knowledge"}] = scholar["concerns"]
+      assert scholar["ocean"] != c["ocean"]
     end
   end
 
@@ -454,8 +471,9 @@ defmodule TalesForge.CharacterCreationTest do
 
       assert Pack.validate_player_character!(c, "test") == c
       assert :ok = Levers.validate!(c, "test")
-      assert c["maslow"] == "esteem"
-      assert [%{"focus" => "fame"}] = c["concerns"]
+      # the levers follow the hunter occupation
+      assert c["maslow"] == "physiological"
+      assert [%{"focus" => "food"}] = c["concerns"]
     end
 
     test "OCEAN is seeded per character: stable for a draft, can differ between drafts", %{

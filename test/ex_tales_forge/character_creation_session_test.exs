@@ -56,8 +56,9 @@ defmodule TalesForge.CharacterCreationSessionTest do
                openness: character["ocean"]["openness"]
              }
 
-      assert Enum.map(row.concerns, & &1.focus) == ["fame"]
-      assert row.maslow_level == "esteem"
+      # a former thief: the levers follow the occupation
+      assert Enum.map(row.concerns, & &1.focus) == ["freedom"]
+      assert row.maslow_level == "safety"
       refute Repo.get_by(Character, game_session_id: session.id, slug: "elara_voss")
     end
   end

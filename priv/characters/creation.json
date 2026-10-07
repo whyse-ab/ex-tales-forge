@@ -39,7 +39,7 @@
     }
   },
   "occupation": {
-    "_doc": "A player character's past occupation, from the defaults.json occupation tables: free levels on its core skills (core_bonus) and secondary skills (secondary_bonus), stacked on the class package and race bonus. choices are the occupations a player may pick; class_defaults the suggestion per class. It feeds the skills only: the levers (OCEAN, Maslow, concerns) still derive from 'adventurer', who the character is now.",
+    "_doc": "A player character's past occupation, from the defaults.json occupation tables: free levels on its core skills (core_bonus) and secondary skills (secondary_bonus), stacked on the class package and race bonus. choices are the occupations a player may pick; class_defaults the suggestion per class. It feeds the skills and, as for NPCs, the OCEAN, Maslow and concerns defaults (derive.occupation is only the fallback).",
     "core_bonus": 2,
     "secondary_bonus": 1,
     "choices": ["laborer", "innkeep", "barkeep", "merchant", "guard", "soldier", "hunter", "miner", "priest", "scholar", "thief", "noble"],

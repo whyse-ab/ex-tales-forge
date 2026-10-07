@@ -33,7 +33,7 @@ defmodule TalesForge.CharacterCreation do
   * **`finalize/1`** returns a character in the shape of a pack character file
     (sheet plus levers), ready for `TalesForge.GameSessions.create_session/1`.
     OCEAN, Maslow level, concerns and coins come from `Defaults.derive/3` with
-    the draft's seed.
+    the draft's race, class and past occupation (like an NPC's) and its seed.
 
   The functions that change a draft return `{:ok, draft}` or
   `{:error, reason}` for input that can never be valid (an unknown label, a stat
@@ -405,6 +405,7 @@ defmodule TalesForge.CharacterCreation do
       derived =
         creation["derive"]
         |> Map.merge(%{"race" => draft.race, "class" => draft.class})
+        |> Map.put("occupation", draft.occupation || creation["derive"]["occupation"])
         |> Defaults.derive(rules["labels"], Defaults.seed(draft.seed_key, slug))
 
       {:ok,
@@ -433,7 +434,7 @@ defmodule TalesForge.CharacterCreation do
            "occupation" => draft.occupation,
            "skill_choices" => draft.skills,
            "skill_points_spent" => skill_points_spent(draft, rules),
-           "derive" => creation["derive"]
+           "derive" => Map.put(creation["derive"], "occupation", draft.occupation)
          }
        }}
     end
