@@ -2,13 +2,16 @@ defmodule TalesForge.Game.Mechanics do
   @moduledoc """
   Server-side dice rolls and Learning Points (ported from text-forge).
 
-  Progression follows the old game's tiers (`game-system.json` `progression`,
-  2026-10-07): a skill can try to improve once it has the tier's Learning
-  Points (Novice 0–5: 5, Adept 6–10: 7, Expert 11–15: 10, Master 16+: 15) and
-  at least one failure since the last attempt. The improvement roll is 1d20
-  plus the tier modifier (Expert −3, Master −5) against the raw level (a
-  trainer lowers the target by 5). Each roll's LP gets the linked stat's bonus
-  `(stat − 10) div 4`, from 0 to +2.
+  A skill check rolls 1d20 against the effective level (raw level plus the
+  linked stat's bonus, or the untrained floor at level 0): equal or under
+  succeeds. Each roll earns Learning Points (failure 1, success 0.5, natural
+  20 2, natural 1 1) plus the linked stat's bonus `(stat − 10) div 4`, from 0
+  to +2. What the LP buy is `TalesForge.Game.Progression` (default variant:
+  1 LP = one improvement attempt) or `TalesForge.Game.Progression.Tiered`
+  (baseline variant). Failures are still counted in `learning_failures`; only
+  the baseline variant's rule reads them.
+
+  Vitality (wounds, down, death rolls) is here too.
   """
 
   alias TalesForge.Game.Schemas.{HandlerResult, MechanicalResolution, PlayerAction}
@@ -33,9 +36,6 @@ defmodule TalesForge.Game.Mechanics do
     "arcana" => "INT"
   }
 
-  # {highest raw level in the tier, LP to attempt, improvement roll modifier}
-  @tiers [{5, 5, 0}, {10, 7, 0}, {15, 10, -3}, {nil, 15, -5}]
-  @min_failures 1
   @lp_stat_bonus_max 2
 
   @action_skill_hints [
@@ -68,8 +68,20 @@ defmodule TalesForge.Game.Mechanics do
 
   @combat_skills ~w(melee_combat ranged_combat unarmed_combat)
 
+  @doc ~S(The stat linked to each skill, e.g. `"stealth" => "DEX"`; unlisted skills use WIS.)
+  @spec skill_stat_map() :: %{String.t() => String.t()}
   def skill_stat_map, do: @skill_stat
 
+  @doc """
+  A skill name as the sheet keys it: trimmed, lower case, spaces as
+  underscores; nil for empty, "none" or "n/a".
+
+      iex> TalesForge.Game.Mechanics.normalize_skill_name(" Melee Combat ")
+      "melee_combat"
+      iex> TalesForge.Game.Mechanics.normalize_skill_name("none")
+      nil
+  """
+  @spec normalize_skill_name(term()) :: String.t() | nil
   def normalize_skill_name(nil), do: nil
 
   def normalize_skill_name(skill) do
@@ -112,6 +124,13 @@ defmodule TalesForge.Game.Mechanics do
     end)
   end
 
+  @doc """
+  The server's check for a turn: the skill the action or handler names (none
+  for move, inventory, wait and train), rolled with `perform_and_apply/3`.
+  Returns the updated character and the resolution.
+  """
+  @spec apply_server_mechanics(map(), PlayerAction.t(), HandlerResult.t()) ::
+          {map(), MechanicalResolution.t()}
   def apply_server_mechanics(
         character,
         %PlayerAction{} = player_action,
@@ -131,6 +150,16 @@ defmodule TalesForge.Game.Mechanics do
     end
   end
 
+  @doc """
+  The skill to check: none for the move, inventory, wait and train handlers,
+  else the action's skill or the handler's.
+
+      iex> TalesForge.Game.Mechanics.resolve_check_skill("wait", "insight", "stealth")
+      nil
+      iex> TalesForge.Game.Mechanics.resolve_check_skill("observe", "Insight", nil)
+      "insight"
+  """
+  @spec resolve_check_skill(String.t() | nil, term(), String.t() | nil) :: String.t() | nil
   def resolve_check_skill(handler, handler_skill, action_skill) do
     if handler in ["move", "inventory", "wait", "train"] do
       nil
@@ -139,6 +168,13 @@ defmodule TalesForge.Game.Mechanics do
     end
   end
 
+  @doc """
+  Rolls 1d20 for `skill` (inject `injected_roll` in tests), adds the LP it
+  earns and counts a failure. LP are only earned here; spending them is
+  `TalesForge.Game.Progression`.
+  """
+  @spec perform_and_apply(map(), String.t() | nil, 1..20 | nil) ::
+          {map(), MechanicalResolution.t()}
   def perform_and_apply(character, skill, injected_roll \\ nil) do
     normalized = normalize_skill_name(skill) || "insight"
     raw_level = character |> get_in(["skills", normalized]) |> to_int(0)
@@ -172,80 +208,6 @@ defmodule TalesForge.Game.Mechanics do
   end
 
   @doc """
-  One improvement 1d20 per eligible skill. Inject `rolls` in tests (`skill => 1..20`).
-  """
-  def attempt_improvements(character, rolls \\ %{}) when is_map(character) and is_map(rolls) do
-    lp_map = Map.get(character, "learning_points", %{})
-    fail_map = Map.get(character, "learning_failures", %{})
-
-    eligible =
-      (Map.keys(lp_map) ++ Map.keys(fail_map))
-      |> Enum.uniq()
-      |> Enum.sort()
-      |> Enum.filter(&eligible_skill?(character, &1))
-
-    Enum.reduce(eligible, {character, []}, fn skill, {char, acc} ->
-      raw = char |> get_in(["skills", skill]) |> to_int(0)
-
-      if raw >= 16 do
-        entry = %{
-          "skill" => skill,
-          "raw_skill" => raw,
-          "improved" => false,
-          "auto_fail" => true
-        }
-
-        {char, acc ++ [entry]}
-      else
-        {updated, entry} = attempt_skill(char, skill, rolls)
-        {updated, acc ++ [entry]}
-      end
-    end)
-  end
-
-  @doc """
-  One trainer improvement 1d20. Hit if roll + the tier modifier > raw - 5.
-  Inject `rolls` in tests.
-  """
-  def attempt_trained_skill(character, skill, rolls \\ %{})
-      when is_map(character) and is_binary(skill) and is_map(rolls) do
-    {updated, entry} = attempt_skill(character, skill, rolls, 5)
-    {updated, [entry]}
-  end
-
-  @doc """
-  Whether a skill may try to improve: its tier's Learning Points
-  (`lp_threshold/1`) and at least one failure since the last attempt.
-  """
-  @spec skill_eligible?(term(), term()) :: boolean()
-  def skill_eligible?(character, skill) when is_map(character) and is_binary(skill) do
-    eligible_skill?(character, skill)
-  end
-
-  def skill_eligible?(_, _), do: false
-
-  @doc """
-  Learning Points a skill needs before it may try to improve, by its raw
-  level's tier: Novice (0–5) 5, Adept (6–10) 7, Expert (11–15) 10, Master
-  (16+) 15.
-
-      iex> Enum.map([0, 5, 6, 11, 16], &TalesForge.Game.Mechanics.lp_threshold/1)
-      [5, 5, 7, 10, 15]
-  """
-  @spec lp_threshold(integer()) :: pos_integer()
-  def lp_threshold(raw) when is_integer(raw), do: raw |> tier() |> elem(1)
-
-  @doc """
-  The improvement roll modifier by tier: 0 up to Adept, −3 at Expert (11–15),
-  −5 at Master (16+).
-
-      iex> Enum.map([10, 11, 16], &TalesForge.Game.Mechanics.improvement_modifier/1)
-      [0, -3, -5]
-  """
-  @spec improvement_modifier(integer()) :: integer()
-  def improvement_modifier(raw) when is_integer(raw), do: raw |> tier() |> elem(2)
-
-  @doc """
   Extra Learning Points per roll from the linked stat: `(stat − 10) div 4`,
   from 0 to +2 (a low stat costs nothing, so growth never stalls).
 
@@ -259,11 +221,14 @@ defmodule TalesForge.Game.Mechanics do
   @doc """
   Wound cap from CON. Minimum 1 (CON 3).
   """
+  @spec wound_max(map()) :: pos_integer()
   def wound_max(character) when is_map(character) do
     con = character |> get_in(["stats", "CON"]) |> to_int(10)
     max(1, 3 + div(con - 10, 2))
   end
 
+  @doc ~S(The character's vitality: "ok", "hurt", "down" when wounds reach the cap, or "dead".)
+  @spec vitality(map()) :: String.t()
   def vitality(character) when is_map(character) do
     cond do
       Map.get(character, "vitality") == "dead" -> "dead"
@@ -273,6 +238,8 @@ defmodule TalesForge.Game.Mechanics do
     end
   end
 
+  @doc "True when the character (or the world_state's character) is dead."
+  @spec dead?(term()) :: boolean()
   def dead?(world_or_character) when is_map(world_or_character) do
     Map.get(world_or_character, "vitality") == "dead" or
       get_in(world_or_character, ["character", "vitality"]) == "dead"
@@ -284,6 +251,7 @@ defmodule TalesForge.Game.Mechanics do
   Apply at most one wound or one death roll after the perception snapshot.
   Inject `opts[:death_roll]` (1..20) in tests.
   """
+  @spec apply_vitality(map(), MechanicalResolution.t() | nil, keyword()) :: map()
   def apply_vitality(world, mechanical, opts \\ []) when is_map(world) do
     character = Map.get(world, "character", %{})
     facts = Map.get(world, "public_facts", [])
@@ -397,48 +365,8 @@ defmodule TalesForge.Game.Mechanics do
     end
   end
 
-  defp eligible_skill?(character, skill) do
-    raw = character |> get_in(["skills", skill]) |> to_int(0)
-    lp = character |> Map.get("learning_points", %{}) |> Map.get(skill, 0) |> to_float()
-    failures = character |> Map.get("learning_failures", %{}) |> Map.get(skill, 0) |> to_int(0)
-    lp >= lp_threshold(raw) and failures >= @min_failures
-  end
-
-  defp tier(raw), do: Enum.find(@tiers, fn {top, _lp, _mod} -> is_nil(top) or raw <= top end)
-
   defp linked_stat(character, skill) do
     character |> get_in(["stats", Map.get(@skill_stat, skill, "WIS")]) |> to_int(10)
-  end
-
-  defp attempt_skill(character, skill, rolls, target_offset \\ 0) do
-    roll = Map.get(rolls, skill) || :rand.uniform(20)
-    raw = character |> get_in(["skills", skill]) |> to_int(0)
-    modifier = improvement_modifier(raw)
-    improved = roll + modifier > raw - target_offset
-
-    prepared =
-      character
-      |> Map.put_new("skills", %{})
-      |> Map.put_new("learning_points", %{})
-      |> Map.put_new("learning_failures", %{})
-
-    updated =
-      if improved do
-        prepared
-        |> put_in(["skills", skill], raw + 1)
-        |> put_in(["learning_points", skill], 0)
-        |> put_in(["learning_failures", skill], 0)
-      else
-        prepared
-        |> put_in(["learning_points", skill], 1.0)
-        |> put_in(["learning_failures", skill], 0)
-      end
-
-    entry =
-      %{"skill" => skill, "roll" => roll, "raw_skill" => raw, "improved" => improved}
-      |> then(&if modifier == 0, do: &1, else: Map.put(&1, "modifier", modifier))
-
-    {updated, entry}
   end
 
   # A trained skill: level plus the linked stat's bonus ((stat - 10) div 2).
