@@ -29,8 +29,11 @@ defmodule TalesForge.PlaytestHelpers do
   def stub_llm(reply) do
     Req.Test.stub(TalesForge.LLM, fn conn ->
       {:ok, body, conn} = Plug.Conn.read_body(conn)
-      %{"messages" => [%{"content" => system}, %{"content" => user}]} = Jason.decode!(body)
-      kind = kind(system, user)
+
+      %{"messages" => [%{"content" => system}, %{"content" => user} | _]} =
+        request = Jason.decode!(body)
+
+      kind = kind(system, user, request)
 
       content =
         case reply.(kind, user) do
@@ -55,11 +58,11 @@ defmodule TalesForge.PlaytestHelpers do
     System.put_env("XAI_API_KEY", "test-key")
   end
 
-  defp kind(system, user) do
+  defp kind(system, user, request) do
     cond do
       system =~ "You are the judge" -> :scorer
       system =~ "You are a playtest bot" -> :persona
-      user =~ "gm_notes" -> :gm
+      get_in(request, ["response_format", "json_schema", "name"]) == "gm_turn" -> :gm
       user =~ "overall_intent" -> :intent
       true -> :scene
     end
