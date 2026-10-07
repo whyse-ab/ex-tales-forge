@@ -387,13 +387,29 @@ defmodule TalesForge.Game.Mechanics do
     {updated, entry}
   end
 
+  # Skill level plus the linked stat's bonus ((stat - 10) div 2), never below
+  # the untrained floor max(stat div 3, bonus): anyone can try with raw talent,
+  # and training never makes a character worse than that (old rules, 2026-10-07).
   defp effective_skill_level(character, skill) do
     base = character |> get_in(["skills", skill]) |> to_int(0)
     stat_key = Map.get(@skill_stat, skill, "WIS")
     stat_value = character |> get_in(["stats", stat_key]) |> to_int(10)
     bonus = div(stat_value - 10, 2)
-    max(0, base + bonus)
+    Enum.max([0, base + bonus, untrained_floor(stat_value)])
   end
+
+  @doc """
+  The untrained roll floor for a stat: `max(stat div 3, (stat - 10) div 2)`.
+  An untrained character rolls against it, and a trained one never lower.
+
+      iex> TalesForge.Game.Mechanics.untrained_floor(12)
+      4
+      iex> TalesForge.Game.Mechanics.untrained_floor(18)
+      6
+  """
+  @spec untrained_floor(integer()) :: non_neg_integer()
+  def untrained_floor(stat) when is_integer(stat),
+    do: max(0, max(div(stat, 3), div(stat - 10, 2)))
 
   defp resolve_outcome(1, _effective, _raw), do: "success"
   defp resolve_outcome(20, _effective, raw) when raw >= 15, do: "partial_success"

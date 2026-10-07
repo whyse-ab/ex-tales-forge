@@ -32,7 +32,7 @@ defmodule TalesForge.CharacterCreationTest do
       assert opts.point_buy == %{"budget" => 75, "min" => 3, "max" => 18}
     end
 
-    test "race choices and class skill points are shown" do
+    test "race choices, race skill bonuses and the class package are shown" do
       opts = CC.options(@adventure)
       human = Enum.find(opts.races, &(&1.id == "human"))
       elf = Enum.find(opts.races, &(&1.id == "elf"))
@@ -41,7 +41,130 @@ defmodule TalesForge.CharacterCreationTest do
       assert human.choice["count"] == 2
       assert elf.choice["from"] == ["INT", "WIS"]
       assert Enum.find(opts.races, &(&1.id == "dwarf")).choice == nil
-      assert warrior.skills == %{"melee_combat" => 3, "tactics" => 2}
+      assert warrior.skills == %{"melee_combat" => 3, "tactics" => 2, "intimidation" => 1}
+      assert human.skill_bonus == %{"pool" => 5}
+      assert elf.skill_bonus == %{"fixed" => %{"ranged_combat" => 3, "survival" => 2}}
+
+      assert %{"budget" => 25, "cap" => 5, "signature_cap" => 7, "signature_max" => 2} =
+               opts.skills
+
+      assert %{id: "arcana", stat: "INT"} in opts.skill_list
+    end
+  end
+
+  describe "skills" do
+    defp chosen(race, class) do
+      draft() |> CC.choose_race(race) |> ok!() |> CC.choose_class(class) |> ok!()
+    end
+
+    # A clean slate: no bought levels, so only the free ones.
+    defp bare(d), do: %{d | skill_buys: %{}, edited: MapSet.put(d.edited, :skills)}
+
+    test "level costs: 1 each for levels 1-3, 2 each for 4-5, 3 each for 6-7" do
+      assert CC.level_cost(@adventure, 0, 3) == 3
+      assert CC.level_cost(@adventure, 0, 5) == 7
+      assert CC.level_cost(@adventure, 0, 7) == 13
+      assert CC.level_cost(@adventure, 3, 5) == 4
+      assert CC.level_cost(@adventure, 5, 5) == 0
+    end
+
+    test "the class package gives all three class skills at 3, 2 and 1, for free" do
+      d = chosen("human", "warrior") |> bare()
+
+      assert CC.free_skills(d) == %{"melee_combat" => 3, "tactics" => 2, "intimidation" => 1}
+      assert CC.skill_points_spent(d) == 0
+    end
+
+    test "Human adds 5 points and Half-Elf 3 to the 25-point budget; others have fixed skills" do
+      assert CC.skill_budget(chosen("human", "none")) == 30
+      assert CC.skill_budget(chosen("half_elf", "none")) == 28
+      assert CC.skill_budget(chosen("gnome", "none")) == 25
+
+      assert CC.free_skills(chosen("halfling", "none")) == %{"stealth" => 3, "lockpicking" => 2}
+      assert CC.free_skills(chosen("gnome", "none")) == %{"arcana" => 3, "lockpicking" => 2}
+    end
+
+    test "free levels stack: a race skill that is also a class skill can start as a signature skill" do
+      d = chosen("dwarf", "warrior") |> bare()
+
+      assert CC.free_skills(d)["melee_combat"] == 6
+      assert CC.signature_skills(d) == ["melee_combat"]
+      assert CC.skill_budget(d) == 25
+    end
+
+    test "bought levels cost from the free level up and count against the budget" do
+      d = chosen("human", "warrior") |> bare()
+      {:ok, d} = CC.set_skill(d, "melee_combat", 5)
+      {:ok, d} = CC.set_skill(d, "climbing", 4)
+
+      assert CC.skill_levels(d)["melee_combat"] == 5
+      assert d.skill_buys == %{"melee_combat" => 2, "climbing" => 4}
+      assert CC.skill_points_spent(d) == 4 + 5
+      assert CC.skill_points_left(d) == 30 - 9
+    end
+
+    test "a skill can't go below its free level, past 7, or be unknown" do
+      d = chosen("human", "warrior")
+
+      assert {:error, {:skills, msg}} = CC.set_skill(d, "melee_combat", 2)
+      assert msg =~ "starts at 3"
+      assert {:error, {:skills, _}} = CC.set_skill(d, "stealth", 8)
+      assert {:error, {:skills, _}} = CC.set_skill(d, "alchemy", 2)
+    end
+
+    test "setting a skill back to its free level forgets the purchase" do
+      {:ok, d} = chosen("human", "warrior") |> bare() |> CC.set_skill("tactics", 4)
+      {:ok, d} = CC.set_skill(d, "tactics", 2)
+
+      assert d.skill_buys == %{}
+    end
+
+    test "overspending, a third signature skill and too few skills are errors" do
+      d = chosen("human", "warrior") |> bare() |> named()
+
+      assert {:error, [{:skills, few}]} = CC.validate(d)
+      assert few =~ "at least 5 skills; 3 so far"
+
+      {:ok, d} = CC.set_skill(d, "climbing", 1)
+      {:ok, d} = CC.set_skill(d, "stealth", 1)
+      assert :ok = CC.validate(d)
+
+      {:ok, d} = CC.set_skill(d, "melee_combat", 7)
+      {:ok, d} = CC.set_skill(d, "tactics", 6)
+      {:ok, d} = CC.set_skill(d, "climbing", 6)
+      {:ok, d} = CC.set_skill(d, "stealth", 5)
+      assert {:error, errors} = CC.validate(d)
+      assert Enum.any?(errors, fn {:skills, m} -> m =~ "2 signature skills at most" end)
+      assert Enum.any?(errors, fn {:skills, m} -> m =~ "30 skill points at most" end)
+    end
+
+    test "the suggestion is a valid spread build within the budget, no signature skill bought" do
+      for race <- ~w(human elf dwarf gnome halfling half_elf),
+          class <- ~w(none warrior thief wizard) do
+        d = chosen(race, class) |> named()
+        free = CC.free_skills(d)
+
+        assert :ok = CC.validate(d), "#{race}/#{class}"
+        assert CC.skill_points_left(d) in 0..2, "#{race}/#{class}"
+        assert map_size(CC.skill_levels(d)) >= 6, "#{race}/#{class}"
+
+        for {skill, level} <- CC.skill_levels(d),
+            level > 5,
+            do: assert(level == free[skill], "#{race}/#{class} bought #{skill} past 5")
+      end
+    end
+
+    test "levels the player bought are kept when the race or class changes" do
+      {:ok, d} = chosen("human", "warrior") |> CC.set_skill("stealth", 3)
+      {:ok, d} = CC.choose_class(d, "thief")
+
+      # the bought levels stay bought, now on top of the thief's free Stealth 3
+      assert d.skill_buys["stealth"] == 3
+      assert CC.skill_levels(d)["stealth"] == 6
+      assert MapSet.member?(d.edited, :skills)
+
+      d = CC.suggest_skills(d)
+      refute MapSet.member?(d.edited, :skills)
     end
   end
 
@@ -232,7 +355,18 @@ defmodule TalesForge.CharacterCreationTest do
                "CHA" => 10
              }
 
-      assert c["skills"] == %{"ranged_combat" => 3, "tracking" => 2}
+      # ranger package 3/2/1 plus the elf's Ranged Combat +3 and Survival +2, then the
+      # suggested spread build
+      assert c["skills"] == %{
+               "ranged_combat" => 6,
+               "tracking" => 5,
+               "survival" => 5,
+               "dodge" => 4,
+               "lockpicking" => 4,
+               "stealth" => 4
+             }
+
+      assert c["creation"]["skill_points_spent"] == 24
       assert c["wound_max"] == Mechanics.wound_max(%{"stats" => c["stats"]})
       assert c["coins"] == Defaults.rules(@adventure)["standings"]["commoner"]["coins"]
       assert [%{"id" => "travel_cloak"}, %{"id" => "hunting_knife"}] = c["inventory"]

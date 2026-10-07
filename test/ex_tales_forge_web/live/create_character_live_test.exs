@@ -100,7 +100,9 @@ defmodule TalesForgeWeb.CreateCharacterLiveTest do
       assert row.name == "Sela Vorn"
       assert row.race == "elf"
       assert row.stats.dex == 16
-      assert row.skills == %{"ranged_combat" => 3, "tracking" => 2}
+      # ranger package 3/2/1 + elf Ranged Combat +3, Survival +2, then the suggested spread
+      assert %{"ranged_combat" => 6, "tracking" => 5, "survival" => 5} = row.skills
+      assert map_size(row.skills) >= 5
       assert row.origin["source"] == "created"
       refute Repo.get_by(Character, game_session_id: session.id, slug: "elara_voss")
 

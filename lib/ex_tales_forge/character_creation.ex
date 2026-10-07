@@ -16,9 +16,18 @@ defmodule TalesForge.CharacterCreation do
     and each final stat (after the race modifier) must be within the range. A
     race bonus that would push a stat past the maximum is an error, not a
     silent clamp.
+  * **Skills** (`creation.json` `skills`, ported from the old game's rules):
+    a 25-point skill budget where levels 1–3 cost 1 each and levels 4–5 cost 2
+    each, a normal cap of 5 and at least 5 skills. One or two **signature
+    skills** may go to 7; levels 6–7 cost 3 each. Free levels come first: the
+    class package (its three skills at 3, 2 and 1) and the race bonus (Human +5
+    and Half-Elf +3 points to the budget; Elf, Dwarf, Gnome and Halfling fixed
+    skill levels). Free levels stack, are subject to the same caps, and any the
+    caps cut off come back as points.
   * **Suggestions:** a new draft, or a new class, suggests base stats (the
-    suggested base plus the class's stat leanings) and race picks (the highest
-    eligible base stats). Parts the player has edited are kept.
+    suggested base plus the class's stat leanings), race picks (the highest
+    eligible base stats) and a spread skill build (`suggest_skills/1`). Parts
+    the player has edited are kept.
   * **`finalize/1`** returns a character in the shape of a pack character file
     (sheet plus levers), ready for `TalesForge.GameSessions.create_session/1`.
     OCEAN, Maslow level, concerns and coins come from `Defaults.derive/3` with
@@ -58,8 +67,9 @@ defmodule TalesForge.CharacterCreation do
 
   @doc """
   What a player chooses from: races and classes (id, description, stat
-  modifiers or leanings, race bonus choice, class skills with their starting
-  points) and the point-buy limits. Human and "none" come first.
+  modifiers or leanings, race bonus choice, race skill bonus, the class
+  package's skills with their free levels), the point-buy limits, the skill
+  rules and the skills with their linked stat. Human and "none" come first.
   """
   @spec options(String.t()) :: map()
   def options(adventure_id) when is_binary(adventure_id) do
@@ -75,7 +85,8 @@ defmodule TalesForge.CharacterCreation do
             id: id,
             description: get_in(descriptions, ["races", id]) || "",
             stats: race["stats"],
-            choice: race_choice(creation, id)
+            choice: race_choice(creation, id),
+            skill_bonus: race_bonus(creation, id)
           }
         end),
       classes:
@@ -90,6 +101,11 @@ defmodule TalesForge.CharacterCreation do
           }
         end),
       point_buy: creation["point_buy"],
+      skills: Map.delete(creation["skills"], "_doc"),
+      skill_list:
+        Mechanics.skill_stat_map()
+        |> Enum.sort()
+        |> Enum.map(fn {id, stat} -> %{id: id, stat: stat} end),
       name_max_length: creation["name_max_length"]
     }
   end
@@ -194,6 +210,51 @@ defmodule TalesForge.CharacterCreation do
       else: {:ok, %{draft | name: name}}
   end
 
+  @doc """
+  Sets a skill to `level` (its final level). The levels above the free ones
+  (class package, race bonus) are bought with skill points. A level below the
+  free one, above the signature cap, or an unknown skill is an error; the
+  budget, the signature count and the minimum number of skills are checked by
+  `validate/1`.
+  """
+  @spec set_skill(Draft.t(), String.t(), integer()) :: {:ok, Draft.t()} | {:error, error()}
+  def set_skill(%Draft{} = draft, skill, level) do
+    rules = rules(draft.adventure_id)
+    %{"signature_cap" => top} = rules["creation"]["skills"]
+    free = rules |> free_levels(draft) |> elem(0) |> Map.get(skill, 0)
+
+    cond do
+      not Map.has_key?(Mechanics.skill_stat_map(), skill) ->
+        {:error, {:skills, "unknown skill #{inspect(skill)}"}}
+
+      not is_integer(level) or level > top ->
+        {:error, {:skills, "#{label(skill)} goes up to #{top} at most"}}
+
+      level < free ->
+        {:error, {:skills, "#{label(skill)} starts at #{free} for free; it can't go lower"}}
+
+      true ->
+        buys =
+          if level == free,
+            do: Map.delete(draft.skill_buys, skill),
+            else: Map.put(draft.skill_buys, skill, level - free)
+
+        {:ok, %{draft | skill_buys: buys, edited: MapSet.put(draft.edited, :skills)}}
+    end
+  end
+
+  @doc "Re-suggests a spread skill build and forgets the skill levels the player bought."
+  @spec suggest_skills(Draft.t()) :: Draft.t()
+  def suggest_skills(%Draft{} = draft) do
+    rules = rules(draft.adventure_id)
+
+    %{
+      draft
+      | skill_buys: suggested_buys(draft, rules),
+        edited: MapSet.delete(draft.edited, :skills)
+    }
+  end
+
   # --- reading a draft ------------------------------------------------------------
 
   @doc "Points spent on the base stats."
@@ -214,8 +275,61 @@ defmodule TalesForge.CharacterCreation do
   def final_stats(%Draft{} = draft), do: final_stats(draft, rules(draft.adventure_id))
 
   @doc """
+  The free skill levels: the class package plus the race's fixed skill
+  bonus, after the caps.
+  """
+  @spec free_skills(Draft.t()) :: %{optional(String.t()) => pos_integer()}
+  def free_skills(%Draft{} = draft),
+    do: draft.adventure_id |> rules() |> free_levels(draft) |> elem(0)
+
+  @doc "The final skill levels: the free levels plus the levels bought."
+  @spec skill_levels(Draft.t()) :: %{optional(String.t()) => pos_integer()}
+  def skill_levels(%Draft{} = draft), do: skill_levels(draft, rules(draft.adventure_id))
+
+  @doc """
+  The skill budget: the base budget, plus the race's pool bonus, plus the
+  points refunded for free levels the caps cut off.
+  """
+  @spec skill_budget(Draft.t()) :: non_neg_integer()
+  def skill_budget(%Draft{} = draft), do: skill_budget(draft, rules(draft.adventure_id))
+
+  @doc "Skill points spent on the bought levels."
+  @spec skill_points_spent(Draft.t()) :: non_neg_integer()
+  def skill_points_spent(%Draft{} = draft),
+    do: skill_points_spent(draft, rules(draft.adventure_id))
+
+  @doc "Skill points left (negative when overspent)."
+  @spec skill_points_left(Draft.t()) :: integer()
+  def skill_points_left(%Draft{} = draft) do
+    rules = rules(draft.adventure_id)
+    skill_budget(draft, rules) - skill_points_spent(draft, rules)
+  end
+
+  @doc "The skills above the normal cap (at most two)."
+  @spec signature_skills(Draft.t()) :: [String.t()]
+  def signature_skills(%Draft{} = draft) do
+    rules = rules(draft.adventure_id)
+    cap = rules["creation"]["skills"]["cap"]
+    for {skill, level} <- Enum.sort(skill_levels(draft, rules)), level > cap, do: skill
+  end
+
+  @doc """
+  The price of raising a skill from level `from` to level `to` (0 when `to`
+  is not above `from`), from `creation.json` `level_costs`.
+
+      iex> TalesForge.CharacterCreation.level_cost("tin_valley", 0, 5)
+      7
+      iex> TalesForge.CharacterCreation.level_cost("tin_valley", 3, 7)
+      10
+  """
+  @spec level_cost(String.t(), non_neg_integer(), non_neg_integer()) :: non_neg_integer()
+  def level_cost(adventure_id, from, to),
+    do: cost(rules(adventure_id)["creation"]["skills"], from, to)
+
+  @doc """
   Checks a draft against the rules. Returns `:ok` or `{:error, errors}`, each
-  error a `{field, message}` pair (`:name`, `:stats`, `:race_picks`).
+  error a `{field, message}` pair (`:name`, `:stats`, `:race_picks`,
+  `:skills`).
   """
   @spec validate(Draft.t()) :: :ok | {:error, [error()]}
   def validate(%Draft{} = draft) do
@@ -235,7 +349,7 @@ defmodule TalesForge.CharacterCreation do
             {:stats,
              "#{stat} would be #{value} after the #{draft.race} modifier " <>
                "(#{signed(Map.get(modifiers, stat, 0))}); it must be #{lo}–#{hi}"}
-        end)
+        end) ++ skill_errors(draft, rules)
 
     case Enum.filter(errors, & &1) do
       [] -> :ok
@@ -270,7 +384,7 @@ defmodule TalesForge.CharacterCreation do
          "race" => draft.race,
          "class" => draft.class,
          "stats" => stats,
-         "skills" => class_skills(rules["labels"]["classes"][draft.class], creation),
+         "skills" => skill_levels(draft, rules),
          "learning_points" => %{},
          "learning_failures" => %{},
          "wounds" => 0,
@@ -286,6 +400,8 @@ defmodule TalesForge.CharacterCreation do
            "base_stats" => draft.base_stats,
            "race_picks" => draft.race_picks,
            "points_spent" => points_spent(draft),
+           "skill_buys" => draft.skill_buys,
+           "skill_points_spent" => skill_points_spent(draft, rules),
            "derive" => creation["derive"]
          }
        }}
@@ -323,6 +439,11 @@ defmodule TalesForge.CharacterCreation do
       if MapSet.member?(d.edited, :race_picks),
         do: d,
         else: %{d | race_picks: suggested_picks(d, rules)}
+    end)
+    |> then(fn d ->
+      if MapSet.member?(d.edited, :skills),
+        do: d,
+        else: %{d | skill_buys: suggested_buys(d, rules)}
     end)
   end
 
@@ -384,9 +505,156 @@ defmodule TalesForge.CharacterCreation do
 
   defp race_choice(creation, race), do: get_in(creation, ["race_choices", race])
 
+  # The class package: every class skill, at the package's free levels in order.
   defp class_skills(class, creation) do
-    class["skills"] |> Enum.zip(creation["class_skill_points"]) |> Map.new()
+    package = creation["skills"]["class_package"]
+
+    class["skills"]
+    |> Enum.with_index()
+    |> Map.new(fn {skill, i} -> {skill, Enum.at(package, i)} end)
   end
+
+  defp race_bonus(creation, race), do: get_in(creation, ["skills", "race_bonuses", race]) || %{}
+
+  # --- skills -----------------------------------------------------------------------
+
+  # Free levels before the caps, in priority order (class package, then race).
+  defp free_sources(draft, rules) do
+    creation = rules["creation"]
+    class = class_skills(rules["labels"]["classes"][draft.class], creation)
+    race = Map.get(race_bonus(creation, draft.race), "fixed", %{})
+    {Map.merge(class, race, fn _skill, a, b -> a + b end), Map.keys(class) ++ Map.keys(race)}
+  end
+
+  # {free levels after the caps, points refunded for the levels cut off}. A free
+  # level above the cap makes a signature skill; past the signature cap, or past
+  # the signature count (the highest free levels keep it), it is cut and refunded.
+  defp free_levels(rules, draft) do
+    sk = rules["creation"]["skills"]
+    {raw, _order} = free_sources(draft, rules)
+
+    signature =
+      raw
+      |> Enum.filter(fn {_s, l} -> l > sk["cap"] end)
+      |> Enum.sort_by(fn {s, l} -> {-l, s} end)
+      |> Enum.take(sk["signature_max"])
+      |> MapSet.new(fn {s, _l} -> s end)
+
+    Enum.reduce(raw, {%{}, 0}, fn {skill, level}, {acc, refund} ->
+      top = if MapSet.member?(signature, skill), do: sk["signature_cap"], else: sk["cap"]
+      kept = min(level, top)
+      {Map.put(acc, skill, kept), refund + refund_cost(sk, kept, level)}
+    end)
+  end
+
+  defp refund_cost(sk, kept, level) do
+    costs = sk["level_costs"]
+    last = List.last(costs)
+
+    if level > kept,
+      do: Enum.sum(for l <- (kept + 1)..level, do: Enum.at(costs, l - 1, last)),
+      else: 0
+  end
+
+  defp cost(sk, from, to) when to > from,
+    do:
+      Enum.sum(
+        for l <- (from + 1)..to,
+            do: Enum.at(sk["level_costs"], l - 1, List.last(sk["level_costs"]))
+      )
+
+  defp cost(_sk, _from, _to), do: 0
+
+  defp skill_levels(draft, rules) do
+    {free, _refund} = free_levels(rules, draft)
+
+    free
+    |> Map.merge(draft.skill_buys, fn _skill, f, b -> f + b end)
+    |> Map.reject(fn {_skill, level} -> level <= 0 end)
+  end
+
+  defp skill_budget(draft, rules) do
+    sk = rules["creation"]["skills"]
+    {_free, refund} = free_levels(rules, draft)
+    sk["budget"] + Map.get(race_bonus(rules["creation"], draft.race), "pool", 0) + refund
+  end
+
+  defp skill_points_spent(draft, rules) do
+    sk = rules["creation"]["skills"]
+    {free, _refund} = free_levels(rules, draft)
+
+    Enum.reduce(draft.skill_buys, 0, fn {skill, buys}, acc ->
+      from = Map.get(free, skill, 0)
+      acc + cost(sk, from, from + buys)
+    end)
+  end
+
+  defp skill_errors(draft, rules) do
+    sk = rules["creation"]["skills"]
+    levels = skill_levels(draft, rules)
+    budget = skill_budget(draft, rules)
+    spent = skill_points_spent(draft, rules)
+    signature = Enum.count(levels, fn {_s, l} -> l > sk["cap"] end)
+
+    [
+      spent > budget && {:skills, "#{budget} skill points at most; #{spent} spent"},
+      signature > sk["signature_max"] &&
+        {:skills,
+         "#{sk["signature_max"]} signature skills at most (above #{sk["cap"]}); #{signature} chosen"},
+      Enum.any?(levels, fn {_s, l} -> l > sk["signature_cap"] end) &&
+        {:skills, "a skill goes up to #{sk["signature_cap"]} at most"},
+      map_size(levels) < sk["min_skills"] &&
+        {:skills, "choose at least #{sk["min_skills"]} skills; #{map_size(levels)} so far"}
+    ]
+  end
+
+  # A spread build: the class, race and other leading skills plus fillers for the
+  # highest stats (at least one more than the minimum), raised lowest first, one
+  # level at a time, up to the normal cap, while the points last.
+  defp suggested_buys(draft, rules) do
+    sk = rules["creation"]["skills"]
+    {free, _refund} = free_levels(rules, draft)
+    {_raw, leading} = free_sources(draft, rules)
+    budget = skill_budget(draft, rules)
+    candidates = with_fillers(Enum.uniq(leading), final_stats(draft, rules), sk["min_skills"] + 1)
+
+    candidates
+    |> Map.new(&{&1, Map.get(free, &1, 0)})
+    |> raise_lowest(candidates, budget, sk)
+    |> Enum.flat_map(fn {skill, level} ->
+      bought = level - Map.get(free, skill, 0)
+      if bought > 0, do: [{skill, bought}], else: []
+    end)
+    |> Map.new()
+  end
+
+  defp with_fillers(leading, stats, size) do
+    fillers =
+      Mechanics.skill_stat_map()
+      |> Enum.sort_by(fn {skill, stat} -> {-Map.get(stats, stat, 10), skill} end)
+      |> Enum.map(&elem(&1, 0))
+      |> Enum.reject(&(&1 in leading))
+
+    leading ++ Enum.take(fillers, max(size - length(leading), 0))
+  end
+
+  defp raise_lowest(levels, candidates, left, sk) do
+    next =
+      candidates
+      |> Enum.filter(&(levels[&1] < sk["cap"] and cost(sk, levels[&1], levels[&1] + 1) <= left))
+      |> Enum.min_by(&levels[&1], fn -> nil end)
+
+    case next do
+      nil ->
+        levels
+
+      skill ->
+        price = cost(sk, levels[skill], levels[skill] + 1)
+        raise_lowest(Map.update!(levels, skill, &(&1 + 1)), candidates, left - price, sk)
+    end
+  end
+
+  defp label(skill), do: skill |> String.replace("_", " ") |> String.capitalize()
 
   defp ordered(table, first) do
     Enum.sort_by(table, fn {id, _} -> {id != first, id} end)
@@ -404,6 +672,18 @@ defmodule TalesForge.CharacterCreation do
 
       unless bad == [],
         do: raise(ArgumentError, "creation.json: unknown stats #{inspect(bad)} for #{race}")
+    end
+
+    known = Mechanics.skill_stat_map()
+
+    for {race, bonus} <- creation["skills"]["race_bonuses"] do
+      unless Map.has_key?(labels["races"], race),
+        do: raise(ArgumentError, "creation.json: skill bonus for unknown race #{inspect(race)}")
+
+      bad = bonus |> Map.get("fixed", %{}) |> Map.keys() |> Enum.reject(&Map.has_key?(known, &1))
+
+      unless bad == [],
+        do: raise(ArgumentError, "creation.json: unknown skills #{inspect(bad)} for #{race}")
     end
 
     :ok
