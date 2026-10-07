@@ -3,7 +3,8 @@ defmodule TalesForge.Playtest.Runner do
   Plays a new session as a persona bot in an adventure module, through the same
   paths a player uses, until the session ends, the character dies, a cap or
   timeout stops it, or the turn limit is reached. Each run is a `playtest_runs` row,
-  scored by `TalesForge.Playtest.Scorer` when it finishes or stops.
+  scored by `TalesForge.Playtest.Scorer` when it finishes or stops. Its skill
+  growth (`TalesForge.Playtest.Growth`) is stored on the run when it ends.
 
   Off unless `PLAYTEST_RUNNER_ENABLED=true`; never set it in production. On playtest:
 
@@ -21,7 +22,17 @@ defmodule TalesForge.Playtest.Runner do
   alias TalesForge.Game.SceneProcessor
   alias TalesForge.GameSessions
   alias TalesForge.LLM
-  alias TalesForge.Playtest.{PersonaCharacters, Personas, PlayerView, Reports, RunMeta, Scorer}
+
+  alias TalesForge.Playtest.{
+    Growth,
+    PersonaCharacters,
+    Personas,
+    PlayerView,
+    Reports,
+    RunMeta,
+    Scorer
+  }
+
   alias TalesForge.PubSub.GameSession, as: SessionPubSub
   alias TalesForge.Repo
   alias TalesForge.Schemas.{PlaytestRun, Turn}
@@ -89,6 +100,7 @@ defmodule TalesForge.Playtest.Runner do
          :persona_output_tokens,
          :persona_cost_micro_usd
        ])
+       |> Map.put(:growth, live_growth(run))
        |> Map.put(
          :game_cost_usd,
          AICalls.total_cost_for_session(run.game_session_id) / 1_000_000
@@ -437,6 +449,10 @@ defmodule TalesForge.Playtest.Runner do
     )
   end
 
+  # Stored when the run ends; worked out from the turns while it runs.
+  defp live_growth(%PlaytestRun{growth: growth}) when growth != %{}, do: growth
+  defp live_growth(run), do: Growth.for_session(run.game_session_id)
+
   defp finish(run, stop, opts) do
     {status, stop_reason, error} =
       case stop do
@@ -455,7 +471,8 @@ defmodule TalesForge.Playtest.Runner do
         status: status,
         stop_reason: stop_reason,
         finished_at: now(),
-        notes: notes(run.notes, error)
+        notes: notes(run.notes, error),
+        growth: Growth.for_session(run.game_session_id)
       })
     )
 

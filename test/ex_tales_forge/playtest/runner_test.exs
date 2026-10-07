@@ -50,6 +50,12 @@ defmodule TalesForge.Playtest.RunnerTest do
 
     assert run.finished_at
     assert turns(run.game_session_id) |> length() == 2
+
+    # skill growth is stored on the run when it ends
+    stored = Repo.get!(TalesForge.Schemas.PlaytestRun, run_id).growth
+    assert %{"skills" => _, "rolls" => _, "lp_gained" => _, "improvements" => _} = stored
+    assert run.growth == stored
+    assert stored == TalesForge.Playtest.Growth.for_session(run.game_session_id)
   end
 
   test "plays the requested behaviour variant, so both comparison arms share a deploy" do
