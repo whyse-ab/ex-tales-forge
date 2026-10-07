@@ -138,6 +138,43 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     assert Repo.aggregate(PlaytestScore, :count) == 1
   end
 
+  test "run detail shows Jev session affect and turn strip", %{conn: conn} do
+    run = seed_run()
+
+    Repo.insert!(%PlaytestScore{
+      playtest_run_id: run.id,
+      model: "jev-1.13.0",
+      rubric_version: "jev-affect-v1-abc1234",
+      source: "jev",
+      kind: "session_affect",
+      scores: %{"persona_session_affect" => %{"score" => 4.2, "confidence" => 0.81}},
+      overall: 4.2,
+      confidence: 0.81,
+      probabilities: %{"3" => 0.6, "4" => 0.3}
+    })
+
+    Repo.insert!(%PlaytestScore{
+      playtest_run_id: run.id,
+      model: "jev-1.13.0",
+      rubric_version: "jev-affect-v1-abc1234",
+      source: "jev",
+      kind: "turn_affect",
+      turn_number: 1,
+      scores: %{},
+      overall: 3.0,
+      confidence: 0.7,
+      probabilities: %{}
+    })
+
+    {:ok, view, html} = live(conn, ~p"/admin/playtest/#{run.id}")
+
+    assert html =~ "4.2/5 persona affect"
+    assert html =~ "Jev session_affect"
+    assert html =~ "jev-1.13.0"
+    assert has_element?(view, "#score-confidence", "81.0%")
+    assert has_element?(view, "#turn-affect-strip", "T1: 3.0")
+  end
+
   defp seed_run(opts \\ []) do
     {:ok, session} = GameSessions.create_session(%{name: "Seeded", adventure_id: "tin_valley"})
 

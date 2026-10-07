@@ -191,6 +191,12 @@ end
 
 config :ex_tales_forge, :tales_forge_docs_path, System.get_env("TALES_FORGE_DOCS_PATH")
 
+# TypeSafe Jev (persona-affect scoring on playtest). Unset = Jev scoring skipped.
+# Key name TYPESAFE_API_KEY; set on tales-forge-playtest only for now.
+config :jev,
+  api_key: System.get_env("TYPESAFE_API_KEY"),
+  model: "jev-1.13.0"
+
 # Admin costs page peer (/admin/costs). Both apps run the same code: whichever
 # side has both values set fetches the other side's aggregated AI spend.
 # COSTS_PEER_TOKEN (secret, same value on both apps) also turns on this app's

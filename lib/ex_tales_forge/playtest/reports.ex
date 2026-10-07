@@ -41,7 +41,21 @@ defmodule TalesForge.Playtest.Reports do
     end
   end
 
+  @doc """
+  Headline score for a run: newest Jev `session_affect` if any, else newest LLM
+  `rubric` row (or any other kind as a last resort).
+  """
   def latest_score(run_id), do: run_id |> List.wrap() |> latest_scores() |> Map.get(run_id)
+
+  @doc "Jev per-turn affect rows for a run, oldest turn first."
+  def turn_affect_scores(run_id) do
+    PlaytestScore
+    |> where([s], s.playtest_run_id == ^run_id and s.kind == "turn_affect")
+    |> order_by([s], asc: s.turn_number, desc: s.inserted_at)
+    |> Repo.all()
+    |> Enum.uniq_by(& &1.turn_number)
+    |> Enum.sort_by(& &1.turn_number)
+  end
 
   @doc "Turns in order, each with its server roll and hidden GM notes (nil when missing)."
   def turn_records(session_id) do
@@ -121,8 +135,14 @@ defmodule TalesForge.Playtest.Reports do
   defp latest_scores(run_ids) do
     PlaytestScore
     |> where([s], s.playtest_run_id in ^run_ids)
+    |> where([s], s.kind in ^["session_affect", "rubric"])
+    |> order_by([s], [
+      s.playtest_run_id,
+      asc: fragment("CASE WHEN ? = 'session_affect' THEN 0 ELSE 1 END", s.kind),
+      desc: s.inserted_at,
+      desc: s.id
+    ])
     |> distinct([s], s.playtest_run_id)
-    |> order_by([s], [s.playtest_run_id, desc: s.inserted_at, desc: s.id])
     |> Repo.all()
     |> Map.new(&{&1.playtest_run_id, &1})
   end

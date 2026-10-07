@@ -192,7 +192,7 @@ defmodule TalesForge.Playtest.Runner do
         kind, value -> {:error, {kind, value}}
       end
 
-    finish(run, stop)
+    finish(run, stop, opts)
   end
 
   defp loop(%{turns_played: played, run: %{turn_limit: limit}}) when played >= limit,
@@ -392,7 +392,7 @@ defmodule TalesForge.Playtest.Runner do
     )
   end
 
-  defp finish(run, stop) do
+  defp finish(run, stop, opts) do
     {status, stop_reason, error} =
       case stop do
         {:error, reason} ->
@@ -415,7 +415,7 @@ defmodule TalesForge.Playtest.Runner do
     )
 
     Logger.info("playtest run done run=#{run.id} status=#{status} stop_reason=#{stop_reason}")
-    if status != "failed", do: auto_score(run)
+    if status != "failed" and Keyword.get(opts, :auto_score, true), do: auto_score(run)
   end
 
   # A scoring failure is logged and leaves the run as it is; it can be re-scored.

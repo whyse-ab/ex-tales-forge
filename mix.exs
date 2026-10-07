@@ -5,7 +5,7 @@ defmodule TalesForge.MixProject do
     [
       app: :ex_tales_forge,
       version: "0.1.0",
-      elixir: "~> 1.15",
+      elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
@@ -68,7 +68,8 @@ defmodule TalesForge.MixProject do
       {:dotenvy, "~> 1.0"},
       {:yaml_elixir, "~> 2.12"},
       {:mdex, "~> 0.14"},
-      {:req, "~> 0.5"},
+      {:req, "~> 0.7", override: true},
+      {:jev, "~> 0.2"},
       {:assent, "~> 0.3.1"},
       {:jido, "~> 2.3"},
       {:jido_ai, "~> 2.2"},
