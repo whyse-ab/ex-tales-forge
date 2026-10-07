@@ -25,7 +25,7 @@ defmodule TalesForgeWeb.AdminLive.CostsLiveTest do
       )
 
   test "admin only" do
-    for conn <- [build_conn(), log_in_admin(build_conn(), "stranger@example.com")] do
+    for conn <- [build_conn(), log_in_non_member(build_conn())] do
       assert redirected_to(get(conn, ~p"/admin/costs")) =~ "/admin/login"
     end
   end

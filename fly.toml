@@ -26,7 +26,8 @@ primary_region = "arn"
     timeout = "2s"
     grace_period = "30s"
     method = "GET"
-    path = "/"
+    # Public health endpoint; every other path needs a GitHub team sign-in.
+    path = "/health"
     # force_ssl would 301 the plain-HTTP internal check; mark it as already HTTPS
     [http_service.checks.headers]
       X-Forwarded-Proto = "https"

@@ -86,15 +86,20 @@ Default model is fast non-reasoning Grok (`grok-4.20-0309-non-reasoning`). Verif
 
 ## Admin console
 
-Open http://localhost:4000/admin/login (email magic link for allowlisted founders; "Sign in with GitHub" appears when `GITHUB_OAUTH_CLIENT_ID`/`GITHUB_OAUTH_CLIENT_SECRET` are set, see `docs/DEPLOY-FLY.md`).
-
-Set allowlist in `.env`:
+Every page (play and admin) needs "Sign in with GitHub" as an active member of the
+`ADMIN_GITHUB_TEAM` GitHub team (`whyse-ab/tales-forge`); there is no other login and no
+separate admin check. Locally, set in `.env` a GitHub OAuth app with callback
+`http://localhost:4000/admin/auth/github/callback`, the team, and a token that can read the
+org's members:
 
 ```
-ADMIN_EMAILS=you@example.com,cofounder@example.com
+GITHUB_OAUTH_CLIENT_ID=...
+GITHUB_OAUTH_CLIENT_SECRET=...
+ADMIN_GITHUB_TEAM=whyse-ab/tales-forge
+GITHUB_DOCS_TOKEN=...
 ```
 
-In development the magic link appears in the Swoosh mailbox at `/dev/mailbox`.
+Then open http://localhost:4000/ (you are sent to `/admin/login`). See `docs/DEPLOY-FLY.md`.
 
 From the admin UI you can:
 

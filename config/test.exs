@@ -42,13 +42,11 @@ config :phoenix_live_view,
 config :phoenix,
   sort_verified_routes_query_params: true
 
-config :ex_tales_forge, :admin_emails, ["founder@example.com", "other@example.com"]
-
-# Bypass nothing — tests log in via session helper.
-
-# GitHub admin sign-in: off unless a test turns it on; HTTP goes to Req.Test stubs.
+# Sign-in: GitHub team members only. Tests sign in with ConnCase.log_in_admin/2
+# (session + cached team membership); the OAuth button is off unless a test turns
+# it on, and GitHub HTTP goes to Req.Test stubs.
 config :ex_tales_forge, :github_oauth, client_id: nil, client_secret: nil
-config :ex_tales_forge, :admin_github_team, nil
+config :ex_tales_forge, :admin_github_team, "whyse-ab/tales-forge"
 config :ex_tales_forge, :github_req_options, plug: {Req.Test, TalesForge.AdminAuth.GitHub}
 
 # LLM HTTP goes to Req.Test stubs (tests that switch LLM_PROVIDER away from mock).

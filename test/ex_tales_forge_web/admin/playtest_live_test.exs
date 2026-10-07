@@ -24,7 +24,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
   test "pages are admin only" do
     run = seed_run()
 
-    for conn <- [build_conn(), log_in_admin(build_conn(), "stranger@example.com")],
+    for conn <- [build_conn(), log_in_non_member(build_conn())],
         path <- [~p"/admin/playtest", ~p"/admin/playtest/#{run.id}"] do
       assert redirected_to(get(conn, path)) =~ "/admin/login"
     end

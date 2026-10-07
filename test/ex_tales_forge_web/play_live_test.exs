@@ -8,12 +8,12 @@ defmodule TalesForgeWeb.PlayLiveTest do
   alias TalesForge.Repo
   alias TalesForge.Schemas.{GameSession, Turn}
 
-  setup do
+  setup %{conn: conn} do
     on_exit(fn ->
       for {id, _pid} <- Jido.list_agents(), do: Jido.stop_agent(id)
     end)
 
-    :ok
+    {:ok, conn: log_in_admin(conn)}
   end
 
   test "play surface hides skill, roll, outcome, and LP", %{conn: conn} do

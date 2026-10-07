@@ -76,8 +76,8 @@ defmodule TalesForgeWeb.CodeDocsControllerTest do
     end
   end
 
-  test "anonymous and non-allowlisted users are redirected to login, pages and assets" do
-    for conn <- [build_conn(), log_in_admin(build_conn(), "stranger@example.com")],
+  test "anonymous and non-team users are redirected to login, pages and assets" do
+    for conn <- [build_conn(), log_in_non_member(build_conn())],
         path <- [
           "/admin/code-docs",
           "/admin/code-docs/",

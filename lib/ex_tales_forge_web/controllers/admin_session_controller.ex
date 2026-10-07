@@ -1,45 +1,15 @@
 defmodule TalesForgeWeb.AdminSessionController do
   @moduledoc """
-  Admin login and logout: sends magic-link emails to allowlisted addresses and turns a valid link into an admin session.
+  Logout. Sign-in is GitHub only (`TalesForgeWeb.AdminGithubAuthController`);
+  email magic links were removed on 2026-10-07.
   """
 
   use TalesForgeWeb, :controller
 
   alias TalesForge.AdminAuth
 
-  # Only point at /dev/mailbox when the router actually mounts it.
-  @sent_message "If that email is allowlisted, a login link is on its way." <>
-                  if(Application.compile_env(:ex_tales_forge, :dev_routes, false),
-                    do: " In dev, check /dev/mailbox.",
-                    else: ""
-                  )
-
-  def create(conn, %{"email" => email}) do
-    :ok = AdminAuth.request_magic_link(email)
-
-    conn
-    |> put_flash(:info, @sent_message)
-    |> redirect(to: ~p"/admin/login")
-  end
-
-  def magic(conn, %{"token" => token}) do
-    case AdminAuth.verify_token(token) do
-      {:ok, email} ->
-        return_to = get_session(conn, "admin_return_to") || ~p"/admin"
-
-        conn
-        |> AdminAuth.put_session(email)
-        |> delete_session("admin_return_to")
-        |> put_flash(:info, "Signed in as #{email}")
-        |> redirect(to: return_to)
-
-      {:error, _} ->
-        conn
-        |> put_flash(:error, "That login link is invalid or expired.")
-        |> redirect(to: ~p"/admin/login")
-    end
-  end
-
+  @doc "Signs out and returns to the login page."
+  @spec delete(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def delete(conn, _params) do
     conn
     |> AdminAuth.clear_session()

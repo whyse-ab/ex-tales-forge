@@ -22,7 +22,7 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
       client_secret: "csecret"
     )
 
-    Application.put_env(:ex_tales_forge, :admin_github_team, nil)
+    Application.put_env(:ex_tales_forge, :admin_github_team, "whyse-ab/tales-forge")
     Application.put_env(:ex_tales_forge, :github_docs_token, "server-token")
     MembershipCache.clear()
     :ok
@@ -30,7 +30,7 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
 
   # GitHub API stub. `emails` is the /user/emails body; `team` is the membership
   # response for octo: :active, :pending or :none.
-  defp stub_github(emails, team \\ :none) do
+  defp stub_github(emails, team) do
     test = self()
 
     Req.Test.stub(@stub, fn conn ->
@@ -76,8 +76,8 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
   end
 
   # Runs the OAuth round trip; returns the conn after the callback.
-  defp sign_in(state_override \\ nil) do
-    conn = get(build_conn(), ~p"/admin/auth/github")
+  defp sign_in(state_override \\ nil, conn \\ build_conn()) do
+    conn = get(conn, ~p"/admin/auth/github")
     location = redirected_to(conn, 302)
     %URI{host: "github.com", path: "/login/oauth/authorize", query: query} = URI.parse(location)
     params = URI.decode_query(query)
@@ -97,59 +97,55 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
     end
   end
 
-  test "allowlisted verified email (not the primary) signs in" do
-    stub_github([
-      email("octo@personal.example", primary: true),
-      email("FOUNDER@example.com")
-    ])
-
-    conn = sign_in()
-
-    assert redirected_to(conn) == "/admin"
-    assert get_session(conn, "admin_email") == "founder@example.com"
-    assert get_session(conn, "admin_github_login") == "octo"
-    assert get_session(conn, "admin_github_state") == nil
-    assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "@octo"
-    assert signed_in?(conn)
-    # The user's token was used for GitHub's user API, and never stored.
-    assert_received {:github, "GET", "/user/emails", "Bearer user-token"}
-    refute inspect(get_session(conn)) =~ "user-token"
-  end
-
-  test "an allowlisted but unverified email is denied" do
-    stub_github([
-      email("octo@personal.example", primary: true),
-      email("founder@example.com", verified: false)
-    ])
-
-    conn = sign_in()
-
-    assert redirected_to(conn) == "/admin/login"
-    assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "@octo isn't allowed"
-    assert get_session(conn, "admin_email") == nil
-
-    # The login page must actually show the reason, not swallow it.
-    {:ok, _view, html} = live(recycle(conn), ~p"/admin/login")
-    assert html =~ "@octo isn&#39;t allowed"
-    refute signed_in?(conn)
-  end
-
-  test "active team member signs in when ADMIN_GITHUB_TEAM is set" do
-    Application.put_env(:ex_tales_forge, :admin_github_team, "whyse-ab/tales-forge")
-    stub_github([email("octo@personal.example", primary: true)], :active)
+  test "an active team member signs in and gets the admin pages" do
+    stub_github(
+      [email("other@example.com"), email("octo@personal.example", primary: true)],
+      :active
+    )
 
     conn = sign_in()
 
     assert redirected_to(conn) == "/admin"
     assert get_session(conn, "admin_email") == "octo@personal.example"
     assert get_session(conn, "admin_github_login") == "octo"
+    assert get_session(conn, "admin_github_state") == nil
+    assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "@octo"
     assert signed_in?(conn)
-    # Membership is checked with the server token, not the user's.
+    assert conn |> recycle() |> get(~p"/admin/costs") |> html_response(200)
+    # The user's token was used for GitHub's user API, and never stored...
+    assert_received {:github, "GET", "/user/emails", "Bearer user-token"}
+    refute inspect(get_session(conn)) =~ "user-token"
+    # ...and membership is checked with the server token, not the user's.
     assert_received {:github, "GET", @team_path, "Bearer server-token"}
   end
 
+  test "a GitHub user who isn't on the team is refused with a message on the login page" do
+    stub_github([email("octo@personal.example", primary: true)], :none)
+
+    conn = sign_in()
+
+    assert redirected_to(conn) == "/admin/login"
+    assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "@octo isn't on the Tales Forge"
+    assert get_session(conn, "admin_email") == nil
+    assert get_session(conn, "admin_github_login") == nil
+
+    # The login page must actually show the reason, not swallow it.
+    {:ok, _view, html} = live(recycle(conn), ~p"/admin/login")
+    assert html =~ "@octo isn&#39;t on the Tales Forge GitHub team"
+    refute signed_in?(conn)
+    assert conn |> recycle() |> get(~p"/") |> redirected_to() == "/admin/login"
+  end
+
+  test "a verified email no longer gets anyone in without the team" do
+    stub_github([email("founder@example.com", primary: true)], :none)
+
+    conn = sign_in()
+
+    assert redirected_to(conn) == "/admin/login"
+    assert get_session(conn, "admin_email") == nil
+  end
+
   test "a pending team invite is denied" do
-    Application.put_env(:ex_tales_forge, :admin_github_team, "whyse-ab/tales-forge")
     stub_github([email("octo@personal.example", primary: true)], :pending)
 
     conn = sign_in()
@@ -159,8 +155,9 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
     refute signed_in?(conn)
   end
 
-  test "team membership doesn't count when ADMIN_GITHUB_TEAM is unset" do
-    stub_github([email("octo@personal.example", primary: true)], :active)
+  test "nobody gets in when ADMIN_GITHUB_TEAM is unset" do
+    Application.put_env(:ex_tales_forge, :admin_github_team, nil)
+    stub_github([email("founder@example.com", primary: true)], :active)
 
     conn = sign_in()
 
@@ -169,8 +166,19 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
     refute_received {:github, "GET", @team_path, _}
   end
 
+  test "after sign-in the user returns to the page they first asked for" do
+    stub_github([email("octo@personal.example", primary: true)], :active)
+    id = Ecto.UUID.generate()
+
+    conn = get(build_conn(), ~p"/play/#{id}")
+    assert redirected_to(conn) == "/admin/login"
+
+    conn = sign_in(nil, recycle(conn))
+    assert redirected_to(conn) == "/play/#{id}"
+  end
+
   test "a bad state is denied before any token exchange" do
-    stub_github([email("founder@example.com", primary: true)])
+    stub_github([email("founder@example.com", primary: true)], :active)
 
     conn = sign_in("forged-state")
 
@@ -181,7 +189,7 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
   end
 
   test "a callback without a started flow is denied" do
-    stub_github([email("founder@example.com", primary: true)])
+    stub_github([email("founder@example.com", primary: true)], :active)
 
     conn = get(build_conn(), ~p"/admin/auth/github/callback?code=abc&state=whatever")
 
@@ -191,7 +199,6 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
   end
 
   test "losing team membership revokes the session once the cache expires" do
-    Application.put_env(:ex_tales_forge, :admin_github_team, "whyse-ab/tales-forge")
     stub_github([email("octo@personal.example", primary: true)], :active)
     conn = sign_in()
     assert signed_in?(conn)
@@ -204,10 +211,10 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
     MembershipCache.clear()
     refute signed_in?(conn)
     assert {:error, {:redirect, %{to: "/admin/login"}}} = live(recycle(conn), ~p"/admin")
+    assert {:error, {:redirect, %{to: "/admin/login"}}} = live(recycle(conn), ~p"/")
   end
 
-  test "unsetting ADMIN_GITHUB_TEAM revokes team sessions immediately" do
-    Application.put_env(:ex_tales_forge, :admin_github_team, "whyse-ab/tales-forge")
+  test "unsetting ADMIN_GITHUB_TEAM revokes sessions immediately" do
     stub_github([email("octo@personal.example", primary: true)], :active)
     conn = sign_in()
     assert signed_in?(conn)
@@ -216,20 +223,22 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
     refute signed_in?(conn)
   end
 
-  test "removing the email from ADMIN_EMAILS revokes an email-matched GitHub session" do
-    stub_github([email("founder@example.com", primary: true)])
+  test "sign-in sets a 30-day session cookie (not secure outside prod)" do
+    stub_github([email("octo@personal.example", primary: true)], :active)
+
     conn = sign_in()
-    assert signed_in?(conn)
 
-    original = Application.get_env(:ex_tales_forge, :admin_emails)
-    on_exit(fn -> Application.put_env(:ex_tales_forge, :admin_emails, original) end)
-    Application.put_env(:ex_tales_forge, :admin_emails, ["other@example.com"])
+    cookie = conn.resp_cookies["_ex_tales_forge_key"]
+    assert cookie.max_age == 2_592_000
+    refute cookie[:secure]
 
-    refute signed_in?(conn)
+    header = conn |> get_resp_header("set-cookie") |> Enum.find(&(&1 =~ "_ex_tales_forge_key="))
+    assert header =~ "max-age=2592000"
+    refute header =~ ~r/;\s*secure/i
   end
 
   test "logout clears the GitHub keys" do
-    stub_github([email("founder@example.com", primary: true)])
+    stub_github([email("octo@personal.example", primary: true)], :active)
     conn = sign_in()
 
     conn = conn |> recycle() |> delete(~p"/admin/logout")
@@ -239,14 +248,23 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
     refute signed_in?(conn)
   end
 
-  test "login page shows the GitHub button only when a client id and secret are set" do
-    assert get(build_conn(), ~p"/admin/login") |> html_response(200) =~ ~s(id="github-login")
+  test "login page: GitHub button only when configured, never an email form" do
+    html = get(build_conn(), ~p"/admin/login") |> html_response(200)
+    assert html =~ ~s(id="github-login")
+    refute html =~ ~s(type="email")
+    refute html =~ "magic link"
 
     Application.put_env(:ex_tales_forge, :github_oauth, client_id: nil, client_secret: "csecret")
     html = get(build_conn(), ~p"/admin/login") |> html_response(200)
-    refute html =~ "github-login"
+    refute html =~ "github-login\""
     refute html =~ "Sign in with GitHub"
-    assert html =~ "Send magic link"
+    assert html =~ "set up on this server"
+    refute html =~ ~s(type="email")
+  end
+
+  test "a signed-in team member opening the login page goes to the admin" do
+    conn = log_in_admin(build_conn())
+    assert {:error, {:live_redirect, %{to: "/admin"}}} = live(conn, ~p"/admin/login")
   end
 
   test "GitHub routes redirect with a flash when not configured" do

@@ -1,64 +1,72 @@
 defmodule TalesForgeWeb.Router do
   @moduledoc """
-  Routes: the public play pages, admin login (magic link or GitHub), the protected admin area (with LiveDashboard at /admin/oban and the ExDoc code docs at /admin/code-docs) and, in dev, the Swoosh mailbox.
+  Routes. Everything requires a signed-in member of the ADMIN_GITHUB_TEAM GitHub
+  team (`TalesForge.AdminAuth`): the play pages, the admin area (with
+  LiveDashboard at /admin/oban and the ExDoc code docs at /admin/code-docs) and
+  anything added later under the `:browser` pipeline. Any team member gets the
+  admin pages; there is no separate admin login.
+
+  The only public routes are the login page, the GitHub OAuth request/callback,
+  logout, the Fly health check (`/health`) and the token-guarded machine-to-machine
+  `/internal/costs`. Static assets are served by the endpoint before the router.
   """
 
   use TalesForgeWeb, :router
 
-  pipeline :browser do
+  alias TalesForgeWeb.AdminLive.Hooks
+  alias TalesForgeWeb.Plugs.RequireTeamMember
+
+  # HTML basics, no sign-in required. Only for the login and OAuth routes below.
+  pipeline :public_browser do
     plug :accepts, ["html"]
     plug :fetch_session
     plug :fetch_live_flash
     plug :put_root_layout, html: {TalesForgeWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+  end
+
+  # The default for every page: a signed-in GitHub team member, otherwise a
+  # redirect to /admin/login. LiveViews are also checked on mount (the
+  # live_sessions below plus `TalesForgeWeb.LiveAuth` in every `:live_view`), so
+  # a websocket connect can't skip this plug.
+  pipeline :browser do
+    plug :public_browser
+    plug RequireTeamMember
   end
 
   pipeline :api do
     plug :accepts, ["json"]
   end
 
-  # Public admin auth routes (login / magic link) — no session required.
-  pipeline :admin_public do
-    plug :accepts, ["html"]
-    plug :fetch_session
-    plug :fetch_live_flash
-    plug :put_root_layout, html: {TalesForgeWeb.Layouts, :root}
-    plug :protect_from_forgery
-    plug :put_secure_browser_headers
-    plug TalesForgeWeb.Plugs.AdminEmail
-  end
-
-  # Protected admin — allowlisted magic-link session only.
-  # Player routes never pipe through this; admin data stays isolated.
-  pipeline :admin do
-    plug :accepts, ["html"]
-    plug :fetch_session
-    plug :fetch_live_flash
-    plug :put_root_layout, html: {TalesForgeWeb.Layouts, :root}
-    plug :protect_from_forgery
-    plug :put_secure_browser_headers
-    plug TalesForgeWeb.Plugs.AdminAuth
-  end
+  # Fly health check (fly.toml / fly.playtest.toml). No session, no pipeline.
+  get "/health", TalesForgeWeb.HealthController, :show
 
   scope "/admin", TalesForgeWeb do
-    pipe_through :admin_public
+    pipe_through :public_browser
 
-    live_session :admin_login, on_mount: [{TalesForgeWeb.AdminLive.Hooks, :maybe_admin}] do
+    live_session :login, on_mount: [{Hooks, :maybe_team_member}] do
       live "/login", AdminLive.LoginLive, :index
     end
 
-    post "/login", AdminSessionController, :create
-    get "/magic/:token", AdminSessionController, :magic
     get "/auth/github", AdminGithubAuthController, :request
     get "/auth/github/callback", AdminGithubAuthController, :callback
     delete "/logout", AdminSessionController, :delete
   end
 
-  scope "/admin", TalesForgeWeb.AdminLive do
-    pipe_through :admin
+  scope "/", TalesForgeWeb do
+    pipe_through :browser
 
-    live_session :admin, on_mount: [{TalesForgeWeb.AdminLive.Hooks, :require_admin}] do
+    live_session :play, on_mount: [{Hooks, :require_team_member}] do
+      live "/", HomeLive, :index
+      live "/play/:id", PlayLive, :show
+    end
+  end
+
+  scope "/admin", TalesForgeWeb.AdminLive do
+    pipe_through :browser
+
+    live_session :admin, on_mount: [{Hooks, :require_team_member}] do
       live "/", DashboardLive, :index
       live "/sessions", SessionLive.Index, :index
       live "/sessions/:id", SessionLive.Show, :show
@@ -77,34 +85,30 @@ defmodule TalesForgeWeb.Router do
   end
 
   scope "/admin" do
-    pipe_through :admin
+    pipe_through :browser
 
     import Phoenix.LiveDashboard.Router
 
-    live_dashboard "/oban", metrics: TalesForgeWeb.Telemetry
+    live_dashboard "/oban",
+      metrics: TalesForgeWeb.Telemetry,
+      on_mount: [TalesForgeWeb.LiveAuth]
   end
 
-  # ExDoc site built into the release (CodeDocsController). Same :admin
-  # pipeline as /admin/costs, so every page and asset needs an admin session.
+  # ExDoc site built into the release (CodeDocsController). Every page and
+  # asset needs a signed-in team member, like the rest of the app.
   scope "/admin", TalesForgeWeb do
-    pipe_through :admin
+    pipe_through :browser
 
     get "/code-docs/*path", CodeDocsController, :show
   end
 
   # Machine-to-machine: the peer app's costs page reads this app's aggregated AI
-  # spend. Off (404) unless COSTS_PEER_TOKEN is set; see CostsPeerController.
+  # spend. Off (404) unless COSTS_PEER_TOKEN is set, and then needs it as a
+  # bearer token; see CostsPeerController. Never calls an LLM.
   scope "/internal", TalesForgeWeb do
     pipe_through :api
 
     get "/costs", CostsPeerController, :show
-  end
-
-  scope "/", TalesForgeWeb do
-    pipe_through :browser
-
-    live "/", HomeLive, :index
-    live "/play/:id", PlayLive, :show
   end
 
   # Swoosh mailbox preview in development (LiveDashboard lives at /admin/oban)
