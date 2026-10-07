@@ -56,9 +56,13 @@ defmodule TalesForgeWeb.AdminLive.CostsLiveTest do
     assert has_element?(view, "#costs-env-local-month-persona", "1 / 0")
 
     assert has_element?(view, "#costs-fixed tr", "Domain tales-forge.ai")
-    assert render(element(view, "#costs-fixed")) =~ "unknown"
-    assert has_element?(view, "#costs-unknown-note", "Domain tales-forge.ai")
+    assert has_element?(view, "#costs-fixed tr", "Other hosting-related costs")
+    assert has_element?(view, "#costs-fixed", "2318.75 kr/year")
+    assert has_element?(view, "#costs-fixed", "400.00 kr/year")
+    assert has_element?(view, "#costs-fixed", "$19.37")
+    assert has_element?(view, "#costs-fixed", "$3.34")
     assert has_element?(view, "#costs-fixed", "$6.95")
+    refute has_element?(view, "#costs-unknown-note")
   end
 
   test "peer not configured: page renders and says so", %{conn: conn} do

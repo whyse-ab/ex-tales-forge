@@ -140,6 +140,9 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
               <tr :for={item <- @report.fixed} class="align-top">
                 <td class="py-2 pr-3">
                   <div class="text-[var(--paper-ink)]">{item.name}</div>
+                  <div :if={Costs.sek_per_year?(item)} class="text-xs text-[var(--paper-ink)]">
+                    {format_sek_year(Costs.sek_per_year(item))}/year · monthly share ÷ 12
+                  </div>
                   <div class="text-xs text-[var(--paper-muted)]">{item.source}</div>
                 </td>
                 <td class="whitespace-nowrap py-2 pr-3 text-right tabular-nums">{fixed_usd(item)}</td>
@@ -164,6 +167,8 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
         <p class="text-xs text-[var(--paper-muted)]">
           Edit these figures in <code>config/config.exs</code>
           (<code>config :ex_tales_forge, TalesForge.Costs</code>).
+          Items may be USD per month or SEK per year;
+          SEK yearly ones are converted at the rate above and shown as yearly and as monthly share (÷ 12).
         </p>
       </.section_card>
     </Layouts.admin>
@@ -354,6 +359,10 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
       :unknown -> "unknown"
       micro -> sek(micro, rate)
     end
+  end
+
+  defp format_sek_year(sek) when is_number(sek) do
+    :erlang.float_to_binary(sek / 1, decimals: 2) <> " kr"
   end
 
   defp avg_line(%{"avg_game_micro_usd_per_session" => avg, "game_sessions" => n}, rate)

@@ -143,10 +143,10 @@ defmodule TalesForge.CostsTest do
 
   describe "report" do
     @fixed [
-      %{name: "App", env: :production, usd: 6.95, source: "a"},
-      %{name: "Playtest app", env: :playtest, usd: 3.84, source: "b"},
-      %{name: "Playtest db", env: :playtest, usd: 3.99, source: "c"},
-      %{name: "Domain", env: :shared, usd: :unknown, source: "d"}
+      %{name: "App", env: :production, amount: {:usd_per_month, 6.95}, source: "a"},
+      %{name: "Playtest app", env: :playtest, amount: {:usd_per_month, 3.84}, source: "b"},
+      %{name: "Playtest db", env: :playtest, amount: {:usd_per_month, 3.99}, source: "c"},
+      %{name: "Domain", env: :shared, amount: :unknown, source: "d"}
     ]
 
     test "unknown items are listed and left out of the totals" do
@@ -192,10 +192,46 @@ defmodule TalesForge.CostsTest do
       assert Costs.report(local, {:error, :unreachable}, @fixed).playtest.status == :over
     end
 
-    test "configured fixed costs: domain unknown, threshold 15 USD" do
+    test "configured fixed costs: SEK yearly items convert; threshold 15 USD" do
       domain = Enum.find(Costs.fixed_costs(), &(&1.name =~ "tales-forge.ai"))
-      assert Costs.fixed_micro_usd(domain) == :unknown
+      hosting = Enum.find(Costs.fixed_costs(), &(&1.name =~ "Other hosting"))
+      rate = Costs.usd_sek().rate
+
+      assert Costs.sek_per_year?(domain)
+      assert Costs.sek_per_year(domain) == 2318.75
+      assert Costs.fixed_micro_usd(domain) == round(2318.75 / rate / 12 * 1_000_000)
+      assert Costs.fixed_micro_usd(domain) == 19_368_432
+
+      assert Costs.sek_per_year?(hosting)
+      assert Costs.sek_per_year(hosting) == 400.0
+      assert Costs.fixed_micro_usd(hosting) == round(400.0 / rate / 12 * 1_000_000)
+      assert Costs.fixed_micro_usd(hosting) == 3_341_185
+
+      fly =
+        Enum.find(
+          Costs.fixed_costs(),
+          &(&1.name =~ "Fly app tales-forge" and not String.contains?(&1.name, "playtest"))
+        )
+
+      assert Costs.fixed_micro_usd(fly) == 6_950_000
+      refute Costs.sek_per_year?(fly)
+
+      assert Costs.fixed_micro_usd(%{amount: :unknown}) == :unknown
       assert Costs.playtest_warn_usd() == 15.0
+    end
+
+    test "report includes SEK yearly items in known totals" do
+      local = summary("tales-forge", 0, 15, 30)
+
+      fixed = [
+        %{name: "Domain", env: :shared, amount: {:sek_per_year, 2318.75}, source: "a"},
+        %{name: "Hosting", env: :shared, amount: {:sek_per_year, 400.0}, source: "b"},
+        %{name: "Maybe later", env: :shared, amount: :unknown, source: "c"}
+      ]
+
+      report = Costs.report(local, {:error, :not_configured}, fixed)
+      assert report.unknown == ["Maybe later"]
+      assert report.fixed_known_micro_usd == 19_368_432 + 3_341_185
     end
   end
 
