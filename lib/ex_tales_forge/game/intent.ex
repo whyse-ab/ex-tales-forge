@@ -17,12 +17,12 @@ defmodule TalesForge.Game.Intent do
   @skill_required ~w(observe speak interact combat use_item)a
   @no_skill_types ~w(move wait train pickup drop buy sell trade spend)a
   @move_hints ~r/\b(go|head|walk|travel|move|enter|leave|step|run|proceed)\b/i
+  @train_verbs ~r/\b(teach|teaching|practice|practise|drill|train|training)\b/
   # Default variant: the ways players start a fight. Matched outside quoted
   # speech, so "any orcs I should fight?" is talk, not an attack.
   @combat_skills ~w(melee_combat ranged_combat unarmed_combat)
-  @quoted ~r/"[^"]*"|\x{201C}[^\x{201D}]*\x{201D}/u
+  @quoted_speech ~r/"[^"]*"|\x{201C}[^\x{201D}]*\x{201D}/u
   @combat_verbs ~r/\b(?:attack\w*|fight|fights|fighting|strike|strikes|striking|stab\w*|shoot\w*|punch\w*|lunge\w*|slash\w*|thrust\w*|hack(?:s|ing)? (?:at|down|through)|(?<!the )cut(?:s|ting)? (?:at|down) (?:him|her|it|them|the|his|its)|swing(?:s|ing)? (?:at|my|his|her|the)|charg(?:e|es|ing) (?:at|into|him|her|them|the)|tackl\w*|kick(?:s|ing)? (?:at|him|her|it|them|the)|club(?:s|bing)? (?:him|her|it|them|the)|bash(?:es|ing)? (?:at|him|her|it|them|the)|hit(?:s|ting)? (?:him|her|it|them|the)|kill(?:s|ing)? (?:him|her|it|them|the)|(?<!-)slay\w*|tak(?:e|es|ing) (?:down|out) (?:the|that|those|this|him|her|them|it)|loos(?:e|es|ing) (?:an |another |my |a |the |two |more )?(?:arrow|shaft|bolt)s?|fir(?:e|es|ing) (?:an |another |my |a |the |two |more )?(?:arrow|shaft|bolt)s?|fir(?:e|es|ing) at|hurl(?:s|ing)? (?:my |the |a |his |her )?(?:knife|dagger|spear|axe|hatchet|rock|stone)|throw(?:s|ing)? (?:my |the |a |his |her )?(?:knife|dagger|spear|axe|hatchet)|grappl\w*|wrestl\w*|disarm\w*|parry|parries|parrying|dodg\w*|duck(?:s|ing)? under|roll(?:s|ing)? (?:\w+ )?under|sidestep\w*)\b/iu
-  @train_verbs ~r/\b(teach|teaching|practice|practise|drill|train|training)\b/
   @skill_aliases [
     {"melee combat", "melee_combat"},
     {"ranged combat", "ranged_combat"},
@@ -244,6 +244,27 @@ defmodule TalesForge.Game.Intent do
       is_nil(Mechanics.normalize_skill_name(Map.get(params, "skill")))
   end
 
+  # Default variant: a fight rolls the skill of its first fight verb (an
+  # explicit stealth or other non-combat check stays).
+  defp combat_skill(:combat, raw_action, skill) when skill in [nil | @combat_skills] do
+    Mechanics.first_combat_skill(Regex.replace(@quoted_speech, raw_action, " ")) || skill
+  end
+
+  # A fight skill only rolls for a fight: "that's the fight I came for" in a
+  # greeting is talk, not a melee check.
+  defp combat_skill(_action_type, _raw_action, skill) when skill in @combat_skills, do: nil
+  defp combat_skill(_action_type, _raw_action, skill), do: skill
+
+  # Baseline keeps the old six verbs; the default variant knows more ways to
+  # attack (lunge, slash, loose an arrow…) and ignores quoted speech.
+  defp combat_intent?(lowered, context) do
+    if Variant.baseline?(context) do
+      Regex.match?(~r/\b(attack|fight|strike|stab|shoot|punch)\b/i, lowered)
+    else
+      Regex.match?(@combat_verbs, Regex.replace(@quoted_speech, lowered, " "))
+    end
+  end
+
   defp infer_action_type(raw_action, target_location, target_fixture, target_npc, context) do
     lowered = String.downcase(raw_action)
 
@@ -264,27 +285,6 @@ defmodule TalesForge.Game.Intent do
       Regex.match?(~r/\b(use|drink|eat|open)\b/i, lowered) -> :use_item
       is_binary(target_fixture) -> :interact
       true -> :other
-    end
-  end
-
-  # Default variant: a fight rolls the skill of its first fight verb (an
-  # explicit stealth or other non-combat check stays).
-  defp combat_skill(:combat, raw_action, skill) when skill in [nil | @combat_skills] do
-    Mechanics.first_combat_skill(Regex.replace(@quoted, raw_action, " ")) || skill
-  end
-
-  # A fight skill only rolls for a fight: "that's the fight I came for" in a
-  # greeting is talk, not a melee check.
-  defp combat_skill(_action_type, _raw_action, skill) when skill in @combat_skills, do: nil
-  defp combat_skill(_action_type, _raw_action, skill), do: skill
-
-  # Baseline keeps the old six verbs; the default variant knows more ways to
-  # attack (lunge, slash, loose an arrow…) and ignores quoted speech.
-  defp combat_intent?(lowered, context) do
-    if Variant.baseline?(context) do
-      Regex.match?(~r/\b(attack|fight|strike|stab|shoot|punch)\b/i, lowered)
-    else
-      Regex.match?(@combat_verbs, Regex.replace(@quoted, lowered, " "))
     end
   end
 
