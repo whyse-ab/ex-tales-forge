@@ -8,6 +8,16 @@ exits:
 fixtures:
   - guild post
   - stalls
+aliases:
+  - the square
+  - the market
+  - guild square
+  - guild post
+  - guild house
+  - guild hall
+  - guild office
+  - hiring board
+  - the stalls
 ---
 
 # Market Square

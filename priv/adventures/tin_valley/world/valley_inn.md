@@ -6,6 +6,11 @@ exits:
 fixtures:
   - hearth
   - bar counter
+aliases:
+  - the inn
+  - valley inn
+  - common room
+  - the tavern
 ---
 
 # Valley Inn

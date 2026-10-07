@@ -1,11 +1,25 @@
 defmodule TalesForge.Game.Intent do
-  @moduledoc false
+  @moduledoc """
+  The intent step: turns the player's text into a validated `PlayerAction`.
+
+  A heuristic reads the text first (action type, target place, person or
+  fixture, skill). When it is confident enough the heuristic result is used;
+  otherwise a live game asks the Tier 1 LLM (`intent_system.txt`). Either way
+  `validate_player_action/2` normalises the primary action.
+
+  In the default variant a move's target is resolved to a real place
+  (`TalesForge.Game.Movement`): an exit, a place further along the exits (the
+  route stops at the first checkpoint), or the place of a person who is
+  elsewhere. A target that names no place is not a move. The baseline variant
+  keeps the old exit-name matching.
+  """
 
   require Logger
 
   alias TalesForge.Config
   alias TalesForge.Game.Inventory
   alias TalesForge.Game.Mechanics
+  alias TalesForge.Game.Movement
   alias TalesForge.Game.Schemas.{IntentExtraction, PlayerAction, SingleAction}
   alias TalesForge.Game.Variant
   alias TalesForge.Game.WorldClock
@@ -17,6 +31,21 @@ defmodule TalesForge.Game.Intent do
   @skill_required ~w(observe speak interact combat use_item)a
   @no_skill_types ~w(move wait train pickup drop buy sell trade spend)a
   @move_hints ~r/\b(go|head|walk|travel|move|enter|leave|step|run|proceed)\b/i
+  # Default variant (scene-change fix, 2026-10-07): more ways to say "I go
+  # there", the ways out of a place, and words that make a move a plan for
+  # later rather than this turn's action (those go to Tier 1 when live).
+  @move_verbs ~r/\b(go|goes|going|head|heads|heading|walk|walks|walking|travel|move|moving|enter|enters|leave|leaves|leaving|step|steps|stepping|run|runs|proceed|return|returns|returning|set off|set out|make (?:my|our) way|lead the way|follow|climb|climbs|descend|hike|hurry|stride|strides|cross|seek|find|join|visit|approach|approaches|press on|push on|continue|slip out|duck out)\b/iu
+  @way_out ~r/\b(?:leave|leaves|leaving|exit|exits|quit) (?:the )?(?:inn|tavern|common room|place|building|bar)\b|\b(?:take my leave|step(?:s|ping)? out(?:side)?|head(?:s|ing)? out(?:side)?|go(?:es|ing)? out(?:side)?|walk(?:s|ing)? out(?:side)?|slip(?:s|ping)? out|duck(?:s|ing)? out|out of the inn|push(?:es|ing)? (?:open )?the (?:inn )?door)\b/iu
+  # "for the door", "outside": the way out only right after a verb of motion.
+  @way_out_after_verb ~r/\b(?:outside|out the door|for the door|through the door|out into|out the back)\b/iu
+  @seek_npc ~r/\b(?:find|seek out|seek|look for|go to|go see|head to|head for|make for|head over to|track down|visit)\s+(?:(?:the|master|mistress|sir|ser|old|good)\s+)*$/iu
+  @vocative_lead ~r/^\s*(?:(?:good|master|mistress|sir|ser|oi|hey|ah|well|evening|morning|greetings|hail|steward|so)[\s,!.\x{2014}-]+)*$/iu
+  @plan_words ~r/\b(i shall|i'll|i will|i would|i'd|i might|perhaps|i should|i must|i mean to|i plan to|i intend to|we'll|we shall|let me|let's)\b/iu
+  @deferral ~r/\b(first light|tomorrow|in the morning|at dawn|come dawn|come morning|later|tonight|for now|after (?:i|we|this|that)|once (?:i|we)|yet first|but first|before (?:i|we) (?:go|leave|head)|before (?:heading|going|leaving)|for the night|sleep|my room)\b/iu
+  @at_once ~r/\b(now|right now|at once|straight|straightaway|immediately|without delay)\b/iu
+  @quoted ~r/"[^"]*"|\x{201C}[^\x{201D}]*\x{201D}/u
+  # A verb of motion must come this close before the place it sends you to.
+  @verb_reach 60
   @train_verbs ~r/\b(teach|teaching|practice|practise|drill|train|training)\b/
   @skill_aliases [
     {"melee combat", "melee_combat"},
@@ -38,6 +67,11 @@ defmodule TalesForge.Game.Intent do
     def message(%__MODULE__{}), do: "player clarification required"
   end
 
+  @doc """
+  Resolves and validates the player's action. Raises `ClarificationNeeded`
+  when the intent is too unclear to act on.
+  """
+  @spec extract_intent(String.t(), map()) :: PlayerAction.t()
   def extract_intent(raw_action, context) when is_binary(raw_action) do
     {bundle, _source} = resolve_bundle(raw_action, context)
 
@@ -48,8 +82,16 @@ defmodule TalesForge.Game.Intent do
     validate_player_action(bundle, context)
   end
 
+  @doc "True when the extraction is too unclear to act on and the player should be asked."
+  @spec needs_clarification?(IntentExtraction.t()) :: boolean()
   def needs_clarification?(%IntentExtraction{} = extraction), do: should_clarify?(extraction)
 
+  @doc """
+  The raw intent extraction and where it came from: the heuristic (mock
+  provider, or a confident heuristic) or Tier 1 (`:llm`). Falls back to the
+  heuristic when Tier 1 fails.
+  """
+  @spec resolve_bundle(String.t(), map()) :: {IntentExtraction.t(), :heuristic | :llm}
   def resolve_bundle(raw_action, context) when is_binary(raw_action) do
     case LLM.provider() do
       "mock" ->
@@ -81,8 +123,14 @@ defmodule TalesForge.Game.Intent do
     end
   end
 
+  @doc """
+  Builds the `PlayerAction` from an extraction: normalises the primary action
+  (default variant: move targets resolved to real places), checks required
+  skills (baseline) and keeps the other actions as deferred.
+  """
+  @spec validate_player_action(IntentExtraction.t(), map()) :: PlayerAction.t()
   def validate_player_action(%IntentExtraction{} = extraction, context) do
-    primary = primary_action(extraction)
+    primary = extraction |> primary_action() |> normalize_move(context)
 
     if skill_missing?(primary, context) do
       raise ArgumentError, "primary action missing required skill"
@@ -102,6 +150,78 @@ defmodule TalesForge.Game.Intent do
     }
   end
 
+  @doc """
+  Default variant: the location a move target means, from where the character
+  is now: an exit id, a place further on (by id, name or alias), or the
+  npc_id of a person elsewhere (the character goes to them). Travel stops at
+  the first checkpoint on the way (`TalesForge.Game.Movement.route/3`).
+  `:error` when the target is no reachable place or person.
+
+      iex> context = %{"location_id" => "inn", "places" => %{
+      ...>   "inn" => %{"exits" => ["market_square"]},
+      ...>   "market_square" => %{"name" => "Market Square", "exits" => ["inn"]}},
+      ...>   "npc_locations" => %{"guild_steward" => %{"name" => "Osric Vane", "location_id" => "market_square"}}}
+      iex> TalesForge.Game.Intent.resolve_move_target("guild_steward", context)
+      {:ok, "market_square"}
+      iex> TalesForge.Game.Intent.resolve_move_target("Market Square", context)
+      {:ok, "market_square"}
+      iex> TalesForge.Game.Intent.resolve_move_target("the moon", context)
+      :error
+  """
+  @spec resolve_move_target(String.t() | nil, map()) :: {:ok, String.t()} | :error
+  def resolve_move_target(target, context) when is_binary(target) do
+    world = movement_world(context)
+    from = context["location_id"]
+    npc = context |> Map.get("npc_locations", %{}) |> Map.get(target)
+
+    cond do
+      Map.has_key?(Movement.places(world), target) ->
+        Movement.route(world, from, target)
+
+      is_map(npc) ->
+        Movement.route(world, from, npc["location_id"])
+
+      true ->
+        with {:ok, id} <- Movement.resolve_place(world, from, target),
+             do: Movement.route(world, from, id)
+    end
+  end
+
+  def resolve_move_target(_target, _context), do: :error
+
+  # Default variant: a Tier 1 move target in any form becomes a location id;
+  # a target that is no reachable place stops being a move (the character
+  # stays, and the GM is told so by the scene block).
+  defp normalize_move(%SingleAction{action_type: :move} = action, context) do
+    if Variant.baseline?(context) or Movement.places(movement_world(context)) == %{} do
+      action
+    else
+      case resolve_move_target(action.target, context) do
+        {:ok, id} -> %SingleAction{action | target: id}
+        :error -> %SingleAction{action | action_type: :other, target: nil}
+      end
+    end
+  end
+
+  # Speaking to a person who is not here but is reachable (a Tier 1 speak with
+  # an absent npc_id): the character goes to them.
+  defp normalize_move(%SingleAction{action_type: type, target: target} = action, context)
+       when type in [:speak, :other, :freeform] and is_binary(target) do
+    with false <- Variant.baseline?(context),
+         %{"location_id" => _} <- context |> Map.get("npc_locations", %{}) |> Map.get(target),
+         {:ok, id} <- resolve_move_target(target, context) do
+      %SingleAction{action | action_type: :move, target: id}
+    else
+      _ -> action
+    end
+  end
+
+  defp normalize_move(action, _context), do: action
+
+  defp movement_world(context), do: %{"locations" => Map.get(context, "places") || %{}}
+
+  @doc "The clarification payload shown to the player (question, options, original text)."
+  @spec build_clarification(IntentExtraction.t(), String.t()) :: map()
   def build_clarification(extraction, raw_action) do
     id = Base.encode16(:crypto.strong_rand_bytes(8), case: :lower)
 
@@ -153,7 +273,11 @@ defmodule TalesForge.Game.Intent do
   end
 
   defp ambiguous_move?(%SingleAction{action_type: :move, target: target}, context) do
-    is_nil(target) or target == "" or target not in context["exits"]
+    cond do
+      is_nil(target) or target == "" -> true
+      Variant.baseline?(context) -> target not in context["exits"]
+      true -> resolve_move_target(target, context) == :error
+    end
   end
 
   defp ambiguous_move?(_, _), do: false
@@ -186,6 +310,13 @@ defmodule TalesForge.Game.Intent do
     end
   end
 
+  @doc """
+  The heuristic reading of the player's text. Its confidence decides whether
+  a live game also asks Tier 1; in the default variant a move phrased as a
+  plan for later ("at first light", "after this drink") stays under the
+  threshold so Tier 1 decides.
+  """
+  @spec heuristic_intent(String.t(), map()) :: IntentExtraction.t()
   def heuristic_intent(raw_action, context) do
     target_location = infer_target_location(raw_action, context)
     target_npc = infer_target_npc(raw_action, context)
@@ -217,10 +348,29 @@ defmodule TalesForge.Game.Intent do
       overall_intent: sanitize_summary(raw_action),
       actions: [action],
       primary_index: 0,
-      confidence: 0.9,
+      confidence: heuristic_confidence(raw_action, action_type, context),
       needs_clarification: false
     }
   end
+
+  # A move phrased as a plan ("I'll head to the square once I've eaten",
+  # "perhaps I shall seek him out", a question) is left to Tier 1 when live:
+  # 0.8 is under the heuristic threshold (0.85) but over the clarification
+  # cutoff (0.75), so the mock provider still plays the move.
+  defp heuristic_confidence(raw_action, :move, context) do
+    cond do
+      Variant.baseline?(context) -> 0.9
+      # "Osric Vane, …": the player speaks to someone who is one exit away.
+      addressed_npc_location(String.downcase(raw_action), context) -> 0.9
+      Regex.match?(@deferral, raw_action) or String.contains?(raw_action, "?") -> 0.8
+      Regex.match?(@at_once, raw_action) -> 0.9
+      quoted_only_move?(raw_action, context) -> 0.8
+      Regex.match?(@plan_words, raw_action) -> 0.8
+      true -> 0.9
+    end
+  end
+
+  defp heuristic_confidence(_raw_action, _action_type, _context), do: 0.9
 
   defp primary_action(%IntentExtraction{actions: actions, primary_index: index}) do
     Enum.at(actions, index) || List.first(actions)
@@ -261,11 +411,133 @@ defmodule TalesForge.Game.Intent do
   end
 
   defp infer_target_location(raw_action, context) do
-    if Regex.match?(@move_hints, raw_action) do
-      raw_action
-      |> String.downcase()
-      |> find_matching_exit(context)
+    if Variant.baseline?(context) do
+      if Regex.match?(@move_hints, raw_action) do
+        raw_action
+        |> String.downcase()
+        |> find_matching_exit(context)
+      end
+    else
+      infer_destination(raw_action, context)
     end
+  end
+
+  # Default variant. In order: a place the sentence sends the character to
+  # ("up to the cut"), an exit named anywhere (the old rule), the way out
+  # ("I head out the door"), a person elsewhere the character goes to ("I
+  # approach Osric"), or a person elsewhere the player speaks to by name
+  # ("Osric Vane, I am Corvin…"): they are not here, so the character goes to
+  # them. Travel stops at the first checkpoint on the way.
+  defp infer_destination(raw_action, context) do
+    world = movement_world(context)
+    from = context["location_id"]
+    lowered = String.downcase(raw_action)
+
+    destination =
+      (Regex.match?(@move_verbs, raw_action) && verb_destination(raw_action, lowered, context)) ||
+        addressed_npc_location(lowered, context)
+
+    case destination && Movement.route(world, from, destination) do
+      {:ok, stop} -> stop
+      _ -> destination
+    end
+  end
+
+  # Narration outside quotes is what the character does; quoted speech is
+  # talk ("Brenna says you've been up the ridge"). Text with narration is read
+  # without its quotes first; a move only in the quotes ("I'll head up the
+  # ridge", she says) still counts but goes to Tier 1 (heuristic_confidence/3).
+  defp verb_destination(raw_action, lowered, context) do
+    narration = String.replace(raw_action, @quoted, " … ")
+
+    texts =
+      if String.trim(String.replace(narration, "…", "")) == "",
+        do: [raw_action],
+        else: Enum.uniq([narration, raw_action])
+
+    Enum.find_value(texts, &text_destination(&1, context)) ||
+      find_matching_exit(lowered, context)
+  end
+
+  defp text_destination(text, context) do
+    world = movement_world(context)
+    from = context["location_id"]
+    lowered = String.downcase(text)
+
+    if Regex.match?(@move_verbs, text) do
+      verb_led_place(world, from, text, lowered) ||
+        if(way_out?(text, lowered), do: Movement.way_out(world, from)) ||
+        sought_npc_location(lowered, context)
+    end
+  end
+
+  defp way_out?(text, lowered) do
+    Regex.match?(@way_out, text) or
+      @way_out_after_verb
+      |> Regex.scan(lowered, return: :index)
+      |> Enum.any?(fn [{pos, _}] -> verb_before?(lowered, pos) end)
+  end
+
+  defp verb_before?(lowered, pos) do
+    start = max(pos - @verb_reach, 0)
+    Regex.match?(@move_verbs, binary_part(lowered, start, pos - start))
+  end
+
+  defp verb_led_place(world, from, text, lowered) do
+    world
+    |> Movement.mentioned_places(from, text)
+    |> Enum.find_value(fn {id, pos} -> if verb_before?(lowered, pos), do: id end)
+  end
+
+  defp quoted_only_move?(raw_action, context) do
+    narration = String.replace(raw_action, @quoted, " … ")
+
+    narration != raw_action and String.trim(String.replace(narration, "…", "")) != "" and
+      is_nil(text_destination(narration, context))
+  end
+
+  # Only someone one exit away ("I'll find Osric" from the inn); "head over to
+  # Caldern's table" is a walk across the room the GM put him in, not a trip.
+  defp sought_npc_location(lowered, context) do
+    location = absent_npc_location(lowered, context, @seek_npc)
+    if location in List.wrap(context["exits"]), do: location
+  end
+
+  # Only someone one exit away: speaking to them by name means the player
+  # thinks they are here (the GM may have walked the character there).
+  defp addressed_npc_location(lowered, context) do
+    location = absent_npc_location(lowered, context, @vocative_lead, true)
+    if location in List.wrap(context["exits"]), do: location
+  end
+
+  # The location of a person who is not here, named in `lowered` right after
+  # text matching `lead` (with `vocative?`, only at the very start and followed
+  # by a comma, "!" or a dash, as when the player speaks to them).
+  defp absent_npc_location(lowered, context, lead, vocative? \\ false) do
+    context
+    |> Map.get("npc_locations", %{})
+    |> Enum.find_value(fn {_npc_id, info} ->
+      name = info["name"]
+
+      if is_binary(name) and is_binary(info["location_id"]) and
+           npc_named?(lowered, name, lead, vocative?),
+         do: info["location_id"]
+    end)
+  end
+
+  defp npc_named?(lowered, name, lead, vocative?) do
+    full = String.downcase(name)
+    first = full |> String.split() |> List.first()
+
+    [full, first]
+    |> Enum.uniq()
+    |> Enum.any?(fn term ->
+      tail = if vocative?, do: "(?=\\s*[,!\\x{2014}-])", else: "(?![\\w])"
+
+      ~r/(?<![\w])#{Regex.escape(term)}#{tail}/u
+      |> Regex.scan(lowered, return: :index)
+      |> Enum.any?(fn [{pos, _}] -> Regex.match?(lead, binary_part(lowered, 0, pos)) end)
+    end)
   end
 
   defp find_matching_exit(lowered, context) do

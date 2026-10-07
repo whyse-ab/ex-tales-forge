@@ -89,6 +89,7 @@ defmodule TalesForge.Game.TurnProcessor do
           |> Map.put(:npc_reactions, reactions)
           |> Map.put(:world_facts, agents)
           |> Map.put(:price_lines, price_lines)
+          |> Map.put(:moved_from, moved_from(session.world_state, board.world))
 
         Prompts.gm_messages(gm_context, mechanical, player_action, handler, turn_number)
       end)
@@ -127,6 +128,13 @@ defmodule TalesForge.Game.TurnProcessor do
           :ok
       end)
     end
+  end
+
+  # The location the character left this turn, or nil (the scene block in
+  # the GM prompt narrates the move from it).
+  defp moved_from(before, after_board) do
+    from = Map.get(before || %{}, "location_id")
+    if from != Map.get(after_board, "location_id"), do: from
   end
 
   defp world_agents(session, board) do
@@ -397,14 +405,25 @@ defmodule TalesForge.Game.TurnProcessor do
 
   defp maybe_move(world_state, %{handler: "move", state_hints: %{"location_id" => location_id}})
        when is_binary(location_id) do
-    put_in(world_state, ["character", "location_id"], location_id)
+    move_to(world_state, location_id)
   end
 
   defp maybe_move(world_state, %{handler: "move", target: target}) when is_binary(target) do
-    put_in(world_state, ["character", "location_id"], target)
+    move_to(world_state, target)
   end
 
   defp maybe_move(world_state, _), do: world_state
+
+  # Default variant: only to a place that exists (the intent step resolves
+  # names and routes; this guards a stale or invented id). Baseline: as before.
+  defp move_to(world_state, location_id) do
+    if Variant.baseline?(world_state) or World.runtime_location(world_state, location_id) != %{} do
+      put_in(world_state, ["character", "location_id"], location_id)
+    else
+      Logger.warning("move ignored: unknown location_id=#{inspect(location_id)}")
+      world_state
+    end
+  end
 
   defp maybe_apply_inventory(world_state, session_id, action, handler) do
     case Inventory.apply_server_inventory(world_state, session_id, action, handler) do
