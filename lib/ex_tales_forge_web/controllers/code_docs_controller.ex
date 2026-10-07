@@ -60,6 +60,7 @@ defmodule TalesForgeWeb.CodeDocsController do
 
       File.regular?(file) ->
         conn
+        |> allow_js()
         |> put_resp_content_type(MIME.from_path(file), nil)
         |> put_resp_header("cache-control", "private, max-age=300")
         |> send_file(200, file)
@@ -68,6 +69,14 @@ defmodule TalesForgeWeb.CodeDocsController do
         not_found(conn, "Not Found")
     end
   end
+
+  # Plug.CSRFProtection (in the :admin pipeline) refuses to send JavaScript to a
+  # plain GET, to stop other sites embedding it with <script src>. ExDoc's
+  # sidebar and search are static JS loaded by <script> tags, so they got 403.
+  # Skipping that check here is safe: these files are static, hold no tokens,
+  # and the session cookie is SameSite=Lax, so a cross-site <script> request
+  # carries no admin session and AdminAuth redirects it to the login page.
+  defp allow_js(conn), do: put_private(conn, :plug_skip_csrf_protection, true)
 
   defp not_found(conn, message),
     do: conn |> put_resp_content_type("text/plain") |> send_resp(404, message)
