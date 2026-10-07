@@ -170,21 +170,17 @@ defmodule TalesForge.Game.Intent do
     primary = primary_action(extraction)
 
     if skill_missing?(primary, context) do
-      case Mechanics.infer_skill_from_action(raw_action) do
-        nil ->
-          extraction
+      skill = Mechanics.infer_skill_from_action(raw_action)
 
-        skill ->
-          patched = %SingleAction{
-            primary
-            | parameters: Map.put(primary.parameters || %{}, "skill", skill)
-          }
+      patched = %SingleAction{
+        primary
+        | parameters: Map.put(primary.parameters || %{}, "skill", skill)
+      }
 
-          %{
-            extraction
-            | actions: List.replace_at(extraction.actions, extraction.primary_index, patched)
-          }
-      end
+      %{
+        extraction
+        | actions: List.replace_at(extraction.actions, extraction.primary_index, patched)
+      }
     else
       extraction
     end
