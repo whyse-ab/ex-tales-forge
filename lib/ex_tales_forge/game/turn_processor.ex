@@ -4,7 +4,7 @@ defmodule TalesForge.Game.TurnProcessor do
 
   PlayerAction → handler → server mechanics → inventory → clock+move →
   events → WorldSim → Perception → table GM (tone only) → allow-listed
-  patches → Multi → sync/signals → turn_completed.
+  patches → Multi → NPC updates → characters mirror → sync/signals → turn_completed.
 
   Core runtime is 100% Ecto.
   """
@@ -12,6 +12,7 @@ defmodule TalesForge.Game.TurnProcessor do
   require Logger
 
   alias TalesForge.AICalls.{Steps, Tags}
+  alias TalesForge.Characters
   alias TalesForge.Fronts
   alias TalesForge.Game.ActionHandler
   alias TalesForge.Game.Context
@@ -334,6 +335,8 @@ defmodule TalesForge.Game.TurnProcessor do
            ),
          :ok <-
            NPC.apply_gm_updates(session.id, gm_result, Map.get(world_after, "world_tick")),
+         # Double-write to `characters` (nothing reads it yet); never fails the turn.
+         :ok <- Characters.mirror(session),
          :ok <- NPCRegistry.sync(session),
          :ok <- maybe_emit_turn_signals(session, world_after, handler, raw_action) do
       {:ok,
