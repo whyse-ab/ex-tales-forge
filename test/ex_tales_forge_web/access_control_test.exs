@@ -34,6 +34,7 @@ defmodule TalesForgeWeb.AccessControlTest do
     test "representative pages redirect to the login page" do
       for path <- [
             "/",
+            "/new/tin_valley",
             "/play/#{@id}",
             "/admin",
             "/admin/costs",
@@ -71,7 +72,7 @@ defmodule TalesForgeWeb.AccessControlTest do
     end
 
     test "LiveViews (game, character play, admin) can't be mounted" do
-      for path <- ["/", "/play/#{@id}", "/admin", "/admin/costs", "/admin/playtest"] do
+      for path <- ["/", "/new/tin_valley", "/play/#{@id}", "/admin", "/admin/costs"] do
         assert {:error, {:redirect, %{to: "/admin/login"}}} = live(build_conn(), path)
       end
     end

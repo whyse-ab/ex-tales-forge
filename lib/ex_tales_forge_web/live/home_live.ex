@@ -1,17 +1,24 @@
 defmodule TalesForgeWeb.HomeLive do
   @moduledoc """
-  Home page: lists game sessions and starts new ones.
+  Home page: lists game sessions and starts new ones, either with a created
+  character (`TalesForgeWeb.CreateCharacterLive`) or as Elara (quick start).
   """
 
   use TalesForgeWeb, :live_view
 
   alias TalesForge.GameSessions
 
+  @adventures [
+    {"tin_valley", "Tin Valley", "A mining valley, an orc nest and a guild in a hurry."},
+    {"crossroads_ledger", "Crossroads Hamlet", "A missing ledger at a roadside inn."}
+  ]
+
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
      socket
      |> assign(:page_title, "Tales Forge")
+     |> assign(:adventures, @adventures)
      |> assign(:sessions, GameSessions.list_sessions())}
   end
 
@@ -52,22 +59,37 @@ defmodule TalesForgeWeb.HomeLive do
         </p>
       </header>
 
-      <div class="flex flex-wrap gap-3">
-        <button
-          phx-click="new_session"
-          phx-value-adventure="tin_valley"
-          class="rounded bg-[var(--paper-accent)] px-4 py-2 font-medium text-white hover:opacity-90"
+      <section class="space-y-3">
+        <h2 class="play-label">New game</h2>
+        <div
+          :for={{adventure, title, blurb} <- @adventures}
+          id={"new-#{adventure}"}
+          class="play-panel flex flex-col gap-3 rounded-lg px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
         >
-          Start Tin Valley
-        </button>
-        <button
-          phx-click="new_session"
-          phx-value-adventure="crossroads_ledger"
-          class="rounded border border-[var(--paper-rule)] px-4 py-2 font-medium text-[var(--paper-ink)] hover:opacity-80"
-        >
-          Crossroads Hamlet
-        </button>
-      </div>
+          <div>
+            <p class="font-serif font-semibold text-[var(--paper-ink)]">{title}</p>
+            <p class="text-sm text-[var(--paper-muted)]">{blurb}</p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <.link
+              navigate={~p"/new/#{adventure}"}
+              id={"create-#{adventure}"}
+              class="rounded bg-[var(--paper-accent)] px-4 py-2 font-medium text-white hover:opacity-90"
+            >
+              Create a character
+            </.link>
+            <button
+              phx-click="new_session"
+              phx-value-adventure={adventure}
+              id={"quick-#{adventure}"}
+              class="rounded border border-[var(--paper-rule)] px-4 py-2 font-medium text-[var(--paper-ink)] hover:opacity-80"
+            >
+              Quick start as Elara
+            </button>
+          </div>
+        </div>
+        <p class="text-xs text-[var(--paper-muted)]">Your first character is free.</p>
+      </section>
 
       <section :if={@sessions != []} class="space-y-3">
         <h2 class="play-label">Recent sessions</h2>

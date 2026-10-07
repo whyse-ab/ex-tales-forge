@@ -114,7 +114,8 @@
    contains .admin-shell) also follow the header theme toggle: system/light/dark
    all resolve to data-theme on <html>, and the dark palette below swaps the
    same variables, so components only ever use var(--paper-*). Player pages
-   (home, play) keep the light palette for now. */
+   (home, play) keep the light palette for now; a player page opts into the
+   toggle by containing .paper-themed (the character creation screen). */
 :root {
   --paper-bg: #f4ead5;
   --paper-panel: #faf6ec;
@@ -141,7 +142,8 @@
   --paper-danger-rule: #fca5a5;
 }
 
-:root[data-theme="dark"]:has(.admin-shell) {
+:root[data-theme="dark"]:has(.admin-shell),
+:root[data-theme="dark"]:has(.paper-themed) {
   --paper-bg: #1b1713;
   --paper-panel: #25201b;
   --paper-ink: #ede4d4;
@@ -169,7 +171,8 @@
 
 /* Admin: daisyUI components (form inputs, selects, the theme toggle) take
    their colours from the paper palette, so they flip with it. */
-:root:has(.admin-shell) {
+:root:has(.admin-shell),
+:root:has(.paper-themed) {
   --color-base-100: var(--paper-panel);
   --color-base-200: var(--paper-bg);
   --color-base-300: var(--paper-rule);
