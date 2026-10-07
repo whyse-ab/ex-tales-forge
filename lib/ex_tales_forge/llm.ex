@@ -60,6 +60,9 @@ defmodule TalesForge.LLM do
     }
   }
 
+  # Calls that share the session's x-grok-conv-id (see conv_id/1).
+  @narration_purposes ~w(scene gm)
+
   @scorer_max_tokens 800
   @scorer_temperature 0.2
 
@@ -448,18 +451,25 @@ defmodule TalesForge.LLM do
   The `x-grok-conv-id` sent with every xAI call.
 
   xAI keeps its prompt cache per server; requests with the same conversation id
-  are routed to the same server. Every call made for a game session (scene,
-  intent, GM, persona, scorer) uses the session id, so the rules prefix those
-  calls share stays warm on one server across the whole session.
+  are routed to the same server. Only the narration calls of a game session
+  (scene and GM turns, which share the narrator + rules prefix) use the bare
+  session id. Every other call for the session (persona, scorer, intent) gets
+  `<session id>:<purpose>`: when a persona call ran on the session id between
+  GM turns, the next GM turn reused nothing (cached_tokens 128); with the
+  persona on its own id the same sequence reused the narrator + rules prefix
+  (measured 2026-10-07).
 
   A call without a session gets a stable per-purpose id (`tales-forge-<purpose>`)
   rather than none: its prompt still starts with a static prefix worth reusing,
   and the id carries nothing about a player.
   """
   def conv_id(opts) do
+    purpose = purpose(Keyword.get(opts, :tier, :unknown))
+
     case opts[:session_id] do
-      id when is_binary(id) and id != "" -> id
-      _ -> "tales-forge-" <> purpose(Keyword.get(opts, :tier, :unknown))
+      id when is_binary(id) and id != "" and purpose in @narration_purposes -> id
+      id when is_binary(id) and id != "" -> id <> ":" <> purpose
+      _ -> "tales-forge-" <> purpose
     end
   end
 

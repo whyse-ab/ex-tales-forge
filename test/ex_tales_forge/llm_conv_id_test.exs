@@ -57,11 +57,36 @@ defmodule TalesForge.LLMConvIdTest do
     refute_received {:conv_id, _}
   end
 
-  test "persona calls for a session share the session's conv id" do
+  test "persona and scorer calls for a session get their own conv id, not the session's" do
     {:ok, session} = GameSessions.create_session(%{name: "Conv Id Persona"})
     flush_conv_ids()
     session_id = session.id
+    persona_id = session_id <> ":persona"
+    scorer_id = session_id <> ":scorer"
+
     assert {:ok, _} = LLM.complete_persona("system", "user", session_id: session_id)
+    assert_received {:conv_id, [^persona_id]}
+
+    assert {:ok, _} = LLM.complete_scorer("system", "user", session_id: session_id, criteria: 0)
+    assert_received {:conv_id, [^scorer_id]}
+  end
+
+  test "scene and GM calls of a session share the bare session id" do
+    {:ok, session} = GameSessions.create_session(%{name: "Conv Id Scene"})
+    session_id = session.id
+
+    # The opening scene was written by the mock provider at create time; call
+    # the scene path again over xAI.
+    flush_conv_ids()
+    context = Context.build_gm_context(session)
+
+    assert {:ok, _} =
+             LLM.complete_scene(
+               TalesForge.Game.Prompts.scene_messages(context),
+               context.intent_context,
+               session_id: session_id
+             )
+
     assert_received {:conv_id, [^session_id]}
   end
 
@@ -75,6 +100,10 @@ defmodule TalesForge.LLMConvIdTest do
 
   test "conv_id/1 prefers the session id and falls back per purpose" do
     assert LLM.conv_id(session_id: "abc", tier: :tier2) == "abc"
+    assert LLM.conv_id(session_id: "abc", tier: :scene) == "abc"
+    assert LLM.conv_id(session_id: "abc", tier: :persona) == "abc:persona"
+    assert LLM.conv_id(session_id: "abc", tier: :scorer) == "abc:scorer"
+    assert LLM.conv_id(session_id: "abc", tier: :tier1) == "abc:intent"
     assert LLM.conv_id(session_id: nil, tier: :tier2) == "tales-forge-gm"
     assert LLM.conv_id(session_id: "", tier: :tier1) == "tales-forge-intent"
     assert LLM.conv_id([]) == "tales-forge-unknown"
