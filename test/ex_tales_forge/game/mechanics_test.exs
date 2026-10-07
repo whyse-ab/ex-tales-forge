@@ -4,6 +4,8 @@ defmodule TalesForge.Game.MechanicsTest do
   alias TalesForge.Game.Mechanics
   alias TalesForge.Game.Schemas.{HandlerResult, MechanicalResolution, PlayerAction, SingleAction}
 
+  doctest Mechanics, only: [lp_threshold: 1, improvement_modifier: 1, lp_stat_bonus: 1]
+
   @character %{
     "stats" => %{"STR" => 10, "DEX" => 10, "WIS" => 12, "CHA" => 14},
     "skills" => %{
@@ -147,8 +149,8 @@ defmodule TalesForge.Game.MechanicsTest do
     assert updated == character
   end
 
-  test "attempt_improvements skips LP 5 with 2 failures" do
-    character = eligible(%{"climbing" => 5}, %{"climbing" => 2})
+  test "attempt_improvements skips LP 5 with no failure since the last attempt" do
+    character = eligible(%{"climbing" => 5}, %{"climbing" => 0})
     {updated, improvements} = Mechanics.attempt_improvements(character, %{"climbing" => 20})
 
     assert improvements == []
@@ -240,7 +242,7 @@ defmodule TalesForge.Game.MechanicsTest do
 
   test "wait attempt_improvements auto-fails master raw without consuming LP" do
     character =
-      eligible(%{"climbing" => 5}, %{"climbing" => 3})
+      eligible(%{"climbing" => 15}, %{"climbing" => 3})
       |> put_in(["skills", "climbing"], 16)
 
     {updated, [entry]} = Mechanics.attempt_improvements(character, %{"climbing" => 20})
@@ -254,8 +256,73 @@ defmodule TalesForge.Game.MechanicsTest do
 
     refute Map.has_key?(entry, "roll")
     assert get_in(updated, ["skills", "climbing"]) == 16
-    assert Map.get(updated["learning_points"], "climbing") == 5
+    assert Map.get(updated["learning_points"], "climbing") == 15
     assert Map.get(updated["learning_failures"], "climbing") == 3
+  end
+
+  describe "tiered progression" do
+    test "one failure is enough once the LP are there" do
+      character = eligible(%{"climbing" => 5}, %{"climbing" => 1})
+      {_updated, [entry]} = Mechanics.attempt_improvements(character, %{"climbing" => 4})
+
+      assert entry["improved"] == true
+    end
+
+    test "an Adept skill (6-10) needs 7 LP" do
+      character = @character |> put_in(["skills", "climbing"], 6)
+
+      assert {_c, []} =
+               character
+               |> Map.merge(%{"learning_points" => %{"climbing" => 6.5}})
+               |> Map.put("learning_failures", %{"climbing" => 2})
+               |> Mechanics.attempt_improvements(%{"climbing" => 20})
+
+      {_c, [entry]} =
+        character
+        |> Map.put("learning_points", %{"climbing" => 7.0})
+        |> Map.put("learning_failures", %{"climbing" => 2})
+        |> Mechanics.attempt_improvements(%{"climbing" => 20})
+
+      assert entry["improved"] == true
+      refute Map.has_key?(entry, "modifier")
+    end
+
+    test "an Expert skill (11-15) needs 10 LP and rolls at -3" do
+      character =
+        eligible(%{"climbing" => 10}, %{"climbing" => 1}) |> put_in(["skills", "climbing"], 11)
+
+      {_c, [miss]} = Mechanics.attempt_improvements(character, %{"climbing" => 14})
+      {hit_char, [hit]} = Mechanics.attempt_improvements(character, %{"climbing" => 15})
+
+      assert {miss["improved"], miss["modifier"]} == {false, -3}
+      assert hit["improved"] == true
+      assert get_in(hit_char, ["skills", "climbing"]) == 12
+    end
+
+    test "a trainer lowers the target by 5 on top of the tier modifier" do
+      character = put_in(@character, ["skills", "persuasion"], 12)
+
+      {_c, [miss]} =
+        Mechanics.attempt_trained_skill(character, "persuasion", %{"persuasion" => 10})
+
+      {_c, [hit]} =
+        Mechanics.attempt_trained_skill(character, "persuasion", %{"persuasion" => 11})
+
+      # 10 - 3 = 7 is not above 12 - 5; 11 - 3 = 8 is
+      assert {miss["improved"], hit["improved"]} == {false, true}
+    end
+
+    test "each roll's LP gets the linked stat's bonus" do
+      # persuasion is CHA 14: (14 - 10) div 4 = +1 on top of 0.5 for a success
+      {updated, resolution} = Mechanics.perform_and_apply(@character, "persuasion", 2)
+
+      assert resolution.lp_awarded == 1.5
+      assert updated["learning_points"]["persuasion"] == 1.5
+
+      # insight is WIS 12: no bonus
+      {_c, plain} = Mechanics.perform_and_apply(@character, "insight", 2)
+      assert plain.lp_awarded == 0.5
+    end
   end
 
   test "raw 0 eligible any 1d20 improves" do

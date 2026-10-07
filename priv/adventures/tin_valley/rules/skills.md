@@ -148,8 +148,8 @@ High skill levels in a domain grant **contextual stat bonuses** when performing 
 |------|-------------|---------------|-------------------|------------------|
 | Novice | 1-5 | 5 LP | Roll > Level | No |
 | Adept | 6-10 | 7 LP | Roll > Level | No |
-| Expert | 11-15 | 10 LP | Roll > Level - 3 | Recommended |
-| Master | 16-20 | 15 LP | Roll > Level - 5 | Required |
+| Expert | 11-15 | 10 LP | Roll - 3 > Level | Recommended |
+| Master | 16-20 | 15 LP | Roll - 5 > Level | Required |
 
 ### Trainer Bonuses
 - Trainers must have skill level ≥5 above student

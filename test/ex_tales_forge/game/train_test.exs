@@ -187,7 +187,7 @@ defmodule TalesForge.Game.TrainTest do
 
     session =
       session
-      |> seed_bars(%{"persuasion" => 5.0}, %{"persuasion" => 2})
+      |> seed_bars(%{"persuasion" => 5.0}, %{"persuasion" => 0})
 
     before = snapshot(session)
 
