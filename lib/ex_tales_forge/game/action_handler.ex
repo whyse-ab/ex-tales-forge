@@ -2,16 +2,24 @@ defmodule TalesForge.Game.ActionHandler do
   @moduledoc false
 
   # Core pure game logic. Ecto state only.
+  #
+  # Roll rule (decision 2026-10-07, from Fredrik via Case): roll only when the
+  # outcome is uncertain and failing matters. Speak, observe, interact, other
+  # and freeform take the skill the intent step chose, and no skill means no
+  # check. Combat always rolls (melee_combat unless named). The baseline variant
+  # keeps the old defaults: persuasion for speak, insight for everything else.
 
   alias TalesForge.Game.Mechanics
   alias TalesForge.Game.Schemas.{HandlerResult, PlayerAction}
+  alias TalesForge.Game.Variant
   alias TalesForge.Game.WorldClock
 
   @stub_actions ~w(use_item)a
   @inventory_actions ~w(pickup drop buy sell trade spend)a
 
-  def resolve(%PlayerAction{} = player_action) do
+  def resolve(%PlayerAction{} = player_action, variant \\ "default") do
     action = player_action.action
+    baseline? = Variant.baseline?(%{"variant" => variant})
     skill = action.parameters |> Map.get("skill") |> Mechanics.normalize_skill_name()
 
     cond do
@@ -66,17 +74,40 @@ defmodule TalesForge.Game.ActionHandler do
       action.action_type == :speak ->
         %HandlerResult{
           handler: "speak",
-          skill: skill || "persuasion",
+          skill: if(baseline?, do: skill || "persuasion", else: skill),
           target: action.target,
           notes: "Speak to #{action.target}."
         }
 
-      action.action_type in [:observe, :interact, :combat, :other, :freeform] ->
+      action.action_type == :combat ->
+        %HandlerResult{
+          handler: "skill_check",
+          skill: skill || if(baseline?, do: "insight", else: "melee_combat"),
+          target: action.target,
+          notes: "Skill check for combat."
+        }
+
+      action.action_type in [:observe, :interact, :other, :freeform] and baseline? ->
         %HandlerResult{
           handler: "skill_check",
           skill: skill || "insight",
           target: action.target,
           notes: "Skill check for #{action.action_type}."
+        }
+
+      action.action_type in [:observe, :interact, :other, :freeform] and is_binary(skill) ->
+        %HandlerResult{
+          handler: "skill_check",
+          skill: skill,
+          target: action.target,
+          notes: "Skill check for #{action.action_type}."
+        }
+
+      action.action_type in [:observe, :interact, :other, :freeform] ->
+        %HandlerResult{
+          handler: "narrate",
+          target: action.target,
+          notes: "No check: ordinary #{action.action_type}, nothing uncertain at stake."
         }
 
       true ->

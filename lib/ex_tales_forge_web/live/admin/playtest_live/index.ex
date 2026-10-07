@@ -7,6 +7,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
 
   import TalesForgeWeb.AdminComponents
 
+  alias TalesForge.Game.Variant
   alias TalesForge.Playtest.{Personas, Reports, Runner}
   alias TalesForgeWeb.TimeAgo
 
@@ -23,9 +24,15 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
      |> assign(:enabled, Runner.enabled?())
      |> assign(:personas, Enum.map(Personas.list(), &{"#{&1.name} (#{&1.style})", &1.id}))
      |> assign(:modules, Runner.modules())
+     |> assign(:variants, Variant.all())
      |> assign(
        :form,
-       to_form(%{"persona" => "paul", "module" => "tin_valley", "turn_limit" => "5"})
+       to_form(%{
+         "persona" => "paul",
+         "module" => "tin_valley",
+         "turn_limit" => "5",
+         "variant" => "default"
+       })
      )
      |> assign(:rows, Reports.list_runs())
      |> assign(:now, DateTime.utc_now())}
@@ -42,7 +49,9 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
         _ -> 5
       end
 
-    case Runner.start(persona, module, turn_limit: turn_limit, notes: "started from admin") do
+    opts = [turn_limit: turn_limit, variant: params["variant"], notes: "started from admin"]
+
+    case Runner.start(persona, module, opts) do
       {:ok, run_id} ->
         {:noreply, push_navigate(socket, to: ~p"/admin/playtest/#{run_id}")}
 
@@ -67,10 +76,11 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
           for={@form}
           id="start-run-form"
           phx-submit="start"
-          class="grid gap-3 sm:grid-cols-4 sm:items-end"
+          class="grid gap-3 sm:grid-cols-5 sm:items-end"
         >
           <.input field={@form[:persona]} type="select" label="Persona" options={@personas} />
           <.input field={@form[:module]} type="select" label="Module" options={@modules} />
+          <.input field={@form[:variant]} type="select" label="Variant" options={@variants} />
           <.input field={@form[:turn_limit]} type="number" label="Turn limit" min="1" max="30" />
           <button
             type="submit"

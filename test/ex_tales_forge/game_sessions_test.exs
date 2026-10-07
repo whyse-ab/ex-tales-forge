@@ -37,7 +37,7 @@ defmodule TalesForge.GameSessionsTest do
     assert {:ok, session} = GameSessions.create_session(%{name: "Mechanics"})
 
     assert {:ok, %{status: :processing}} =
-             GameSessions.submit_message(session.id, "study the chalked slate")
+             GameSessions.submit_message(session.id, "search the chalked slate")
 
     turn =
       Turn

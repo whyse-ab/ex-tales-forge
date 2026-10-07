@@ -47,7 +47,9 @@ defmodule TalesForge.Playtest.Runner do
   Starts a run and returns `{:ok, run_id}` at once.
 
   Options: `:turn_limit` (default #{@default_turn_limit}), `:turn_timeout_ms`
-  (per turn or scene, default #{@default_turn_timeout_ms}), `:notes`.
+  (per turn or scene, default #{@default_turn_timeout_ms}), `:notes`, and
+  `:variant` (`"default"` or `"baseline"`, see `TalesForge.Game.Variant`; nil
+  means `GAME_VARIANT`), so both arms of a comparison run on one deploy.
   """
   def start(persona_id, module, opts \\ []) do
     with :ok <- check_enabled(),
@@ -138,6 +140,7 @@ defmodule TalesForge.Playtest.Runner do
            GameSessions.create_session(%{
              name: "Playtest: #{persona.name} · #{module}",
              adventure_id: module,
+             variant: opts[:variant],
              controller: "bot",
              controller_ref: persona.id
            }),
