@@ -13,12 +13,14 @@ defmodule TalesForge.World do
      state in budget order (here, persons, parent locations).
   2. `prompt_section/1`: at most #{12} facts / #{1_200} characters, as typed
      lines in the per-turn section only (never the cached prefix).
-  3. The GM may return `new_facts` (`{about, kind, text}`, only in the schema
-     when the flag is on). `write_back/4` (step `turn.world_writeback`)
-     validates them, routes each to its owning agent and snapshots the
-     session's facts into `world_state["world_agents"]`, persisted with the turn.
-  4. `commit/3` hands the accepted facts and new moods to the running agents
-     after the turn is persisted.
+  3. `TalesForge.World.Prices` (step `turn.prices`): prices the player's
+     words mention are quoted, or charged, by the server, not the GM.
+  4. After the turn, off the critical path, `TalesForge.World.Extract` (one
+     small LLM call, purpose `fact_extract`, conv id `<session>:facts`) reads
+     the finished narration for new facts and promises. `validate_facts/3`
+     checks them, `store_facts/3` persists them as `world_fact` session
+     events (player_aware false) and `commit/3` hands them to the running
+     agents; a restarted agent rehydrates them from those events.
 
   Pack facts come from `priv/adventures/<id>/world_agents.json`; a pack
   without one gets agents with no pack facts (GM facts still accumulate).
@@ -29,12 +31,17 @@ defmodule TalesForge.World do
   alias TalesForge.Config
   alias TalesForge.Game.World, as: GameWorld
   alias TalesForge.NPC
+  alias TalesForge.Repo
+  alias TalesForge.Schemas.SessionEvent
   alias TalesForge.World.Agent
+
+  import Ecto.Query
 
   @max_facts 12
   @max_chars 1_200
   @gm_facts_per_entity 4
   @kinds ~w(fact price promise)
+  @fact_event "world_fact"
 
   def enabled?, do: Config.world_agents?()
 
@@ -80,7 +87,7 @@ defmodule TalesForge.World do
   """
   def collect(session_id, world) do
     defs = definitions(world["adventure_id"])
-    snapshot = world["world_agents"] || %{}
+    stored = stored_facts(session_id)
     moods = world["npc_moods"] || %{}
     here = get_in(world, ["character", "location_id"])
     [_ | parents] = chain = location_chain(defs, here)
@@ -105,7 +112,7 @@ defmodule TalesForge.World do
     |> Enum.reject(fn {id, _, _} -> is_nil(id) end)
     |> Enum.uniq_by(fn {id, _, _} -> id end)
     |> Enum.flat_map(fn {id, role, kind} ->
-      initial = initial_state(session_id, id, kind, defs, snapshot, moods, names, world)
+      initial = initial_state(session_id, id, kind, defs, stored, moods, names, world)
 
       case ensure(initial) do
         {:ok, pid} -> [pid |> Agent.state() |> Map.from_struct() |> Map.put(:role, role)]
@@ -134,7 +141,7 @@ defmodule TalesForge.World do
   defp item_id(id) when is_binary(id), do: id
   defp item_id(_), do: nil
 
-  defp initial_state(session_id, id, kind, defs, snapshot, moods, names, world) do
+  defp initial_state(session_id, id, kind, defs, stored, moods, names, world) do
     definition =
       case kind do
         :location -> Map.get(defs.locations, id, %{})
@@ -151,7 +158,7 @@ defmodule TalesForge.World do
         end
 
     pack_facts = Enum.map(definition["facts"] || [], &Map.put(&1, "source", "pack"))
-    gm_facts = get_in(snapshot, [id, "facts"]) || []
+    gm_facts = Map.get(stored, id, [])
 
     %Agent{
       session_id: session_id,
@@ -221,7 +228,7 @@ defmodule TalesForge.World do
   defp fact_text(%{"kind" => "promise", "text" => text} = f),
     do: "promised: #{text}#{turn_suffix(f)}"
 
-  defp fact_text(%{"source" => "gm", "text" => text} = f), do: text <> turn_suffix(f)
+  defp fact_text(%{"source" => "narration", "text" => text} = f), do: text <> turn_suffix(f)
   defp fact_text(%{"text" => text}), do: text
 
   defp turn_suffix(%{"turn" => turn}) when is_integer(turn), do: " (turn #{turn})"
@@ -239,17 +246,16 @@ defmodule TalesForge.World do
     "- #{agent.name} [#{agent.id}] (#{role}): " <> Enum.join(texts, "; ")
   end
 
-  # --- 3. write-back ---------------------------------------------------------------
+  # --- 3. new facts ---------------------------------------------------------------
 
   @doc """
-  Validates the GM's `new_facts` against this turn's agents and snapshots the
-  accepted ones into `world["world_agents"]`. Returns
-  `{world, accepted, rejected}`; accepted is `[{entity_id, fact}]`, rejected
-  is `[{new_fact, reason}]`.
+  Validates new facts (`%{"about", "kind", "text"}`, from the extraction call)
+  against this turn's agents. Returns `{accepted, rejected}`; accepted is
+  `[{entity_id, fact}]`, rejected is `[{new_fact, reason}]`.
   """
-  def write_back(world, _agents, [], _turn_number), do: {world, [], []}
+  def validate_facts(_agents, [], _turn_number), do: {[], []}
 
-  def write_back(world, agents, new_facts, turn_number) do
+  def validate_facts(agents, new_facts, turn_number) do
     {accepted_rev, rejected_rev, _seen} =
       Enum.reduce(new_facts, {[], [], MapSet.new()}, fn nf, {acc, rej, seen} ->
         case validate(nf, agents, seen, turn_number) do
@@ -261,24 +267,36 @@ defmodule TalesForge.World do
         end
       end)
 
-    accepted = Enum.reverse(accepted_rev)
-    rejected = Enum.reverse(rejected_rev)
+    {Enum.reverse(accepted_rev), Enum.reverse(rejected_rev)}
+  end
 
-    snapshot =
-      Enum.reduce(accepted, world["world_agents"] || %{}, fn {id, fact}, snap ->
-        Map.update(snap, id, %{"facts" => [fact]}, fn e ->
-          Map.update(e, "facts", [fact], &(&1 ++ [fact]))
-        end)
-      end)
+  @doc "Persists accepted facts as `world_fact` session events (never shown to the player)."
+  def store_facts(_session_id, [], _tick), do: :ok
 
-    if accepted != [] or rejected != [] do
-      Logger.info(
-        "world facts turn=#{turn_number} accepted=#{inspect(accepted)} rejected=#{inspect(rejected)}"
-      )
-    end
+  def store_facts(session_id, accepted, tick) do
+    Enum.each(accepted, fn {id, fact} ->
+      %SessionEvent{}
+      |> SessionEvent.changeset(%{
+        game_session_id: session_id,
+        kind: @fact_event,
+        actor: "world",
+        player_aware: false,
+        tick: tick || 0,
+        payload: %{"entity_id" => id, "fact" => fact}
+      })
+      |> Repo.insert!()
+    end)
+  end
 
-    world = if accepted == [], do: world, else: Map.put(world, "world_agents", snapshot)
-    {world, accepted, rejected}
+  @doc "The session's stored facts by entity id, oldest first."
+  def stored_facts(session_id) do
+    Repo.all(
+      from e in SessionEvent,
+        where: e.game_session_id == ^session_id and e.kind == ^@fact_event,
+        order_by: [asc: e.inserted_at],
+        select: e.payload
+    )
+    |> Enum.group_by(& &1["entity_id"], & &1["fact"])
   end
 
   defp validate(nf, agents, seen, turn_number) do
@@ -289,8 +307,9 @@ defmodule TalesForge.World do
          :ok <- check(text != "", :empty),
          :ok <- check(kind != "promise" or agent.kind == :person, :promise_not_person),
          :ok <- check(not duplicate?(agent, text, seen), :duplicate),
-         :ok <- check(kind != "price" or not price_conflict?(agent, text), :price_conflict) do
-      {:ok, agent.id, %{"kind" => kind, "text" => text, "source" => "gm", "turn" => turn_number}}
+         :ok <- check(kind != "price" or not price_conflict?(agents, text), :price_conflict) do
+      {:ok, agent.id,
+       %{"kind" => kind, "text" => text, "source" => "narration", "turn" => turn_number}}
     end
   end
 
@@ -324,12 +343,14 @@ defmodule TalesForge.World do
       Enum.any?(agent.facts, &(normalize(&1["text"]) == norm))
   end
 
-  # A price for something that already has one is rejected: the pack (or the
-  # first GM price) wins. "Private room: 3 silver" vs "Room for the night: 2 silver".
-  defp price_conflict?(agent, text) do
+  # A price for something that already has one, on any of this turn's agents,
+  # is rejected: the pack (or the first stored price) wins. "Private room:
+  # 3 silver" vs "Room for the night: 2 silver"; the inn's stew vs "Stew" on Brenna.
+  defp price_conflict?(agents, text) do
     new_key = price_key(text)
 
-    agent.facts
+    agents
+    |> Enum.flat_map(& &1.facts)
     |> Enum.filter(&(&1["kind"] == "price"))
     |> Enum.any?(&(not MapSet.disjoint?(price_key(&1["text"]), new_key)))
   end

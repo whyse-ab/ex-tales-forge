@@ -36,6 +36,7 @@ defmodule TalesForge.Game.TurnProcessor do
   alias TalesForge.Repo
   alias TalesForge.Schemas.{GameSession, SessionEvent, Turn}
   alias TalesForge.World, as: WorldAgents
+  alias TalesForge.World.{Extract, Prices}
 
   @doc """
   Runs one turn. The main steps (rules, prompt build, GM call, persistence)
@@ -70,7 +71,8 @@ defmodule TalesForge.Game.TurnProcessor do
     # world_state["npc_moods"]; this turn's reactions go to the per-turn prompt.
     # Prototype, WORLD_AGENTS=on: the agents relevant to this turn and their facts.
     agents = world_agents(session, ruled)
-    {reactions, board} = npc_reactions(session, ruled, turn_number, raw_action, mechanical)
+    {price_lines, priced} = world_prices(agents, session, ruled, raw_action, player_action)
+    {reactions, board} = npc_reactions(session, priced, turn_number, raw_action, mechanical)
 
     messages =
       Steps.time(:prompt, fn ->
@@ -79,6 +81,7 @@ defmodule TalesForge.Game.TurnProcessor do
           |> Context.build_gm_context()
           |> Map.put(:npc_reactions, reactions)
           |> Map.put(:world_facts, agents)
+          |> Map.put(:price_lines, price_lines)
 
         Prompts.gm_messages(gm_context, mechanical, player_action, handler, turn_number)
       end)
@@ -89,8 +92,6 @@ defmodule TalesForge.Game.TurnProcessor do
                session_id: session.id
              )
            end) do
-      {board, accepted} = world_write_back(agents, board, gm_result, turn_number)
-
       Steps.time(:persist, fn ->
         world_final = apply_allowlisted_patches(board.world, gm_result)
 
@@ -103,8 +104,20 @@ defmodule TalesForge.Game.TurnProcessor do
         })
       end)
       |> tap(fn
-        {:ok, _} when agents != [] -> WorldAgents.commit(session.id, accepted, reactions)
-        _ -> :ok
+        {:ok, _} when agents != [] ->
+          WorldAgents.commit(session.id, [], reactions)
+
+          Extract.run_async(
+            session.id,
+            turn_number,
+            raw_action,
+            gm_result.narrative,
+            agents,
+            Tags.for_world(board.world)
+          )
+
+        _ ->
+          :ok
       end)
     end
   end
@@ -115,14 +128,17 @@ defmodule TalesForge.Game.TurnProcessor do
       else: []
   end
 
-  defp world_write_back([], board, _gm_result, _turn_number), do: {board, []}
+  defp world_prices([], _session, board, _raw_action, _player_action), do: {[], board}
 
-  defp world_write_back(agents, board, gm_result, turn_number) do
-    Steps.time(:world_writeback, fn ->
-      {world, accepted, _rejected} =
-        WorldAgents.write_back(board.world, agents, gm_result.new_facts, turn_number)
+  defp world_prices(agents, session, board, raw_action, player_action) do
+    Steps.time(:prices, fn ->
+      {world, lines} =
+        Prices.resolve(agents, session.world_state, board.world, raw_action, player_action)
 
-      {%{board | world: world}, accepted}
+      if lines != [],
+        do: Logger.info("world prices session=#{session.id} lines=#{inspect(lines)}")
+
+      {lines, %{board | world: world}}
     end)
   end
 

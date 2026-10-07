@@ -144,6 +144,7 @@ defmodule TalesForge.Game.Context do
       context.formatted_intent,
       npc_sections,
       TalesForge.World.prompt_section(Map.get(context, :world_facts)),
+      TalesForge.World.Prices.prompt_section(Map.get(context, :price_lines)),
       TalesForge.Game.NpcReactions.prompt_section(Map.get(context, :npc_reactions))
     ]
     |> join_sections()
