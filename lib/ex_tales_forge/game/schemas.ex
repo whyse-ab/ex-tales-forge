@@ -199,9 +199,7 @@ defmodule TalesForge.Game.Schemas do
     defstruct [
       :narrative,
       mechanical_resolution: %MechanicalResolution{},
-      state_updates: [],
       npc_memory_updates: [],
-      overlay_deltas: %{},
       context_summary: nil,
       gm_notes: nil,
       raw: %{}
@@ -214,9 +212,7 @@ defmodule TalesForge.Game.Schemas do
           map
           |> Map.get("mechanical_resolution", %{})
           |> MechanicalResolution.decode(),
-        state_updates: Map.get(map, "state_updates", []),
         npc_memory_updates: Map.get(map, "npc_memory_updates", []),
-        overlay_deltas: Map.get(map, "overlay_deltas", %{}),
         context_summary: Map.get(map, "context_summary"),
         gm_notes: notes(Map.get(map, "gm_notes")),
         raw: map

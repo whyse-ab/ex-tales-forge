@@ -82,7 +82,7 @@ submit_message
        Mechanics.apply_server_mechanics (server 1d20 + LP)
        Inventory.apply_server_inventory
        WorldClock.advance(+1)
-       NPC.apply_gm_updates (npc_memory_updates + npcs/* state_updates)
+       NPC.apply_gm_updates (npc_memory_updates)
        persist GameSession + Turn
        NPCRegistry.sync
        NPCSignals.emit_turn_signals
@@ -105,7 +105,7 @@ Marta (`priv/npcs/marta_kellen.json`) has `agency_tier: "normal"`, OCEAN, and `c
 The other holes we have to close:
 
 1. **Omniscient GM prompt.** `Context.format_gm_prompt/1` concatenates pack rules, formatted intent (including `situation_lines` and recent-turn **player** text slices), and `NPC.format_gm_sections/2`. It does **not** dump raw `world_state`. The leak today is `NPC.merged_npc_context/1` putting the full `runtime_state` (memories, concern wait-ticks, initiative flags) into the present-NPC JSON. Front clocks would be a second leak if injected the same way. `context_summary` → `situation_lines` can persist invented hidden facts across later turns.
-2. **GM invents mechanics.** `Mechanics` rolls 1d20 and awards LP, but social outcomes are unbounded: a nat-1 intimidation can be narrated as "he tells you everything" because `gm_system.txt` does not constrain by relative power, personality, or beliefs. `overlay_deltas` are decoded and **never applied**.
+2. **GM invents mechanics.** `Mechanics` rolls 1d20 and awards LP, but social outcomes are unbounded: a nat-1 intimidation can be narrated as "he tells you everything" because `gm_system.txt` does not constrain by relative power, personality, or beliefs. (`overlay_deltas` were decoded and never applied; removed from the GM schema in Oct 2026.)
 3. **Memories are not retrieved.** Last-5 of present NPCs is not "last year's slight." If the fact never reaches the prompt, the sim does not matter.
 4. **OTP is global, not a session crash domain.** An NPC agent crash is isolated by Jido, but there is no session-shaped supervisor for WorldSim / fronts / extras. Geography is not (and must not become) a supervision tree.
 
@@ -220,7 +220,7 @@ Player input is blocked in `PlayLive` while `scene_loading` or `thinking` (`inpu
 | Tier | Where | Model / temp | Input | Output |
 |------|-------|--------------|-------|--------|
 | 1 Intent | `GameSessions.resolve_and_enqueue/3` **before** Oban | Heuristic if ≥ `TIER1_HEURISTIC_THRESHOLD` (0.85); else `LLM.complete_intent` temp 0, 400 tokens | Raw player text + intent context | `PlayerAction` JSON |
-| 2 Table GM | `TurnProcessor.run/3` inside `ProcessTurn` | `LLM.complete_turn` temp 0.7, 700 tokens | Validated `PlayerAction` + handler + rules + present NPCs | `GMStructuredResponse` (narrative, state_updates, npc_memory_updates, …) |
+| 2 Table GM | `TurnProcessor.run/3` inside `ProcessTurn` | `LLM.complete_turn` temp 0.7, 700 tokens | Validated `PlayerAction` + handler + rules + present NPCs | `GMStructuredResponse` (narrative first; capped npc_memory_updates, context_summary, gm_notes) |
 | Scene | `SceneProcessor` / `ProcessScene` | Same model as Tier 2 | Location + GM context | `{location_name, narrative}` |
 
 Raw player text never reaches Tier 2 (`Intent.sanitize_summary/1` strips instruction-injection phrases; `gm_system.txt` restates this). `TalesForge.LLM` is the only LLM client. Config lives in `TalesForge.Config`. Target: full turn < 3s (`mix e2e.smoke`).

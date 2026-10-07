@@ -88,11 +88,7 @@ defmodule TalesForge.Game.TurnProcessor do
 
   @doc false
   def simulate!(session, raw_action, player_action, handler, mechanical, opts \\ []) do
-    gm_result = %GMStructuredResponse{
-      narrative: "ok",
-      state_updates: [],
-      context_summary: nil
-    }
+    gm_result = %GMStructuredResponse{narrative: "ok", context_summary: nil}
 
     character = Map.get(session.world_state || %{}, "character", %{})
     turn_number = next_turn_number(session.id)
@@ -234,11 +230,7 @@ defmodule TalesForge.Game.TurnProcessor do
              sim
            ),
          :ok <-
-           NPC.apply_gm_updates(
-             session.id,
-             %{gm_result | state_updates: []},
-             Map.get(world_after, "world_tick")
-           ),
+           NPC.apply_gm_updates(session.id, gm_result, Map.get(world_after, "world_tick")),
          :ok <- NPCRegistry.sync(session),
          :ok <- maybe_emit_turn_signals(session, world_after, handler, raw_action) do
       {:ok,
