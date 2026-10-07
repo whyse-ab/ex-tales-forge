@@ -80,6 +80,7 @@
                  "lib/ex_tales_forge/llm.ex",
                  "lib/ex_tales_forge/game/turn_processor.ex",
                  "lib/ex_tales_forge/game/context.ex",
+                 "lib/ex_tales_forge/game/features.ex",
                  "lib/ex_tales_forge/game/prompts.ex",
                  "lib/ex_tales_forge/game/npc_reactions.ex",
                  "lib/ex_tales_forge/world.ex",

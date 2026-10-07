@@ -1,0 +1,3 @@
+{
+  "_doc": "INN_WORLD (feature inn_world): places and people around the Valley Inn. Design: tales-forge-docs docs/design-tin-valley-world.md. New places list their exits; the way back from base places is added by TalesForge.Game.Pack."
+}

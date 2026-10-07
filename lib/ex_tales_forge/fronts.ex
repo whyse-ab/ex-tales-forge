@@ -8,19 +8,25 @@ defmodule TalesForge.Fronts do
 
   import Ecto.Query
 
+  alias TalesForge.Game.Features
   alias TalesForge.Game.Pack
+  alias TalesForge.Game.Variant
   alias TalesForge.Game.WorldClock
   alias TalesForge.Repo
   alias TalesForge.Schemas.{FrontInstance, GameSession}
 
   def seed_session(%GameSession{} = session) do
     case Map.get(session.world_state || %{}, "adventure_id") do
-      "tin_valley" -> seed_from_pack(session, Pack.load("tin_valley").fronts)
+      "tin_valley" -> seed_from_pack(session, pack_fronts(session.world_state || %{}))
       _ -> :ok
     end
   end
 
   def seed_session(_), do: :ok
+
+  defp pack_fronts(world) do
+    Pack.load("tin_valley", Variant.of(world), Features.of(world)).fronts
+  end
 
   def list_all(session_id) when is_binary(session_id) do
     FrontInstance

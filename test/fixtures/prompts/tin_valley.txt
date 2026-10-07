@@ -45,7 +45,7 @@
 ===== intent context =====
 Current location: Valley Inn (valley_inn)
 Location features:
-# Valley Inn
+A timber inn at the foot of the tin road. Miners drink here. The valley road runs east toward the cut.
 Fixtures:
 hearth, bar counter
 Ground items:
@@ -804,7 +804,7 @@ character: Elara Voss (human)
 Do not rewrite or re-narrate this as if it just happened. The player has
 already heard it; respond to their action from here.
 
-# Valley Inn
+A timber inn at the foot of the tin road. Miners drink here. The valley road runs east toward the cut.
 
 You have just pushed through the inn door.
 Osric Vane wants the nest off the cut so the Guild can take the hill.
@@ -819,7 +819,7 @@ _Mock GM: set XAI_API_KEY for full scene narration._
 
 Current location: Valley Inn (valley_inn)
 Location features:
-# Valley Inn
+A timber inn at the foot of the tin road. Miners drink here. The valley road runs east toward the cut.
 Fixtures:
 hearth, bar counter
 Ground items:
@@ -1612,7 +1612,7 @@ character: Elara Voss (human)
 Do not rewrite or re-narrate this as if it just happened. The player has
 already heard it; respond to their action from here.
 
-# Valley Inn
+A timber inn at the foot of the tin road. Miners drink here. The valley road runs east toward the cut.
 
 You have just pushed through the inn door.
 Osric Vane wants the nest off the cut so the Guild can take the hill.
@@ -1627,7 +1627,7 @@ _Mock GM: set XAI_API_KEY for full scene narration._
 
 Current location: Valley Inn (valley_inn)
 Location features:
-# Valley Inn
+A timber inn at the foot of the tin road. Miners drink here. The valley road runs east toward the cut.
 Fixtures:
 hearth, bar counter
 Ground items:
@@ -2445,7 +2445,7 @@ character: Elara Voss (human)
 Do not rewrite or re-narrate this as if it just happened. The player has
 already heard it; respond to their action from here.
 
-# Valley Inn
+A timber inn at the foot of the tin road. Miners drink here. The valley road runs east toward the cut.
 
 You have just pushed through the inn door.
 Osric Vane wants the nest off the cut so the Guild can take the hill.
@@ -2460,7 +2460,7 @@ _Mock GM: set XAI_API_KEY for full scene narration._
 
 Current location: Valley Inn (valley_inn)
 Location features:
-# Valley Inn
+A timber inn at the foot of the tin road. Miners drink here. The valley road runs east toward the cut.
 Fixtures:
 hearth, bar counter
 Ground items:

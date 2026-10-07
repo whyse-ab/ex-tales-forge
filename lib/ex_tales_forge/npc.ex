@@ -9,6 +9,7 @@ defmodule TalesForge.NPC do
   import Ecto.Query
 
   alias TalesForge.Characters.{Defaults, Levers}
+  alias TalesForge.Game.Features
   alias TalesForge.Game.Pack
   alias TalesForge.Game.Variant
   alias TalesForge.Game.WorldClock
@@ -44,8 +45,11 @@ defmodule TalesForge.NPC do
 
     definitions =
       case adventure_id do
-        "tin_valley" -> Pack.load("tin_valley", Variant.of(world_state)).npcs
-        _ -> load_definitions_from_files(rules)
+        "tin_valley" ->
+          Pack.load("tin_valley", Variant.of(world_state), Features.of(world_state)).npcs
+
+        _ ->
+          load_definitions_from_files(rules)
       end
 
     Enum.each(definitions, fn definition ->
