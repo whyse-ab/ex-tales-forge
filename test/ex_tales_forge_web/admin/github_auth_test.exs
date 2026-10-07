@@ -30,7 +30,7 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
 
   # GitHub API stub. `emails` is the /user/emails body; `team` is the membership
   # response for octo: :active, :pending or :none.
-  defp stub_github(emails, team \\ :none) do
+  defp stub_github(emails, team) do
     test = self()
 
     Req.Test.stub(@stub, fn conn ->
