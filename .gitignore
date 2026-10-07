@@ -44,3 +44,6 @@ npm-debug.log
 # Dialyzer PLTs (cached in CI)
 /priv/plts/*.plt
 /priv/plts/*.plt.hash
+
+# ExDoc HTML for /admin/code-docs (built in the Docker builder stage)
+/priv/code_docs/
