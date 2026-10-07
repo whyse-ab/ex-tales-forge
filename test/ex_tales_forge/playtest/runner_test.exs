@@ -180,6 +180,53 @@ defmodule TalesForge.Playtest.RunnerTest do
     assert {:ok, %{status: "stopped", stop_reason: "dead", turns_played: 1}} = await(run_id)
   end
 
+  test "each persona plays the character it created, and knows who it made" do
+    test_pid = self()
+
+    stub_llm(fn
+      :persona, _user, system ->
+        send(test_pid, {:persona_system, system})
+        %{"action" => "I nod to the innkeeper.", "option_id" => nil}
+
+      _kind, _user, _system ->
+        :default
+    end)
+
+    {:ok, run_id} = Runner.start("lotta", "tin_valley", turn_limit: 1)
+    assert {:ok, %{status: "finished"} = run} = await(run_id)
+
+    character = Repo.get!(GameSession, run.game_session_id).world_state["character"]
+    assert %{"name" => "Hilde Stonebrook", "race" => "dwarf", "class" => "druid"} = character
+    assert character["stats"]["WIS"] == 15
+
+    assert_received {:persona_system, system}
+    assert system =~ "You created this character yourself: Hilde Stonebrook, a dwarf druid."
+  end
+
+  test "character: :default keeps the pack's default character and a plain persona prompt" do
+    test_pid = self()
+
+    stub_llm(fn
+      :persona, _user, system ->
+        send(test_pid, {:persona_system, system})
+        %{"action" => "I nod to the innkeeper.", "option_id" => nil}
+
+      _kind, _user, _system ->
+        :default
+    end)
+
+    {:ok, run_id} = Runner.start("lotta", "tin_valley", turn_limit: 1, character: :default)
+    assert {:ok, %{status: "finished"} = run} = await(run_id)
+
+    assert %{"name" => "Elara Voss"} =
+             Repo.get!(GameSession, run.game_session_id).world_state["character"]
+
+    assert_received {:persona_system, system}
+    refute system =~ "You created this character"
+    {:ok, lotta} = TalesForge.Playtest.Personas.fetch("lotta")
+    assert system == TalesForge.Playtest.Personas.system_prompt(lotta)
+  end
+
   test "the persona sees the story but no hidden events, GM notes or rolls" do
     test_pid = self()
 
@@ -204,7 +251,7 @@ defmodule TalesForge.Playtest.RunnerTest do
     assert_received {:persona_prompt, _first}
     assert_received {:persona_prompt, second}
     assert second =~ "The lamp gutters as the innkeeper eyes you."
-    assert second =~ "Character: Elara Voss"
+    assert second =~ "Character: Corvin Ashdown"
     refute second =~ "SECRET"
     refute second =~ ~r/roll|difficulty|gm_notes/i
   end

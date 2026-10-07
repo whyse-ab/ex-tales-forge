@@ -31,7 +31,7 @@ defmodule TalesForge.PlaytestHelpers do
   end
 
   # Answers every LLM call like xAI would, 2000 micro-USD each. `reply.(kind, user)`
-  # returns the JSON for that call, or :default.
+  # (or `reply.(kind, user, system)`) returns the JSON for that call, or :default.
   def stub_llm(reply) do
     Req.Test.stub(TalesForge.LLM, fn conn ->
       {:ok, body, conn} = Plug.Conn.read_body(conn)
@@ -47,7 +47,7 @@ defmodule TalesForge.PlaytestHelpers do
       kind = kind(system, user, request)
 
       content =
-        case reply.(kind, user) do
+        case if(is_function(reply, 3), do: reply.(kind, user, system), else: reply.(kind, user)) do
           :default -> Jason.encode!(default_reply(kind))
           {:raw, text} -> text
           map -> Jason.encode!(map)
