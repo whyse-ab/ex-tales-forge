@@ -21,5 +21,13 @@
       "price_copper": 2,
       "quantity": 99
     }
+  ],
+  "maslow": "belonging",
+  "concerns": [
+    {
+      "text": "Keep the inn full and her regulars safe while the hills are restless",
+      "focus": "regulars' safety",
+      "priority": 6
+    }
   ]
 }

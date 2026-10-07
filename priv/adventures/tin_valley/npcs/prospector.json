@@ -14,5 +14,18 @@
       "agreeableness": 6,
       "neuroticism": 5
     }
-  }
+  },
+  "maslow": "physiological",
+  "concerns": [
+    {
+      "text": "Get paid for the week's digging",
+      "focus": "wages",
+      "priority": 6
+    },
+    {
+      "text": "Find out what keeps knocking below the deepest shaft",
+      "focus": "noises below",
+      "priority": 4
+    }
+  ]
 }

@@ -8,6 +8,7 @@ defmodule TalesForge.NPC do
 
   import Ecto.Query
 
+  alias TalesForge.Characters.Levers
   alias TalesForge.Game.Pack
   alias TalesForge.Game.WorldClock
   alias TalesForge.Repo
@@ -72,7 +73,9 @@ defmodule TalesForge.NPC do
     npc_dir()
     |> File.ls!()
     |> Enum.filter(&String.ends_with?(&1, ".json"))
-    |> Enum.map(&load_definition_file/1)
+    |> Enum.map(fn file ->
+      file |> load_definition_file() |> tap(&Levers.validate!(&1, "priv/npcs/#{file}"))
+    end)
   end
 
   def list_instances(session_id) do

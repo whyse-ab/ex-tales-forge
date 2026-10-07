@@ -2,13 +2,21 @@ defmodule TalesForge.Game.Pack do
   @moduledoc """
   File loader for complete adventure packs under `priv/adventures/<id>/`.
 
-  Fail-fast on missing start, dangling exits, or portent spawn targets.
-  Crossroads is **not** loaded through this module at session create.
+  Fail-fast on missing start, dangling exits, portent spawn targets, or bad
+  character levers (Maslow, concerns, OCEAN; see `TalesForge.Characters.Levers`).
+  Crossroads is **not** loaded through this module at session create, but its
+  player character file is (`player_character!/1`).
+
+  The player character lives in `characters/<id>.json`: the sheet that goes
+  into `world_state["character"]`, plus the levers `ocean`, `maslow` and
+  `concerns`, which `sheet/1` strips.
   """
 
+  alias TalesForge.Characters.Levers
   alias TalesForge.Game.Fronts
-  alias TalesForge.Game.World
   alias TalesForge.Game.WorldClock
+
+  @sheet_keys ~w(id name race stats skills)
 
   def load(adventure_id) when is_binary(adventure_id) and adventure_id != "" do
     dir = Path.join(adventures_dir(), adventure_id)
@@ -20,6 +28,8 @@ defmodule TalesForge.Game.Pack do
     adventure = load_adventure!(dir)
     locations = load_locations!(dir)
     npcs = load_npcs!(dir)
+    Enum.each(npcs, &Levers.validate!(&1, "#{adventure_id} NPC #{&1["id"]}"))
+    player_character = player_character!(adventure_id)
     fronts_dir = Path.join(dir, "fronts")
     fronts = fronts_dir |> Fronts.parse_dir!() |> Enum.map(&attach_identity(&1, fronts_dir))
 
@@ -34,6 +44,7 @@ defmodule TalesForge.Game.Pack do
       situation_lines: List.wrap(adventure["situation_lines"]),
       locations: locations,
       npcs: npcs,
+      player_character: player_character,
       fronts: fronts
     }
   end
@@ -44,7 +55,7 @@ defmodule TalesForge.Game.Pack do
     pack = load(adventure_id)
     start_id = pack.starting_location_id
     start = Map.fetch!(pack.locations, start_id)
-    elara = World.default_world_state()["character"]
+    elara = sheet(pack.player_character)
     tick = WorldClock.default_start_tick()
 
     live_fronts =
@@ -68,6 +79,41 @@ defmodule TalesForge.Game.Pack do
       "live_fronts" => live_fronts,
       "public_facts" => []
     }
+  end
+
+  @doc """
+  The adventure's player character file (`characters/*.json`), levers included.
+  Raises `ArgumentError` if there is not exactly one file, or if the sheet or
+  the levers are invalid.
+  """
+  def player_character!(adventure_id) when is_binary(adventure_id) do
+    dir = Path.join([adventures_dir(), adventure_id, "characters"])
+
+    case Path.wildcard(Path.join(dir, "*.json")) do
+      [path] ->
+        path |> File.read!() |> Jason.decode!() |> validate_player_character!(path)
+
+      [] ->
+        raise ArgumentError, "no player character in #{dir}"
+
+      paths ->
+        raise ArgumentError, "expected one player character in #{dir}, got #{length(paths)}"
+    end
+  end
+
+  @doc "A character file without its levers: the map stored as `world_state[\"character\"]`."
+  def sheet(character) when is_map(character), do: Map.drop(character, Levers.lever_keys())
+
+  @doc false
+  def validate_player_character!(character, source) when is_map(character) do
+    Enum.each(@sheet_keys, fn key ->
+      unless Map.has_key?(character, key) do
+        raise ArgumentError, "#{source}: player character needs #{inspect(key)}"
+      end
+    end)
+
+    Levers.validate!(character, source)
+    character
   end
 
   @doc false
