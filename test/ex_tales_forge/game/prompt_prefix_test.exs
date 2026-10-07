@@ -27,7 +27,9 @@ defmodule TalesForge.Game.PromptPrefixTest do
     "Situation:",
     "Recent turns:",
     "## Present NPCs",
-    "## NPC Memories"
+    "## NPC Memories",
+    "## NPC reactions",
+    "## World facts"
   ]
 
   setup do
@@ -262,11 +264,34 @@ defmodule TalesForge.Game.PromptPrefixTest do
     end
   end
 
+  # Every GM prompt here carries an NPC reaction line (NPC_REACTIONS=on), the
+  # strictest case: it is per-turn and must stay out of the cached prefix.
+  @reaction %{
+    "name" => "Marta Kellen",
+    "emotion" => "wary",
+    "intensity" => 0.7,
+    "stance" => "cool",
+    "confidence" => 0.8
+  }
+
+  # ... and world facts (WORLD_AGENTS=on), also per-turn only.
+  @world_facts [
+    %{
+      id: "taproom",
+      name: "The taproom",
+      kind: :location,
+      role: :here,
+      facts: [%{"kind" => "price", "text" => "Room: 3 silver", "source" => "pack"}]
+    }
+  ]
+
   defp gm_messages(session, turn_number, text) do
     {player_action, handler} = action(text)
 
     session
     |> Context.build_gm_context()
+    |> Map.put(:npc_reactions, [@reaction])
+    |> Map.put(:world_facts, @world_facts)
     |> Prompts.gm_messages(
       %MechanicalResolution{skill: "insight", roll: 14, outcome: "success"},
       player_action,

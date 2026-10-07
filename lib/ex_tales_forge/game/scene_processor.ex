@@ -77,8 +77,21 @@ defmodule TalesForge.Game.SceneProcessor do
     end
   end
 
+  # WORLD_AGENTS=on: the scene gets the same per-turn world facts as a GM turn,
+  # so the opening can't set a price or a threat the facts contradict.
+  defp put_world_facts(gm_context, session) do
+    if TalesForge.World.enabled?(),
+      do:
+        Map.put(
+          gm_context,
+          :world_facts,
+          TalesForge.World.collect(session.id, session.world_state || %{})
+        ),
+      else: gm_context
+  end
+
   defp generate_scene(%GameSession{} = session, location_id) do
-    gm_context = Context.build_gm_context(session)
+    gm_context = Context.build_gm_context(session) |> put_world_facts(session)
 
     case LLM.complete_scene(Prompts.scene_messages(gm_context), gm_context.intent_context,
            session_id: session.id

@@ -1,0 +1,48 @@
+{
+  "note": "Prototype data for WORLD_AGENTS=on (world agents hold facts; see tales-forge-docs docs/design-world-agents.md). Facts restate the pack (adventure.md, world/*.md, npcs/*.md, rules/economy.md); they are not new canon.",
+  "locations": [
+    {
+      "id": "tin_valley_region",
+      "name": "Tin Valley",
+      "kind": "region",
+      "facts": [
+        {"kind": "fact", "text": "The danger here is an orc nest in the cut, reached from the market square: orcs raid the valley road and hoard stolen goods. No other monsters (no harpies, wolf-men or dragons) are known here."},
+        {"kind": "fact", "text": "The Miners Guild, under its steward Osric Vane, wants the nest gone so the Guild can take the hill. Osric is Guild, not orc."},
+        {"kind": "fact", "text": "Coin: 1 gold = 50 silver = 500 copper; 10 copper = 1 silver."}
+      ]
+    },
+    {
+      "id": "tin_valley_village",
+      "name": "Tin Valley village",
+      "kind": "village",
+      "parent": "tin_valley_region",
+      "facts": [
+        {"kind": "fact", "text": "A miners' village on the tin road: the Valley Inn, the market square with the Guild post, and the road east toward the cut."}
+      ]
+    },
+    {
+      "id": "valley_inn",
+      "kind": "building",
+      "parent": "tin_valley_village",
+      "facts": [
+        {"kind": "price", "text": "Mug of ale: 2 copper"},
+        {"kind": "price", "text": "Bread: 1 copper"},
+        {"kind": "price", "text": "Bowl of stew (a common meal): 5 copper"},
+        {"kind": "price", "text": "Private room: 3 silver a night, paid up front"},
+        {"kind": "fact", "text": "Brenna Holt keeps the inn; miners drink here."}
+      ]
+    },
+    {"id": "market_square", "kind": "place", "parent": "tin_valley_village", "facts": []},
+    {"id": "mine_workings", "kind": "place", "parent": "tin_valley_region", "facts": []},
+    {"id": "orc_approach", "kind": "place", "parent": "tin_valley_region", "facts": []},
+    {"id": "orc_nest", "kind": "place", "parent": "tin_valley_region", "facts": []}
+  ],
+  "persons": [
+    {
+      "id": "innkeep",
+      "facts": [
+        {"kind": "fact", "text": "Bought the inn with a tin widow's purse and will not see it burned in a nest raid."}
+      ]
+    }
+  ]
+}

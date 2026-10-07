@@ -18,6 +18,7 @@ defmodule TalesForge.Game.TurnProcessor do
   alias TalesForge.Game.Events
   alias TalesForge.Game.Inventory
   alias TalesForge.Game.Mechanics
+  alias TalesForge.Game.NpcReactions
   alias TalesForge.Game.Perception
   alias TalesForge.Game.Prompts
   alias TalesForge.Game.SceneProcessor
@@ -34,6 +35,7 @@ defmodule TalesForge.Game.TurnProcessor do
   alias TalesForge.PubSub.GameSession, as: SessionPubSub
   alias TalesForge.Repo
   alias TalesForge.Schemas.{GameSession, SessionEvent, Turn}
+  alias TalesForge.World, as: WorldAgents
 
   @doc """
   Runs one turn. The main steps (rules, prompt build, GM call, persistence)
@@ -60,12 +62,24 @@ defmodule TalesForge.Game.TurnProcessor do
   end
 
   defp run_steps(session, turn_number, raw_action, player_action) do
-    {handler, mechanical, board} =
+    {handler, mechanical, ruled} =
       Steps.time(:rules, fn -> resolve_rules(session, player_action) end)
+
+    # Prototype, NPC_REACTIONS=on: Jev gut reactions of the NPCs present, before
+    # the GM call (on the critical path, short timeout). Moods carry over in
+    # world_state["npc_moods"]; this turn's reactions go to the per-turn prompt.
+    # Prototype, WORLD_AGENTS=on: the agents relevant to this turn and their facts.
+    agents = world_agents(session, ruled)
+    {reactions, board} = npc_reactions(session, ruled, turn_number, raw_action, mechanical)
 
     messages =
       Steps.time(:prompt, fn ->
-        gm_context = Context.build_gm_context(%{session | world_state: board.world})
+        gm_context =
+          %{session | world_state: board.world}
+          |> Context.build_gm_context()
+          |> Map.put(:npc_reactions, reactions)
+          |> Map.put(:world_facts, agents)
+
         Prompts.gm_messages(gm_context, mechanical, player_action, handler, turn_number)
       end)
 
@@ -75,6 +89,8 @@ defmodule TalesForge.Game.TurnProcessor do
                session_id: session.id
              )
            end) do
+      {board, accepted} = world_write_back(agents, board, gm_result, turn_number)
+
       Steps.time(:persist, fn ->
         world_final = apply_allowlisted_patches(board.world, gm_result)
 
@@ -86,6 +102,40 @@ defmodule TalesForge.Game.TurnProcessor do
           sim: board.sim
         })
       end)
+      |> tap(fn
+        {:ok, _} when agents != [] -> WorldAgents.commit(session.id, accepted, reactions)
+        _ -> :ok
+      end)
+    end
+  end
+
+  defp world_agents(session, board) do
+    if WorldAgents.enabled?(),
+      do: Steps.time(:world_facts, fn -> WorldAgents.collect(session.id, board.world) end),
+      else: []
+  end
+
+  defp world_write_back([], board, _gm_result, _turn_number), do: {board, []}
+
+  defp world_write_back(agents, board, gm_result, turn_number) do
+    Steps.time(:world_writeback, fn ->
+      {world, accepted, _rejected} =
+        WorldAgents.write_back(board.world, agents, gm_result.new_facts, turn_number)
+
+      {%{board | world: world}, accepted}
+    end)
+  end
+
+  defp npc_reactions(session, board, turn_number, raw_action, mechanical) do
+    if NpcReactions.enabled?() do
+      Steps.time(:npc_reactions, fn ->
+        {reactions, world} =
+          NpcReactions.react(session.id, board.world, turn_number, raw_action, mechanical)
+
+        {reactions, %{board | world: world}}
+      end)
+    else
+      {[], board}
     end
   end
 
