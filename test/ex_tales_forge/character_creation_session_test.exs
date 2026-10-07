@@ -49,7 +49,8 @@ defmodule TalesForge.CharacterCreationSessionTest do
       assert row.controller == "player"
       assert row.origin == %{"source" => "created", "adventure_id" => unquote(adventure)}
       assert row.race == "halfling"
-      assert row.skills == %{"stealth" => 3, "lockpicking" => 2}
+      assert row.skills == character["skills"]
+      assert row.skills["stealth"] == 6
 
       assert Map.from_struct(row.ocean) |> Map.take([:openness]) == %{
                openness: character["ocean"]["openness"]

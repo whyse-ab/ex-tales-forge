@@ -151,7 +151,7 @@ defmodule TalesForge.Game.Mechanics do
       effective_skill: effective,
       lp_awarded: lp,
       notes:
-        "Rolled #{roll} vs #{normalized} #{effective} (base #{raw_level}). +#{lp} LP." <>
+        "Rolled #{roll} vs #{normalized} #{effective} (#{base_note(raw_level)}). +#{lp} LP." <>
           nat_notes(roll)
     }
 
@@ -387,13 +387,32 @@ defmodule TalesForge.Game.Mechanics do
     {updated, entry}
   end
 
+  # A trained skill: level plus the linked stat's bonus ((stat - 10) div 2).
+  # An untrained one (level 0) uses the untrained floor max(stat div 3, bonus):
+  # anyone can try with raw talent (old rules, 2026-10-07).
   defp effective_skill_level(character, skill) do
     base = character |> get_in(["skills", skill]) |> to_int(0)
     stat_key = Map.get(@skill_stat, skill, "WIS")
     stat_value = character |> get_in(["stats", stat_key]) |> to_int(10)
-    bonus = div(stat_value - 10, 2)
-    max(0, base + bonus)
+
+    if base <= 0,
+      do: untrained_floor(stat_value),
+      else: max(0, base + div(stat_value - 10, 2))
   end
+
+  @doc """
+  The untrained roll level for a stat: `max(stat div 3, (stat - 10) div 2)`.
+  A skill at level 0 rolls against it; a trained skill uses its level plus the
+  stat bonus, so every level counts.
+
+      iex> TalesForge.Game.Mechanics.untrained_floor(12)
+      4
+      iex> TalesForge.Game.Mechanics.untrained_floor(18)
+      6
+  """
+  @spec untrained_floor(integer()) :: non_neg_integer()
+  def untrained_floor(stat) when is_integer(stat),
+    do: max(0, max(div(stat, 3), div(stat - 10, 2)))
 
   defp resolve_outcome(1, _effective, _raw), do: "success"
   defp resolve_outcome(20, _effective, raw) when raw >= 15, do: "partial_success"
@@ -407,6 +426,9 @@ defmodule TalesForge.Game.Mechanics do
   defp lp_for_roll(_roll, "success", _raw), do: 0.5
   defp lp_for_roll(_roll, "partial_success", _raw), do: 1.0
   defp lp_for_roll(_roll, _outcome, _raw), do: 1.0
+
+  defp base_note(raw) when raw <= 0, do: "untrained: stat ÷ 3"
+  defp base_note(raw), do: "base #{raw}"
 
   defp nat_notes(1), do: " Natural 1 — exceptional success."
   defp nat_notes(20), do: " Natural 20."

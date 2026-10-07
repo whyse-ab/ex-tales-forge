@@ -24,6 +24,33 @@ defmodule TalesForge.Game.MechanicsTest do
     assert Mechanics.wound_max(%{}) == 3
   end
 
+  describe "the untrained floor" do
+    test "is max(stat div 3, the stat bonus)" do
+      assert Mechanics.untrained_floor(3) == 1
+      assert Mechanics.untrained_floor(10) == 3
+      assert Mechanics.untrained_floor(14) == 4
+      assert Mechanics.untrained_floor(18) == 6
+    end
+
+    test "an untrained skill (level 0) rolls against stat div 3" do
+      # stealth is DEX 10: untrained it is 10 div 3 = 3, not 0
+      {_c, r} = Mechanics.perform_and_apply(@character, "stealth", 3)
+      assert {r.effective_skill, r.outcome} == {3, "success"}
+      assert r.notes =~ "vs stealth 3 (untrained: stat ÷ 3)"
+    end
+
+    test "a trained skill uses level + stat bonus, even below the untrained level" do
+      # melee_combat 1 with STR 10 is 1 + 0 = 1: every level counts, no floor
+      {_c, low} = Mechanics.perform_and_apply(@character, "melee_combat", 10)
+      assert low.effective_skill == 1
+      assert low.notes =~ "vs melee_combat 1 (base 1)"
+
+      # persuasion 3 with CHA 14 is 3 + 2 = 5
+      {_c, high} = Mechanics.perform_and_apply(@character, "persuasion", 10)
+      assert high.effective_skill == 5
+    end
+  end
+
   test "perform_and_apply awards LP and returns resolution" do
     {updated, resolution} = Mechanics.perform_and_apply(@character, "insight")
 

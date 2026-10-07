@@ -9,8 +9,14 @@ defmodule TalesForge.CharacterCreation.Draft do
   * `base_stats` are the point-buy stats before the race modifier.
   * `race_picks` are the stats chosen for a race bonus with a choice (Human: any
     two; Elf: INT or WIS).
-  * `edited` holds the parts the player has set (`:stats`, `:race_picks`), so a
-    new race or class re-suggests only what the player hasn't touched.
+  * `skills` are the levels set for skills (suggested, or by the player). A
+    skill's level is the higher of this and its free level (class package,
+    race bonus); the levels above the free one are bought with skill points.
+    A new race or class keeps the levels, so free levels that now cover them
+    give their points back.
+  * `edited` holds the parts the player has set (`:stats`, `:race_picks`,
+    `:skills`), so a new race or class re-suggests only what the player hasn't
+    touched.
   """
 
   @enforce_keys [:adventure_id, :seed_key]
@@ -21,6 +27,7 @@ defmodule TalesForge.CharacterCreation.Draft do
             class: "none",
             base_stats: %{},
             race_picks: [],
+            skills: %{},
             edited: MapSet.new()
 
   @type t :: %__MODULE__{
@@ -31,6 +38,7 @@ defmodule TalesForge.CharacterCreation.Draft do
           class: String.t(),
           base_stats: %{optional(String.t()) => integer()},
           race_picks: [String.t()],
+          skills: %{optional(String.t()) => pos_integer()},
           edited: MapSet.t(atom())
         }
 end
