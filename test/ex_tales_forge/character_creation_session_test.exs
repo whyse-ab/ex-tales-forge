@@ -50,14 +50,15 @@ defmodule TalesForge.CharacterCreationSessionTest do
       assert row.origin == %{"source" => "created", "adventure_id" => unquote(adventure)}
       assert row.race == "halfling"
       assert row.skills == character["skills"]
-      assert row.skills["stealth"] == 6
+      assert row.skills["stealth"] == 7
 
       assert Map.from_struct(row.ocean) |> Map.take([:openness]) == %{
                openness: character["ocean"]["openness"]
              }
 
-      assert Enum.map(row.concerns, & &1.focus) == ["fame"]
-      assert row.maslow_level == "esteem"
+      # a former thief: the levers follow the occupation
+      assert Enum.map(row.concerns, & &1.focus) == ["freedom"]
+      assert row.maslow_level == "safety"
       refute Repo.get_by(Character, game_session_id: session.id, slug: "elara_voss")
     end
   end

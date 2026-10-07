@@ -1,5 +1,5 @@
 {
-  "_doc": "Player character creation rules for TalesForge.CharacterCreation: the stat point buy from rules/core_mechanics.md (75 points, 3-18 per stat), the race stat choices from rules/races.md, the skill rules (budget, level costs, caps, class package, race skill bonuses), the derivation inputs for a new player character and the starting kit. Race and class labels come from defaults.json.",
+  "_doc": "Player character creation rules for TalesForge.CharacterCreation: the stat point buy from rules/core_mechanics.md (75 points, 3-18 per stat), the race stat choices from rules/races.md, the skill rules (budget, level costs, caps, class package, race skill bonuses), the past occupation for skills, the derivation inputs for a new player character and the starting kit. Race and class labels come from defaults.json.",
   "point_buy": {
     "budget": 75,
     "min": 3,
@@ -21,7 +21,7 @@
     }
   },
   "skills": {
-    "_doc": "Skill rules ported from the old game (docs/game-rules: fantasy_rpg_game_mechanics_summary.md, racial_mechanics_summary.md; modules/merovingia/game-system.json). level_costs[n-1] is the price of level n: levels 1-3 cost 1, 4-5 cost 2, 6-7 (signature only) cost 3. Free levels (class package, race bonus) fill the lowest levels and cost nothing. A skill above cap is a signature skill: at most signature_max of them, up to signature_cap. Free levels the caps cut off come back as points at the price of the levels lost (past the signature cap at the signature price).",
+    "_doc": "Skill rules ported from the old game (docs/game-rules: fantasy_rpg_game_mechanics_summary.md, racial_mechanics_summary.md; modules/merovingia/game-system.json). level_costs[n-1] is the price of level n: levels 1-3 cost 1, 4-5 cost 2, 6-7 (signature only) cost 3. Free levels (class package, race bonus, past occupation) fill the lowest levels and cost nothing. A skill above cap is a signature skill: at most signature_max of them, up to signature_cap. Free levels the caps cut off come back as points at the price of the levels lost (past the signature cap at the signature price).",
     "budget": 25,
     "level_costs": [1, 1, 1, 2, 2, 3, 3],
     "cap": 5,
@@ -36,6 +36,21 @@
       "dwarf": {"fixed": {"melee_combat": 3, "survival": 2}},
       "gnome": {"fixed": {"arcana": 3, "lockpicking": 2}},
       "halfling": {"fixed": {"stealth": 3, "lockpicking": 2}}
+    }
+  },
+  "occupation": {
+    "_doc": "A player character's past occupation, from the defaults.json occupation tables: free levels on its core skills (core_bonus) and secondary skills (secondary_bonus), stacked on the class package and race bonus. choices are the occupations a player may pick; class_defaults the suggestion per class. It feeds the skills and, as for NPCs, the OCEAN, Maslow and concerns defaults (derive.occupation is only the fallback).",
+    "core_bonus": 2,
+    "secondary_bonus": 1,
+    "choices": ["laborer", "innkeep", "barkeep", "merchant", "guard", "soldier", "hunter", "miner", "priest", "scholar", "thief", "noble"],
+    "class_defaults": {
+      "none": "laborer",
+      "warrior": "soldier",
+      "thief": "thief",
+      "ranger": "hunter",
+      "cleric": "priest",
+      "wizard": "scholar",
+      "druid": "hunter"
     }
   },
   "derive": {
@@ -56,6 +71,20 @@
       "gnome": "Curious tinkerers who treat failures as experiments. +2 INT, +1 DEX, -1 STR; Arcana +3, Lockpicking +2.",
       "halfling": "Cheerful, social and lucky in danger. +2 DEX, +1 CHA, -1 STR; Stealth +3, Lockpicking +2.",
       "half_elf": "Bridging two worlds, with human adaptability and elven grace. +1 DEX, +1 CHA, +3 skill points."
+    },
+    "occupations": {
+      "laborer": "Hauled, dug and built for a day's wage.",
+      "innkeep": "Kept an inn: rooms, rumours and regulars.",
+      "barkeep": "Poured drinks and kept the peace across the bar.",
+      "merchant": "Bought cheap, sold dear and read every buyer.",
+      "guard": "Stood watch on a gate, a wall or someone important.",
+      "soldier": "Marched, drilled and fought in someone's war.",
+      "hunter": "Tracked game through the wilds to feed a village.",
+      "miner": "Worked the dark seams under the hills.",
+      "priest": "Served a temple, its rites and its people.",
+      "scholar": "Studied old books, older languages and stranger lore.",
+      "thief": "Lived off locks, pockets and shadows.",
+      "noble": "Grew up at court among titles, manners and feuds."
     },
     "classes": {
       "none": "No trade of arms or magic: your past and your choices speak for you.",
