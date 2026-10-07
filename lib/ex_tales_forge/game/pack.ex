@@ -12,7 +12,7 @@ defmodule TalesForge.Game.Pack do
   `concerns`, which `sheet/1` strips.
   """
 
-  alias TalesForge.Characters.Levers
+  alias TalesForge.Characters.{Defaults, Levers}
   alias TalesForge.Game.Fronts
   alias TalesForge.Game.WorldClock
 
@@ -28,7 +28,8 @@ defmodule TalesForge.Game.Pack do
     adventure = load_adventure!(dir)
     locations = load_locations!(dir)
     npcs = load_npcs!(dir)
-    Enum.each(npcs, &Levers.validate!(&1, "#{adventure_id} NPC #{&1["id"]}"))
+    defaults = Defaults.rules(adventure_id)
+    Enum.each(npcs, &validate_npc!(&1, defaults, "#{adventure_id} NPC #{&1["id"]}"))
     player_character = player_character!(adventure_id)
     fronts_dir = Path.join(dir, "fronts")
     fronts = fronts_dir |> Fronts.parse_dir!() |> Enum.map(&attach_identity(&1, fronts_dir))
@@ -114,6 +115,16 @@ defmodule TalesForge.Game.Pack do
 
     Levers.validate!(character, source)
     character
+  end
+
+  defp validate_npc!(npc, defaults, source) do
+    Levers.validate!(npc, source)
+
+    case npc["derive"] do
+      nil -> :ok
+      inputs when is_map(inputs) -> Defaults.validate_inputs!(inputs, defaults, source)
+      other -> raise ArgumentError, "#{source}: derive must be a map, got #{inspect(other)}"
+    end
   end
 
   @doc false

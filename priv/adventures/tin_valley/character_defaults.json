@@ -1,0 +1,55 @@
+{
+  "_doc": "Tin Valley additions to priv/characters/defaults.json (new labels only).",
+  "occupations": {
+    "guild_steward": {
+      "core": [
+        "persuasion",
+        "insight"
+      ],
+      "secondary": [
+        "etiquette",
+        "intimidation"
+      ],
+      "ocean": {
+        "openness": 0,
+        "conscientiousness": 2,
+        "extraversion": 0,
+        "agreeableness": -1,
+        "neuroticism": 0
+      },
+      "maslow": "esteem",
+      "concerns": [
+        {
+          "text": "Keep the Guild's business moving in the valley",
+          "focus": "duty",
+          "priority": 6
+        }
+      ]
+    },
+    "prospector": {
+      "core": [
+        "climbing",
+        "survival"
+      ],
+      "secondary": [
+        "melee_combat",
+        "tracking"
+      ],
+      "ocean": {
+        "openness": 1,
+        "conscientiousness": 0,
+        "extraversion": 1,
+        "agreeableness": 0,
+        "neuroticism": 0
+      },
+      "maslow": "physiological",
+      "concerns": [
+        {
+          "text": "Strike a vein worth the digging",
+          "focus": "profit",
+          "priority": 5
+        }
+      ]
+    }
+  }
+}

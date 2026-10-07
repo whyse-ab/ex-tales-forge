@@ -1,9 +1,6 @@
 {
   "id": "innkeep",
-  "skills": {
-    "persuasion": 8,
-    "insight": 7
-  },
+  "derive": {"race": "human", "standing": "commoner", "occupation": "innkeep"},
   "fee_copper": 50,
   "motivations": {
     "personality_traits": {

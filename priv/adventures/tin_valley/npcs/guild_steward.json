@@ -1,9 +1,7 @@
 {
   "id": "guild_steward",
-  "skills": {
-    "persuasion": 9,
-    "insight": 8
-  },
+  "derive": {"race": "human", "standing": "merchant", "occupation": "guild_steward"},
+  "skills": {"persuasion": 9},
   "fee_copper": 80,
   "motivations": {
     "agency_tier": "actor",

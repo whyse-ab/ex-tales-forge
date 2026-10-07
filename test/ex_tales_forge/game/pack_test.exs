@@ -77,14 +77,14 @@ defmodule TalesForge.Game.PackTest do
         |> Enum.find(&(&1["id"] == "ale_mug"))
 
       assert ale["price_copper"] == 2
-      assert get_in(by_npc["innkeep"], ["skills", "persuasion"]) == 8
-      assert get_in(by_npc["innkeep"], ["skills", "insight"]) == 7
+      # Skills are derived at seeding (Characters.Defaults); the pack holds the
+      # derive inputs plus the authored overrides only.
+      assert by_npc["innkeep"]["derive"]["occupation"] == "innkeep"
+      refute Map.has_key?(by_npc["innkeep"], "skills")
       assert by_npc["innkeep"]["fee_copper"] == 50
-      assert get_in(by_npc["guild_steward"], ["skills", "persuasion"]) == 9
-      assert get_in(by_npc["guild_steward"], ["skills", "insight"]) == 8
+      assert by_npc["guild_steward"]["skills"] == %{"persuasion" => 9}
       assert by_npc["guild_steward"]["fee_copper"] == 80
-      assert get_in(by_npc["prospector"], ["skills", "melee_combat"]) == 8
-      assert get_in(by_npc["prospector"], ["skills", "climbing"]) == 9
+      assert by_npc["prospector"]["skills"] == %{"climbing" => 9, "melee_combat" => 8}
       assert by_npc["prospector"]["fee_copper"] == 50
 
       guild = Enum.find(pack.fronts, &(&1["id"] == "miners_guild"))
@@ -177,16 +177,34 @@ defmodule TalesForge.Game.PackTest do
       assert get_in(brenna.personality, ["motivations", "current_concern", "focus"]) =~
                "armed strangers"
 
-      assert get_in(brenna.personality, ["skills", "persuasion"]) == 8
+      assert brenna.personality["skills"] == %{
+               "persuasion" => 8,
+               "insight" => 8,
+               "etiquette" => 4
+             }
+
       assert brenna.personality["fee_copper"] == 50
       refute Map.has_key?(brenna.runtime_state, "skills")
       refute Map.has_key?(brenna.runtime_state, "fee_copper")
-      assert get_in(osric.personality, ["skills", "persuasion"]) == 9
+
+      assert osric.personality["skills"] == %{
+               "persuasion" => 9,
+               "insight" => 8,
+               "etiquette" => 4,
+               "intimidation" => 4
+             }
+
       assert osric.personality["fee_copper"] == 80
       refute Map.has_key?(osric.runtime_state, "skills")
       refute Map.has_key?(osric.runtime_state, "fee_copper")
-      assert get_in(caldern.personality, ["skills", "melee_combat"]) == 8
-      assert get_in(caldern.personality, ["skills", "climbing"]) == 9
+
+      assert caldern.personality["skills"] == %{
+               "climbing" => 9,
+               "survival" => 8,
+               "melee_combat" => 8,
+               "tracking" => 4
+             }
+
       assert caldern.personality["fee_copper"] == 50
       refute Map.has_key?(caldern.runtime_state, "skills")
       refute Map.has_key?(caldern.runtime_state, "fee_copper")

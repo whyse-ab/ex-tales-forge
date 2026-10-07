@@ -49,7 +49,7 @@ defmodule TalesForge.CharactersTest do
       steward = Characters.get_by_slug(session.id, "guild_steward")
       assert steward.name == "Osric Vane"
       assert steward.location_id == "market_square"
-      assert steward.stats.str == 10
+      assert steward.stats.str in 9..11
       assert steward.ocean.agreeableness == 2
       assert steward.maslow_level == "esteem"
       assert length(steward.concerns) == 2
@@ -59,6 +59,34 @@ defmodule TalesForge.CharactersTest do
 
       innkeep = Characters.get_by_slug(session.id, "innkeep")
       assert [%{id: "ale_mug", price_copper: 2}] = innkeep.inventory
+      # Derived defaults: skills on the PC scale, authored OCEAN kept, stats within ±1 of 10.
+      assert innkeep.skills == %{"persuasion" => 8, "insight" => 8, "etiquette" => 4}
+      assert innkeep.ocean.conscientiousness == 8
+      assert innkeep.stats.str in 9..11
+    end
+
+    test "derived NPC stats are seeded per session and NPC, stable on reload" do
+      a = create(%{adventure_id: "tin_valley"})
+      b = create(%{adventure_id: "tin_valley"})
+
+      stats = fn s, slug ->
+        c = Characters.get_by_slug(s.id, slug)
+        Map.take(Map.from_struct(c.stats), ~w(str dex con int wis cha)a)
+      end
+
+      inst = TalesForge.NPC.get_instance(a.id, "prospector")
+
+      assert inst.personality["stats"] ==
+               TalesForge.NPC.get_instance(a.id, "prospector").personality["stats"]
+
+      for slug <- ~w(innkeep guild_steward prospector) do
+        assert Enum.all?(Map.values(stats.(a, slug)), &(&1 in 9..11))
+        assert Enum.all?(Map.values(stats.(b, slug)), &(&1 in 9..11))
+      end
+
+      # 18 values that each vary by -1/0/+1: the same for two sessions has odds of about 1 in 3^18.
+      assert Enum.map(~w(innkeep guild_steward prospector), &stats.(a, &1)) !=
+               Enum.map(~w(innkeep guild_steward prospector), &stats.(b, &1))
     end
 
     test "crossroads: Elara plus the priv/npcs characters" do

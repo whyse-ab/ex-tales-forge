@@ -1,0 +1,551 @@
+{
+  "_doc": "Global base labels and tables for TalesForge.Characters.Defaults. World packs extend this with priv/adventures/<id>/character_defaults.json (new labels only; a pack cannot redefine or remove a base label).",
+  "seniority": {
+    "apprentice": 4,
+    "journeyman": 8,
+    "master": 12
+  },
+  "races": {
+    "human": {
+      "stats": {},
+      "ocean": {
+        "openness": 0,
+        "conscientiousness": 0,
+        "extraversion": 0,
+        "agreeableness": 0,
+        "neuroticism": 0
+      }
+    },
+    "elf": {
+      "stats": {
+        "DEX": 2,
+        "INT": 1,
+        "CON": -1
+      },
+      "ocean": {
+        "openness": 2,
+        "conscientiousness": 1,
+        "extraversion": -1,
+        "agreeableness": -1,
+        "neuroticism": -1
+      }
+    },
+    "dwarf": {
+      "stats": {
+        "CON": 2,
+        "STR": 1,
+        "CHA": -1
+      },
+      "ocean": {
+        "openness": -1,
+        "conscientiousness": 2,
+        "extraversion": -1,
+        "agreeableness": -2,
+        "neuroticism": -1
+      }
+    },
+    "gnome": {
+      "stats": {
+        "INT": 2,
+        "DEX": 1,
+        "STR": -1
+      },
+      "ocean": {
+        "openness": 2,
+        "conscientiousness": -1,
+        "extraversion": 1,
+        "agreeableness": 1,
+        "neuroticism": 1
+      }
+    },
+    "halfling": {
+      "stats": {
+        "DEX": 2,
+        "CHA": 1,
+        "STR": -1
+      },
+      "ocean": {
+        "openness": 1,
+        "conscientiousness": 0,
+        "extraversion": 2,
+        "agreeableness": 2,
+        "neuroticism": -2
+      }
+    },
+    "half_elf": {
+      "stats": {
+        "DEX": 1,
+        "CHA": 1
+      },
+      "ocean": {
+        "openness": 1,
+        "conscientiousness": 0,
+        "extraversion": 0,
+        "agreeableness": 0,
+        "neuroticism": 1
+      }
+    }
+  },
+  "classes": {
+    "none": {
+      "stats": {},
+      "skills": []
+    },
+    "warrior": {
+      "stats": {
+        "STR": 2,
+        "CON": 1
+      },
+      "skills": [
+        "melee_combat",
+        "tactics",
+        "intimidation"
+      ]
+    },
+    "thief": {
+      "stats": {
+        "DEX": 2,
+        "INT": 1
+      },
+      "skills": [
+        "stealth",
+        "lockpicking",
+        "deception"
+      ]
+    },
+    "ranger": {
+      "stats": {
+        "DEX": 2,
+        "WIS": 1
+      },
+      "skills": [
+        "ranged_combat",
+        "tracking",
+        "survival"
+      ]
+    },
+    "cleric": {
+      "stats": {
+        "WIS": 2,
+        "CHA": 1
+      },
+      "skills": [
+        "insight",
+        "persuasion",
+        "history"
+      ]
+    },
+    "wizard": {
+      "stats": {
+        "INT": 2,
+        "WIS": 1
+      },
+      "skills": [
+        "arcana",
+        "history",
+        "insight"
+      ]
+    },
+    "druid": {
+      "stats": {
+        "WIS": 2,
+        "CON": 1
+      },
+      "skills": [
+        "survival",
+        "arcana",
+        "tracking"
+      ]
+    }
+  },
+  "standings": {
+    "nobility": {
+      "coins": {
+        "gold": 50,
+        "silver": 100,
+        "copper": 0
+      },
+      "maslow_floor": null
+    },
+    "gentry": {
+      "coins": {
+        "gold": 10,
+        "silver": 50,
+        "copper": 200
+      },
+      "maslow_floor": null
+    },
+    "merchant": {
+      "coins": {
+        "gold": 5,
+        "silver": 100,
+        "copper": 500
+      },
+      "maslow_floor": null
+    },
+    "commoner": {
+      "coins": {
+        "gold": 0,
+        "silver": 20,
+        "copper": 300
+      },
+      "maslow_floor": null
+    },
+    "underclass": {
+      "coins": {
+        "gold": 0,
+        "silver": 0,
+        "copper": 50
+      },
+      "maslow_floor": "safety",
+      "concern": {
+        "text": "Find food and a roof for the week",
+        "focus": "survival",
+        "priority": 7
+      }
+    }
+  },
+  "occupations": {
+    "laborer": {
+      "core": [
+        "climbing",
+        "unarmed_combat"
+      ],
+      "secondary": [
+        "survival"
+      ],
+      "ocean": {
+        "openness": 0,
+        "conscientiousness": 0,
+        "extraversion": 0,
+        "agreeableness": 0,
+        "neuroticism": 0
+      },
+      "maslow": "safety",
+      "concerns": [
+        {
+          "text": "Get paid for the week's work",
+          "focus": "wages",
+          "priority": 5
+        }
+      ]
+    },
+    "innkeep": {
+      "core": [
+        "persuasion",
+        "insight"
+      ],
+      "secondary": [
+        "etiquette"
+      ],
+      "ocean": {
+        "openness": 0,
+        "conscientiousness": 1,
+        "extraversion": 2,
+        "agreeableness": 1,
+        "neuroticism": 0
+      },
+      "maslow": "belonging",
+      "concerns": [
+        {
+          "text": "Keep the inn full and the regulars safe",
+          "focus": "regulars",
+          "priority": 5
+        }
+      ]
+    },
+    "barkeep": {
+      "core": [
+        "persuasion",
+        "insight"
+      ],
+      "secondary": [
+        "unarmed_combat",
+        "intimidation"
+      ],
+      "ocean": {
+        "openness": 0,
+        "conscientiousness": 1,
+        "extraversion": 1,
+        "agreeableness": 0,
+        "neuroticism": 0
+      },
+      "maslow": "safety",
+      "concerns": [
+        {
+          "text": "Keep trouble out of the taproom",
+          "focus": "order",
+          "priority": 5
+        }
+      ]
+    },
+    "merchant": {
+      "core": [
+        "persuasion",
+        "deception"
+      ],
+      "secondary": [
+        "insight",
+        "etiquette"
+      ],
+      "ocean": {
+        "openness": 0,
+        "conscientiousness": 1,
+        "extraversion": 1,
+        "agreeableness": 0,
+        "neuroticism": 1
+      },
+      "maslow": "safety",
+      "concerns": [
+        {
+          "text": "Turn a profit before the season ends",
+          "focus": "profit",
+          "priority": 5
+        }
+      ]
+    },
+    "guard": {
+      "core": [
+        "melee_combat",
+        "intimidation"
+      ],
+      "secondary": [
+        "insight",
+        "tactics"
+      ],
+      "ocean": {
+        "openness": -1,
+        "conscientiousness": 2,
+        "extraversion": 0,
+        "agreeableness": 0,
+        "neuroticism": 0
+      },
+      "maslow": "safety",
+      "concerns": [
+        {
+          "text": "Keep the peace on watch",
+          "focus": "duty",
+          "priority": 5
+        }
+      ]
+    },
+    "soldier": {
+      "core": [
+        "melee_combat",
+        "tactics"
+      ],
+      "secondary": [
+        "ranged_combat",
+        "survival"
+      ],
+      "ocean": {
+        "openness": -1,
+        "conscientiousness": 2,
+        "extraversion": 0,
+        "agreeableness": -1,
+        "neuroticism": 0
+      },
+      "maslow": "safety",
+      "concerns": [
+        {
+          "text": "Come home from the next campaign",
+          "focus": "survival",
+          "priority": 5
+        }
+      ]
+    },
+    "hunter": {
+      "core": [
+        "tracking",
+        "ranged_combat"
+      ],
+      "secondary": [
+        "survival",
+        "stealth"
+      ],
+      "ocean": {
+        "openness": 0,
+        "conscientiousness": 1,
+        "extraversion": -1,
+        "agreeableness": 0,
+        "neuroticism": 0
+      },
+      "maslow": "physiological",
+      "concerns": [
+        {
+          "text": "Bring home enough meat for the winter",
+          "focus": "food",
+          "priority": 5
+        }
+      ]
+    },
+    "miner": {
+      "core": [
+        "climbing",
+        "melee_combat"
+      ],
+      "secondary": [
+        "survival"
+      ],
+      "ocean": {
+        "openness": -1,
+        "conscientiousness": 1,
+        "extraversion": 0,
+        "agreeableness": 0,
+        "neuroticism": 0
+      },
+      "maslow": "physiological",
+      "concerns": [
+        {
+          "text": "Get paid for the week's digging",
+          "focus": "wages",
+          "priority": 6
+        }
+      ]
+    },
+    "priest": {
+      "core": [
+        "insight",
+        "history"
+      ],
+      "secondary": [
+        "persuasion",
+        "etiquette"
+      ],
+      "ocean": {
+        "openness": 0,
+        "conscientiousness": 2,
+        "extraversion": 0,
+        "agreeableness": 2,
+        "neuroticism": -1
+      },
+      "maslow": "self_actualisation",
+      "concerns": [
+        {
+          "text": "Keep the faithful on the right path",
+          "focus": "faith",
+          "priority": 5
+        }
+      ]
+    },
+    "scholar": {
+      "core": [
+        "history",
+        "arcana"
+      ],
+      "secondary": [
+        "insight"
+      ],
+      "ocean": {
+        "openness": 2,
+        "conscientiousness": 1,
+        "extraversion": -1,
+        "agreeableness": 0,
+        "neuroticism": 0
+      },
+      "maslow": "esteem",
+      "concerns": [
+        {
+          "text": "Find the missing piece of the research",
+          "focus": "knowledge",
+          "priority": 5
+        }
+      ]
+    },
+    "thief": {
+      "core": [
+        "stealth",
+        "lockpicking"
+      ],
+      "secondary": [
+        "deception",
+        "dodge"
+      ],
+      "ocean": {
+        "openness": 1,
+        "conscientiousness": -1,
+        "extraversion": 0,
+        "agreeableness": -1,
+        "neuroticism": 1
+      },
+      "maslow": "safety",
+      "concerns": [
+        {
+          "text": "Stay one step ahead of the law",
+          "focus": "freedom",
+          "priority": 6
+        }
+      ]
+    },
+    "noble": {
+      "core": [
+        "etiquette",
+        "persuasion"
+      ],
+      "secondary": [
+        "history",
+        "insight"
+      ],
+      "ocean": {
+        "openness": 0,
+        "conscientiousness": 0,
+        "extraversion": 1,
+        "agreeableness": -1,
+        "neuroticism": 0
+      },
+      "maslow": "esteem",
+      "concerns": [
+        {
+          "text": "Protect the family's name and lands",
+          "focus": "family",
+          "priority": 6
+        }
+      ]
+    },
+    "ruler": {
+      "core": [
+        "etiquette",
+        "persuasion",
+        "tactics"
+      ],
+      "secondary": [
+        "history",
+        "insight"
+      ],
+      "ocean": {
+        "openness": 0,
+        "conscientiousness": 1,
+        "extraversion": 0,
+        "agreeableness": 0,
+        "neuroticism": 0
+      },
+      "maslow": "esteem",
+      "concerns": [
+        {
+          "text": "Hold the realm together",
+          "focus": "duty",
+          "priority": 7
+        }
+      ]
+    }
+  },
+  "concern_focuses": [
+    "survival",
+    "food",
+    "wages",
+    "debt",
+    "profit",
+    "family",
+    "regulars",
+    "order",
+    "duty",
+    "faith",
+    "knowledge",
+    "freedom",
+    "safety",
+    "revenge",
+    "love",
+    "fame",
+    "escape the past"
+  ]
+}
