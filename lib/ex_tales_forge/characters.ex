@@ -239,21 +239,31 @@ defmodule TalesForge.Characters do
 
   @doc """
   Character attrs for the player character: the sheet as stored in
-  `world_state["character"]` plus the levers from the adventure's pack file.
+  `world_state["character"]` plus the levers from the adventure's pack file,
+  or from `opts[:character]` for a created character
+  (`TalesForge.CharacterCreation.finalize/1`, origin `created`). Levers and
+  origin are written only when the row is inserted, so the per-turn mirror,
+  which passes no character, never replaces a created character's levers.
   """
   @spec player_character_attrs(GameSession.t(), map(), integer()) :: map()
   def player_character_attrs(%GameSession{world_state: world_state}, opts, tick) do
     adventure_id = Map.get(world_state, "adventure_id") || "crossroads_ledger"
-    file = player_character_file(adventure_id)
+    created = opt(opts, :character)
+    file = created || player_character_file(adventure_id)
     sheet = Map.get(world_state, "character") || Pack.sheet(file)
     controller = opt(opts, :controller) || "player"
+
+    origin =
+      if created,
+        do: %{"source" => "created", "adventure_id" => adventure_id},
+        else: %{"source" => "pack", "adventure_id" => adventure_id, "definition_id" => file["id"]}
 
     %{
       slug: sheet["id"] || file["id"],
       controller: controller,
       controller_ref: opt(opts, :controller_ref),
       owner_player_id: opt(opts, :owner_player_id),
-      origin: %{"source" => "pack", "adventure_id" => adventure_id, "definition_id" => file["id"]},
+      origin: origin,
       definition: file,
       name: sheet["name"],
       race: sheet["race"],
