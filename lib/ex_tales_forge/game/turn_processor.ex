@@ -52,14 +52,10 @@ defmodule TalesForge.Game.TurnProcessor do
            apply_board(session, character, handler, player_action, mechanical),
          mechanical <- %{mechanical | improvements: improvements, training: training},
          gm_context <- Context.build_gm_context(%{session | world_state: world_board}),
-         user <- Context.format_gm_prompt(gm_context) <> Context.mechanical_bounds(mechanical),
+         messages <-
+           Prompts.gm_messages(gm_context, mechanical, player_action, handler, turn_number),
          {:ok, gm_result} <-
-           LLM.complete_turn(
-             Prompts.gm_system(),
-             user,
-             player_action,
-             handler,
-             turn_number,
+           LLM.complete_turn(messages, player_action, handler, turn_number,
              session_id: session_id
            ),
          world_final <- apply_allowlisted_patches(world_board, gm_result),
