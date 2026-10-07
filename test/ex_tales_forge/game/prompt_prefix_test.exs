@@ -158,6 +158,7 @@ defmodule TalesForge.Game.PromptPrefixTest do
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         [conv_id] = Plug.Conn.get_req_header(conn, "x-grok-conv-id")
         send(test_pid, {:request, conv_id, Jason.decode!(body)})
+        send(test_pid, {:raw_body, body})
 
         content = ~s({"narrative":"You arrive.","location_name":"The Weary Pilgrim"})
 
@@ -200,6 +201,64 @@ defmodule TalesForge.Game.PromptPrefixTest do
       assert scene["response_format"]["json_schema"]["name"] == "narration"
       assert Enum.take(scene["messages"], 2) == Enum.take(gm["messages"], 2)
       refute Enum.at(scene["messages"], 2) == Enum.at(gm["messages"], 2)
+    end
+
+    test "two consecutive GM turns send a byte-identical prefix through session-stable",
+         %{a: a} do
+      {player_action, handler} = action("look around the tavern")
+
+      assert {:ok, _} =
+               LLM.complete_turn(
+                 gm_messages(a, 1, "look around the tavern"),
+                 player_action,
+                 handler,
+                 1,
+                 session_id: a.id
+               )
+
+      assert_received {:request, conv1, gm1}
+      assert_received {:raw_body, raw1}
+
+      # Turn 2 of the same session: per-turn state has moved on.
+      later_world =
+        a.world_state
+        |> put_in(["character", "wounds"], 1)
+        |> Map.put("situation_lines", ["Marta has gone quiet."])
+        |> Map.update("world_tick", 0, &(&1 + 1))
+
+      {player_action2, handler2} = action("ask Marta about the ledger")
+
+      assert {:ok, _} =
+               LLM.complete_turn(
+                 gm_messages(%{a | world_state: later_world}, 2, "ask Marta about the ledger"),
+                 player_action2,
+                 handler2,
+                 2,
+                 session_id: a.id
+               )
+
+      assert_received {:request, conv2, gm2}
+      assert_received {:raw_body, raw2}
+
+      assert conv1 == conv2
+      assert gm1["response_format"] == gm2["response_format"]
+      assert Enum.take(gm1["messages"], 4) == Enum.take(gm2["messages"], 4)
+      refute List.last(gm1["messages"]) == List.last(gm2["messages"])
+
+      # On the wire: the identical byte prefix of the two request bodies covers
+      # narrator + rules + task + session-stable, with nothing per-turn before it.
+      static_bytes =
+        gm1["messages"] |> Enum.take(4) |> Enum.map_join(& &1["content"]) |> byte_size()
+
+      common = common_prefix_bytes(raw1, raw2)
+      assert common >= static_bytes
+
+      {stable_at, _} = :binary.match(raw1, "## Session (fixed for this session)")
+      assert stable_at < common
+
+      for marker <- @per_turn_markers, {at, _} <- [:binary.match(raw1, marker)] do
+        assert at > stable_at, "#{marker} is on the wire before the session-stable block"
+      end
     end
   end
 
