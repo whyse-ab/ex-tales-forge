@@ -1,0 +1,19 @@
+{
+  "id": "pip",
+  "derive": {"race": "human", "standing": "underclass", "occupation": "thief"},
+  "skills": {"stealth": 7, "insight": 5},
+  "fee_copper": 0,
+  "motivations": {
+    "agency_tier": "normal",
+    "mood": "nervous",
+    "personality_traits": {"openness": 6, "conscientiousness": 3, "extraversion": 5, "agreeableness": 6, "neuroticism": 7}
+  },
+  "hooks": [
+    "He whistles to warn the adit when strangers come up the west road.",
+    "He wants out; a kind word about his grandmother, or a real threat, could turn him, and then he would tell where Rusk sleeps and keeps the loot."
+  ],
+  "maslow": "safety",
+  "concerns": [
+    {"text": "Get out of the gang without Rusk finding out", "focus": "getting out alive", "priority": 7}
+  ]
+}
