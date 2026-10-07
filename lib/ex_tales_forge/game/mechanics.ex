@@ -1,6 +1,14 @@
 defmodule TalesForge.Game.Mechanics do
   @moduledoc """
   Server-side dice rolls and Learning Points (ported from text-forge).
+
+  Progression follows the old game's tiers (`game-system.json` `progression`,
+  2026-10-07): a skill can try to improve once it has the tier's Learning
+  Points (Novice 0–5: 5, Adept 6–10: 7, Expert 11–15: 10, Master 16+: 15) and
+  at least one failure since the last attempt. The improvement roll is 1d20
+  plus the tier modifier (Expert −3, Master −5) against the raw level (a
+  trainer lowers the target by 5). Each roll's LP gets the linked stat's bonus
+  `(stat − 10) div 4`, from 0 to +2.
   """
 
   alias TalesForge.Game.Schemas.{HandlerResult, MechanicalResolution, PlayerAction}
@@ -24,6 +32,11 @@ defmodule TalesForge.Game.Mechanics do
     "history" => "INT",
     "arcana" => "INT"
   }
+
+  # {highest raw level in the tier, LP to attempt, improvement roll modifier}
+  @tiers [{5, 5, 0}, {10, 7, 0}, {15, 10, -3}, {nil, 15, -5}]
+  @min_failures 1
+  @lp_stat_bonus_max 2
 
   @action_skill_hints [
     {~r/\b(sneak|hide|stealth)\b/i, "stealth"},
@@ -132,7 +145,7 @@ defmodule TalesForge.Game.Mechanics do
     effective = effective_skill_level(character, normalized)
     roll = injected_roll || :rand.uniform(20)
     outcome = resolve_outcome(roll, effective, raw_level)
-    lp = lp_for_roll(roll, outcome, raw_level)
+    lp = lp_for_roll(roll, outcome, raw_level) + lp_stat_bonus(linked_stat(character, normalized))
 
     learning_points =
       character
@@ -169,7 +182,7 @@ defmodule TalesForge.Game.Mechanics do
       (Map.keys(lp_map) ++ Map.keys(fail_map))
       |> Enum.uniq()
       |> Enum.sort()
-      |> Enum.filter(&eligible_skill?(&1, lp_map, fail_map))
+      |> Enum.filter(&eligible_skill?(character, &1))
 
     Enum.reduce(eligible, {character, []}, fn skill, {char, acc} ->
       raw = char |> get_in(["skills", skill]) |> to_int(0)
@@ -191,7 +204,8 @@ defmodule TalesForge.Game.Mechanics do
   end
 
   @doc """
-  One trainer improvement 1d20. Hit if roll > raw - 5. Inject `rolls` in tests.
+  One trainer improvement 1d20. Hit if roll + the tier modifier > raw - 5.
+  Inject `rolls` in tests.
   """
   def attempt_trained_skill(character, skill, rolls \\ %{})
       when is_map(character) and is_binary(skill) and is_map(rolls) do
@@ -199,15 +213,48 @@ defmodule TalesForge.Game.Mechanics do
     {updated, [entry]}
   end
 
+  @doc """
+  Whether a skill may try to improve: its tier's Learning Points
+  (`lp_threshold/1`) and at least one failure since the last attempt.
+  """
+  @spec skill_eligible?(term(), term()) :: boolean()
   def skill_eligible?(character, skill) when is_map(character) and is_binary(skill) do
-    eligible_skill?(
-      skill,
-      Map.get(character, "learning_points", %{}),
-      Map.get(character, "learning_failures", %{})
-    )
+    eligible_skill?(character, skill)
   end
 
   def skill_eligible?(_, _), do: false
+
+  @doc """
+  Learning Points a skill needs before it may try to improve, by its raw
+  level's tier: Novice (0–5) 5, Adept (6–10) 7, Expert (11–15) 10, Master
+  (16+) 15.
+
+      iex> Enum.map([0, 5, 6, 11, 16], &TalesForge.Game.Mechanics.lp_threshold/1)
+      [5, 5, 7, 10, 15]
+  """
+  @spec lp_threshold(integer()) :: pos_integer()
+  def lp_threshold(raw) when is_integer(raw), do: raw |> tier() |> elem(1)
+
+  @doc """
+  The improvement roll modifier by tier: 0 up to Adept, −3 at Expert (11–15),
+  −5 at Master (16+).
+
+      iex> Enum.map([10, 11, 16], &TalesForge.Game.Mechanics.improvement_modifier/1)
+      [0, -3, -5]
+  """
+  @spec improvement_modifier(integer()) :: integer()
+  def improvement_modifier(raw) when is_integer(raw), do: raw |> tier() |> elem(2)
+
+  @doc """
+  Extra Learning Points per roll from the linked stat: `(stat − 10) div 4`,
+  from 0 to +2 (a low stat costs nothing, so growth never stalls).
+
+      iex> Enum.map([8, 13, 14, 18], &TalesForge.Game.Mechanics.lp_stat_bonus/1)
+      [0, 0, 1, 2]
+  """
+  @spec lp_stat_bonus(integer()) :: non_neg_integer()
+  def lp_stat_bonus(stat) when is_integer(stat),
+    do: (stat - 10) |> div(4) |> max(0) |> min(@lp_stat_bonus_max)
 
   @doc """
   Wound cap from CON. Minimum 1 (CON 3).
@@ -350,14 +397,24 @@ defmodule TalesForge.Game.Mechanics do
     end
   end
 
-  defp eligible_skill?(skill, lp_map, fail_map) do
-    to_float(Map.get(lp_map, skill, 0)) >= 5.0 and to_int(Map.get(fail_map, skill, 0), 0) >= 3
+  defp eligible_skill?(character, skill) do
+    raw = character |> get_in(["skills", skill]) |> to_int(0)
+    lp = character |> Map.get("learning_points", %{}) |> Map.get(skill, 0) |> to_float()
+    failures = character |> Map.get("learning_failures", %{}) |> Map.get(skill, 0) |> to_int(0)
+    lp >= lp_threshold(raw) and failures >= @min_failures
+  end
+
+  defp tier(raw), do: Enum.find(@tiers, fn {top, _lp, _mod} -> is_nil(top) or raw <= top end)
+
+  defp linked_stat(character, skill) do
+    character |> get_in(["stats", Map.get(@skill_stat, skill, "WIS")]) |> to_int(10)
   end
 
   defp attempt_skill(character, skill, rolls, target_offset \\ 0) do
     roll = Map.get(rolls, skill) || :rand.uniform(20)
     raw = character |> get_in(["skills", skill]) |> to_int(0)
-    improved = roll > raw - target_offset
+    modifier = improvement_modifier(raw)
+    improved = roll + modifier > raw - target_offset
 
     prepared =
       character
@@ -377,12 +434,9 @@ defmodule TalesForge.Game.Mechanics do
         |> put_in(["learning_failures", skill], 0)
       end
 
-    entry = %{
-      "skill" => skill,
-      "roll" => roll,
-      "raw_skill" => raw,
-      "improved" => improved
-    }
+    entry =
+      %{"skill" => skill, "roll" => roll, "raw_skill" => raw, "improved" => improved}
+      |> then(&if modifier == 0, do: &1, else: Map.put(&1, "modifier", modifier))
 
     {updated, entry}
   end

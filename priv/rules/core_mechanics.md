@@ -18,11 +18,12 @@ This is a skill-based fantasy RPG system where character progress is measured by
   - Success (non-natural 1): +0.5 LP.
   - Natural 20: +2 LP.
   - Natural 1: +1 LP (capped once per skill per session).
-  - Threshold: 5 LP and ≥ 3 failures on that skill to attempt improvement.
+  - Threshold: the tier's LP (Novice 1-5: 5, Adept 6-10: 7, Expert 11-15: 10, Master 16+: 15) and ≥ 1 failure on that skill to attempt improvement.
+  - Linked stat: +(Stat - 10)/4 LP per roll (rounded down, 0 to +2).
 - **Skill Improvement**:
   - Attempt at rest / sleep / wait ≥ 1 hour, not session end.
   - One 1d20 per eligible skill per pause.
-  - Roll 1d20 &gt; raw skill.
+  - Roll 1d20 &gt; raw skill (Expert -3 and Master -5 to the roll; Master needs a trainer).
   - Success: skill +1, LP 0, failures 0.
   - Failure: skill unchanged, LP 1, failures 0.
   - No skill cap; high levels become harder without bonuses.
