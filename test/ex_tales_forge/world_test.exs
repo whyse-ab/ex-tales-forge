@@ -83,6 +83,7 @@ defmodule TalesForge.WorldTest do
       },
       %{"about" => "[valley_inn]", "kind" => "price", "text" => "Stabling: 4 copper a night"},
       %{"about" => "valley_inn", "kind" => "price", "text" => "Room for the night: 2 silver"},
+      %{"about" => "innkeep", "kind" => "price", "text" => "Stew: 2 copper"},
       %{"about" => "valley_inn", "kind" => "promise", "text" => "The inn promises nothing"},
       %{"about" => "harpy_roost", "kind" => "fact", "text" => "Harpies nest on the ridge"},
       %{
@@ -101,7 +102,7 @@ defmodule TalesForge.WorldTest do
              accepted
 
     assert Enum.map(rejected, &elem(&1, 1)) ==
-             [:price_conflict, :promise_not_person, :unknown_entity, :duplicate]
+             [:price_conflict, :price_conflict, :promise_not_person, :unknown_entity, :duplicate]
 
     :ok = World.store_facts(session.id, accepted, 2)
 
@@ -160,6 +161,19 @@ defmodule TalesForge.WorldTest do
 
       assert lines == ["Purchase: Bowl of stew, 5 copper, paid (server)"]
       assert TalesForge.Game.Inventory.coin_total_copper(after_pay["character"]["coins"]) == 5
+    end
+
+    test "paying is a statement; a question only asks" do
+      assert Prices.payment?(
+               "Ah, two copper it is for that fine ale. What troubles these folk?",
+               nil
+             )
+
+      assert Prices.payment?("Three silver for the room; here's the coin.", nil)
+      assert Prices.payment?("I slide two coppers over. Enough?", nil)
+      refute Prices.payment?("Could I pay for a room tonight?", nil)
+      refute Prices.payment?("Two copper? For that?", nil)
+      refute Prices.payment?("Is there stew tonight?", nil)
     end
 
     test "too little money is reported, not charged", %{agents: agents, world: world} do

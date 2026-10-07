@@ -20,10 +20,11 @@ defmodule TalesForge.World.Prices do
 
   alias TalesForge.Game.Inventory
 
-  @max_items 2
+  @max_items 3
   @pay ~r/\b(pay|pays|paid|paying|buy|buys|bought|purchase|purchases|rent|rents|order|orders|i'?ll take|i'?ll have|take the room)\b/i
   @hand_over ~r/\b(slide|slides|slid|place|places|hand|hands|count out|counts out|set down|sets down|offer|offers|give|gives|push|pushes)\b/i
   @coin_word ~r/\b(copper|coppers|silver|silvers|gold|coin|coins)\b/i
+  @amount ~r/\b(\d+|a|one|two|three|four|five|six|seven|eight|nine|ten)\s+(copper|coppers|silver|silvers|gold)\b/i
 
   @doc """
   Resolves this turn's prices. `world_before` is the session state before the
@@ -113,9 +114,16 @@ defmodule TalesForge.World.Prices do
     text = to_string(raw_action)
     coins_over? = Regex.match?(@hand_over, text) and Regex.match?(@coin_word, text)
 
-    # "Could I pay for a room?" is still asking; "I slide two coppers over. Enough?" is paying.
+    # A question ("Could I pay for a room?", "Two copper?") is still asking; a
+    # statement that pays or names the amount ("Two copper it is for the ale.",
+    # "I slide two coppers over. Enough?") is paying.
+    statements =
+      ~r/(?<=[.!?;])\s+/
+      |> Regex.split(text, trim: true)
+      |> Enum.reject(&String.ends_with?(String.trim(&1), "?"))
+
     bought?(player_action) or coins_over? or
-      (Regex.match?(@pay, text) and not String.contains?(text, "?"))
+      Enum.any?(statements, &(Regex.match?(@pay, &1) or Regex.match?(@amount, &1)))
   end
 
   defp bought?(player_action), do: action_type(player_action) in [:buy, :spend, :trade]

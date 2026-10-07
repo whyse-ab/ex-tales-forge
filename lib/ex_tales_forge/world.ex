@@ -307,7 +307,7 @@ defmodule TalesForge.World do
          :ok <- check(text != "", :empty),
          :ok <- check(kind != "promise" or agent.kind == :person, :promise_not_person),
          :ok <- check(not duplicate?(agent, text, seen), :duplicate),
-         :ok <- check(kind != "price" or not price_conflict?(agent, text), :price_conflict) do
+         :ok <- check(kind != "price" or not price_conflict?(agents, text), :price_conflict) do
       {:ok, agent.id,
        %{"kind" => kind, "text" => text, "source" => "narration", "turn" => turn_number}}
     end
@@ -343,12 +343,14 @@ defmodule TalesForge.World do
       Enum.any?(agent.facts, &(normalize(&1["text"]) == norm))
   end
 
-  # A price for something that already has one is rejected: the pack (or the
-  # first GM price) wins. "Private room: 3 silver" vs "Room for the night: 2 silver".
-  defp price_conflict?(agent, text) do
+  # A price for something that already has one, on any of this turn's agents,
+  # is rejected: the pack (or the first stored price) wins. "Private room:
+  # 3 silver" vs "Room for the night: 2 silver"; the inn's stew vs "Stew" on Brenna.
+  defp price_conflict?(agents, text) do
     new_key = price_key(text)
 
-    agent.facts
+    agents
+    |> Enum.flat_map(& &1.facts)
     |> Enum.filter(&(&1["kind"] == "price"))
     |> Enum.any?(&(not MapSet.disjoint?(price_key(&1["text"]), new_key)))
   end
