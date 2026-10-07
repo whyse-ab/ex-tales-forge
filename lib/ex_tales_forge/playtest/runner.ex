@@ -21,7 +21,7 @@ defmodule TalesForge.Playtest.Runner do
   alias TalesForge.Game.SceneProcessor
   alias TalesForge.GameSessions
   alias TalesForge.LLM
-  alias TalesForge.Playtest.{Personas, PlayerView, Reports, RunMeta, Scorer}
+  alias TalesForge.Playtest.{PersonaCharacters, Personas, PlayerView, Reports, RunMeta, Scorer}
   alias TalesForge.PubSub.GameSession, as: SessionPubSub
   alias TalesForge.Repo
   alias TalesForge.Schemas.{PlaytestRun, Turn}
@@ -49,7 +49,10 @@ defmodule TalesForge.Playtest.Runner do
   Options: `:turn_limit` (default #{@default_turn_limit}), `:turn_timeout_ms`
   (per turn or scene, default #{@default_turn_timeout_ms}), `:notes`, and
   `:variant` (`"default"` or `"baseline"`, see `TalesForge.Game.Variant`; nil
-  means `GAME_VARIANT`), so both arms of a comparison run on one deploy.
+  means `GAME_VARIANT`), so both arms of a comparison run on one deploy, and
+  `:character`: `:persona` (default) plays the character the persona created
+  (`TalesForge.Playtest.PersonaCharacters`), `:default` the pack's default
+  character (Elara). A persona without a pick plays the default character.
   """
   def start(persona_id, module, opts \\ []) do
     with :ok <- check_enabled(),
@@ -138,21 +141,39 @@ defmodule TalesForge.Playtest.Runner do
   end
 
   defp launch(persona, module, opts) do
-    with {:ok, session} <-
-           GameSessions.create_session(%{
+    with {:ok, character, description} <- persona_character(persona, module, opts),
+         {:ok, session} <-
+           %{
              name: "Playtest: #{persona.name} · #{module}",
              adventure_id: module,
              variant: opts[:variant],
              controller: "bot",
              controller_ref: persona.id
-           }),
+           }
+           |> put_character(character)
+           |> GameSessions.create_session(),
          {:ok, run} <- insert_run(session, persona, module, opts),
+         play_opts = Keyword.put(opts, :character_description, description),
          {:ok, _pid} <-
-           Task.Supervisor.start_child(@supervisor, fn -> play(run, persona, opts) end) do
+           Task.Supervisor.start_child(@supervisor, fn -> play(run, persona, play_opts) end) do
       Logger.info("playtest run started run=#{run.id} persona=#{persona.id} module=#{module}")
       {:ok, run.id}
     end
   end
+
+  defp persona_character(persona, module, opts) do
+    with :persona <- Keyword.get(opts, :character, :persona),
+         %{} = pick <- PersonaCharacters.pick(persona.id),
+         {:ok, character} <- PersonaCharacters.build(persona.id, module) do
+      {:ok, character, PersonaCharacters.describe(pick)}
+    else
+      {:error, reason} -> {:error, {:persona_character, reason}}
+      _default -> {:ok, nil, nil}
+    end
+  end
+
+  defp put_character(attrs, nil), do: attrs
+  defp put_character(attrs, character), do: Map.put(attrs, :character, character)
 
   # Rows left "running" by a restart or crash: no task on this node plays them.
   defp fail_interrupted_runs do
@@ -188,7 +209,7 @@ defmodule TalesForge.Playtest.Runner do
 
     state = %{
       run: run,
-      system: Personas.system_prompt(persona),
+      system: Personas.system_prompt(persona, opts[:character_description]),
       timeout_ms: Keyword.get(opts, :turn_timeout_ms, @default_turn_timeout_ms),
       turns_played: 0
     }

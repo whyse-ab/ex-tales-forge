@@ -1,0 +1,41 @@
+{
+  "_about": "The character each playtest persona creates and plays (TalesForge.Playtest.PersonaCharacters). Picks follow docs/personas.md and docs/playtest-persona-characters.md in tales-forge-docs; provisional until the founder survey answers (Q10-Q14) arrive. base_stats are before the race modifier (75-point buy, 3-18). race_bonus only for races with a choice (Human: two stats, Elf: INT or WIS).",
+  "hawk": {
+    "name": "Brannoc Hale",
+    "race": "human",
+    "class": "warrior",
+    "base_stats": {"STR": 15, "DEX": 12, "CON": 14, "INT": 12, "WIS": 12, "CHA": 10},
+    "race_bonus": ["STR", "CON"],
+    "concept": "A sellsword who survives by reading the ground before a fight and never walks in without a plan."
+  },
+  "paul": {
+    "name": "Corvin Ashdown",
+    "race": "half_elf",
+    "class": "cleric",
+    "base_stats": {"STR": 11, "DEX": 11, "CON": 11, "INT": 12, "WIS": 14, "CHA": 16},
+    "concept": "A wandering lay preacher with a silver tongue and a taste for a good scene, who would rather talk a fight down than draw steel."
+  },
+  "lotta": {
+    "name": "Hilde Stonebrook",
+    "race": "dwarf",
+    "class": "druid",
+    "base_stats": {"STR": 12, "DEX": 11, "CON": 14, "INT": 12, "WIS": 15, "CHA": 11},
+    "concept": "A gruff, plain-spoken dwarf hedge-druid, an outsider in a human mining valley, quietly hoping the valley will come to see who she really is."
+  },
+  "lars": {
+    "name": "Taren Swiftbrook",
+    "race": "elf",
+    "class": "ranger",
+    "base_stats": {"STR": 12, "DEX": 15, "CON": 13, "INT": 11, "WIS": 13, "CHA": 11},
+    "race_bonus": ["WIS"],
+    "concept": "A ranger and tracker who wants a real quest, a fight worth winning and a name the Guild will remember."
+  },
+  "ronny": {
+    "name": "Maxx Goldhand",
+    "race": "human",
+    "class": "warrior",
+    "base_stats": {"STR": 17, "DEX": 14, "CON": 17, "INT": 9, "WIS": 9, "CHA": 9},
+    "race_bonus": ["STR", "CON"],
+    "concept": "The strongest build the rules allow: maxed strength and toughness, everything else dumped, here for the loot."
+  }
+}

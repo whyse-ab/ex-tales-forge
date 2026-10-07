@@ -30,12 +30,19 @@ defmodule TalesForge.Playtest.Personas do
     end
   end
 
-  def system_prompt(persona) do
+  @doc """
+  The persona bot's system prompt: the persona notes and how to play. `character`
+  is what the persona knows about the character it created
+  (`TalesForge.Playtest.PersonaCharacters.describe/1`), or `nil` when it plays
+  the pack's default character.
+  """
+  @spec system_prompt(map(), String.t() | nil) :: String.t()
+  def system_prompt(persona, character \\ nil) do
     """
     You are a playtest bot playing Tales Forge, a text role-playing game run by an AI Game Master. You play as #{persona.name}, one of the players described in our persona notes below. Stay in #{persona.name}'s play style for the whole session.
 
     #{persona.notes}
-
+    #{character_line(character)}
     How to play:
     - You only know what the player sees: the story so far, the character sheet, and any question the Game Master asks.
     - Each turn, write what your character does or says next, the way #{persona.name} would type it: one action or line of dialogue, at most two sentences.
@@ -43,6 +50,9 @@ defmodule TalesForge.Playtest.Personas do
     - When the Game Master asks a question with options, set option_id to the option that fits #{persona.name}, or set it to null and answer in your own words in action.
     """
   end
+
+  defp character_line(nil), do: ""
+  defp character_line(character), do: "\n" <> character <> "\n"
 
   defp parse_section(section) do
     [heading | _] = String.split(section, "\n", parts: 2)
