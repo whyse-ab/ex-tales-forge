@@ -66,6 +66,17 @@ defmodule TalesForge.Game.Mechanics do
     {~r/\b(pick the lock|pick a lock|lockpick\w*)\b/i, "lockpicking"}
   ]
 
+  # Fight verbs and their skill. When a text names several (loose an arrow,
+  # then draw a knife), the first one in the text decides.
+  @combat_skill_hints [
+    {~r/\b(punch\w*|kick\w*|tackl\w*|grappl\w*|wrestl\w*|headbutt\w*|fists?)\b/i,
+     "unarmed_combat"},
+    {~r/\b(shoot\w*|aim(?:s|ing)? at|nock\w*|draw(?:s|ing)? (?:my |the |his |her )?bow|loos(?:e|es|ing) (?:an |another |my |a |the |two |more )?(?:arrow|shaft|bolt)s?|fir(?:e|es|ing) (?:an |another |my |a |the |two |more )?(?:arrow|shaft|bolt)s?|fir(?:e|es|ing) at|hurl(?:s|ing)?|throw(?:s|ing)? (?:my |the |a )?(?:knife|dagger|spear|axe|hatchet))\b/i,
+     "ranged_combat"},
+    {~r/\b(fight\w*|attack\w*|strike|strikes|striking|swing\w*|stab\w*|lunge\w*|slash\w*|thrust\w*|hack\w*|(?<!the )cut(?:s|ting)? (?:at|down)|charg(?:e|es|ing)|club\w*|bash\w*|hit|hits|kill\w*|slay\w*|parr(?:y|ies|ying)|disarm\w*|take (?:down|out))\b/i,
+     "melee_combat"}
+  ]
+
   @combat_skills ~w(melee_combat ranged_combat unarmed_combat)
 
   def skill_stat_map, do: @skill_stat
@@ -99,6 +110,35 @@ defmodule TalesForge.Game.Mechanics do
     Enum.find_value(@check_skill_hints, fn {pattern, skill} ->
       if Regex.match?(pattern, action), do: skill
     end)
+  end
+
+  @doc """
+  Default variant, combat actions only: the skill of the first fight verb in
+  the text (melee, ranged or unarmed), or nil when it names none.
+
+      iex> TalesForge.Game.Mechanics.first_combat_skill("I punch him, then grab the knife and stab")
+      "unarmed_combat"
+      iex> TalesForge.Game.Mechanics.first_combat_skill("I lunge low at the goblin's spear arm")
+      "melee_combat"
+      iex> TalesForge.Game.Mechanics.first_combat_skill("I loose another arrow, then draw my knife")
+      "ranged_combat"
+      iex> TalesForge.Game.Mechanics.first_combat_skill("I order a mug of ale")
+      nil
+  """
+  @spec first_combat_skill(String.t()) :: String.t() | nil
+  def first_combat_skill(action) when is_binary(action) do
+    @combat_skill_hints
+    |> Enum.flat_map(fn {pattern, skill} ->
+      case Regex.run(pattern, action, return: :index) do
+        [{pos, _} | _] -> [{pos, skill}]
+        nil -> []
+      end
+    end)
+    |> Enum.min_by(&elem(&1, 0), fn -> nil end)
+    |> case do
+      {_pos, skill} -> skill
+      nil -> nil
+    end
   end
 
   @doc """
