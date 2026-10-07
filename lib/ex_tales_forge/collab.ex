@@ -39,8 +39,6 @@ defmodule TalesForge.Collab do
     |> Repo.one!()
   end
 
-  def get_decision!(id), do: Repo.get!(Decision, id)
-
   def move_decision(slug, direction) when direction in [:up, :down] do
     delta = if direction == :up, do: -1, else: 1
 
