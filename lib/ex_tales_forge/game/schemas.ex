@@ -196,6 +196,24 @@ defmodule TalesForge.Game.Schemas do
 
   defmodule GMStructuredResponse do
     @moduledoc false
+
+    # Hard caps on the GM's bookkeeping, enforced here rather than with
+    # maxLength / maxItems in the narration schema (those turn off xAI prompt
+    # caching; see TalesForge.LLM.narration_schema/0). gm_system.txt asks for
+    # less, so the caps only bite on a runaway reply.
+    @gm_notes_max_chars 240
+    @context_summary_max_chars 300
+    @npc_memory_max_items 3
+    @npc_memory_max_chars 160
+
+    def caps,
+      do: %{
+        gm_notes: @gm_notes_max_chars,
+        context_summary: @context_summary_max_chars,
+        npc_memory_items: @npc_memory_max_items,
+        npc_memory_summary: @npc_memory_max_chars
+      }
+
     defstruct [
       :narrative,
       mechanical_resolution: %MechanicalResolution{},
@@ -212,15 +230,29 @@ defmodule TalesForge.Game.Schemas do
           map
           |> Map.get("mechanical_resolution", %{})
           |> MechanicalResolution.decode(),
-        npc_memory_updates: Map.get(map, "npc_memory_updates", []),
-        context_summary: Map.get(map, "context_summary"),
-        gm_notes: notes(Map.get(map, "gm_notes")),
+        npc_memory_updates: memories(Map.get(map, "npc_memory_updates")),
+        context_summary: cap(Map.get(map, "context_summary"), @context_summary_max_chars),
+        gm_notes: map |> Map.get("gm_notes") |> notes() |> cap(@gm_notes_max_chars),
         raw: map
       }
     end
 
     defp notes(notes) when is_binary(notes) and notes != "", do: notes
     defp notes(_notes), do: nil
+
+    defp memories(list) when is_list(list) do
+      list
+      |> Enum.take(@npc_memory_max_items)
+      |> Enum.map(fn
+        %{"summary" => summary} = m -> %{m | "summary" => cap(summary, @npc_memory_max_chars)}
+        other -> other
+      end)
+    end
+
+    defp memories(_), do: []
+
+    defp cap(text, max) when is_binary(text), do: String.slice(text, 0, max)
+    defp cap(other, _max), do: other
   end
 
   defmodule HandlerResult do
