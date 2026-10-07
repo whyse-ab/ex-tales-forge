@@ -66,13 +66,11 @@ defmodule TalesForge.LLM do
   # Output budget for gm_notes on top of the narration's TIER2_MAX_TOKENS.
   @gm_notes_max_tokens 100
 
-  # Hard caps on the GM's bookkeeping fields (characters; xAI strict output
-  # enforces maxLength up to 2048 and maxItems up to 256). gm_system.txt asks
-  # for less, so the caps only bite on a runaway reply. Like the old app's
-  # schema: small, capped bookkeeping; the tokens go to the narrative.
-  @gm_notes_max_chars 240
-  @context_summary_max_chars 300
-  @npc_memory_max_chars 160
+  # No maxLength / maxItems in the schema: with them xAI does not reuse the
+  # prompt cache for the request at all (every GM call came back with
+  # cached_tokens 128, measured 2026-10-07; the same request without them hit
+  # ~9.3k cached tokens). gm_system.txt asks for short bookkeeping and
+  # GMStructuredResponse.decode/1 enforces the hard caps in code.
 
   # Appended (never prepended) on a retry, so the retry re-sends the original
   # messages byte for byte and still hits the prompt cache.
@@ -103,19 +101,17 @@ defmodule TalesForge.LLM do
           {"npc_memory_updates",
            %{
              "type" => "array",
-             "maxItems" => 3,
              "items" => %{
                "type" => "object",
                "required" => ["npc_id", "summary"],
                "properties" => %{
                  "npc_id" => %{"type" => "string"},
-                 "summary" => %{"type" => "string", "maxLength" => @npc_memory_max_chars}
+                 "summary" => %{"type" => "string"}
                }
              }
            }},
-          {"context_summary",
-           %{"type" => ["string", "null"], "maxLength" => @context_summary_max_chars}},
-          {"gm_notes", %{"type" => ["string", "null"], "maxLength" => @gm_notes_max_chars}}
+          {"context_summary", %{"type" => ["string", "null"]}},
+          {"gm_notes", %{"type" => ["string", "null"]}}
         ])
     }
   end

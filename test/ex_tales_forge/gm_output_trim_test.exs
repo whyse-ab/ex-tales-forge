@@ -1,7 +1,9 @@
 defmodule TalesForge.GMOutputTrimTest do
   @moduledoc """
   The GM reply carries only what the code uses: narrative first, then small,
-  capped bookkeeping (npc_memory_updates, context_summary, gm_notes).
+  capped bookkeeping (npc_memory_updates, context_summary, gm_notes). The caps
+  live in GMStructuredResponse.decode/1, not in the schema: maxLength /
+  maxItems in the strict schema stop xAI from reusing the prompt cache.
   state_updates (discarded by TurnProcessor) and overlay_deltas (never read)
   are gone from the schema, the prompt and the struct.
   """
@@ -25,7 +27,7 @@ defmodule TalesForge.GMOutputTrimTest do
     :ok
   end
 
-  test "the narration schema has narrative first and capped bookkeeping only" do
+  test "the narration schema has narrative first and bookkeeping only" do
     schema = LLM.narration_schema()
     %Jason.OrderedObject{values: props} = schema["properties"]
 
@@ -36,11 +38,44 @@ defmodule TalesForge.GMOutputTrimTest do
     refute Map.has_key?(props, "state_updates")
     refute Map.has_key?(props, "overlay_deltas")
 
-    assert props["gm_notes"]["maxLength"] == 240
-    assert props["context_summary"]["maxLength"] == 300
-    assert props["npc_memory_updates"]["maxItems"] == 3
-    assert props["npc_memory_updates"]["items"]["properties"]["summary"]["maxLength"] == 160
     assert schema["required"] == ["narrative"]
+  end
+
+  test "the narration schema has no maxLength / maxItems (they disable xAI prompt caching)" do
+    json = Jason.encode!(LLM.narration_schema())
+    refute json =~ "maxLength"
+    refute json =~ "maxItems"
+    refute json =~ "minLength"
+    refute json =~ "minItems"
+  end
+
+  test "decode enforces the bookkeeping caps the schema no longer carries" do
+    long = String.duplicate("x", 1_000)
+
+    gm =
+      GMStructuredResponse.decode(%{
+        "narrative" => long,
+        "gm_notes" => long,
+        "context_summary" => long,
+        "npc_memory_updates" => for(i <- 1..5, do: %{"npc_id" => "npc_#{i}", "summary" => long})
+      })
+
+    caps = GMStructuredResponse.caps()
+    assert gm.narrative == long
+    assert String.length(gm.gm_notes) == caps.gm_notes
+    assert String.length(gm.context_summary) == caps.context_summary
+    assert length(gm.npc_memory_updates) == caps.npc_memory_items
+    assert Enum.map(gm.npc_memory_updates, & &1["npc_id"]) == ~w(npc_1 npc_2 npc_3)
+
+    assert Enum.all?(
+             gm.npc_memory_updates,
+             &(String.length(&1["summary"]) == caps.npc_memory_summary)
+           )
+
+    short = GMStructuredResponse.decode(%{"narrative" => "n", "gm_notes" => "ok"})
+    assert short.gm_notes == "ok"
+    assert short.context_summary == nil
+    assert short.npc_memory_updates == []
   end
 
   test "the GM prompt no longer asks for state_updates or overlay_deltas" do
