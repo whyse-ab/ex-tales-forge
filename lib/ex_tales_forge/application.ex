@@ -18,6 +18,7 @@ defmodule TalesForge.Application do
       {DNSCluster, query: Application.get_env(:ex_tales_forge, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: TalesForge.PubSub},
       {Task.Supervisor, name: TalesForge.Playtest.Supervisor},
+      {Task.Supervisor, name: TalesForge.Playtest.SeriesSupervisor},
       TalesForge.AdminAuth.MembershipCache,
       TalesForgeWeb.Endpoint
     ]
