@@ -9,6 +9,8 @@ defmodule TalesForge.Schemas.NpcInstance do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
+  @type t :: %__MODULE__{}
+
   schema "npc_instances" do
     field :npc_id, :string
     field :personality, :map, default: %{}
