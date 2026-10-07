@@ -154,8 +154,11 @@ defmodule TalesForge.AICallsTest do
     assert {:ok, %{turn_count: 1}} =
              TurnProcessor.run(session.id, "look around the tavern", player_action)
 
-    assert [call] = Repo.all(AICall)
+    assert [call] = Repo.all(from c in AICall, where: c.call_type == "llm")
     assert call.game_session_id == session.id
+    assert call.conv_id == session.id
+    assert %DateTime{} = call.started_at
+    assert {call.adventure_id, call.game_system} == {"crossroads_ledger", "skill_d20"}
     assert call.turn_number == 1
     assert call.purpose == "gm"
     assert call.model == "xai/grok-4.20-0309-non-reasoning"
@@ -164,6 +167,40 @@ defmodule TalesForge.AICallsTest do
     assert call.reasoning_tokens == 0
     assert {call.cost_micro_usd, call.cost_source} == {1485, "provider"}
     assert call.latency_ms >= 0
+
+    steps =
+      Repo.all(
+        from c in AICall,
+          where: c.call_type == "function",
+          order_by: c.started_at,
+          select: {c.purpose, c.turn_number, c.status, c.cost_micro_usd, c.adventure_id}
+      )
+
+    assert steps == [
+             {"turn.rules", 1, "ok", 0, "crossroads_ledger"},
+             {"turn.prompt", 1, "ok", 0, "crossroads_ledger"},
+             {"turn.gm", 1, "ok", 0, "crossroads_ledger"},
+             {"turn.persist", 1, "ok", 0, "crossroads_ledger"}
+           ]
+  end
+
+  test "a failed GM call still records the steps that ran, the GM step as an error" do
+    {session, player_action} = session_with_action()
+    Req.Test.stub(TalesForge.LLM, &Plug.Conn.send_resp(&1, 500, "boom"))
+
+    capture_log(fn ->
+      assert {:error, _} = TurnProcessor.run(session.id, "look around the tavern", player_action)
+    end)
+
+    steps =
+      Repo.all(
+        from c in AICall,
+          where: c.call_type == "function",
+          order_by: c.started_at,
+          select: {c.purpose, c.status}
+      )
+
+    assert steps == [{"turn.rules", "ok"}, {"turn.prompt", "ok"}, {"turn.gm", "error"}]
   end
 
   test "a failed ai_call insert does not break the turn" do

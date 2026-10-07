@@ -21,6 +21,7 @@ defmodule TalesForge.GameSessions do
   require Logger
 
   alias TalesForge.Agents.PlayerSessionAgent
+  alias TalesForge.AICalls.{Steps, Tags}
   alias TalesForge.Fronts
   alias TalesForge.Game.Context
   alias TalesForge.Game.Intent
@@ -28,6 +29,7 @@ defmodule TalesForge.GameSessions do
   alias TalesForge.Game.Pack
   alias TalesForge.Game.SceneProcessor
   alias TalesForge.Game.Schemas.PlayerAction
+  alias TalesForge.Game.TurnProcessor
   alias TalesForge.Game.World
   alias TalesForge.NPC
   alias TalesForge.NPCRegistry
@@ -241,6 +243,7 @@ defmodule TalesForge.GameSessions do
 
   defp resolve_and_enqueue(%GameSession{} = session, raw_action, opts) do
     context = Context.build_intent_context(session)
+    started_at = DateTime.utc_now()
     started = System.monotonic_time(:millisecond)
 
     try do
@@ -248,6 +251,7 @@ defmodule TalesForge.GameSessions do
         build_player_action(session, raw_action, context, opts)
 
       elapsed = System.monotonic_time(:millisecond) - started
+      record_intent_step(session, started_at, elapsed)
 
       Logger.info(
         "intent resolved session=#{session.id} duration_ms=#{elapsed} source=#{intent_source}"
@@ -256,11 +260,26 @@ defmodule TalesForge.GameSessions do
       enqueue_turn(session, raw_action, player_action)
     rescue
       e in [Intent.ClarificationNeeded] ->
+        record_intent_step(session, started_at, System.monotonic_time(:millisecond) - started)
         clarification = Intent.build_clarification(e.extraction, raw_action)
         save_clarification(session, clarification)
         SessionPubSub.broadcast(session.id, {:clarification_needed, clarification})
         {:ok, %{status: :clarification, clarification: clarification}}
     end
+  end
+
+  # Intent extraction + validation (heuristic, or the tier-1 LLM call, which has
+  # its own llm row): the Elixir step before the turn job, on the player's clock.
+  defp record_intent_step(session, started_at, elapsed_ms) do
+    %{
+      purpose: "turn.intent",
+      latency_ms: elapsed_ms,
+      started_at: started_at,
+      game_session_id: session.id,
+      turn_number: TurnProcessor.next_turn_number(session.id)
+    }
+    |> Map.merge(Tags.for_world(session.world_state))
+    |> Steps.record_one()
   end
 
   defp build_player_action(%GameSession{} = session, raw_action, context, opts) do

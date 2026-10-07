@@ -123,6 +123,65 @@ defmodule TalesForgeWeb.AdminLive.CostsLiveTest do
     refute has_element?(view, "#costs-peer-excluded")
   end
 
+  test "calls by type: breakdown with persona apart, cache, idle gap and recent sessions",
+       %{conn: conn} do
+    {:ok, session} =
+      TalesForge.GameSessions.create_session(%{name: "Metrics", adventure_id: "tin_valley"})
+
+    now = DateTime.utc_now()
+
+    for {purpose, turn, start_s, cached, cost} <- [
+          {"gm", 1, -60, 128, 12_000},
+          {"persona", 2, -54, 128, 1_000},
+          {"gm", 2, -50, 8_320, 4_000}
+        ] do
+      started_at = DateTime.add(now, start_s)
+
+      Repo.insert!(%AICall{
+        game_session_id: session.id,
+        adventure_id: "tin_valley",
+        purpose: purpose,
+        call_type: "llm",
+        conv_id: if(purpose == "gm", do: session.id, else: session.id <> ":persona"),
+        model: "grok-4.3",
+        status: "ok",
+        turn_number: turn,
+        started_at: started_at,
+        inserted_at: started_at |> DateTime.add(4) |> DateTime.truncate(:second),
+        latency_ms: 4_000,
+        input_tokens: 9_000,
+        cached_tokens: cached,
+        cost_micro_usd: cost
+      })
+    end
+
+    Repo.insert!(%AICall{
+      game_session_id: session.id,
+      purpose: "turn.prompt",
+      call_type: "function",
+      model: "elixir",
+      status: "ok",
+      turn_number: 2,
+      latency_ms: 3,
+      cost_micro_usd: 0
+    })
+
+    {:ok, view, _html} = live(conn, ~p"/admin/costs")
+
+    assert has_element?(view, "#costs-breakdown-game-llm-gm", "$0.0160")
+    assert has_element?(view, "#costs-breakdown-game-function-turn_prompt", "3 ms")
+    assert has_element?(view, "#costs-breakdown-game-total", "$0.0160")
+    assert has_element?(view, "#costs-breakdown-persona-llm-persona", "$0.0010")
+    assert has_element?(view, "#costs-cache-gm-later", "1/1 calls hit")
+    assert has_element?(view, "#costs-cache-gm", "1/2 calls hit")
+    # GM2 started 6 s after GM1 ended (persona on its own conv id in between).
+    assert has_element?(view, "#costs-idle-gap", "6.00 s")
+    assert has_element?(view, "#costs-session-#{session.id}", "tin_valley")
+    assert has_element?(view, "#costs-session-#{session.id}", "1/2 hits")
+    # Function rows are not calls in the bucket tables.
+    assert has_element?(view, "#costs-env-local-month-game", "2")
+  end
+
   test "playtest under the threshold: no warning", %{conn: conn} do
     configure_peer()
 

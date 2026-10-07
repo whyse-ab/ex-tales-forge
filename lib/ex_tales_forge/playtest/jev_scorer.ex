@@ -10,7 +10,7 @@ defmodule TalesForge.Playtest.JevScorer do
 
   Primary auto-score when `TYPESAFE_API_KEY` is set (see `configured?/0`).
   Model pinned to `jev-1.13.0`. Usage is recorded in `ai_calls` as purpose
-  `scorer`. Scale stored as 1–5 (`jev_fractional + 1`); Jev's native score is
+  `scorer`, call_type `jev`. Scale stored as 1–5 (`jev_fractional + 1`); Jev's native score is
   0-indexed.
   """
 
@@ -58,8 +58,8 @@ defmodule TalesForge.Playtest.JevScorer do
          {:ok, persona} <- Personas.fetch(run.persona),
          state <- build_state(run),
          questions <- questions(persona, state.turns),
-         {:ok, reply} <- call_jev(state.text, questions),
-         :ok <- record_usage(run, reply) do
+         {:ok, reply, timing} <- call_jev(state.text, questions),
+         :ok <- record_usage(run, reply, timing) do
       persist(run, persona, state.turns, reply)
     end
   end
@@ -118,13 +118,20 @@ defmodule TalesForge.Playtest.JevScorer do
   end
 
   defp call_jev(state, questions) do
+    started_at = DateTime.utc_now()
+    t0 = System.monotonic_time(:millisecond)
+
     case Jev.HTTP.post(state, questions, model: @model) do
-      {:ok, reply} -> {:ok, reply}
-      {:error, reason} -> {:error, {:jev, reason}}
+      {:ok, reply} ->
+        latency_ms = System.monotonic_time(:millisecond) - t0
+        {:ok, reply, %{started_at: started_at, latency_ms: latency_ms}}
+
+      {:error, reason} ->
+        {:error, {:jev, reason}}
     end
   end
 
-  defp record_usage(run, reply) do
+  defp record_usage(run, reply, timing) do
     usage = Map.get(reply, :usage) || %{}
     input = usage[:input_tokens] || usage["input_tokens"] || 0
     # Jev bills input only; published ~$0.042 / 1M input tokens.
@@ -136,9 +143,11 @@ defmodule TalesForge.Playtest.JevScorer do
 
     AICalls.record(%{
       purpose: "scorer",
+      call_type: "jev",
       model: Map.get(reply, :model) || @model,
       status: "ok",
-      latency_ms: 0,
+      latency_ms: timing.latency_ms,
+      started_at: timing.started_at,
       game_session_id: run.game_session_id,
       usage: %{
         input_tokens: input,

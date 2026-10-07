@@ -11,6 +11,7 @@ defmodule TalesForge.Game.TurnProcessor do
 
   require Logger
 
+  alias TalesForge.AICalls.{Steps, Tags}
   alias TalesForge.Fronts
   alias TalesForge.Game.ActionHandler
   alias TalesForge.Game.Context
@@ -34,56 +35,84 @@ defmodule TalesForge.Game.TurnProcessor do
   alias TalesForge.Repo
   alias TalesForge.Schemas.{GameSession, SessionEvent, Turn}
 
+  @doc """
+  Runs one turn. The main steps (rules, prompt build, GM call, persistence)
+  are timed and recorded in `ai_calls` as `call_type` `function` rows
+  (`TalesForge.AICalls.Steps`), whether the turn succeeds or fails.
+  """
   def run(session_id, raw_action, player_action_map) do
     started = System.monotonic_time(:millisecond)
     player_action = PlayerAction.decode(player_action_map)
 
-    with %GameSession{} = session <- Repo.get(GameSession, session_id),
-         turn_number <- next_turn_number(session_id),
-         handler <- ActionHandler.resolve(player_action),
-         {character, mechanical} <- apply_mechanics(session.world_state, player_action, handler),
-         %{
-           world: world_board,
-           events: events,
-           sim: sim,
-           improvements: improvements,
-           training: training
-         } <-
-           apply_board(session, character, handler, player_action, mechanical),
-         mechanical <- %{mechanical | improvements: improvements, training: training},
-         gm_context <- Context.build_gm_context(%{session | world_state: world_board}),
-         messages <-
-           Prompts.gm_messages(gm_context, mechanical, player_action, handler, turn_number),
-         {:ok, gm_result} <-
-           LLM.complete_turn(messages, player_action, handler, turn_number,
-             session_id: session_id
-           ),
-         world_final <- apply_allowlisted_patches(world_board, gm_result),
-         {:ok, payload} <-
-           persist_and_signal(session, world_final, turn_number, raw_action, %{
-             handler: handler,
-             mechanical: mechanical,
-             gm_result: gm_result,
-             events: events,
-             sim: sim
-           }) do
-      elapsed = System.monotonic_time(:millisecond) - started
-
-      Logger.info(
-        "turn completed session=#{session_id} turn=#{turn_number} duration_ms=#{elapsed} llm_source=#{LLM.llm_source(LLM.provider())}"
-      )
-
-      SessionPubSub.broadcast(session_id, {:turn_completed, payload})
-      {:ok, payload}
-    else
+    case Repo.get(GameSession, session_id) do
       nil ->
         {:error, :not_found}
 
-      {:error, reason} = err ->
-        Logger.error("turn processor failed session=#{session_id} reason=#{inspect(reason)}")
-        SessionPubSub.broadcast(session_id, {:turn_failed, SessionPubSub.failure_reason(reason)})
-        err
+      %GameSession{} = session ->
+        turn_number = next_turn_number(session_id)
+
+        {result, steps} =
+          Steps.collect(fn -> run_steps(session, turn_number, raw_action, player_action) end)
+
+        Steps.record(steps, session_id, turn_number, Tags.for_world(session.world_state))
+        finish(result, session_id, turn_number, started)
     end
+  end
+
+  defp run_steps(session, turn_number, raw_action, player_action) do
+    {handler, mechanical, board} =
+      Steps.time(:rules, fn -> resolve_rules(session, player_action) end)
+
+    messages =
+      Steps.time(:prompt, fn ->
+        gm_context = Context.build_gm_context(%{session | world_state: board.world})
+        Prompts.gm_messages(gm_context, mechanical, player_action, handler, turn_number)
+      end)
+
+    with {:ok, gm_result} <-
+           Steps.time(:gm, fn ->
+             LLM.complete_turn(messages, player_action, handler, turn_number,
+               session_id: session.id
+             )
+           end) do
+      Steps.time(:persist, fn ->
+        world_final = apply_allowlisted_patches(board.world, gm_result)
+
+        persist_and_signal(session, world_final, turn_number, raw_action, %{
+          handler: handler,
+          mechanical: mechanical,
+          gm_result: gm_result,
+          events: board.events,
+          sim: board.sim
+        })
+      end)
+    end
+  end
+
+  # Handler resolution, server mechanics and the board (inventory, clock, move,
+  # events, WorldSim, perception): everything decided before narration.
+  defp resolve_rules(session, player_action) do
+    handler = ActionHandler.resolve(player_action)
+    {character, rolled} = apply_mechanics(session.world_state, player_action, handler)
+    board = apply_board(session, character, handler, player_action, rolled)
+    {handler, %{rolled | improvements: board.improvements, training: board.training}, board}
+  end
+
+  defp finish({:ok, payload}, session_id, turn_number, started) do
+    elapsed = System.monotonic_time(:millisecond) - started
+
+    Logger.info(
+      "turn completed session=#{session_id} turn=#{turn_number} duration_ms=#{elapsed} llm_source=#{LLM.llm_source(LLM.provider())}"
+    )
+
+    SessionPubSub.broadcast(session_id, {:turn_completed, payload})
+    {:ok, payload}
+  end
+
+  defp finish({:error, reason} = err, session_id, _turn_number, _started) do
+    Logger.error("turn processor failed session=#{session_id} reason=#{inspect(reason)}")
+    SessionPubSub.broadcast(session_id, {:turn_failed, SessionPubSub.failure_reason(reason)})
+    err
   end
 
   @doc false
@@ -395,7 +424,8 @@ defmodule TalesForge.Game.TurnProcessor do
     end
   end
 
-  defp next_turn_number(session_id) do
+  @doc false
+  def next_turn_number(session_id) do
     import Ecto.Query
 
     Turn

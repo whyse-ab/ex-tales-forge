@@ -118,6 +118,27 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     refute html =~ "Re-score"
   end
 
+  test "run detail breaks cost down by call type, persona apart, with per-turn rows",
+       %{conn: conn} do
+    run = seed_run()
+    {:ok, view, _html} = live(conn, ~p"/admin/playtest/#{run.id}")
+
+    assert has_element?(view, "#run-breakdown-game-llm-gm", "$0.0120")
+    assert has_element?(view, "#run-breakdown-game-function-turn_rules", "14 ms")
+    assert has_element?(view, "#run-breakdown-scorer-jev-scorer", "$0.0025")
+    # Game total: gm + scene; persona has its own block and line.
+    assert has_element?(view, "#run-breakdown-game-total", "$0.0150")
+    assert has_element?(view, "#run-breakdown-persona-llm-persona", "$0.0040")
+    refute has_element?(view, "#run-breakdown-game #run-breakdown-persona-llm-persona")
+    assert has_element?(view, "#persona-line", "$0.0040")
+
+    assert has_element?(view, "#run-cache-gm-later", "—")
+    assert has_element?(view, "#run-gm-latency", "1.50 s")
+    assert has_element?(view, "#run-turn-1", "hit")
+    assert has_element?(view, "#run-turn-1", "14 ms")
+    assert has_element?(view, "#run-game-per-turn", "$0.0150")
+  end
+
   test "run detail without score or reasoning, and scoring on demand", %{conn: conn} do
     run = seed_run()
 
@@ -211,23 +232,38 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
       }
     })
 
-    for {purpose, cost} <- [
-          {"gm", 12_000},
-          {"scene", 3_000},
-          {"persona", 4_000},
-          {"scorer", 2_500}
+    for {purpose, cost, turn, cached} <- [
+          {"gm", 12_000, 1, 1_536},
+          {"scene", 3_000, nil, 128},
+          {"persona", 4_000, 1, 128},
+          {"scorer", 2_500, nil, nil}
         ] do
       Repo.insert!(%AICall{
         game_session_id: session.id,
         purpose: purpose,
+        call_type: if(purpose == "scorer", do: "jev", else: "llm"),
         model: "xai/grok-4.20-0309-non-reasoning",
         status: "ok",
+        turn_number: turn,
         latency_ms: 1_500,
         input_tokens: 2_000,
+        cached_tokens: cached,
         output_tokens: 60,
         cost_micro_usd: cost
       })
     end
+
+    Repo.insert!(%AICall{
+      game_session_id: session.id,
+      purpose: "turn.rules",
+      call_type: "function",
+      model: "elixir",
+      status: "ok",
+      turn_number: 1,
+      latency_ms: 14,
+      cost_micro_usd: 0,
+      cost_source: "free"
+    })
 
     if opts[:reasoning] do
       Repo.insert!(%SessionEvent{

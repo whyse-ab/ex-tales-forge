@@ -118,5 +118,119 @@ defmodule TalesForgeWeb.AdminComponents do
 
   def format_ms(nil), do: "—"
   def format_ms(ms) when ms < 60_000, do: "#{Float.round(ms / 1000, 1)} s"
+  def format_ms(ms) when is_float(ms), do: format_ms(round(ms))
   def format_ms(ms), do: "#{div(ms, 60_000)} min #{div(rem(ms, 60_000), 1000)} s"
+
+  def format_latency(nil), do: "—"
+  def format_latency(ms) when ms < 1_000, do: "#{round(ms)} ms"
+  def format_latency(ms), do: :erlang.float_to_binary(ms / 1_000, decimals: 2) <> " s"
+
+  def format_pct(nil), do: "—"
+  def format_pct(ratio), do: :erlang.float_to_binary(ratio * 100, decimals: 1) <> "%"
+
+  @section_labels %{"game" => "Game", "persona" => "Persona (bot)", "scorer" => "Scorer (bot)"}
+
+  @doc """
+  Table of `TalesForge.AICalls.Metrics` breakdown rows: one block per section
+  (game, then the persona and scorer bots, never summed together), one row per
+  call_type and purpose with count, total and average cost, per-session and
+  per-turn cost (when the rows carry them) and p50/p90 latency.
+  """
+  attr :id, :string, required: true
+  attr :rows, :list, required: true
+  attr :per_session, :boolean, default: false
+
+  def call_breakdown(assigns) do
+    assigns =
+      assign(assigns, :sections, Enum.chunk_by(assigns.rows, & &1.section))
+
+    ~H"""
+    <div class="min-w-0 overflow-x-auto">
+      <table id={@id} class="w-full text-sm">
+        <thead class="text-left text-[var(--paper-muted)]">
+          <tr>
+            <th class="py-1 pr-2 font-medium">Type · purpose</th>
+            <th class="py-1 pr-2 text-right font-medium">Calls</th>
+            <th class="py-1 pr-2 text-right font-medium">Total</th>
+            <th class="hidden py-1 pr-2 text-right font-medium sm:table-cell">Avg</th>
+            <th
+              :if={@per_session}
+              class="hidden py-1 pr-2 text-right font-medium md:table-cell"
+            >
+              /session
+            </th>
+            <th class="hidden py-1 pr-2 text-right font-medium sm:table-cell">/turn</th>
+            <th class="py-1 pr-2 text-right font-medium">p50</th>
+            <th class="hidden py-1 text-right font-medium sm:table-cell">p90</th>
+          </tr>
+        </thead>
+        <tbody :for={rows <- @sections} id={"#{@id}-#{hd(rows).section}"}>
+          <tr class="border-t border-[var(--paper-rule)]">
+            <th
+              colspan="8"
+              scope="colgroup"
+              class="play-label pt-2 pb-1 text-left text-[var(--paper-muted)]"
+            >
+              {section_label(hd(rows).section)}
+            </th>
+          </tr>
+          <tr :for={row <- rows} id={row_id(@id, row)}>
+            <td class="py-1 pr-2">
+              <span class={[
+                "mr-1 rounded px-1 text-xs",
+                row.call_type == "function" && "bg-[var(--paper-bg)] text-[var(--paper-muted)]",
+                row.call_type != "function" && "bg-[var(--paper-bg)] text-[var(--paper-ink)]"
+              ]}>
+                {row.call_type}
+              </span>
+              {row.purpose}
+            </td>
+            <td class="py-1 pr-2 text-right tabular-nums">{row.calls}</td>
+            <td class="whitespace-nowrap py-1 pr-2 text-right tabular-nums">
+              {format_usd(row.cost_micro_usd)}
+            </td>
+            <td class="hidden whitespace-nowrap py-1 pr-2 text-right tabular-nums sm:table-cell">
+              {format_usd(row.avg_cost_micro_usd)}
+            </td>
+            <td
+              :if={@per_session}
+              class="hidden whitespace-nowrap py-1 pr-2 text-right tabular-nums md:table-cell"
+            >
+              {format_usd(row[:per_session_micro_usd])}
+            </td>
+            <td class="hidden whitespace-nowrap py-1 pr-2 text-right tabular-nums sm:table-cell">
+              {format_usd(row[:per_turn_micro_usd])}
+            </td>
+            <td class="whitespace-nowrap py-1 pr-2 text-right tabular-nums">
+              {format_latency(row.p50_ms)}
+            </td>
+            <td class="hidden whitespace-nowrap py-1 text-right tabular-nums sm:table-cell">
+              {format_latency(row.p90_ms)}
+            </td>
+          </tr>
+          <tr id={"#{@id}-#{hd(rows).section}-total"} class="font-semibold">
+            <td class="py-1 pr-2">{section_label(hd(rows).section)} total</td>
+            <td class="py-1 pr-2 text-right tabular-nums">{section_calls(rows)}</td>
+            <td class="whitespace-nowrap py-1 pr-2 text-right tabular-nums">
+              {format_usd(section_cost(rows))}
+            </td>
+            <td colspan="5"></td>
+          </tr>
+        </tbody>
+      </table>
+      <p :if={@rows == []} class="text-sm text-[var(--paper-muted)]">No calls recorded.</p>
+    </div>
+    """
+  end
+
+  defp section_label(section), do: Map.get(@section_labels, section, section)
+
+  defp row_id(id, row),
+    do: "#{id}-#{row.section}-#{row.call_type}-#{String.replace(row.purpose, ".", "_")}"
+
+  # Function rows are free timed steps, not calls: left out of the call count.
+  defp section_calls(rows),
+    do: rows |> Enum.reject(&(&1.call_type == "function")) |> Enum.map(& &1.calls) |> Enum.sum()
+
+  defp section_cost(rows), do: rows |> Enum.map(& &1.cost_micro_usd) |> Enum.sum()
 end
