@@ -10,6 +10,10 @@ defmodule TalesForge.Game.Pack do
   The player character lives in `characters/<id>.json`: the sheet that goes
   into `world_state["character"]`, plus the levers `ocean`, `maslow` and
   `concerns`, which `sheet/1` strips.
+
+  A behaviour variant (`TalesForge.Game.Variant`) can replace whole NPCs:
+  `variants/<variant>/npcs/<id>.{md,json}` takes the place of `npcs/<id>.*`
+  for sessions of that variant (e.g. the pre-rework Brenna for `baseline`).
   """
 
   alias TalesForge.Characters.{Defaults, Levers}
@@ -18,7 +22,9 @@ defmodule TalesForge.Game.Pack do
 
   @sheet_keys ~w(id name race stats skills)
 
-  def load(adventure_id) when is_binary(adventure_id) and adventure_id != "" do
+  def load(adventure_id, variant \\ "default")
+
+  def load(adventure_id, variant) when is_binary(adventure_id) and adventure_id != "" do
     dir = Path.join(adventures_dir(), adventure_id)
 
     unless File.dir?(dir) do
@@ -27,7 +33,7 @@ defmodule TalesForge.Game.Pack do
 
     adventure = load_adventure!(dir)
     locations = load_locations!(dir)
-    npcs = load_npcs!(dir)
+    npcs = load_npcs!(dir, variant)
     defaults = Defaults.rules(adventure_id)
     Enum.each(npcs, &validate_npc!(&1, defaults, "#{adventure_id} NPC #{&1["id"]}"))
     player_character = player_character!(adventure_id)
@@ -50,7 +56,7 @@ defmodule TalesForge.Game.Pack do
     }
   end
 
-  def load(_), do: raise(ArgumentError, "adventure_id required")
+  def load(_, _), do: raise(ArgumentError, "adventure_id required")
 
   def materialize(adventure_id) when is_binary(adventure_id) do
     pack = load(adventure_id)
@@ -195,9 +201,15 @@ defmodule TalesForge.Game.Pack do
     }
   end
 
-  defp load_npcs!(dir) do
-    npc_dir = Path.join(dir, "npcs")
+  defp load_npcs!(dir, variant) do
+    base = load_npc_dir!(Path.join(dir, "npcs"))
+    overrides = load_npc_dir!(Path.join([dir, "variants", variant, "npcs"]))
+    override_ids = MapSet.new(overrides, & &1["id"])
 
+    Enum.reject(base, &MapSet.member?(override_ids, &1["id"])) ++ overrides
+  end
+
+  defp load_npc_dir!(npc_dir) do
     if File.dir?(npc_dir) do
       markdown =
         npc_dir

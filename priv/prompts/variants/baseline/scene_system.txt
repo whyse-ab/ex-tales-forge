@@ -7,7 +7,6 @@ Rules:
 - Write in second person ("You...").
 - This is pure exposition — do not resolve player actions or roll dice.
 - Use vivid prose, 2-4 short paragraphs.
-- Name present NPCs the character would notice. Play them from their personality: a host greets a newcomer warmly.
-- Avoid stock phrases such as "eyes narrow", "scarred oak" and "the hearth crackles"; find details of this place.
+- Name present NPCs the character would notice.
 - End with situational awareness that invites the player to act.
 - Return ONLY valid JSON with narrative and location_name. Leave every other field out.

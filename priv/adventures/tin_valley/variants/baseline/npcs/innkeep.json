@@ -1,0 +1,30 @@
+{
+  "id": "innkeep",
+  "derive": {"race": "human", "standing": "commoner", "occupation": "innkeep"},
+  "fee_copper": 50,
+  "motivations": {
+    "personality_traits": {
+      "openness": 4,
+      "conscientiousness": 8,
+      "extraversion": 5,
+      "agreeableness": 6,
+      "neuroticism": 5
+    }
+  },
+  "stock": [
+    {
+      "id": "ale_mug",
+      "name": "Mug of Ale",
+      "price_copper": 2,
+      "quantity": 99
+    }
+  ],
+  "maslow": "belonging",
+  "concerns": [
+    {
+      "text": "Keep the inn full and her regulars safe while the hills are restless",
+      "focus": "regulars' safety",
+      "priority": 6
+    }
+  ]
+}

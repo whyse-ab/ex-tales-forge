@@ -10,6 +10,7 @@ defmodule TalesForge.NPC do
 
   alias TalesForge.Characters.{Defaults, Levers}
   alias TalesForge.Game.Pack
+  alias TalesForge.Game.Variant
   alias TalesForge.Game.WorldClock
   alias TalesForge.Repo
   alias TalesForge.Schemas.{GameSession, NpcInstance}
@@ -43,7 +44,7 @@ defmodule TalesForge.NPC do
 
     definitions =
       case adventure_id do
-        "tin_valley" -> Pack.load("tin_valley").npcs
+        "tin_valley" -> Pack.load("tin_valley", Variant.of(world_state)).npcs
         _ -> load_definitions_from_files(rules)
       end
 
@@ -479,7 +480,13 @@ defmodule TalesForge.NPC do
       "concern_focus" => concern["focus"],
       "memories" => visible_memories(runtime["memories"])
     }
+    |> put_hooks(definition["hooks"])
   end
+
+  # Ready-made leads the NPC offers a player (pack data, e.g. Brenna's). Only
+  # NPCs that have them get the key, so other NPCs' prompt text is unchanged.
+  defp put_hooks(context, [_ | _] = hooks), do: Map.put(context, "hooks", hooks)
+  defp put_hooks(context, _hooks), do: context
 
   defp visible_stock(stock) do
     stock

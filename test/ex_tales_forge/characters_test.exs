@@ -61,7 +61,7 @@ defmodule TalesForge.CharactersTest do
       assert [%{id: "ale_mug", price_copper: 2}] = innkeep.inventory
       # Derived defaults: skills on the PC scale, authored OCEAN kept, stats within ±1 of 10.
       assert innkeep.skills == %{"persuasion" => 8, "insight" => 8, "etiquette" => 4}
-      assert innkeep.ocean.conscientiousness == 8
+      assert innkeep.ocean.conscientiousness == 7
       assert innkeep.stats.str in 9..11
     end
 

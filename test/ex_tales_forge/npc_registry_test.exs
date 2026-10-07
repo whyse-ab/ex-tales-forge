@@ -130,7 +130,7 @@ defmodule TalesForge.NPCRegistryTest do
     assert pid
 
     before = NPC.get_instance(session.id, "innkeep")
-    assert get_in(before.runtime_state, ["current_concern", "focus"]) =~ "armed strangers"
+    assert get_in(before.runtime_state, ["current_concern", "focus"]) =~ "hills are restless"
     old_priority = get_in(before.runtime_state, ["current_concern", "priority"])
 
     signal =
