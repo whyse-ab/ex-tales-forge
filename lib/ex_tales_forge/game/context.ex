@@ -139,7 +139,12 @@ defmodule TalesForge.Game.Context do
         Map.get(context.intent_context, "present_npcs", [])
       )
 
-    [perceived_facts_section(context), context.formatted_intent, npc_sections]
+    [
+      perceived_facts_section(context),
+      context.formatted_intent,
+      npc_sections,
+      TalesForge.Game.NpcReactions.prompt_section(Map.get(context, :npc_reactions))
+    ]
     |> join_sections()
   end
 

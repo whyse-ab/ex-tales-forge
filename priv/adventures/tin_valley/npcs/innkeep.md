@@ -4,6 +4,9 @@ name: Brenna Holt
 race: human
 role: innkeep
 default_location_id: valley_inn
+# OCEAN personality_traits in innkeep.json are PROTOTYPE values for the Jev NPC
+# reaction prototype (NPC_REACTIONS), read from this sheet: practical and orderly
+# (C 8), warm to paying guests (A 6), worried about raids (N 5). Not authored canon yet.
 ---
 
 # Brenna Holt

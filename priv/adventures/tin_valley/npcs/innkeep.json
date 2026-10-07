@@ -5,6 +5,15 @@
     "insight": 7
   },
   "fee_copper": 50,
+  "motivations": {
+    "personality_traits": {
+      "openness": 4,
+      "conscientiousness": 8,
+      "extraversion": 5,
+      "agreeableness": 6,
+      "neuroticism": 5
+    }
+  },
   "stock": [
     {
       "id": "ale_mug",

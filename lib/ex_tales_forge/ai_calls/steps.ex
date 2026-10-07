@@ -19,7 +19,8 @@ defmodule TalesForge.AICalls.Steps do
   @model "elixir"
 
   @doc "Purposes of the turn steps, in pipeline order."
-  def purposes, do: ~w(turn.intent turn.rules turn.prompt turn.gm turn.persist)
+  def purposes,
+    do: ~w(turn.intent turn.rules turn.npc_reactions turn.prompt turn.gm turn.persist)
 
   def model, do: @model
 
