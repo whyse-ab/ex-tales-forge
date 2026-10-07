@@ -205,19 +205,24 @@ defmodule TalesForge.Game.Schemas do
     @context_summary_max_chars 300
     @npc_memory_max_items 3
     @npc_memory_max_chars 160
+    @new_facts_max_items 3
+    @new_fact_max_chars 160
 
     def caps,
       do: %{
         gm_notes: @gm_notes_max_chars,
         context_summary: @context_summary_max_chars,
         npc_memory_items: @npc_memory_max_items,
-        npc_memory_summary: @npc_memory_max_chars
+        npc_memory_summary: @npc_memory_max_chars,
+        new_facts_items: @new_facts_max_items,
+        new_fact_text: @new_fact_max_chars
       }
 
     defstruct [
       :narrative,
       mechanical_resolution: %MechanicalResolution{},
       npc_memory_updates: [],
+      new_facts: [],
       context_summary: nil,
       gm_notes: nil,
       raw: %{}
@@ -231,6 +236,7 @@ defmodule TalesForge.Game.Schemas do
           |> Map.get("mechanical_resolution", %{})
           |> MechanicalResolution.decode(),
         npc_memory_updates: memories(Map.get(map, "npc_memory_updates")),
+        new_facts: new_facts(Map.get(map, "new_facts")),
         context_summary: cap(Map.get(map, "context_summary"), @context_summary_max_chars),
         gm_notes: map |> Map.get("gm_notes") |> notes() |> cap(@gm_notes_max_chars),
         raw: map
@@ -250,6 +256,22 @@ defmodule TalesForge.Game.Schemas do
     end
 
     defp memories(_), do: []
+
+    # WORLD_AGENTS=on: facts the GM introduced, for TalesForge.World.write_back/4.
+    defp new_facts(list) when is_list(list) do
+      list
+      |> Enum.filter(&(is_map(&1) and is_binary(&1["about"]) and is_binary(&1["text"])))
+      |> Enum.take(@new_facts_max_items)
+      |> Enum.map(fn f ->
+        %{
+          "about" => f["about"],
+          "kind" => if(is_binary(f["kind"]), do: String.downcase(f["kind"]), else: "fact"),
+          "text" => cap(f["text"], @new_fact_max_chars)
+        }
+      end)
+    end
+
+    defp new_facts(_), do: []
 
     defp cap(text, max) when is_binary(text), do: String.slice(text, 0, max)
     defp cap(other, _max), do: other

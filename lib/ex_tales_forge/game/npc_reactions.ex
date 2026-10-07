@@ -60,8 +60,11 @@ defmodule TalesForge.Game.NpcReactions do
   def emotions, do: @emotions |> Map.keys() |> Enum.map(&Atom.to_string/1) |> Enum.sort()
   def stances, do: @stances
 
-  @doc "On when `NPC_REACTIONS` is on and a TypeSafe key is configured."
-  def enabled?, do: Config.npc_reactions?() and configured?()
+  @doc """
+  On when `NPC_REACTIONS` (or `WORLD_AGENTS`, where this is a Person agent's
+  System 1 reaction) is on and a TypeSafe key is configured.
+  """
+  def enabled?, do: (Config.npc_reactions?() or Config.world_agents?()) and configured?()
 
   def configured? do
     case Application.get_env(:jev, :api_key) || System.get_env("TYPESAFE_API_KEY") do

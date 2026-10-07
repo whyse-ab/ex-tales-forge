@@ -97,26 +97,54 @@ defmodule TalesForge.LLM do
     %{
       "type" => "object",
       "required" => ["narrative"],
-      "properties" =>
-        Jason.OrderedObject.new([
-          {"narrative", %{"type" => "string"}},
-          {"location_name", %{"type" => ["string", "null"]}},
-          {"npc_memory_updates",
-           %{
-             "type" => "array",
-             "items" => %{
-               "type" => "object",
-               "required" => ["npc_id", "summary"],
-               "properties" => %{
-                 "npc_id" => %{"type" => "string"},
-                 "summary" => %{"type" => "string"}
-               }
-             }
-           }},
-          {"context_summary", %{"type" => ["string", "null"]}},
-          {"gm_notes", %{"type" => ["string", "null"]}}
-        ])
+      "properties" => Jason.OrderedObject.new(narration_properties() ++ world_fact_properties())
     }
+  end
+
+  # WORLD_AGENTS=on only (same for the scene and every GM turn of the run, so
+  # the scene still warms the cache for GM turn 1). No maxItems/maxLength:
+  # GMStructuredResponse.decode/1 caps it.
+  defp world_fact_properties do
+    if Config.world_agents?() do
+      [
+        {"new_facts",
+         %{
+           "type" => "array",
+           "items" => %{
+             "type" => "object",
+             "required" => ["about", "kind", "text"],
+             "properties" => %{
+               "about" => %{"type" => "string"},
+               "kind" => %{"type" => "string"},
+               "text" => %{"type" => "string"}
+             }
+           }
+         }}
+      ]
+    else
+      []
+    end
+  end
+
+  defp narration_properties do
+    [
+      {"narrative", %{"type" => "string"}},
+      {"location_name", %{"type" => ["string", "null"]}},
+      {"npc_memory_updates",
+       %{
+         "type" => "array",
+         "items" => %{
+           "type" => "object",
+           "required" => ["npc_id", "summary"],
+           "properties" => %{
+             "npc_id" => %{"type" => "string"},
+             "summary" => %{"type" => "string"}
+           }
+         }
+       }},
+      {"context_summary", %{"type" => ["string", "null"]}},
+      {"gm_notes", %{"type" => ["string", "null"]}}
+    ]
   end
 
   def provider, do: Config.llm_provider()

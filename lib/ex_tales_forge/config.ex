@@ -34,6 +34,9 @@ defmodule TalesForge.Config do
   @doc "Per-NPC Jev reaction timeout (ms); on timeout the turn goes on without that reaction."
   def npc_reactions_timeout_ms, do: env_int("NPC_REACTIONS_TIMEOUT_MS", 2_500)
 
+  @doc "World agents prototype (persons/locations hold facts for the GM): WORLD_AGENTS=on. Default off."
+  def world_agents?, do: System.get_env("WORLD_AGENTS", "off") in ~w(on true 1)
+
   def ollama_api_base, do: System.get_env("OLLAMA_API_BASE", "http://localhost:11434")
   def log_level, do: System.get_env("LOG_LEVEL", "info")
 

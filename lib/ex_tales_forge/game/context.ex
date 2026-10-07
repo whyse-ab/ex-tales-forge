@@ -143,6 +143,7 @@ defmodule TalesForge.Game.Context do
       perceived_facts_section(context),
       context.formatted_intent,
       npc_sections,
+      TalesForge.World.prompt_section(Map.get(context, :world_facts)),
       TalesForge.Game.NpcReactions.prompt_section(Map.get(context, :npc_reactions))
     ]
     |> join_sections()
