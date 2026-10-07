@@ -1,14 +1,23 @@
 {
-  "note": "Prototype data for WORLD_AGENTS=on (world agents hold facts; see tales-forge-docs docs/design-world-agents.md). Facts restate the pack (adventure.md, world/*.md, npcs/*.md, rules/economy.md); they are not new canon.",
+  "note": "Prototype data for WORLD_AGENTS=on (world agents hold facts; see tales-forge-docs docs/design-world-agents.md). Facts restate the pack (adventure.md, world/*.md, npcs/*.md, rules/economy.md); they are not new canon. Price facts carry item, copper and aliases so the server can quote and charge them (round 2).",
   "locations": [
     {
       "id": "tin_valley_region",
       "name": "Tin Valley",
       "kind": "region",
       "facts": [
-        {"kind": "fact", "text": "The danger here is an orc nest in the cut, reached from the market square: orcs raid the valley road and hoard stolen goods. No other monsters (no harpies, wolf-men or dragons) are known here."},
-        {"kind": "fact", "text": "The Miners Guild, under its steward Osric Vane, wants the nest gone so the Guild can take the hill. Osric is Guild, not orc."},
-        {"kind": "fact", "text": "Coin: 1 gold = 50 silver = 500 copper; 10 copper = 1 silver."}
+        {
+          "kind": "fact",
+          "text": "The danger here is an orc nest in the cut, reached from the market square: orcs raid the valley road and hoard stolen goods. No other monsters (no harpies, wolf-men or dragons) are known here."
+        },
+        {
+          "kind": "fact",
+          "text": "The Miners Guild, under its steward Osric Vane, wants the nest gone so the Guild can take the hill. Osric is Guild, not orc."
+        },
+        {
+          "kind": "fact",
+          "text": "Coin: 1 gold = 50 silver = 500 copper; 10 copper = 1 silver."
+        }
       ]
     },
     {
@@ -17,7 +26,10 @@
       "kind": "village",
       "parent": "tin_valley_region",
       "facts": [
-        {"kind": "fact", "text": "A miners' village on the tin road: the Valley Inn, the market square with the Guild post, and the road east toward the cut."}
+        {
+          "kind": "fact",
+          "text": "A miners' village on the tin road: the Valley Inn, the market square with the Guild post, and the road east toward the cut."
+        }
       ]
     },
     {
@@ -25,23 +37,96 @@
       "kind": "building",
       "parent": "tin_valley_village",
       "facts": [
-        {"kind": "price", "text": "Mug of ale: 2 copper"},
-        {"kind": "price", "text": "Bread: 1 copper"},
-        {"kind": "price", "text": "Bowl of stew (a common meal): 5 copper"},
-        {"kind": "price", "text": "Private room: 3 silver a night, paid up front"},
-        {"kind": "fact", "text": "Brenna Holt keeps the inn; miners drink here."}
+        {
+          "kind": "price",
+          "text": "Mug of ale: 2 copper",
+          "item": "Mug of ale",
+          "copper": 2,
+          "aliases": [
+            "ale",
+            "mug",
+            "beer",
+            "tankard",
+            "drink"
+          ]
+        },
+        {
+          "kind": "price",
+          "text": "Bread: 1 copper",
+          "item": "Bread",
+          "copper": 1,
+          "aliases": [
+            "bread",
+            "loaf"
+          ]
+        },
+        {
+          "kind": "price",
+          "text": "Bowl of stew (a common meal): 5 copper",
+          "item": "Bowl of stew",
+          "copper": 5,
+          "aliases": [
+            "stew",
+            "meal",
+            "bowl",
+            "supper",
+            "food"
+          ]
+        },
+        {
+          "kind": "price",
+          "text": "Private room: 3 silver a night, paid up front",
+          "item": "Private room, one night",
+          "copper": 30,
+          "aliases": [
+            "room",
+            "bed",
+            "lodging",
+            "night's stay"
+          ],
+          "not_when": [
+            "common room"
+          ]
+        },
+        {
+          "kind": "fact",
+          "text": "Brenna Holt keeps the inn; miners drink here."
+        }
       ]
     },
-    {"id": "market_square", "kind": "place", "parent": "tin_valley_village", "facts": []},
-    {"id": "mine_workings", "kind": "place", "parent": "tin_valley_region", "facts": []},
-    {"id": "orc_approach", "kind": "place", "parent": "tin_valley_region", "facts": []},
-    {"id": "orc_nest", "kind": "place", "parent": "tin_valley_region", "facts": []}
+    {
+      "id": "market_square",
+      "kind": "place",
+      "parent": "tin_valley_village",
+      "facts": []
+    },
+    {
+      "id": "mine_workings",
+      "kind": "place",
+      "parent": "tin_valley_region",
+      "facts": []
+    },
+    {
+      "id": "orc_approach",
+      "kind": "place",
+      "parent": "tin_valley_region",
+      "facts": []
+    },
+    {
+      "id": "orc_nest",
+      "kind": "place",
+      "parent": "tin_valley_region",
+      "facts": []
+    }
   ],
   "persons": [
     {
       "id": "innkeep",
       "facts": [
-        {"kind": "fact", "text": "Bought the inn with a tin widow's purse and will not see it burned in a nest raid."}
+        {
+          "kind": "fact",
+          "text": "Bought the inn with a tin widow's purse and will not see it burned in a nest raid."
+        }
       ]
     }
   ]

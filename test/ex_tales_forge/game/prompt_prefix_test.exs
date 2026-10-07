@@ -29,7 +29,8 @@ defmodule TalesForge.Game.PromptPrefixTest do
     "## Present NPCs",
     "## NPC Memories",
     "## NPC reactions",
-    "## World facts"
+    "## World facts",
+    "## Prices this turn"
   ]
 
   setup do
@@ -292,6 +293,7 @@ defmodule TalesForge.Game.PromptPrefixTest do
     |> Context.build_gm_context()
     |> Map.put(:npc_reactions, [@reaction])
     |> Map.put(:world_facts, @world_facts)
+    |> Map.put(:price_lines, ["Purchase: Bowl of stew, 5 copper, paid (server)"])
     |> Prompts.gm_messages(
       %MechanicalResolution{skill: "insight", roll: 14, outcome: "success"},
       player_action,

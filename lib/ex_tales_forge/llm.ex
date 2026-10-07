@@ -97,33 +97,8 @@ defmodule TalesForge.LLM do
     %{
       "type" => "object",
       "required" => ["narrative"],
-      "properties" => Jason.OrderedObject.new(narration_properties() ++ world_fact_properties())
+      "properties" => Jason.OrderedObject.new(narration_properties())
     }
-  end
-
-  # WORLD_AGENTS=on only (same for the scene and every GM turn of the run, so
-  # the scene still warms the cache for GM turn 1). No maxItems/maxLength:
-  # GMStructuredResponse.decode/1 caps it.
-  defp world_fact_properties do
-    if Config.world_agents?() do
-      [
-        {"new_facts",
-         %{
-           "type" => "array",
-           "items" => %{
-             "type" => "object",
-             "required" => ["about", "kind", "text"],
-             "properties" => %{
-               "about" => %{"type" => "string"},
-               "kind" => %{"type" => "string"},
-               "text" => %{"type" => "string"}
-             }
-           }
-         }}
-      ]
-    else
-      []
-    end
   end
 
   defp narration_properties do
@@ -216,6 +191,46 @@ defmodule TalesForge.LLM do
         Config.tier2_temperature(),
         tier: :persona,
         max_tokens: @persona_max_tokens,
+        session_id: opts[:session_id],
+        turn_number: opts[:turn_number]
+      )
+    end
+  end
+
+  @fact_extract_schema %{
+    "type" => "object",
+    "required" => ["facts"],
+    "properties" => %{
+      "facts" => %{
+        "type" => "array",
+        "items" => %{
+          "type" => "object",
+          "required" => ["about", "kind", "text"],
+          "properties" => %{
+            "about" => %{"type" => "string"},
+            "kind" => %{"type" => "string"},
+            "text" => %{"type" => "string"}
+          }
+        }
+      }
+    }
+  }
+  @fact_extract_max_tokens 200
+
+  @doc """
+  World agents round 2: new facts and promises read from a finished GM
+  narration (`TalesForge.World.Extract`). Purpose `fact_extract`, conv id
+  `<session>:facts`, temperature 0.
+  """
+  def complete_fact_extract(system, user, opts \\ []) do
+    model = tier1_model()
+
+    if mock?(model) do
+      {:ok, %{"facts" => []}}
+    else
+      complete_json(model, simple_messages(system, user), @fact_extract_schema, 0.0,
+        tier: :fact_extract,
+        max_tokens: @fact_extract_max_tokens,
         session_id: opts[:session_id],
         turn_number: opts[:turn_number]
       )
@@ -501,6 +516,7 @@ defmodule TalesForge.LLM do
 
     case opts[:session_id] do
       id when is_binary(id) and id != "" and purpose in @narration_purposes -> id
+      id when is_binary(id) and id != "" and purpose == "fact_extract" -> id <> ":facts"
       id when is_binary(id) and id != "" -> id <> ":" <> purpose
       _ -> "tales-forge-" <> purpose
     end
