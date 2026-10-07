@@ -73,6 +73,8 @@ NPC skills, stats and OCEAN defaults come from `TalesForge.Characters.Defaults`:
 
 Player character creation lives in `TalesForge.CharacterCreation`, which is pure Elixir with no LiveView, so the creation screen and the persona runner drive the same functions. A draft takes a race and class from the `Defaults` labels, a stat point buy (`priv/characters/creation.json`: 75 points, 3–18 before and after the race modifier, Human +1 to two stats, Elf +1 INT or WIS) and a typed name. `finalize/1` returns a pack-shaped character, with OCEAN, Maslow level, concerns and coins from `Defaults.derive/3`. `create_session(%{character: ...})` puts it in `world_state["character"]` instead of Elara and gives the `characters` row its levers (origin `created`). Nothing reads the extra keys (`class`) yet.
 
+The creation screen is `TalesForgeWeb.CreateCharacterLive` at `/new/:adventure`. It runs in three steps: race and class, then the point buy (live points left, race bonus picks, per-stat totals with the race modifier), then the name and a summary. Rule errors from `CharacterCreation.validate/1` show inline, and the Name step stays closed while stats or picks break a rule. "Begin adventure" calls `finalize/1` and `create_session(%{character: ...})`, then opens `/play/:id`. No AI call is made, so the first character is free. The draft lives in the LiveView process and a reload starts over. The later sections (background, standing, origin, occupation, personality, AI assist) show only as "coming later". The route sits behind the default sign-in like every page: the `:browser` pipeline and the `:play` live_session (`AdminLive.Hooks :require_team_member`), next to `/` and `/play/:id`, so the home page's "Create a character" link navigates without a reload. No public route. Player pages are light-only, but the creation page opts into the dark palette with the `.paper-themed` class (`assets/css/app.css`).
+
 `world_state` today (seeded by `TalesForge.Game.World.default_world_state/0`) holds `adventure_id`, `location_id` / `location_name`, `present_npcs`, `world_tick` / `world_clock` label, `last_scene_location`, `situation_lines`, `character`, `npc_state` (display snapshot), and `locations`. Time is discrete: `TalesForge.Game.WorldClock.advance/2` adds **+1 tick per player turn** (1 tick ≈ 15 in-game minutes; 4 ≈ 1 hour; 96 ≈ 1 day). There is **no wall-clock while idle**. Off-screen actors currently do almost nothing.
 
 Play pipeline (`AGENTS.md` + `GameSessions` + workers):
@@ -216,7 +218,7 @@ Marta remains a **person with a concern**, not a front. The thing under the mine
 7. Starts `PlayerSessionAgent`; `NPCRegistry.sync/1` starts agents only for present NPCs.
 8. `ensure_scene/1` enqueues `TalesForge.Workers.ProcessScene` if `last_scene_location != location_id`.
 
-`HomeLive` hardcodes `create_session(%{name: "Crossroads Hamlet", adventure_id: "crossroads_ledger"})`. That stays. Tracer play is tests / IEx / `PlayLive` on a session id — not a new home-screen button.
+`HomeLive` lists one "New game" card per adventure (Tin Valley, Crossroads Hamlet). Each card links to the creation screen (`/new/:adventure`) and keeps the quick start as Elara (`create_session(%{name: ..., adventure_id: ...})`, no character).
 
 Player input is blocked in `PlayLive` while `scene_loading` or `thinking` (`input_disabled`). `submit_message/3` returns `{:error, :needs_scene}` if the scene is pending.
 
