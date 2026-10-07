@@ -175,6 +175,38 @@ defmodule TalesForge.LLM do
     end
   end
 
+  @doc """
+  Prose-mode scene (`GM_REPLY_MODE=prose`): narrative only, no response_format,
+  so it shares the prose GM turns' cached prefix. `location_name` comes from the
+  intent context (the world state), not from the model.
+  """
+  def complete_scene_prose(messages, intent_context, opts \\ []) when is_list(messages) do
+    model = tier2_model()
+    location_name = Map.get(intent_context, "location_name") || "Unknown"
+
+    if mock?(model) do
+      {:ok, mock_scene_response(intent_context)}
+    else
+      model
+      |> dispatch(messages, Config.tier2_temperature(),
+        tier: :scene,
+        max_tokens: Config.tier2_max_tokens(),
+        session_id: opts[:session_id],
+        response_format: :none
+      )
+      |> prose_scene_result(location_name)
+    end
+  end
+
+  defp prose_scene_result({:ok, text}, location_name) do
+    case String.trim(text) do
+      "" -> {:error, :empty_reply}
+      narrative -> {:ok, %{location_name: location_name, narrative: narrative}}
+    end
+  end
+
+  defp prose_scene_result(error, _location_name), do: error
+
   def complete_persona(system, user, opts \\ []) do
     model = tier2_model()
 
@@ -244,6 +276,198 @@ defmodule TalesForge.LLM do
       end
     end
   end
+
+  @doc """
+  Prose GM turn (`GM_REPLY_MODE=prose`, prototype). `messages` come from
+  `Prompts.gm_messages/6` with `mode: :prose`. No response_format: the GM writes
+  the narrative only. The reply is streamed; time to first token is recorded in
+  `ai_calls.ttft_ms`. xAI only.
+  """
+  def complete_turn_prose(messages, turn_number, opts \\ []) when is_list(messages) do
+    model = tier2_model()
+
+    opts = [
+      tier: :tier2,
+      max_tokens: Config.tier2_max_tokens(),
+      session_id: opts[:session_id],
+      turn_number: turn_number
+    ]
+
+    cond do
+      mock?(model) ->
+        narrative = "**Turn #{turn_number}** - The world reacts.\n\n_Mock GM (prose mode)._"
+        {:ok, prose_result(narrative)}
+
+      not xai_target?(model) ->
+        {:error, {:prose_mode_unsupported, model}}
+
+      true ->
+        prose_turn(model, messages, opts)
+    end
+  end
+
+  defp prose_turn(model, messages, opts) do
+    case AICalls.check_spend_caps(opts[:session_id], "gm") do
+      :ok ->
+        with {:ok, text} <- prose_request(model, messages, opts),
+             do: {:ok, prose_result(String.trim(text))}
+
+      {:error, {kind, limit, spent}} ->
+        spend_capped(model, opts, kind, limit, spent)
+    end
+  end
+
+  # GM_PROSE_STREAM=false sends the same request unstreamed (for comparing
+  # cache behaviour); TTFT is then not recorded.
+  defp prose_request(model, messages, opts) do
+    if Config.gm_prose_stream?() do
+      stream_prose(model, messages, Config.tier2_temperature(), opts)
+    else
+      request(
+        model,
+        messages,
+        Config.tier2_temperature(),
+        Keyword.put(opts, :response_format, :none)
+      )
+    end
+  end
+
+  defp prose_result(text) do
+    %GMStructuredResponse{narrative: text, raw: %{"narrative" => text, "reply_mode" => "prose"}}
+  end
+
+  @doc """
+  Prose mode: GM notes and running summary for the last few turns, written off
+  the turn's critical path (`TalesForge.Game.Prose.Notes`). Plain text, no
+  response_format; conv id `<session>:notes`.
+  """
+  def complete_gm_notes(messages, opts \\ []) do
+    model = Config.gm_notes_model() || tier2_model()
+
+    if mock?(model) do
+      {:ok, "SUMMARY:\n- (mock)\nNOTES: (mock)"}
+    else
+      dispatch(model, messages, 0.3,
+        tier: :gm_notes,
+        max_tokens: 260,
+        session_id: opts[:session_id],
+        turn_number: opts[:turn_number],
+        response_format: :none
+      )
+    end
+  end
+
+  defp stream_prose(model, messages, temperature, opts) do
+    started = System.monotonic_time(:millisecond)
+    tier = Keyword.get(opts, :tier)
+
+    body =
+      %{
+        model: model |> String.replace_prefix("xai/", ""),
+        temperature: temperature,
+        messages: messages,
+        stream: true,
+        stream_options: %{include_usage: true}
+      }
+      |> maybe_put_max_tokens(opts[:max_tokens])
+
+    into = fn {:data, data}, {req, resp} ->
+      acc = Req.Response.get_private(resp, :sse, sse_new())
+      acc = sse_feed(acc, data, resp.status, started)
+      {:cont, {req, Req.Response.put_private(resp, :sse, acc)}}
+    end
+
+    result =
+      Req.post(
+        xai_base() <> "/chat/completions",
+        [
+          headers: [
+            {"authorization", "Bearer " <> Config.xai_api_key()},
+            {"content-type", "application/json"},
+            {"x-grok-conv-id", conv_id(opts)}
+          ],
+          json: body,
+          receive_timeout: 120_000,
+          retry: false,
+          into: into
+        ] ++ req_options()
+      )
+
+    elapsed = System.monotonic_time(:millisecond) - started
+
+    {outcome, usage, ttft} =
+      case result do
+        {:ok, %{status: 200} = resp} ->
+          acc = Req.Response.get_private(resp, :sse, sse_new())
+          text = acc.text |> Enum.reverse() |> IO.iodata_to_binary() |> String.trim()
+          usage = AICalls.usage(%{"usage" => acc.usage || %{}})
+
+          if text == "",
+            do: {{:error, :empty_reply}, usage, acc.ttft},
+            else: {{:ok, text}, usage, acc.ttft}
+
+        {:ok, %{status: status} = resp} ->
+          acc = Req.Response.get_private(resp, :sse, sse_new())
+          {{:error, {:api_error, status, acc.raw}}, %{}, nil}
+
+        {:error, reason} ->
+          {{:error, reason}, %{}, nil}
+      end
+
+    record_result =
+      case outcome do
+        {:ok, text} -> {:ok, text, usage}
+        error -> error
+      end
+
+    record_call(model, tier, Keyword.put(opts, :ttft_ms, ttft), record_result, elapsed)
+
+    Logger.info(
+      "llm stream done tier=#{tier} model=#{model} ttft_ms=#{inspect(ttft)} duration_ms=#{elapsed}"
+    )
+
+    outcome
+  end
+
+  defp sse_new, do: %{buf: "", text: [], usage: nil, ttft: nil, raw: ""}
+
+  @doc false
+  # Server-sent events from an OpenAI-compatible stream: `data: {json}` lines,
+  # possibly split across chunks. Keeps the unfinished last line in :buf.
+  def sse_feed(acc, data, 200, started) do
+    lines = String.split(acc.buf <> data, "\n")
+    {complete, [rest]} = Enum.split(lines, -1)
+
+    Enum.reduce(complete, %{acc | buf: rest}, fn line, acc ->
+      case String.trim(line) do
+        "data: [DONE]" -> acc
+        "data: " <> json -> sse_event(acc, Jason.decode(json), started)
+        _ -> acc
+      end
+    end)
+  end
+
+  def sse_feed(acc, data, _status, _started), do: %{acc | raw: acc.raw <> data}
+
+  defp sse_event(acc, {:ok, event}, started) do
+    acc =
+      case event["usage"] do
+        %{} = usage -> %{acc | usage: usage}
+        _ -> acc
+      end
+
+    case event do
+      %{"choices" => [%{"delta" => %{"content" => content}} | _]}
+      when is_binary(content) and content != "" ->
+        ttft = acc.ttft || System.monotonic_time(:millisecond) - started
+        %{acc | text: [content | acc.text], ttft: ttft}
+
+      _ ->
+        acc
+    end
+  end
+
+  defp sse_event(acc, _error, _started), do: acc
 
   defp valid_gm_reply?(%{"narrative" => narrative}) when is_binary(narrative),
     do: String.trim(narrative) != ""
@@ -435,6 +659,7 @@ defmodule TalesForge.LLM do
     AICalls.record(%{
       game_session_id: opts[:session_id],
       turn_number: opts[:turn_number],
+      ttft_ms: opts[:ttft_ms],
       purpose: purpose(tier),
       model: model,
       status: status,
@@ -468,10 +693,13 @@ defmodule TalesForge.LLM do
 
     case opts[:session_id] do
       id when is_binary(id) and id != "" and purpose in @narration_purposes -> id
-      id when is_binary(id) and id != "" -> id <> ":" <> purpose
+      id when is_binary(id) and id != "" -> id <> ":" <> conv_suffix(purpose)
       _ -> "tales-forge-" <> purpose
     end
   end
+
+  defp conv_suffix("gm_notes"), do: "notes"
+  defp conv_suffix(purpose), do: purpose
 
   defp call_openai_compatible(model, messages, temperature, base_url, api_key, call_opts) do
     if String.trim(api_key) == "" do
@@ -487,6 +715,7 @@ defmodule TalesForge.LLM do
           response_format: call_opts[:response_format] || %{type: "json_object"},
           messages: messages
         }
+        |> maybe_drop_response_format()
         |> maybe_put_max_tokens(call_opts[:max_tokens])
 
       Req.post(
@@ -613,6 +842,12 @@ defmodule TalesForge.LLM do
 
     String.contains?(lowered, "reasoning") and not String.contains?(lowered, "non-reasoning")
   end
+
+  # response_format: :none sends no response_format at all (plain-text replies).
+  defp maybe_drop_response_format(%{response_format: :none} = body),
+    do: Map.delete(body, :response_format)
+
+  defp maybe_drop_response_format(body), do: body
 
   defp maybe_put_max_tokens(body, nil), do: body
   defp maybe_put_max_tokens(body, max_tokens), do: Map.put(body, :max_tokens, max_tokens)

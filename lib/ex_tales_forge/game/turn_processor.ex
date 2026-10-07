@@ -11,6 +11,7 @@ defmodule TalesForge.Game.TurnProcessor do
 
   require Logger
 
+  alias TalesForge.Config
   alias TalesForge.Fronts
   alias TalesForge.Game.ActionHandler
   alias TalesForge.Game.Context
@@ -19,6 +20,7 @@ defmodule TalesForge.Game.TurnProcessor do
   alias TalesForge.Game.Mechanics
   alias TalesForge.Game.Perception
   alias TalesForge.Game.Prompts
+  alias TalesForge.Game.Prose
   alias TalesForge.Game.SceneProcessor
   alias TalesForge.Game.Schemas.{GMStructuredResponse, MechanicalResolution, PlayerAction}
   alias TalesForge.Game.Train
@@ -51,13 +53,10 @@ defmodule TalesForge.Game.TurnProcessor do
          } <-
            apply_board(session, character, handler, player_action, mechanical),
          mechanical <- %{mechanical | improvements: improvements, training: training},
+         world_board <- maybe_apply_prose_state(world_board, session_id),
          gm_context <- Context.build_gm_context(%{session | world_state: world_board}),
-         messages <-
-           Prompts.gm_messages(gm_context, mechanical, player_action, handler, turn_number),
          {:ok, gm_result} <-
-           LLM.complete_turn(messages, player_action, handler, turn_number,
-             session_id: session_id
-           ),
+           gm_reply(gm_context, mechanical, player_action, handler, turn_number, session_id),
          world_final <- apply_allowlisted_patches(world_board, gm_result),
          {:ok, payload} <-
            persist_and_signal(session, world_final, turn_number, raw_action, %{
@@ -74,6 +73,7 @@ defmodule TalesForge.Game.TurnProcessor do
       )
 
       SessionPubSub.broadcast(session_id, {:turn_completed, payload})
+      maybe_start_prose_followups(session_id, turn_number, gm_result, payload.world_state)
       {:ok, payload}
     else
       nil ->
@@ -84,6 +84,47 @@ defmodule TalesForge.Game.TurnProcessor do
         SessionPubSub.broadcast(session_id, {:turn_failed, SessionPubSub.failure_reason(reason)})
         err
     end
+  end
+
+  # GM_REPLY_MODE=schema (default): one strict-json GM call with bookkeeping.
+  # GM_REPLY_MODE=prose (prototype): the GM streams prose only; NPC reactions
+  # (Jev) and notes/summary (every few turns) run after the turn, off the
+  # critical path, and are applied at the start of the next turn.
+  defp gm_reply(gm_context, mechanical, player_action, handler, turn_number, session_id) do
+    if Config.prose_mode?() do
+      gm_context
+      |> Prompts.gm_messages(mechanical, player_action, handler, turn_number, mode: :prose)
+      |> LLM.complete_turn_prose(turn_number, session_id: session_id)
+    else
+      gm_context
+      |> Prompts.gm_messages(mechanical, player_action, handler, turn_number)
+      |> LLM.complete_turn(player_action, handler, turn_number, session_id: session_id)
+    end
+  end
+
+  defp maybe_apply_prose_state(world, session_id) do
+    if Config.prose_mode?() do
+      world
+      |> Prose.Notes.apply_latest(session_id)
+      |> Prose.NpcReactions.apply_latest(session_id)
+    else
+      world
+    end
+  end
+
+  defp maybe_start_prose_followups(session_id, turn_number, gm_result, world) do
+    if Config.prose_mode?() do
+      Prose.NpcReactions.extract_async(
+        session_id,
+        turn_number,
+        gm_result.narrative,
+        Map.get(world, "present_npcs", [])
+      )
+
+      Prose.Notes.maybe_schedule(session_id, turn_number)
+    end
+
+    :ok
   end
 
   @doc false

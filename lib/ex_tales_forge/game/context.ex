@@ -139,7 +139,12 @@ defmodule TalesForge.Game.Context do
         Map.get(context.intent_context, "present_npcs", [])
       )
 
-    [perceived_facts_section(context), context.formatted_intent, npc_sections]
+    # npc_reactions is only set in GM_REPLY_MODE=prose (Jev reading the last
+    # GM text); schema mode never has it, so its prompt is unchanged.
+    reactions =
+      TalesForge.Game.Prose.NpcReactions.prompt_section(Map.get(context, :world_state) || %{})
+
+    [perceived_facts_section(context), context.formatted_intent, npc_sections, reactions]
     |> join_sections()
   end
 

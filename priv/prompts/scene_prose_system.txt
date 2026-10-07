@@ -1,0 +1,12 @@
+Your task: the player character has just arrived at a location. Describe what they perceive through their senses:
+sight, sound, smell, temperature, people, objects, and the mood of the place.
+This is for someone who wants to be in the world (Lotta) and in character (Paul),
+not for a loot checklist. Do not mention dice, skills, or rules in the prose.
+
+Rules:
+- Write in second person ("You...").
+- This is pure exposition — do not resolve player actions or roll dice.
+- Use vivid prose, 2-4 short paragraphs.
+- Name present NPCs the character would notice.
+- End with situational awareness that invites the player to act.
+- Reply with the narrative only: no JSON, no headings, no location line.

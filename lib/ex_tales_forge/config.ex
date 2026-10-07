@@ -28,6 +28,30 @@ defmodule TalesForge.Config do
   def tier1_max_tokens, do: env_int("TIER1_MAX_TOKENS", 400)
   def tier2_max_tokens, do: env_int("TIER2_MAX_TOKENS", 700)
 
+  @doc """
+  How the GM turn replies: `"schema"` (default; strict `narration` json_schema
+  with bookkeeping fields) or `"prose"` (narrative only, streamed; NPC reactions
+  from Jev and notes/summary from a periodic off-path call). Prototype flag:
+  anything but `GM_REPLY_MODE=prose` means schema.
+  """
+  def gm_reply_mode do
+    case System.get_env("GM_REPLY_MODE") do
+      "prose" -> "prose"
+      _ -> "schema"
+    end
+  end
+
+  def prose_mode?, do: gm_reply_mode() == "prose"
+
+  @doc "Prose mode: stream the GM reply (default true; GM_PROSE_STREAM=false to disable)."
+  def gm_prose_stream?, do: System.get_env("GM_PROSE_STREAM") != "false"
+
+  @doc "Prose mode: write GM notes + running summary every N turns (default 3)."
+  def gm_notes_every, do: max(env_int("GM_NOTES_EVERY", 3), 1)
+
+  @doc "Prose mode: model for the notes/summary call. Defaults to the tier-2 model."
+  def gm_notes_model, do: blank_to_nil(System.get_env("GM_NOTES_MODEL"))
+
   def ollama_api_base, do: System.get_env("OLLAMA_API_BASE", "http://localhost:11434")
   def log_level, do: System.get_env("LOG_LEVEL", "info")
 

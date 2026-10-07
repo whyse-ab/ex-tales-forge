@@ -77,12 +77,25 @@ defmodule TalesForge.Game.SceneProcessor do
     end
   end
 
+  # GM_REPLY_MODE=prose: the scene is prose too (no response_format), so it
+  # shares xAI's cached narrator + rules prefix with the prose GM turns; the
+  # location name comes from the world state, not the model.
+  defp scene_reply(gm_context, session_id) do
+    if TalesForge.Config.prose_mode?() do
+      gm_context
+      |> Prompts.scene_messages(mode: :prose)
+      |> LLM.complete_scene_prose(gm_context.intent_context, session_id: session_id)
+    else
+      gm_context
+      |> Prompts.scene_messages()
+      |> LLM.complete_scene(gm_context.intent_context, session_id: session_id)
+    end
+  end
+
   defp generate_scene(%GameSession{} = session, location_id) do
     gm_context = Context.build_gm_context(session)
 
-    case LLM.complete_scene(Prompts.scene_messages(gm_context), gm_context.intent_context,
-           session_id: session.id
-         ) do
+    case scene_reply(gm_context, session.id) do
       {:ok, %{location_name: location_name, narrative: narrative}} ->
         image_url = World.scene_image_url(location_id)
 

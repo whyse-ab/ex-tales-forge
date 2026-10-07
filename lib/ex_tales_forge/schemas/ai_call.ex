@@ -14,6 +14,7 @@ defmodule TalesForge.Schemas.AICall do
     field :model, :string
     field :status, :string
     field :latency_ms, :integer
+    field :ttft_ms, :integer
     field :input_tokens, :integer
     field :output_tokens, :integer
     field :cached_tokens, :integer
@@ -33,6 +34,7 @@ defmodule TalesForge.Schemas.AICall do
     :model,
     :status,
     :latency_ms,
+    :ttft_ms,
     :input_tokens,
     :output_tokens,
     :cached_tokens,

@@ -23,11 +23,15 @@ defmodule TalesForge.Game.Prompts do
   def intent_system, do: read_prompt("intent_system.txt")
   def narrator_system, do: read_prompt("narrator_system.txt")
   def gm_system, do: read_prompt("gm_system.txt")
+  def gm_prose_system, do: read_prompt("gm_prose_system.txt")
   def scene_system, do: read_prompt("scene_system.txt")
+  def scene_prose_system, do: read_prompt("scene_prose_system.txt")
 
   @doc "Messages for the opening/arrival scene call."
-  def scene_messages(gm_context) do
-    narration_messages(gm_context, scene_system(), Context.per_turn_section(gm_context))
+  def scene_messages(gm_context, opts \\ []) do
+    # mode: :prose (GM_REPLY_MODE=prose) swaps only the task message.
+    task = if opts[:mode] == :prose, do: scene_prose_system(), else: scene_system()
+    narration_messages(gm_context, task, Context.per_turn_section(gm_context))
   end
 
   @doc "Messages for a GM turn. Per-turn content, including the action, goes last."
@@ -36,7 +40,8 @@ defmodule TalesForge.Game.Prompts do
         mechanical,
         %PlayerAction{} = player_action,
         %HandlerResult{} = handler,
-        turn_number
+        turn_number,
+        opts \\ []
       ) do
     per_turn =
       Context.per_turn_section(gm_context) <>
@@ -46,7 +51,10 @@ defmodule TalesForge.Game.Prompts do
         "\n\nAction handler result:\n" <>
         Jason.encode!(handler_payload(handler), pretty: true)
 
-    narration_messages(gm_context, gm_system(), per_turn)
+    # mode: :prose (GM_REPLY_MODE=prose prototype) swaps only the task message
+    # (3rd); the prefix order and the per-turn content stay the same.
+    task = if opts[:mode] == :prose, do: gm_prose_system(), else: gm_system()
+    narration_messages(gm_context, task, per_turn)
   end
 
   defp narration_messages(gm_context, task, per_turn) do
