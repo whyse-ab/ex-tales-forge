@@ -24,6 +24,7 @@ defmodule TalesForge.Schemas.PlaytestRun do
     field :build, :string
     field :git_sha, :string
     field :flags, :map, default: %{}
+    field :growth, :map, default: %{}
     field :turn_limit, :integer
     field :turns_played, :integer, default: 0
     field :status, :string
@@ -50,6 +51,7 @@ defmodule TalesForge.Schemas.PlaytestRun do
     :build,
     :git_sha,
     :flags,
+    :growth,
     :turn_limit,
     :turns_played,
     :status,
