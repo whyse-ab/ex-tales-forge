@@ -55,8 +55,15 @@ defmodule TalesForge.CharacterCreationTest do
   end
 
   describe "skills" do
-    defp chosen(race, class) do
-      draft() |> CC.choose_race(race) |> ok!() |> CC.choose_class(class) |> ok!()
+    # Scholar (History, Arcana / Insight) stays out of the way of most tests.
+    defp chosen(race, class, occupation \\ "scholar") do
+      draft()
+      |> CC.choose_race(race)
+      |> ok!()
+      |> CC.choose_class(class)
+      |> ok!()
+      |> CC.choose_occupation(occupation)
+      |> ok!()
     end
 
     # A clean slate: no bought levels, so only the free ones.
@@ -73,7 +80,9 @@ defmodule TalesForge.CharacterCreationTest do
     test "the class package gives all three class skills at 3, 2 and 1, for free" do
       d = chosen("human", "warrior") |> bare()
 
-      assert CC.free_skills(d) == %{"melee_combat" => 3, "tactics" => 2, "intimidation" => 1}
+      assert Map.take(CC.free_skills(d), ~w(melee_combat tactics intimidation)) ==
+               %{"melee_combat" => 3, "tactics" => 2, "intimidation" => 1}
+
       assert CC.skill_points_spent(d) == 0
     end
 
@@ -82,8 +91,12 @@ defmodule TalesForge.CharacterCreationTest do
       assert CC.skill_budget(chosen("half_elf", "none")) == 28
       assert CC.skill_budget(chosen("gnome", "none")) == 25
 
-      assert CC.free_skills(chosen("halfling", "none")) == %{"stealth" => 3, "lockpicking" => 2}
-      assert CC.free_skills(chosen("gnome", "none")) == %{"arcana" => 3, "lockpicking" => 2}
+      assert Map.take(CC.free_skills(chosen("halfling", "none")), ~w(stealth lockpicking)) ==
+               %{"stealth" => 3, "lockpicking" => 2}
+
+      # Arcana 3 from the gnome plus 2 from the scholar
+      assert Map.take(CC.free_skills(chosen("gnome", "none")), ~w(arcana lockpicking)) ==
+               %{"arcana" => 5, "lockpicking" => 2}
     end
 
     test "free levels stack: a race skill that is also a class skill can start as a signature skill" do
@@ -122,18 +135,19 @@ defmodule TalesForge.CharacterCreationTest do
     end
 
     test "overspending, a third signature skill and too few skills are errors" do
-      d = chosen("human", "warrior") |> bare() |> named()
+      # laborer: Climbing 2, Unarmed Combat 2, Survival 1 and nothing else
+      d = chosen("human", "none", "laborer") |> bare() |> named()
 
       assert {:error, [{:skills, few}]} = CC.validate(d)
       assert few =~ "at least 5 skills; 3 so far"
 
-      {:ok, d} = CC.set_skill(d, "climbing", 1)
+      {:ok, d} = CC.set_skill(d, "dodge", 1)
       {:ok, d} = CC.set_skill(d, "stealth", 1)
       assert :ok = CC.validate(d)
 
-      {:ok, d} = CC.set_skill(d, "melee_combat", 7)
-      {:ok, d} = CC.set_skill(d, "tactics", 6)
-      {:ok, d} = CC.set_skill(d, "climbing", 6)
+      {:ok, d} = CC.set_skill(d, "climbing", 7)
+      {:ok, d} = CC.set_skill(d, "unarmed_combat", 6)
+      {:ok, d} = CC.set_skill(d, "survival", 6)
       {:ok, d} = CC.set_skill(d, "stealth", 5)
       assert {:error, errors} = CC.validate(d)
       assert Enum.any?(errors, fn {:skills, m} -> m =~ "2 signature skills at most" end)
@@ -161,7 +175,9 @@ defmodule TalesForge.CharacterCreationTest do
       assert CC.skill_points_left(d) == 27
       {:ok, d} = CC.choose_class(d, "thief")
 
-      # Stealth stays 3, now free for a thief, so its 3 points come back
+      # Stealth stays 3, now free for a thief (the scholar occupation was chosen,
+      # so it stays), so its 3 points come back
+      assert d.occupation == "scholar"
       assert CC.skill_levels(d)["stealth"] == 3
       assert MapSet.member?(d.edited, :skills)
       assert CC.skill_points_left(d) == 30
@@ -169,6 +185,62 @@ defmodule TalesForge.CharacterCreationTest do
       d = CC.suggest_skills(d)
       refute MapSet.member?(d.edited, :skills)
       assert :ok = d |> named() |> CC.validate()
+    end
+  end
+
+  describe "past occupation" do
+    test "every class suggests one, and the player can pick another" do
+      opts = CC.options(@adventure)
+
+      assert Enum.find(opts.classes, &(&1.id == "warrior")).occupation == "soldier"
+      assert draft().occupation == "laborer"
+      assert (draft() |> CC.choose_class("wizard") |> ok!()).occupation == "scholar"
+
+      ids = Enum.map(opts.occupations, & &1.id)
+      assert "soldier" in ids
+      refute "adventurer" in ids
+      refute "ruler" in ids
+      assert Enum.all?(opts.occupations, &(&1.description != ""))
+
+      assert Enum.find(opts.occupations, &(&1.id == "soldier")).skills ==
+               %{"melee_combat" => 2, "tactics" => 2, "ranged_combat" => 1, "survival" => 1}
+    end
+
+    test "gives +2 on its core skills and +1 on its secondary ones, stacked on the class" do
+      d = draft() |> CC.choose_class("warrior") |> ok!()
+
+      assert Map.take(CC.free_skills(d), ~w(melee_combat tactics intimidation ranged_combat)) ==
+               %{"melee_combat" => 5, "tactics" => 4, "intimidation" => 1, "ranged_combat" => 1}
+
+      {:ok, d} = CC.choose_occupation(d, "merchant")
+      assert CC.free_skills(d)["persuasion"] == 2
+      assert CC.free_skills(d)["melee_combat"] == 3
+    end
+
+    test "a chosen occupation is kept when the class changes; an unknown one is an error" do
+      {:ok, d} = draft() |> CC.choose_occupation("miner")
+      {:ok, d} = CC.choose_class(d, "cleric")
+
+      assert d.occupation == "miner"
+      assert {:error, {:occupation, _}} = CC.choose_occupation(d, "adventurer")
+    end
+
+    test "free levels past the signature cap come back as points" do
+      # dwarf warrior soldier: Melee Combat 3 (class) + 3 (dwarf) + 2 (soldier) = 8,
+      # capped at 7, and the 8th level (3 points) is refunded
+      d = draft() |> CC.choose_race("dwarf") |> ok!() |> CC.choose_class("warrior") |> ok!()
+
+      assert CC.free_skills(d)["melee_combat"] == 7
+      assert CC.skill_budget(d) == 25 + 3
+      assert :ok = d |> named() |> CC.validate()
+    end
+
+    test "is recorded in creation; the levers still come from 'adventurer'" do
+      {:ok, c} = draft() |> CC.choose_class("warrior") |> ok!() |> named() |> CC.finalize()
+
+      assert c["creation"]["occupation"] == "soldier"
+      assert c["creation"]["derive"]["occupation"] == "adventurer"
+      assert c["maslow"] == "esteem"
     end
   end
 
@@ -359,19 +431,22 @@ defmodule TalesForge.CharacterCreationTest do
                "CHA" => 10
              }
 
-      # ranger package 3/2/1 plus the elf's Ranged Combat +3 and Survival +2, then the
-      # suggested spread build
+      # ranger package 3/2/1, the elf's Ranged Combat +3 and Survival +2 and the
+      # hunter's Tracking/Ranged Combat +2, Survival/Stealth +1 (Ranged Combat 8 is
+      # capped at 7, the 8th level refunded), then the suggested spread build
       assert c["skills"] == %{
-               "ranged_combat" => 6,
+               "ranged_combat" => 7,
                "tracking" => 5,
                "survival" => 5,
-               "dodge" => 4,
-               "lockpicking" => 4,
-               "stealth" => 4,
-               "insight" => 1
+               "stealth" => 5,
+               "dodge" => 5,
+               "lockpicking" => 5,
+               "insight" => 3,
+               "arcana" => 1
              }
 
-      assert c["creation"]["skill_points_spent"] == 25
+      assert c["creation"]["occupation"] == "hunter"
+      assert c["creation"]["skill_points_spent"] == 28
       assert c["wound_max"] == Mechanics.wound_max(%{"stats" => c["stats"]})
       assert c["coins"] == Defaults.rules(@adventure)["standings"]["commoner"]["coins"]
       assert [%{"id" => "travel_cloak"}, %{"id" => "hunting_knife"}] = c["inventory"]

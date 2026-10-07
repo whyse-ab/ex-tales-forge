@@ -22,11 +22,13 @@ defmodule TalesForge.CharacterCreation do
     skills** may go to 7; levels 6–7 cost 3 each. Free levels come first: the
     class package (its three skills at 3, 2 and 1) and the race bonus (Human +5
     and Half-Elf +3 points to the budget; Elf, Dwarf, Gnome and Halfling fixed
-    skill levels). Free levels stack, are subject to the same caps, and any the
-    caps cut off come back as points.
+    skill levels) and the **past occupation** (`creation.json` `occupation`:
+    +2 on its core skills, +1 on its secondary ones; the class suggests one).
+    Free levels stack, are subject to the same caps, and any the caps cut off
+    come back as points.
   * **Suggestions:** a new draft, or a new class, suggests base stats (the
     suggested base plus the class's stat leanings), race picks (the highest
-    eligible base stats) and a spread skill build (`suggest_skills/1`). Parts
+    eligible base stats), the class's past occupation and a spread skill build (`suggest_skills/1`). Parts
     the player has edited are kept.
   * **`finalize/1`** returns a character in the shape of a pack character file
     (sheet plus levers), ready for `TalesForge.GameSessions.create_session/1`.
@@ -68,8 +70,9 @@ defmodule TalesForge.CharacterCreation do
   @doc """
   What a player chooses from: races and classes (id, description, stat
   modifiers or leanings, race bonus choice, race skill bonus, the class
-  package's skills with their free levels), the point-buy limits, the skill
-  rules and the skills with their linked stat. Human and "none" come first.
+  package's skills with their free levels and the suggested past occupation),
+  the past occupations (description and free skill levels), the point-buy
+  limits, the skill rules and the skills with their linked stat. Human and "none" come first.
   """
   @spec options(String.t()) :: map()
   def options(adventure_id) when is_binary(adventure_id) do
@@ -97,7 +100,18 @@ defmodule TalesForge.CharacterCreation do
             id: id,
             description: get_in(descriptions, ["classes", id]) || "",
             stats: class["stats"],
-            skills: class_skills(class, creation)
+            skills: class_skills(class, creation),
+            occupation: creation["occupation"]["class_defaults"][id]
+          }
+        end),
+      occupations:
+        Enum.map(creation["occupation"]["choices"], fn id ->
+          occupation = labels["occupations"][id]
+
+          %{
+            id: id,
+            description: get_in(descriptions, ["occupations", id]) || "",
+            skills: occupation_skills(occupation, creation)
           }
         end),
       point_buy: creation["point_buy"],
@@ -113,8 +127,8 @@ defmodule TalesForge.CharacterCreation do
   # --- building a draft -----------------------------------------------------------
 
   @doc """
-  A new draft for `adventure_id`: Human, no class, suggested stats and race
-  picks, no name. `opts[:seed_key]` fixes the seed (default: a random UUID).
+  A new draft for `adventure_id`: Human, no class, suggested stats, race
+  picks, past occupation and skills, no name. `opts[:seed_key]` fixes the seed (default: a random UUID).
   """
   @spec new(String.t(), keyword()) :: Draft.t()
   def new(adventure_id, opts \\ []) when is_binary(adventure_id) do
@@ -137,7 +151,7 @@ defmodule TalesForge.CharacterCreation do
     end
   end
 
-  @doc "Chooses a class. Re-suggests the stats and race picks the player hasn't set."
+  @doc "Chooses a class. Re-suggests the stats, race picks, occupation and skills the player hasn't set."
   @spec choose_class(Draft.t(), String.t()) :: {:ok, Draft.t()} | {:error, error()}
   def choose_class(%Draft{} = draft, class) do
     rules = rules(draft.adventure_id)
@@ -146,6 +160,22 @@ defmodule TalesForge.CharacterCreation do
       {:ok, suggest(%{draft | class: class}, rules)}
     else
       {:error, {:class, "unknown class #{inspect(class)}"}}
+    end
+  end
+
+  @doc """
+  Chooses the past occupation, one of `creation.json` `occupation.choices`.
+  The skill build is re-suggested unless the player set it.
+  """
+  @spec choose_occupation(Draft.t(), String.t()) :: {:ok, Draft.t()} | {:error, error()}
+  def choose_occupation(%Draft{} = draft, occupation) do
+    rules = rules(draft.adventure_id)
+
+    if occupation in rules["creation"]["occupation"]["choices"] do
+      edited = MapSet.put(draft.edited, :occupation)
+      {:ok, suggest(%{draft | occupation: occupation, edited: edited}, rules)}
+    else
+      {:error, {:occupation, "unknown occupation #{inspect(occupation)}"}}
     end
   end
 
@@ -212,7 +242,7 @@ defmodule TalesForge.CharacterCreation do
 
   @doc """
   Sets a skill to `level` (its final level). The levels above the free ones
-  (class package, race bonus) are bought with skill points. A level below the
+  (class package, race bonus, past occupation) are bought with skill points. A level below the
   free one, above the signature cap, or an unknown skill is an error; the
   budget, the signature count and the minimum number of skills are checked by
   `validate/1`.
@@ -275,8 +305,8 @@ defmodule TalesForge.CharacterCreation do
   def final_stats(%Draft{} = draft), do: final_stats(draft, rules(draft.adventure_id))
 
   @doc """
-  The free skill levels: the class package plus the race's fixed skill
-  bonus, after the caps.
+  The free skill levels: the class package, the race's fixed skill bonus and
+  the past occupation, after the caps.
   """
   @spec free_skills(Draft.t()) :: %{optional(String.t()) => pos_integer()}
   def free_skills(%Draft{} = draft),
@@ -400,6 +430,7 @@ defmodule TalesForge.CharacterCreation do
            "base_stats" => draft.base_stats,
            "race_picks" => draft.race_picks,
            "points_spent" => points_spent(draft),
+           "occupation" => draft.occupation,
            "skill_choices" => draft.skills,
            "skill_points_spent" => skill_points_spent(draft, rules),
            "derive" => creation["derive"]
@@ -439,6 +470,11 @@ defmodule TalesForge.CharacterCreation do
       if MapSet.member?(d.edited, :race_picks),
         do: d,
         else: %{d | race_picks: suggested_picks(d, rules)}
+    end)
+    |> then(fn d ->
+      if MapSet.member?(d.edited, :occupation),
+        do: d,
+        else: %{d | occupation: rules["creation"]["occupation"]["class_defaults"][d.class]}
     end)
     |> then(fn d ->
       if MapSet.member?(d.edited, :skills),
@@ -523,7 +559,22 @@ defmodule TalesForge.CharacterCreation do
     creation = rules["creation"]
     class = class_skills(rules["labels"]["classes"][draft.class], creation)
     race = Map.get(race_bonus(creation, draft.race), "fixed", %{})
-    {Map.merge(class, race, fn _skill, a, b -> a + b end), Map.keys(class) ++ Map.keys(race)}
+    past = occupation_skills(rules["labels"]["occupations"][draft.occupation], creation)
+    sum = fn _skill, a, b -> a + b end
+
+    {class |> Map.merge(race, sum) |> Map.merge(past, sum),
+     Map.keys(class) ++ Map.keys(race) ++ Map.keys(past)}
+  end
+
+  # The past occupation's free levels: core skills, then secondary ones.
+  defp occupation_skills(nil, _creation), do: %{}
+
+  defp occupation_skills(occupation, creation) do
+    %{"core_bonus" => core, "secondary_bonus" => secondary} = creation["occupation"]
+
+    occupation["secondary"]
+    |> Map.new(&{&1, secondary})
+    |> Map.merge(Map.new(occupation["core"], &{&1, core}))
   end
 
   # {free levels after the caps, points refunded for the levels cut off}. A free
@@ -607,10 +658,10 @@ defmodule TalesForge.CharacterCreation do
     ]
   end
 
-  # A spread build: the leading skills (class package, race bonus) plus
-  # fillers for the highest stats, at least one more than the minimum. Raised
-  # lowest first, one level at a time, up to the normal cap; when every one is
-  # at the cap and points are left, the next filler joins.
+  # A spread build: the leading skills (class package, race bonus, past
+  # occupation) plus fillers for the highest stats, at least one more than the
+  # minimum. Raised lowest first, one level at a time, up to the normal cap;
+  # when every one is at the cap and points are left, the next filler joins.
   defp suggested_skills(draft, rules) do
     sk = rules["creation"]["skills"]
     {free, _refund} = free_levels(rules, draft)
@@ -673,6 +724,22 @@ defmodule TalesForge.CharacterCreation do
     end
 
     known = Mechanics.skill_stat_map()
+    occupation = creation["occupation"]
+
+    for id <- occupation["choices"] ++ Map.values(occupation["class_defaults"]) do
+      unless Map.has_key?(labels["occupations"], id),
+        do: raise(ArgumentError, "creation.json: unknown occupation #{inspect(id)}")
+    end
+
+    for {class, id} <- occupation["class_defaults"] do
+      unless Map.has_key?(labels["classes"], class) and id in occupation["choices"],
+        do: raise(ArgumentError, "creation.json: bad class default #{class} => #{id}")
+    end
+
+    missing = Map.keys(labels["classes"]) -- Map.keys(occupation["class_defaults"])
+
+    unless missing == [],
+      do: raise(ArgumentError, "creation.json: no default occupation for #{inspect(missing)}")
 
     for {race, bonus} <- creation["skills"]["race_bonuses"] do
       unless Map.has_key?(labels["races"], race),

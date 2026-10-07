@@ -9,14 +9,16 @@ defmodule TalesForge.CharacterCreation.Draft do
   * `base_stats` are the point-buy stats before the race modifier.
   * `race_picks` are the stats chosen for a race bonus with a choice (Human: any
     two; Elf: INT or WIS).
+  * `occupation` is the past occupation (an id from the `defaults.json`
+    occupations the rules allow), which gives free skill levels.
   * `skills` are the levels set for skills (suggested, or by the player). A
     skill's level is the higher of this and its free level (class package,
-    race bonus); the levels above the free one are bought with skill points.
-    A new race or class keeps the levels, so free levels that now cover them
-    give their points back.
+    race bonus, past occupation); the levels above the free one are bought
+    with skill points. A new race, class or occupation keeps the levels, so
+    free levels that now cover them give their points back.
   * `edited` holds the parts the player has set (`:stats`, `:race_picks`,
-    `:skills`), so a new race or class re-suggests only what the player hasn't
-    touched.
+    `:occupation`, `:skills`), so a new race or class re-suggests only what
+    the player hasn't touched.
   """
 
   @enforce_keys [:adventure_id, :seed_key]
@@ -25,6 +27,7 @@ defmodule TalesForge.CharacterCreation.Draft do
             name: "",
             race: "human",
             class: "none",
+            occupation: nil,
             base_stats: %{},
             race_picks: [],
             skills: %{},
@@ -36,6 +39,7 @@ defmodule TalesForge.CharacterCreation.Draft do
           name: String.t(),
           race: String.t(),
           class: String.t(),
+          occupation: String.t() | nil,
           base_stats: %{optional(String.t()) => integer()},
           race_picks: [String.t()],
           skills: %{optional(String.t()) => pos_integer()},
