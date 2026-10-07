@@ -9,9 +9,13 @@ defmodule TalesForge.Game.PromptGoldenTest do
   turn messages (narrator, rules, task, session-stable and per-turn parts),
   plus the player character's sheet in `world_state`.
 
-  The golden files in `test/fixtures/prompts/` were written from main before
-  phase 1. Session ids, other UUIDs and timestamps are normalised. To
-  regenerate after an intended prompt change, run
+  The golden files in `test/fixtures/prompts/` are one per adventure and
+  behaviour variant (`TalesForge.Game.Variant`): `<adventure>.txt` for the
+  default variant, `<adventure>.baseline.txt` for the baseline. The baseline
+  files are the pre-rework prompts byte for byte (written from main before
+  phase 1) and must not change while the baseline arm exists. Session ids,
+  other UUIDs and timestamps are normalised. To regenerate after an intended
+  prompt change, run
   `UPDATE_PROMPT_GOLDEN=1 mix test test/ex_tales_forge/game/prompt_golden_test.exs`
   and review the diff.
   """
@@ -34,16 +38,19 @@ defmodule TalesForge.Game.PromptGoldenTest do
     :ok
   end
 
-  for adventure <- ~w(crossroads_ledger tin_valley) do
-    test "#{adventure}: prompts are byte-identical to the golden file" do
-      check_golden(unquote(adventure))
+  for adventure <- ~w(crossroads_ledger tin_valley), variant <- ~w(default baseline) do
+    test "#{adventure} (#{variant}): prompts are byte-identical to the golden file" do
+      check_golden(unquote(adventure), unquote(variant))
     end
   end
 
-  defp check_golden(adventure) do
-    {:ok, session} = GameSessions.create_session(%{name: "Golden", adventure_id: adventure})
+  defp check_golden(adventure, variant) do
+    {:ok, session} =
+      GameSessions.create_session(%{name: "Golden", adventure_id: adventure, variant: variant})
+
     actual = render(session)
-    path = Path.join(@dir, "#{adventure}.txt")
+    suffix = if variant == "default", do: "", else: ".#{variant}"
+    path = Path.join(@dir, "#{adventure}#{suffix}.txt")
 
     if System.get_env("UPDATE_PROMPT_GOLDEN") in ~w(1 true) do
       File.mkdir_p!(@dir)

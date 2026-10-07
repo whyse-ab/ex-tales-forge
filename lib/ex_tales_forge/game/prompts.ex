@@ -15,31 +15,40 @@ defmodule TalesForge.Game.Prompts do
   same `x-grok-conv-id` the opening scene warms the cache for GM turn 1. Nothing
   in 1–4 may change per turn; `test/ex_tales_forge/game/prompt_prefix_test.exs`
   guards this.
+
+  A session's behaviour variant (`TalesForge.Game.Variant`) picks the prompt
+  files: `priv/prompts/variants/<variant>/<file>` replaces `priv/prompts/<file>`
+  when it exists. The variant is fixed per session, so the cached prefix is too.
   """
 
   alias TalesForge.Game.Context
   alias TalesForge.Game.Schemas.{HandlerResult, MechanicalResolution, PlayerAction}
+  alias TalesForge.Game.Variant
 
-  @doc "System prompt of the intent step (`priv/prompts/intent_system.txt`)."
-  @spec intent_system() :: String.t()
-  def intent_system, do: read_prompt("intent_system.txt")
+  @doc "System prompt of the intent step (`priv/prompts/intent_system.txt`) for a variant."
+  @spec intent_system(Variant.t()) :: String.t()
+  def intent_system(variant \\ "default"), do: read_prompt("intent_system.txt", variant)
 
   @doc "Shared table voice, message 1 of every narration call (`narrator_system.txt`)."
-  @spec narrator_system() :: String.t()
-  def narrator_system, do: read_prompt("narrator_system.txt")
+  @spec narrator_system(Variant.t()) :: String.t()
+  def narrator_system(variant \\ "default"), do: read_prompt("narrator_system.txt", variant)
 
   @doc "Task prompt of a GM turn, message 3 (`gm_system.txt`)."
-  @spec gm_system() :: String.t()
-  def gm_system, do: read_prompt("gm_system.txt")
+  @spec gm_system(Variant.t()) :: String.t()
+  def gm_system(variant \\ "default"), do: read_prompt("gm_system.txt", variant)
 
   @doc "Task prompt of the opening/arrival scene, message 3 (`scene_system.txt`)."
-  @spec scene_system() :: String.t()
-  def scene_system, do: read_prompt("scene_system.txt")
+  @spec scene_system(Variant.t()) :: String.t()
+  def scene_system(variant \\ "default"), do: read_prompt("scene_system.txt", variant)
 
   @doc "Messages for the opening/arrival scene call."
   @spec scene_messages(map()) :: [%{role: String.t(), content: String.t()}]
   def scene_messages(gm_context) do
-    narration_messages(gm_context, scene_system(), Context.per_turn_section(gm_context))
+    narration_messages(
+      gm_context,
+      scene_system(variant(gm_context)),
+      Context.per_turn_section(gm_context)
+    )
   end
 
   @doc "Messages for a GM turn. Per-turn content, including the action, goes last."
@@ -66,12 +75,14 @@ defmodule TalesForge.Game.Prompts do
         "\n\nAction handler result:\n" <>
         Jason.encode!(handler_payload(handler), pretty: true)
 
-    narration_messages(gm_context, gm_system(), per_turn)
+    narration_messages(gm_context, gm_system(variant(gm_context)), per_turn)
   end
+
+  defp variant(gm_context), do: Variant.of(Map.get(gm_context, :world_state))
 
   defp narration_messages(gm_context, task, per_turn) do
     [
-      %{role: "system", content: narrator_system()},
+      %{role: "system", content: narrator_system(variant(gm_context))},
       %{role: "system", content: gm_context.rules},
       %{role: "system", content: task},
       %{role: "user", content: Context.session_stable_section(gm_context)},
@@ -141,9 +152,12 @@ defmodule TalesForge.Game.Prompts do
     Path.wildcard(Path.join(dir, "**/*.md")) != []
   end
 
-  defp read_prompt(name) do
-    path = priv_path("prompts/#{name}")
-    File.read!(path)
+  defp read_prompt(name, variant) do
+    override = priv_path("prompts/variants/#{Variant.of(%{"variant" => variant})}/#{name}")
+
+    if File.exists?(override),
+      do: File.read!(override),
+      else: File.read!(priv_path("prompts/#{name}"))
   end
 
   # Resolved at runtime: in a release priv lives under /app/lib/ex_tales_forge-<vsn>/priv,

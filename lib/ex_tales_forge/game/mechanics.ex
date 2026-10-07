@@ -37,6 +37,22 @@ defmodule TalesForge.Game.Mechanics do
     {~r/\b(track|follow trail)\b/i, "tracking"}
   ]
 
+  # Verbs that mean a real check: someone resists, something is hidden, or
+  # failing costs something. Ordinary talk ("ask", "greet", "tell") and
+  # looking around are not here: they get no roll (decision 2026-10-07).
+  @check_skill_hints [
+    {~r/\b(sneak|hide|stealth)\b/i, "stealth"},
+    {~r/\b(persuad\w*|convinc\w*|barter|haggle)\b/i, "persuasion"},
+    {~r/\b(lie|bluff|deceiv\w*)\b/i, "deception"},
+    {~r/\b(intimidat\w*|threaten\w*|menac\w*)\b/i, "intimidation"},
+    {~r/\b(search|inspect|examine)\b/i, "insight"},
+    {~r/\b(fight|attack|strike|swing|stab)\b/i, "melee_combat"},
+    {~r/\b(shoot|aim|bow|arrow)\b/i, "ranged_combat"},
+    {~r/\b(climb|scale)\b/i, "climbing"},
+    {~r/\b(track|follow trail)\b/i, "tracking"},
+    {~r/\b(pick the lock|pick a lock|lockpick\w*)\b/i, "lockpicking"}
+  ]
+
   @combat_skills ~w(melee_combat ranged_combat unarmed_combat)
 
   def skill_stat_map, do: @skill_stat
@@ -53,6 +69,30 @@ defmodule TalesForge.Game.Mechanics do
     end
   end
 
+  @doc """
+  The skill a player's text clearly calls for, or nil when it needs no check.
+  Unlike `infer_skill_from_action/1` (the baseline variant) there is no
+  fallback: ordinary talk and everyday actions get no roll.
+
+      iex> TalesForge.Game.Mechanics.infer_check_skill("I try to convince her to lower the price")
+      "persuasion"
+      iex> TalesForge.Game.Mechanics.infer_check_skill("A tankard of your finest ale, please")
+      nil
+      iex> TalesForge.Game.Mechanics.infer_check_skill("I ask Brenna what the miners talk about")
+      nil
+  """
+  @spec infer_check_skill(String.t()) :: String.t() | nil
+  def infer_check_skill(action) when is_binary(action) do
+    Enum.find_value(@check_skill_hints, fn {pattern, skill} ->
+      if Regex.match?(pattern, action), do: skill
+    end)
+  end
+
+  @doc """
+  Baseline variant: the skill for a player's text, falling back to `"insight"`
+  when no verb matches (so ordinary talk rolls Insight).
+  """
+  @spec infer_skill_from_action(String.t()) :: String.t()
   def infer_skill_from_action(action) when is_binary(action) do
     Enum.find_value(@action_skill_hints, "insight", fn {pattern, skill} ->
       if Regex.match?(pattern, action), do: skill

@@ -19,6 +19,7 @@ defmodule TalesForge.Game.Context do
   alias TalesForge.Game.Mechanics
   alias TalesForge.Game.Perception
   alias TalesForge.Game.Schemas.MechanicalResolution
+  alias TalesForge.Game.Variant
   alias TalesForge.Game.World
   alias TalesForge.GameSessions
   alias TalesForge.NPC
@@ -60,7 +61,8 @@ defmodule TalesForge.Game.Context do
       "player_inventory" => Map.get(character, "inventory", []),
       "situation_lines" => Map.get(world, "situation_lines", []),
       "recent_turns" => recent_turns(session.id),
-      "valid_skills" => Mechanics.skill_stat_map() |> Map.keys() |> Enum.sort()
+      "valid_skills" => Mechanics.skill_stat_map() |> Map.keys() |> Enum.sort(),
+      "variant" => Variant.of(world)
     }
   end
 

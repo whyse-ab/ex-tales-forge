@@ -20,6 +20,7 @@ defmodule TalesForge.GameSessions do
   alias TalesForge.Game.SceneProcessor
   alias TalesForge.Game.Schemas.PlayerAction
   alias TalesForge.Game.TurnProcessor
+  alias TalesForge.Game.Variant
   alias TalesForge.Game.World
   alias TalesForge.NPC
   alias TalesForge.NPCRegistry
@@ -50,17 +51,32 @@ defmodule TalesForge.GameSessions do
   default character (Elara) in `world_state["character"]` and gives the
   `characters` row its levers. An invalid one returns
   `{:error, {:invalid_character, message}}` and creates nothing.
+
+  `:variant` is the behaviour variant (`TalesForge.Game.Variant`), stored in
+  `world_state["variant"]` when it is not `"default"`; nil means
+  `GAME_VARIANT`. An unknown one returns `{:error, :unknown_variant}`.
   """
   def create_session(attrs \\ %{}) do
     adventure_id = adventure_id_from(attrs)
+    {variant, attrs} = pop_variant(attrs)
 
     character_opts =
       Map.take(attrs, @character_opts ++ Enum.map(@character_opts, &Atom.to_string/1))
 
-    with {:ok, character} <- validate_character(character_opts),
-         world = adventure_id |> materialize_world() |> put_character(character) do
+    with {:ok, variant} <- Variant.cast(variant),
+         {:ok, character} <- validate_character(character_opts),
+         world =
+           adventure_id
+           |> materialize_world()
+           |> put_character(character)
+           |> Variant.put(variant) do
       insert_session(attrs, adventure_id, world, character_opts)
     end
+  end
+
+  defp pop_variant(attrs) do
+    variant = Map.get(attrs, :variant) || Map.get(attrs, "variant")
+    {variant, Map.drop(attrs, [:variant, "variant"])}
   end
 
   defp insert_session(attrs, adventure_id, world, character_opts) do
@@ -304,7 +320,7 @@ defmodule TalesForge.GameSessions do
         pending
         |> Map.get("actions")
         |> case do
-          nil -> [heuristic_from_pending(pending, option)]
+          nil -> [heuristic_from_pending(pending, option, context)]
           actions -> Enum.map(actions, &TalesForge.Game.Schemas.SingleAction.decode/1)
         end,
       primary_index: option["action_index"],
@@ -315,10 +331,16 @@ defmodule TalesForge.GameSessions do
     Intent.validate_player_action(extraction, context)
   end
 
-  defp heuristic_from_pending(pending, option) do
+  defp heuristic_from_pending(pending, option, context) do
     TalesForge.Game.Intent.heuristic_intent(
       "#{pending["raw_action"]} (#{option["label"]})",
-      %{"exits" => [], "exit_names" => %{}, "present_npcs" => [], "npc_details" => %{}}
+      %{
+        "exits" => [],
+        "exit_names" => %{},
+        "present_npcs" => [],
+        "npc_details" => %{},
+        "variant" => Variant.of(context)
+      }
     )
     |> Map.get(:actions)
     |> List.first()

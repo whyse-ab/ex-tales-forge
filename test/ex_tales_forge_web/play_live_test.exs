@@ -33,7 +33,7 @@ defmodule TalesForgeWeb.PlayLiveTest do
     refute_sheet(html)
 
     assert {:ok, %{status: :processing}} =
-             GameSessions.submit_message(session.id, "study the inn")
+             GameSessions.submit_message(session.id, "search the inn")
 
     turn =
       Turn

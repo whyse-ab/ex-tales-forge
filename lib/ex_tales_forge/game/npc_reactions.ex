@@ -11,7 +11,9 @@ defmodule TalesForge.Game.NpcReactions do
   - her mood before this moment (the previous reaction, or neutral);
   - the narration the player last heard (latest turn or scene);
   - the player character's words/action this turn, and how the attempt came
-    across (the server's outcome, e.g. a failed persuasion).
+    across (the server's outcome, e.g. a failed persuasion). Outcomes of
+    checks the NPC cannot see (insight, history, arcana, tracking, survival,
+    tactics) are left out, so a failed read never makes her warier.
 
   Never gm_notes, secrets, hidden events or memories marked secret.
 
@@ -32,6 +34,7 @@ defmodule TalesForge.Game.NpcReactions do
 
   alias TalesForge.AICalls
   alias TalesForge.Config
+  alias TalesForge.Game.Variant
   alias TalesForge.NPC
   alias TalesForge.Repo
   alias TalesForge.Schemas.{Scene, Turn}
@@ -113,7 +116,7 @@ defmodule TalesForge.Game.NpcReactions do
       {[], world}
     else
       moods = world["npc_moods"] || %{}
-      scene = situation(session_id, raw_action, mechanical)
+      scene = situation(session_id, raw_action, visible_outcome(mechanical, world))
       reactions = run_all(npcs, moods, scene, session_id, turn_number)
       {reactions, put_moods(world, moods, reactions, turn_number)}
     end
@@ -260,6 +263,19 @@ defmodule TalesForge.Game.NpcReactions do
       text -> String.slice(text, -@narration_chars, @narration_chars)
     end
   end
+
+  # A failed read, search or recall happens in the player character's head:
+  # the NPC never sees it, so it must not make her warier (decision
+  # 2026-10-07). The baseline variant passes every outcome on, as before.
+  @unseen_skills ~w(insight history arcana tracking survival tactics)
+
+  @doc false
+  @spec visible_outcome(struct() | nil, map()) :: struct() | nil
+  def visible_outcome(%{skill: skill} = mechanical, world) when skill in @unseen_skills do
+    if Variant.baseline?(world), do: mechanical
+  end
+
+  def visible_outcome(mechanical, _world), do: mechanical
 
   defp outcome_text(%{outcome: outcome} = mechanical) when outcome not in [nil, "none"] do
     case mechanical.skill do

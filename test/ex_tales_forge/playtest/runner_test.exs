@@ -40,6 +40,14 @@ defmodule TalesForge.Playtest.RunnerTest do
     assert turns(run.game_session_id) |> length() == 2
   end
 
+  test "plays the requested behaviour variant, so both comparison arms share a deploy" do
+    {:ok, run_id} = Runner.start("paul", "tin_valley", turn_limit: 1, variant: "baseline")
+
+    assert {:ok, run} = await(run_id)
+    assert Repo.get!(GameSession, run.game_session_id).world_state["variant"] == "baseline"
+    assert Runner.start("paul", "tin_valley", variant: "nope") == {:error, :unknown_variant}
+  end
+
   test "is off unless enabled, and checks persona and module" do
     sessions = Repo.aggregate(GameSession, :count)
 

@@ -7,9 +7,13 @@ defmodule TalesForge.Game.Intent do
   alias TalesForge.Game.Inventory
   alias TalesForge.Game.Mechanics
   alias TalesForge.Game.Schemas.{IntentExtraction, PlayerAction, SingleAction}
+  alias TalesForge.Game.Variant
   alias TalesForge.Game.WorldClock
   alias TalesForge.LLM
 
+  # Baseline variant only: these action types had to carry a skill, so every
+  # observe/speak/interact rolled. The default variant requires none; the
+  # action handler gives combat its default skill.
   @skill_required ~w(observe speak interact combat use_item)a
   @no_skill_types ~w(move wait train pickup drop buy sell trade spend)a
   @move_hints ~r/\b(go|head|walk|travel|move|enter|leave|step|run|proceed)\b/i
@@ -77,10 +81,10 @@ defmodule TalesForge.Game.Intent do
     end
   end
 
-  def validate_player_action(%IntentExtraction{} = extraction, _context) do
+  def validate_player_action(%IntentExtraction{} = extraction, context) do
     primary = primary_action(extraction)
 
-    if skill_missing?(primary) do
+    if skill_missing?(primary, context) do
       raise ArgumentError, "primary action missing required skill"
     end
 
@@ -122,7 +126,7 @@ defmodule TalesForge.Game.Intent do
   end
 
   defp call_tier1(raw_action, context) do
-    system = TalesForge.Game.Prompts.intent_system()
+    system = TalesForge.Game.Prompts.intent_system(Variant.of(context))
 
     user =
       TalesForge.Game.Context.format_intent_context(context) <>
@@ -131,7 +135,7 @@ defmodule TalesForge.Game.Intent do
 
     case LLM.complete_intent(system, user, session_id: context["session_id"]) do
       {:ok, extraction} ->
-        {:ok, ensure_skill(extraction, raw_action)}
+        {:ok, ensure_skill(extraction, raw_action, context)}
 
       error ->
         error
@@ -145,7 +149,7 @@ defmodule TalesForge.Game.Intent do
       length(extraction.actions) == 1 and
       not extraction.needs_clarification and
       not ambiguous_move?(primary, context) and
-      not skill_missing?(primary)
+      not skill_missing?(primary, context)
   end
 
   defp ambiguous_move?(%SingleAction{action_type: :move, target: target}, context) do
@@ -154,25 +158,29 @@ defmodule TalesForge.Game.Intent do
 
   defp ambiguous_move?(_, _), do: false
 
-  defp ensure_skill(%IntentExtraction{} = extraction, raw_action) do
+  # Default variant: Tier 1 decides whether the action needs a check; a missing
+  # skill means no roll, so nothing is filled in.
+  defp ensure_skill(%IntentExtraction{} = extraction, raw_action, context) do
+    if Variant.baseline?(context),
+      do: ensure_baseline_skill(extraction, raw_action, context),
+      else: extraction
+  end
+
+  defp ensure_baseline_skill(extraction, raw_action, context) do
     primary = primary_action(extraction)
 
-    if skill_missing?(primary) do
-      case Mechanics.infer_skill_from_action(raw_action) do
-        nil ->
-          extraction
+    if skill_missing?(primary, context) do
+      skill = Mechanics.infer_skill_from_action(raw_action)
 
-        skill ->
-          patched = %SingleAction{
-            primary
-            | parameters: Map.put(primary.parameters || %{}, "skill", skill)
-          }
+      patched = %SingleAction{
+        primary
+        | parameters: Map.put(primary.parameters || %{}, "skill", skill)
+      }
 
-          %{
-            extraction
-            | actions: List.replace_at(extraction.actions, extraction.primary_index, patched)
-          }
-      end
+      %{
+        extraction
+        | actions: List.replace_at(extraction.actions, extraction.primary_index, patched)
+      }
     else
       extraction
     end
@@ -183,7 +191,11 @@ defmodule TalesForge.Game.Intent do
     target_npc = infer_target_npc(raw_action, context)
     target_fixture = infer_target_fixture(raw_action, context)
     action_type = infer_action_type(raw_action, target_location, target_fixture, target_npc)
-    skill = Mechanics.infer_skill_from_action(raw_action)
+
+    skill =
+      if Variant.baseline?(context),
+        do: Mechanics.infer_skill_from_action(raw_action),
+        else: Mechanics.infer_check_skill(raw_action)
 
     parameters =
       %{}
@@ -220,8 +232,9 @@ defmodule TalesForge.Game.Intent do
       (length(extraction.actions) > 1 and extraction.confidence < 0.85)
   end
 
-  defp skill_missing?(%SingleAction{action_type: type, parameters: params}) do
-    type in @skill_required and is_nil(Mechanics.normalize_skill_name(Map.get(params, "skill")))
+  defp skill_missing?(%SingleAction{action_type: type, parameters: params}, context) do
+    Variant.baseline?(context) and type in @skill_required and
+      is_nil(Mechanics.normalize_skill_name(Map.get(params, "skill")))
   end
 
   defp infer_action_type(raw_action, target_location, target_fixture, target_npc) do

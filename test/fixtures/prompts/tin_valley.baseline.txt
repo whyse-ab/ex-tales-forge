@@ -1545,9 +1545,7 @@ Mechanics:
 - The server has already rolled. You receive skill, roll, and outcome as tone bounds only.
 - Do NOT invent dice, DCs, skill names, or "you rolled" in the prose.
 - Do NOT output mechanical_resolution.
-- Outcome none means no check was needed: ordinary talk and everyday actions simply happen. Narrate their natural result.
 - Match the given outcome tone. Failure is real; do not soften a failed check into a secret success.
-- A failed check costs only what was tried for. A failed read, search or recall means the character learns nothing extra; it never makes an NPC colder, more suspicious or hostile. People notice an attempt only when the action itself shows (a lie, a threat, a clumsy grab). NPC attitude follows the character's words and deeds, not the dice.
 - Do NOT patch coins, inventory, learning_points, skills, learning_failures, location_id, clocks, fronts, public_facts, wounds, or vitality.
 - Do NOT patch learning_points, skills, or learning_failures — the server handles LP and competence.
 - Do NOT patch wounds or vitality — the server owns those.
@@ -2360,9 +2358,7 @@ Mechanics:
 - The server has already rolled. You receive skill, roll, and outcome as tone bounds only.
 - Do NOT invent dice, DCs, skill names, or "you rolled" in the prose.
 - Do NOT output mechanical_resolution.
-- Outcome none means no check was needed: ordinary talk and everyday actions simply happen. Narrate their natural result.
 - Match the given outcome tone. Failure is real; do not soften a failed check into a secret success.
-- A failed check costs only what was tried for. A failed read, search or recall means the character learns nothing extra; it never makes an NPC colder, more suspicious or hostile. People notice an attempt only when the action itself shows (a lie, a threat, a clumsy grab). NPC attitude follows the character's words and deeds, not the dice.
 - Do NOT patch coins, inventory, learning_points, skills, learning_failures, location_id, clocks, fronts, public_facts, wounds, or vitality.
 - Do NOT patch learning_points, skills, or learning_failures — the server handles LP and competence.
 - Do NOT patch wounds or vitality — the server owns those.
