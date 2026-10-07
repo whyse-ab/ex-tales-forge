@@ -1,9 +1,72 @@
 defmodule TalesForge.Game.Prompts do
-  @moduledoc false
+  @moduledoc """
+  Prompt files and message assembly for the narration calls (scene and GM turn).
+
+  Message order is fixed so xAI's prompt cache can reuse the longest prefix:
+
+  1. system: `narrator_system.txt` — shared table voice, identical for every call
+  2. system: the adventure's rules — identical for the scene call and every GM turn
+  3. system: the task (`scene_system.txt` or `gm_system.txt`)
+  4. user: session-stable content (character sheet, adventure, opening scene)
+  5. user: per-turn state (facts, location, inventory, NPCs, recent turns, and
+     for a GM turn the server resolution, the validated PlayerAction and handler)
+
+  1–2 are byte-identical between the scene call and the GM calls, so with the
+  same `x-grok-conv-id` the opening scene warms the cache for GM turn 1. Nothing
+  in 1–4 may change per turn; `test/ex_tales_forge/game/prompt_prefix_test.exs`
+  guards this.
+  """
+
+  alias TalesForge.Game.Context
+  alias TalesForge.Game.Schemas.{HandlerResult, PlayerAction}
 
   def intent_system, do: read_prompt("intent_system.txt")
+  def narrator_system, do: read_prompt("narrator_system.txt")
   def gm_system, do: read_prompt("gm_system.txt")
   def scene_system, do: read_prompt("scene_system.txt")
+
+  @doc "Messages for the opening/arrival scene call."
+  def scene_messages(gm_context) do
+    narration_messages(gm_context, scene_system(), Context.per_turn_section(gm_context))
+  end
+
+  @doc "Messages for a GM turn. Per-turn content, including the action, goes last."
+  def gm_messages(
+        gm_context,
+        mechanical,
+        %PlayerAction{} = player_action,
+        %HandlerResult{} = handler,
+        turn_number
+      ) do
+    per_turn =
+      Context.per_turn_section(gm_context) <>
+        Context.mechanical_bounds(mechanical) <>
+        "\n\nValidated player action (turn #{turn_number}):\n" <>
+        Jason.encode!(PlayerAction.encode(player_action), pretty: true) <>
+        "\n\nAction handler result:\n" <>
+        Jason.encode!(handler_payload(handler), pretty: true)
+
+    narration_messages(gm_context, gm_system(), per_turn)
+  end
+
+  defp narration_messages(gm_context, task, per_turn) do
+    [
+      %{role: "system", content: narrator_system()},
+      %{role: "system", content: gm_context.rules},
+      %{role: "system", content: task},
+      %{role: "user", content: Context.session_stable_section(gm_context)},
+      %{role: "user", content: per_turn}
+    ]
+  end
+
+  defp handler_payload(%HandlerResult{} = handler) do
+    %{
+      "handler" => handler.handler,
+      "skill" => handler.skill,
+      "target" => handler.target,
+      "notes" => handler.notes
+    }
+  end
 
   def build_scene_user(%TalesForge.Schemas.GameSession{} = session) do
     TalesForge.Game.Context.format_gm_prompt(TalesForge.Game.Context.build_gm_context(session))

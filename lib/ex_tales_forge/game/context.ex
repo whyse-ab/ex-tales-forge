@@ -108,24 +108,57 @@ defmodule TalesForge.Game.Context do
     }
   end
 
+  @doc """
+  The whole GM/scene context as one flat string: rules, then session-stable
+  content, then per-turn state. The LLM receives the same sections as separate
+  messages (see `TalesForge.Game.Prompts.gm_messages/5`); this flat view is for
+  tests and debugging.
+  """
   def format_gm_prompt(context) do
+    [context.rules, session_stable_section(context), per_turn_section(context)]
+    |> join_sections()
+  end
+
+  @doc """
+  Content that stays the same for the whole session (until the opening scene is
+  replaced): the character's fixed sheet, the adventure, and the opening scene
+  the player has already heard. Never put per-turn values (coins, wounds,
+  inventory, turn numbers, clocks, NPC moods) here: it sits before the per-turn
+  state so the prompt cache can reuse it on every turn.
+  """
+  def session_stable_section(context) do
+    [character_sheet(context.world_state), opening_section(Map.get(context, :opening_scene))]
+    |> join_sections()
+  end
+
+  @doc "Everything that can change from turn to turn. Always last in the prompt."
+  def per_turn_section(context) do
     npc_sections =
       NPC.format_gm_sections(
         context.session_id,
         Map.get(context.intent_context, "present_npcs", [])
       )
 
-    facts = perceived_facts_section(context)
+    [perceived_facts_section(context), context.formatted_intent, npc_sections]
+    |> join_sections()
+  end
 
-    [
-      context.rules,
-      facts,
-      opening_section(Map.get(context, :opening_scene)),
-      context.formatted_intent,
-      npc_sections
-    ]
+  defp join_sections(sections) do
+    sections
     |> Enum.reject(&(is_nil(&1) or &1 == ""))
     |> Enum.join("\n\n---\n\n")
+  end
+
+  defp character_sheet(world) do
+    world = world || %{}
+    character = Map.get(world, "character", %{})
+
+    """
+    ## Session (fixed for this session)
+    adventure: #{adventure_id(world)}
+    character: #{Map.get(character, "name", "unknown")} (#{Map.get(character, "race", "unknown")})
+    """
+    |> String.trim()
   end
 
   # Already told to the player before turn 1. Keep it on every GM turn so the

@@ -19,9 +19,7 @@ defmodule TalesForge.GMReasoningTest do
   @gm_reply %{
     "gm_notes" => @notes,
     "narrative" => "Smoke curls under the low beams. Marta watches you over a chipped mug.",
-    "state_updates" => [%{"path" => "characters/marta.json", "op" => "set"}],
     "npc_memory_updates" => [],
-    "overlay_deltas" => %{"tension" => 0.1},
     "mechanical_resolution" => %{"outcome" => "success"},
     "context_summary" => "- Weary Pilgrim, evening"
   }
