@@ -333,7 +333,14 @@ defmodule TalesForge.Playtest.Runner do
 
   # Waits for the job's PubSub event. Every @poll_ms it also checks the database,
   # in case the job ran on a node whose broadcasts this one does not get.
-  defp await_event(state, kind) do
+  #
+  # A turn_completed counts only if it is for a turn after `turns_before`. When
+  # the database poll settles a turn first, that turn's own broadcast arrives
+  # later and sits in the mailbox; taken as the next turn's completion, it made
+  # the persona move while the next turn was still running, so the same turn
+  # was narrated twice and one copy failed on the unique turn number.
+  @doc false
+  def await_event(state, kind) do
     deadline = System.monotonic_time(:millisecond) + state.timeout_ms
     await_event(state, kind, deadline, 0)
   end
@@ -346,7 +353,9 @@ defmodule TalesForge.Playtest.Runner do
         :ok
 
       {:turn_completed, payload} when is_tuple(kind) ->
-        {:completed, payload}
+        if fresh_turn?(state, kind, payload),
+          do: {:completed, payload},
+          else: await_event(state, kind, deadline, failures)
 
       {:scene_failed, reason} when kind == :scene ->
         failed(state, kind, deadline, failures, reason)
@@ -365,6 +374,11 @@ defmodule TalesForge.Playtest.Runner do
         end
     end
   end
+
+  defp fresh_turn?(_state, {:turn, turns_before}, %{turn_count: n}) when is_integer(n),
+    do: n > turns_before
+
+  defp fresh_turn?(state, {:turn, turns_before}, _payload), do: turn_count(state) > turns_before
 
   defp failed(_state, _kind, _deadline, _failures, {:spend_cap, _cap}), do: :spend_cap
 
