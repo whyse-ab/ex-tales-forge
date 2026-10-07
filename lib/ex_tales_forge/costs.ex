@@ -8,9 +8,12 @@ defmodule TalesForge.Costs do
     from it by `TalesForge.Costs.Peer`.
   - Fixed monthly costs, the USD->SEK rate and the playtest warning threshold
     live in one config block: `config :ex_tales_forge, TalesForge.Costs` in
-    `config/config.exs`.
+    `config/config.exs`. Each fixed item's `amount` is `{:usd_per_month, n}`,
+    `{:sek_per_year, n}` (converted with the configured rate, monthly share =
+    yearly / 12) or `:unknown`.
 
-  Money is integer micro-USD throughout; fixed costs are converted from USD.
+  Money is integer micro-USD throughout; SEK yearly items are converted at the
+  configured USD->SEK rate before the monthly share is taken.
   """
 
   alias TalesForge.AICalls
@@ -165,7 +168,10 @@ defmodule TalesForge.Costs do
 
   defp config, do: Application.get_env(:ex_tales_forge, __MODULE__, [])
 
-  @doc "Fixed monthly costs from config: maps with name, env, usd (number or :unknown), source."
+  @doc """
+  Fixed costs from config: maps with `name`, `env`, `amount` and `source`.
+  `amount` is `{:usd_per_month, n}`, `{:sek_per_year, n}` or `:unknown`.
+  """
   def fixed_costs, do: Keyword.get(config(), :fixed_monthly, [])
 
   @doc "USD->SEK rate from config: %{rate: float, as_of: Date, source: string}."
@@ -174,9 +180,29 @@ defmodule TalesForge.Costs do
   @doc "Playtest warning threshold in USD per month."
   def playtest_warn_usd, do: Keyword.get(config(), :playtest_warn_usd, 15.0)
 
-  @doc "A fixed cost's USD as micro-USD, or :unknown."
-  def fixed_micro_usd(%{usd: :unknown}), do: :unknown
-  def fixed_micro_usd(%{usd: usd}) when is_number(usd), do: round(usd * @micro)
+  @doc """
+  A fixed cost's monthly share as micro-USD, or `:unknown`.
+
+  `{:usd_per_month, n}` is `n` dollars. `{:sek_per_year, n}` is converted with
+  the configured USD->SEK rate, then divided by 12.
+  """
+  def fixed_micro_usd(item, rate \\ usd_sek().rate)
+  def fixed_micro_usd(%{amount: :unknown}, _rate), do: :unknown
+
+  def fixed_micro_usd(%{amount: {:usd_per_month, usd}}, _rate) when is_number(usd),
+    do: round(usd * @micro)
+
+  def fixed_micro_usd(%{amount: {:sek_per_year, sek}}, rate)
+      when is_number(sek) and is_number(rate) and rate > 0,
+      do: round(sek / rate / 12 * @micro)
+
+  @doc "True when the item is billed in SEK per year (show yearly + monthly share)."
+  def sek_per_year?(%{amount: {:sek_per_year, _}}), do: true
+  def sek_per_year?(_item), do: false
+
+  @doc "The SEK/year figure for a `{:sek_per_year, n}` item, or nil."
+  def sek_per_year(%{amount: {:sek_per_year, sek}}) when is_number(sek), do: sek
+  def sek_per_year(_item), do: nil
 
   @doc "Micro-USD to SEK at the configured rate (float)."
   def to_sek(micro_usd, rate \\ usd_sek().rate), do: micro_usd / @micro * rate
