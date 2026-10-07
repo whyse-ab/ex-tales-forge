@@ -63,7 +63,10 @@ defmodule TalesForge.Playtest.ScorerTest do
              "4. Quality of the bluff affects the outcome." => %{
                "score" => nil,
                "evidence" => "out of range"
-             }
+             },
+             # Paul's fifth scorecard line (docs/personas.md, 2026-10); the stub judge skips it.
+             "5. Player influence on the storyline is visible without the UI shouting mechanics." =>
+               %{"score" => nil, "evidence" => nil}
            }
 
     assert score.overall == 3.0
