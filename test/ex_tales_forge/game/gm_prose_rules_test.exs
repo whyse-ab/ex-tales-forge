@@ -10,7 +10,13 @@ defmodule TalesForge.Game.GmProseRulesTest do
 
   alias TalesForge.Game.Prompts
 
-  @banned ["tilts her head", "on the house", "hands on her apron", "leans on the counter"]
+  @banned [
+    "tilts her head",
+    "on the house",
+    "hands on her apron",
+    "wipes her hands",
+    "leans on the counter"
+  ]
 
   test "the default GM prompt forbids restating the player's line" do
     gm = Prompts.gm_system()

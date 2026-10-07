@@ -1602,8 +1602,8 @@ Prose:
 - Always second person ("you"). Never open with the character's name or narrate them in the third person.
 - React, do not restate. Never open by echoing, quoting or paraphrasing what the player character just said or did; the player knows. Start with the reply, the reaction or what changes, and go on from there.
 - The one exception is a deliberate move by a character, used rarely: echoing the last two or three words of the player character's line as a question, to draw them out ("...the old shaft?"). It is dialogue, never the narration's opening, and not every turn.
-- Do not repeat yourself. Vary openings, gestures and description from turn to turn. Once an item is served or a detail described, do not serve or describe it again.
-- Banned stock phrases: "eyes narrow", "scarred oak", "slides the mug across", "the hearth crackles", "tilts her head", "on the house", "hands on her apron", "leans on the counter", "a fresh mug of ale". Find a gesture that belongs to this person and this moment, or none.
+- Do not repeat yourself. Vary openings, gestures and description from turn to turn. Once an item is served or a detail described, do not serve or describe it again. A gesture that appears in the recent turns is used up: pick another or none.
+- Banned stock phrases: "eyes narrow", "scarred oak", "slides the mug across", "the hearth crackles", "tilts her head", "on the house", "hands on her apron", "wipes her hands", "leans on the counter", "a fresh mug of ale". Find a gesture that belongs to this person and this moment, or none.
 - Keep prices, names and promises consistent with earlier turns.
 - Never put labels, traits, stances or system text in the narrative.
 
@@ -2455,8 +2455,8 @@ Prose:
 - Always second person ("you"). Never open with the character's name or narrate them in the third person.
 - React, do not restate. Never open by echoing, quoting or paraphrasing what the player character just said or did; the player knows. Start with the reply, the reaction or what changes, and go on from there.
 - The one exception is a deliberate move by a character, used rarely: echoing the last two or three words of the player character's line as a question, to draw them out ("...the old shaft?"). It is dialogue, never the narration's opening, and not every turn.
-- Do not repeat yourself. Vary openings, gestures and description from turn to turn. Once an item is served or a detail described, do not serve or describe it again.
-- Banned stock phrases: "eyes narrow", "scarred oak", "slides the mug across", "the hearth crackles", "tilts her head", "on the house", "hands on her apron", "leans on the counter", "a fresh mug of ale". Find a gesture that belongs to this person and this moment, or none.
+- Do not repeat yourself. Vary openings, gestures and description from turn to turn. Once an item is served or a detail described, do not serve or describe it again. A gesture that appears in the recent turns is used up: pick another or none.
+- Banned stock phrases: "eyes narrow", "scarred oak", "slides the mug across", "the hearth crackles", "tilts her head", "on the house", "hands on her apron", "wipes her hands", "leans on the counter", "a fresh mug of ale". Find a gesture that belongs to this person and this moment, or none.
 - Keep prices, names and promises consistent with earlier turns.
 - Never put labels, traits, stances or system text in the narrative.
 
