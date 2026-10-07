@@ -36,7 +36,7 @@ defmodule TalesForge.GameSessions do
 
   def get_session!(id), do: Repo.get!(GameSession, id)
 
-  @character_opts [:controller, :controller_ref, :owner_player_id]
+  @character_opts [:controller, :controller_ref, :owner_player_id, :character]
 
   @doc """
   Creates a session with its world, NPCs, fronts and characters.
@@ -44,14 +44,26 @@ defmodule TalesForge.GameSessions do
   Besides the session fields, `attrs` takes `:adventure_id` and the player
   character options `:controller` (`"player"` or `"bot"`), `:controller_ref`
   and `:owner_player_id` (see `TalesForge.Characters.seed_session/2`).
+
+  `:character` is a created player character in the shape of a pack character
+  file (`TalesForge.CharacterCreation.finalize/1`). It replaces the pack's
+  default character (Elara) in `world_state["character"]` and gives the
+  `characters` row its levers. An invalid one returns
+  `{:error, {:invalid_character, message}}` and creates nothing.
   """
   def create_session(attrs \\ %{}) do
     adventure_id = adventure_id_from(attrs)
-    world = materialize_world(adventure_id)
 
     character_opts =
       Map.take(attrs, @character_opts ++ Enum.map(@character_opts, &Atom.to_string/1))
 
+    with {:ok, character} <- validate_character(character_opts),
+         world = adventure_id |> materialize_world() |> put_character(character) do
+      insert_session(attrs, adventure_id, world, character_opts)
+    end
+  end
+
+  defp insert_session(attrs, adventure_id, world, character_opts) do
     session_attrs =
       %{
         name: default_session_name(adventure_id),
@@ -74,6 +86,33 @@ defmodule TalesForge.GameSessions do
          {:ok, _} <- ensure_scene(session) do
       {:ok, Repo.preload(session, [:npc_instances, :front_instances])}
     end
+  end
+
+  defp validate_character(opts) do
+    case Map.get(opts, :character) || Map.get(opts, "character") do
+      nil ->
+        {:ok, nil}
+
+      character when is_map(character) ->
+        {:ok, Pack.validate_player_character!(character, "created character")}
+
+      other ->
+        {:error, {:invalid_character, "expected a map, got #{inspect(other)}"}}
+    end
+  rescue
+    e in ArgumentError -> {:error, {:invalid_character, Exception.message(e)}}
+  end
+
+  defp put_character(world, nil), do: world
+
+  defp put_character(world, character) do
+    sheet =
+      character
+      |> Pack.sheet()
+      |> Map.delete("creation")
+      |> Map.put("location_id", world["location_id"])
+
+    Map.put(world, "character", sheet)
   end
 
   defp adventure_id_from(attrs) do

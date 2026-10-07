@@ -1,0 +1,53 @@
+{
+  "_doc": "Player character creation rules for TalesForge.CharacterCreation: the stat point buy from rules/core_mechanics.md (75 points, 3-18 per stat), the race stat choices from rules/races.md, the background skill points per class, the derivation inputs for a new player character and the starting kit. Race and class labels come from defaults.json.",
+  "point_buy": {
+    "budget": 75,
+    "min": 3,
+    "max": 18
+  },
+  "suggested_base": 12,
+  "race_choices": {
+    "human": {
+      "count": 2,
+      "amount": 1,
+      "from": ["STR", "DEX", "CON", "INT", "WIS", "CHA"],
+      "replaces": {}
+    },
+    "elf": {
+      "count": 1,
+      "amount": 1,
+      "from": ["INT", "WIS"],
+      "replaces": {"INT": 1}
+    }
+  },
+  "class_skill_points": [3, 2],
+  "derive": {
+    "standing": "commoner",
+    "occupation": "adventurer",
+    "seniority": "apprentice"
+  },
+  "starting_kit": [
+    {"id": "travel_cloak", "name": "travel cloak", "quantity": 1},
+    {"id": "hunting_knife", "name": "hunting knife", "quantity": 1}
+  ],
+  "name_max_length": 40,
+  "descriptions": {
+    "races": {
+      "human": "Versatile and resilient; humans adapt quickly, thriving on trial and error. +1 to any two stats.",
+      "elf": "Graceful, long-lived and attuned to nature and magic. +2 DEX, +1 INT or WIS, -1 CON.",
+      "dwarf": "Sturdy craftsfolk who endure harsh conditions. +2 CON, +1 STR, -1 CHA.",
+      "gnome": "Curious tinkerers who treat failures as experiments. +2 INT, +1 DEX, -1 STR.",
+      "halfling": "Cheerful, social and lucky in danger. +2 DEX, +1 CHA, -1 STR.",
+      "half_elf": "Bridging two worlds, with human adaptability and elven grace. +1 DEX, +1 CHA."
+    },
+    "classes": {
+      "none": "No trade of arms or magic: your past and your choices speak for you.",
+      "warrior": "Trained to fight: melee, tactics and a hard stare.",
+      "thief": "Quiet hands and a quick tongue: stealth, locks and lies.",
+      "ranger": "At home in the wild: bow, tracks and survival.",
+      "cleric": "A voice of faith: insight, persuasion and old stories.",
+      "wizard": "A student of the arcane: arcana, history and insight.",
+      "druid": "Bound to the land: survival, arcana and tracking."
+    }
+  }
+}

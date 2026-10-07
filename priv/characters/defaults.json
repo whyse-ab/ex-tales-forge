@@ -206,6 +206,25 @@
     }
   },
   "occupations": {
+    "adventurer": {
+      "core": [],
+      "secondary": [],
+      "ocean": {
+        "openness": 1,
+        "conscientiousness": 0,
+        "extraversion": 0,
+        "agreeableness": 0,
+        "neuroticism": 0
+      },
+      "maslow": "esteem",
+      "concerns": [
+        {
+          "text": "Make a name on the road",
+          "focus": "fame",
+          "priority": 5
+        }
+      ]
+    },
     "laborer": {
       "core": [
         "climbing",
