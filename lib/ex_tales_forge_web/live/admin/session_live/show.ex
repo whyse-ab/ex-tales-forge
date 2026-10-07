@@ -1,60 +1,45 @@
 defmodule TalesForgeWeb.AdminLive.SessionLive.Show do
   @moduledoc """
-  Admin: one game session, with an Ash form to edit it.
+  Admin: one game session, with an Ecto changeset form to edit it.
   """
 
   use TalesForgeWeb, :live_view
 
   import TalesForgeWeb.AdminComponents
 
-  alias AshPhoenix.Form
   alias TalesForge.Admin
-  alias TalesForge.AdminResources.GameSession, as: AdminGameSession
 
   @impl true
   def mount(%{"id" => id}, _session, socket) do
-    # Load via Ash for admin form usage. Core play paths still use Ecto.
-    session = Ash.get!(AdminGameSession, id)
-
-    world_state_json = Admin.encode_json(session.world_state || %{})
-
-    ash_form =
-      Form.for_update(session, :update,
-        domain: TalesForge.AdminResources,
-        as: "session"
-      )
+    session = Admin.get_session!(id)
 
     {:ok,
      socket
      |> assign(:page_title, session.name)
-     |> assign(:session, session)
-     |> assign(:world_state_json, world_state_json)
-     |> assign(:ash_form, ash_form)
-     |> assign(:form, to_form(ash_form))}
+     |> assign_session(session)}
   end
 
   @impl true
   def handle_event("save_session", %{"session" => params}, socket) do
-    case Form.submit(socket.assigns.ash_form, params: params) do
+    case Admin.update_session(socket.assigns.session, params) do
       {:ok, session} ->
-        new_ash_form =
-          Form.for_update(session, :update, domain: TalesForge.AdminResources, as: "session")
-
         {:noreply,
          socket
-         |> assign(:session, session)
-         |> assign(:ash_form, new_ash_form)
-         |> assign(:form, to_form(new_ash_form))
+         |> assign_session(session)
          |> put_flash(:info, "Session updated.")}
 
-      {:error, ash_form} ->
-        {:noreply, assign(socket, :ash_form, ash_form) |> assign(:form, to_form(ash_form))}
+      {:error, changeset} ->
+        {:noreply, assign(socket, :form, to_form(changeset, as: "session"))}
     end
   end
 
   def handle_event("validate_session", %{"session" => params}, socket) do
-    ash_form = Form.validate(socket.assigns.ash_form, params)
-    {:noreply, assign(socket, :ash_form, ash_form) |> assign(:form, to_form(ash_form))}
+    changeset =
+      socket.assigns.session
+      |> Admin.change_session(params)
+      |> Map.put(:action, :validate)
+
+    {:noreply, assign(socket, :form, to_form(changeset, as: "session"))}
   end
 
   def handle_event("save_world_state", %{"world_state_json" => json}, socket) do
@@ -62,8 +47,7 @@ defmodule TalesForgeWeb.AdminLive.SessionLive.Show do
       {:ok, session} ->
         {:noreply,
          socket
-         |> assign(:session, session)
-         |> assign(:world_state_json, Admin.encode_json(session.world_state))
+         |> assign_session(session)
          |> put_flash(:info, "World state saved.")}
 
       {:error, reason} ->
@@ -76,8 +60,7 @@ defmodule TalesForgeWeb.AdminLive.SessionLive.Show do
       {:ok, session} ->
         {:noreply,
          socket
-         |> assign(:session, session)
-         |> assign(:world_state_json, Admin.encode_json(session.world_state))
+         |> assign_session(session)
          |> put_flash(:info, "NPC instances reseeded from priv/npcs.")}
 
       {:error, reason} ->
@@ -88,6 +71,13 @@ defmodule TalesForgeWeb.AdminLive.SessionLive.Show do
   def handle_event("delete", _params, socket) do
     Admin.delete_session(socket.assigns.session)
     {:noreply, push_navigate(socket, to: ~p"/admin/sessions")}
+  end
+
+  defp assign_session(socket, session) do
+    socket
+    |> assign(:session, session)
+    |> assign(:world_state_json, Admin.encode_json(session.world_state || %{}))
+    |> assign(:form, to_form(Admin.change_session(session), as: "session"))
   end
 
   @impl true
@@ -162,7 +152,12 @@ defmodule TalesForgeWeb.AdminLive.SessionLive.Show do
             field={@form[:status]}
             type="select"
             label="Status"
-            options={[{"Active", "active"}, {"Paused", "paused"}, {"Completed", "completed"}]}
+            options={[
+              {"Active", "active"},
+              {"Paused", "paused"},
+              {"Completed", "completed"},
+              {"Dead", "dead"}
+            ]}
           />
           <button
             type="submit"

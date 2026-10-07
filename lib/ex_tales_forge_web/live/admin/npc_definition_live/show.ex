@@ -1,6 +1,7 @@
 defmodule TalesForgeWeb.AdminLive.NpcDefinitionLive.Show do
   @moduledoc """
-  Admin: one NPC definition from the adventure pack, as JSON.
+  Admin: one NPC definition from the adventure pack, as read-only JSON.
+  The pack files in `priv/npcs` are edited in git, not here.
   """
 
   use TalesForgeWeb, :live_view
@@ -18,20 +19,12 @@ defmodule TalesForgeWeb.AdminLive.NpcDefinitionLive.Show do
      |> assign(:page_title, npc_id)
      |> assign(:npc_id, npc_id)
      |> assign(:json, json)}
-  end
-
-  @impl true
-  def handle_event("save", %{"definition_json" => json}, socket) do
-    case Admin.save_npc_definition(socket.assigns.npc_id, json) do
-      {:ok, _definition} ->
-        {:noreply,
-         socket
-         |> assign(:json, Admin.npc_definition_json(socket.assigns.npc_id))
-         |> put_flash(:info, "NPC definition saved.")}
-
-      {:error, reason} ->
-        {:noreply, put_flash(socket, :error, reason)}
-    end
+  rescue
+    ArgumentError ->
+      {:ok,
+       socket
+       |> put_flash(:error, "No NPC definition #{inspect(npc_id)}.")
+       |> push_navigate(to: ~p"/admin/npc-definitions")}
   end
 
   @impl true
@@ -45,21 +38,14 @@ defmodule TalesForgeWeb.AdminLive.NpcDefinitionLive.Show do
         <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">{@npc_id}</h2>
       </header>
 
-      <.section_card title="Definition JSON">
-        <form phx-submit="save" class="space-y-3">
-          <.json_editor
-            id="definition_json"
-            label="priv/npcs/#{@npc_id}.json"
-            value={@json}
-            rows={28}
-          />
-          <button
-            type="submit"
-            class="rounded bg-[var(--paper-accent)] px-4 py-2 text-sm text-[var(--paper-on-accent)]"
-          >
-            Save to disk
-          </button>
-        </form>
+      <.section_card title="Definition JSON (read-only)">
+        <p class="text-xs text-[var(--paper-muted)]">
+          priv/npcs/{@npc_id}.json. Pack files are edited in git and ship with a deploy.
+        </p>
+        <pre
+          id="definition_json"
+          class="overflow-x-auto rounded bg-[var(--paper-bg)] p-3 text-xs"
+        >{@json}</pre>
       </.section_card>
     </Layouts.admin>
     """

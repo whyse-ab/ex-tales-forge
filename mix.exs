@@ -91,13 +91,7 @@ defmodule TalesForge.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       # Not dev-only: the Docker builder (MIX_ENV=prod) runs `mix docs` for
       # /admin/code-docs. runtime: false keeps it out of the release itself.
-      {:ex_doc, "~> 0.38", runtime: false},
-
-      # Ash for Phase 2 authoring layer (pre-play content only)
-      {:ash, "~> 3.0"},
-      {:ash_postgres, "~> 2.0"},
-      {:ash_phoenix, "~> 2.0"},
-      {:igniter, "~> 0.6", only: [:dev, :test]}
+      {:ex_doc, "~> 0.38", runtime: false}
     ]
   end
 
@@ -170,7 +164,6 @@ defmodule TalesForge.MixProject do
       ],
       "dev.check": ["compile", "dev.check"],
       "e2e.smoke": ["compile", "e2e.smoke"],
-      "tales.import_pack": ["tales.import_pack"],
       "tales.sync_docs": ["tales.sync_docs"]
     ]
   end

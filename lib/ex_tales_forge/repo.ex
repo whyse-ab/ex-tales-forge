@@ -1,20 +1,11 @@
 defmodule TalesForge.Repo do
   @moduledoc """
-  The Postgres repo. An `AshPostgres.Repo`, so it serves both the Ash authoring resources and the plain Ecto runtime schemas.
+  The Postgres repo (plain `Ecto.Repo`).
   """
 
-  # Upgraded to AshPostgres.Repo for Phase 2 authoring resources.
-  # Continues to work as a standard Ecto.Repo for existing runtime schemas.
-  use AshPostgres.Repo,
+  use Ecto.Repo,
     otp_app: :ex_tales_forge,
-    warn_on_missing_ash_functions?: false
-
-  def installed_extensions do
-    # Required for full AshPostgres features (atomics, string ops, ||/&&, etc.)
-    ["ash-functions", "uuid-ossp"]
-  end
-
-  def min_pg_version, do: %Version{major: 16, minor: 0, patch: 0}
+    adapter: Ecto.Adapters.Postgres
 
   @doc """
   Insert whose failure never aborts an enclosing transaction: inside one it runs

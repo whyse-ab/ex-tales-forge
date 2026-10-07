@@ -5,56 +5,36 @@ defmodule TalesForge.Admin do
 
   import Ecto.Query
 
-  require Ash.Query
   require Logger
 
   alias TalesForge.NPC
   alias TalesForge.Repo
   alias TalesForge.Schemas.{GameSession, NpcInstance, Scene, Turn}
 
+  @doc "Row counts for the admin dashboard."
   def stats do
-    # Use Ash for admin stats where possible (falls back to Ecto)
     %{
-      sessions: length(Ash.read!(TalesForge.AdminResources.GameSession)),
+      sessions: Repo.aggregate(GameSession, :count, :id),
       active_sessions:
-        length(
-          Ash.read!(
-            TalesForge.AdminResources.GameSession
-            |> Ash.Query.filter(status: :active)
-          )
-        ),
-      turns: length(Ash.read!(TalesForge.AdminResources.Turn)),
-      npc_instances: length(Ash.read!(TalesForge.AdminResources.NpcInstance)),
-      scenes: length(Ash.read!(TalesForge.AdminResources.Scene))
+        GameSession
+        |> where([s], s.status == "active")
+        |> Repo.aggregate(:count, :id),
+      turns: Repo.aggregate(Turn, :count, :id),
+      npc_instances: Repo.aggregate(NpcInstance, :count, :id),
+      scenes: Repo.aggregate(Scene, :count, :id)
     }
-  rescue
-    # Fallback during initial wiring
-    _ ->
-      %{
-        sessions: Repo.aggregate(GameSession, :count, :id),
-        active_sessions:
-          GameSession
-          |> where([s], s.status == "active")
-          |> Repo.aggregate(:count, :id),
-        turns: Repo.aggregate(Turn, :count, :id),
-        npc_instances: Repo.aggregate(NpcInstance, :count, :id),
-        scenes: Repo.aggregate(Scene, :count, :id)
-      }
   end
 
+  @doc "Every session, newest first, with its turn count, location and character name."
   def list_sessions do
-    # Example of using Ash for admin listing of runtime sessions.
-    # Game play paths still use the plain Ecto GameSessions module.
-    ash_sessions =
-      Ash.read!(
-        TalesForge.AdminResources.GameSession
-        |> Ash.Query.sort(inserted_at: :desc),
-        load: []
-      )
+    sessions =
+      GameSession
+      |> order_by([s], desc: s.inserted_at)
+      |> Repo.all()
 
-    counts = turn_counts(Enum.map(ash_sessions, & &1.id))
+    counts = turn_counts(Enum.map(sessions, & &1.id))
 
-    Enum.map(ash_sessions, fn session ->
+    Enum.map(sessions, fn session ->
       %{
         session: session,
         turn_count: Map.get(counts, session.id, 0),
@@ -70,6 +50,11 @@ defmodule TalesForge.Admin do
     GameSession
     |> Repo.get!(id)
     |> Repo.preload(preloads)
+  end
+
+  @doc "A changeset for the admin session form (name, status, world state, clock)."
+  def change_session(%GameSession{} = session, attrs \\ %{}) do
+    GameSession.changeset(session, attrs)
   end
 
   def update_session(%GameSession{} = session, attrs) do
@@ -89,14 +74,19 @@ defmodule TalesForge.Admin do
     end
   end
 
+  @doc """
+  Deletes the session. The foreign keys cascade: turns, scenes, NPC instances,
+  session events, front instances and playtest runs go with it; AI call rows
+  keep their data with `game_session_id` set to NULL.
+  """
   def delete_session(session) do
     id = Map.get(session, :id)
     name = Map.get(session, :name, "unknown")
     Logger.info("admin deleting session id=#{id} name=#{name}")
 
-    case Ash.get(TalesForge.AdminResources.GameSession, id) do
-      {:ok, ash_session} -> Ash.destroy!(ash_session)
-      _ -> :ok
+    case Repo.get(GameSession, id) do
+      nil -> :ok
+      found -> Repo.delete!(found)
     end
 
     :ok
@@ -132,14 +122,25 @@ defmodule TalesForge.Admin do
   end
 
   @doc """
-  The Ash admin NPC instance (what the AshPhoenix edit form needs) for the
-  `npc_id` slug in that session, or `nil` when the session has no such NPC.
-  Same lookup as `get_npc_instance!/2`, scoped to the session.
+  The NPC instance for the `npc_id` slug in that session, or `nil` when the
+  session has no such NPC. Same lookup as `get_npc_instance!/2`.
   """
-  def get_admin_npc_instance(session_id, npc_id) do
-    TalesForge.AdminResources.NpcInstance
-    |> Ash.Query.filter(game_session_id == ^session_id and npc_id == ^npc_id)
-    |> Ash.read_one!()
+  def get_npc_instance(session_id, npc_id) do
+    NpcInstance
+    |> where([n], n.game_session_id == ^session_id and n.npc_id == ^npc_id)
+    |> Repo.one()
+  end
+
+  @doc "A changeset for the admin NPC form (personality, runtime state, disposition)."
+  def change_npc_instance(%NpcInstance{} = instance, attrs \\ %{}) do
+    NpcInstance.admin_changeset(instance, attrs)
+  end
+
+  @doc "Saves the admin NPC form; only personality, runtime state and disposition change."
+  def save_npc_instance(%NpcInstance{} = instance, attrs) do
+    instance
+    |> NpcInstance.admin_changeset(attrs)
+    |> Repo.update()
   end
 
   def update_npc_instance(%NpcInstance{} = instance, attrs) do
@@ -169,36 +170,11 @@ defmodule TalesForge.Admin do
     |> Repo.one!()
   end
 
+  @doc """
+  Summaries of the NPC definition files in `priv/npcs`. The admin pages show
+  these read-only; the files are edited in git.
+  """
   def list_npc_definitions do
-    case load_npc_definitions_from_ash() do
-      defs when is_list(defs) and defs != [] -> defs
-      _ -> list_npc_definitions_from_files()
-    end
-  end
-
-  defp load_npc_definitions_from_ash do
-    case Ash.read(TalesForge.Authoring.NpcDefinition, load: []) do
-      {:ok, records} ->
-        records
-        |> Enum.map(fn rec ->
-          %{
-            id: rec.npc_id,
-            name: rec.name,
-            role: rec.role,
-            default_location_id: rec.default_location_id || "—",
-            file: "(Ash)"
-          }
-        end)
-        |> Enum.sort_by(& &1.id)
-
-      _ ->
-        []
-    end
-  rescue
-    _ -> []
-  end
-
-  defp list_npc_definitions_from_files do
     npc_dir()
     |> File.ls!()
     |> Enum.filter(&String.ends_with?(&1, ".json"))
@@ -206,42 +182,11 @@ defmodule TalesForge.Admin do
     |> Enum.sort_by(& &1.id)
   end
 
+  @doc "The decoded NPC definition file for `npc_id`; raises `ArgumentError` if there is none."
   def get_npc_definition!(npc_id) do
-    case load_npc_definition_from_ash(npc_id) do
-      {:ok, defn} -> defn
-      _ -> load_npc_definition_from_file!(npc_id)
-    end
-  end
-
-  defp load_npc_definition_from_ash(npc_id) do
-    case Ash.get(TalesForge.Authoring.NpcDefinition, npc_id, load: []) do
-      {:ok, %TalesForge.Authoring.NpcDefinition{} = rec} ->
-        {:ok,
-         %{
-           "id" => rec.npc_id,
-           "name" => rec.name,
-           "race" => rec.race,
-           "role" => rec.role,
-           "default_location_id" => rec.default_location_id,
-           "appearance" => rec.appearance,
-           "personality" => rec.personality,
-           "backstory" => rec.backstory,
-           "motivations" => rec.motivations || %{},
-           "stock" => rec.stock || [],
-           "portrait_url" => rec.portrait_url
-         }}
-
-      _ ->
-        {:error, :not_found}
-    end
-  rescue
-    _ -> {:error, :not_found}
-  end
-
-  defp load_npc_definition_from_file!(npc_id) do
     path = npc_definition_path(npc_id)
 
-    if File.exists?(path) do
+    if valid_npc_id?(npc_id) and File.exists?(path) do
       path
       |> File.read!()
       |> Jason.decode!()
@@ -254,43 +199,6 @@ defmodule TalesForge.Admin do
     npc_id
     |> get_npc_definition!()
     |> Jason.encode!(pretty: true)
-  end
-
-  def save_npc_definition(npc_id, json_string) when is_binary(json_string) do
-    with {:ok, definition} <- decode_json_map(json_string),
-         :ok <- validate_npc_definition(definition),
-         :ok <- write_npc_definition_file(npc_id, definition),
-         :ok <- upsert_npc_definition_to_ash(npc_id, definition) do
-      {:ok, definition}
-    end
-  end
-
-  defp upsert_npc_definition_to_ash(npc_id, definition) do
-    attrs = %{
-      npc_id: npc_id,
-      name: Map.get(definition, "name", npc_id),
-      race: Map.get(definition, "race", "human"),
-      role: Map.get(definition, "role"),
-      default_location_id: Map.get(definition, "default_location_id"),
-      appearance: Map.get(definition, "appearance"),
-      personality: Map.get(definition, "personality"),
-      backstory: Map.get(definition, "backstory"),
-      motivations: Map.get(definition, "motivations", %{}),
-      stock: Map.get(definition, "stock", []),
-      portrait_url: Map.get(definition, "portrait_url")
-    }
-
-    case Ash.get(TalesForge.Authoring.NpcDefinition, npc_id, load: []) do
-      {:ok, existing} ->
-        TalesForge.Authoring.NpcDefinition.update!(existing, attrs)
-        :ok
-
-      _ ->
-        TalesForge.Authoring.NpcDefinition.create!(attrs)
-        :ok
-    end
-  rescue
-    e -> {:error, "Ash upsert failed: #{inspect(e)}"}
   end
 
   def encode_json(data) do
@@ -343,36 +251,8 @@ defmodule TalesForge.Admin do
     Path.join(npc_dir(), "#{npc_id}.json")
   end
 
-  defp validate_npc_definition(definition) do
-    cond do
-      not is_map(definition) ->
-        {:error, "Definition must be a JSON object"}
-
-      blank?(Map.get(definition, "id")) ->
-        {:error, "Definition requires id"}
-
-      blank?(Map.get(definition, "name")) ->
-        {:error, "Definition requires name"}
-
-      true ->
-        :ok
-    end
-  end
-
-  defp write_npc_definition_file(npc_id, definition) do
-    path = npc_definition_path(npc_id)
-    tmp = path <> ".tmp"
-    payload = Jason.encode!(definition, pretty: true) <> "\n"
-
-    with :ok <- File.write(tmp, payload),
-         :ok <- File.rename(tmp, path) do
-      :ok
-    else
-      {:error, reason} -> {:error, "Could not save file: #{inspect(reason)}"}
-    end
-  end
-
-  defp blank?(value), do: is_nil(value) or to_string(value) |> String.trim() == ""
+  # Slugs only, so a crafted URL can't read files outside priv/npcs.
+  defp valid_npc_id?(npc_id), do: is_binary(npc_id) and npc_id =~ ~r/\A[a-z0-9_]+\z/
 
   # Resolved at runtime (not a module attribute): in a release priv is not at its build path.
   defp npc_dir, do: Path.join(:code.priv_dir(:ex_tales_forge), "npcs")

@@ -26,4 +26,14 @@ defmodule TalesForge.Schemas.NpcInstance do
     |> validate_required([:game_session_id, :npc_id])
     |> unique_constraint([:game_session_id, :npc_id])
   end
+
+  @doc """
+  Changeset for the admin NPC form: only personality, runtime state and
+  disposition can change; the session and slug stay fixed.
+  """
+  def admin_changeset(npc_instance, attrs) do
+    npc_instance
+    |> cast(attrs, [:personality, :runtime_state, :disposition])
+    |> validate_required([:disposition])
+  end
 end

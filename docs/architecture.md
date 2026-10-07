@@ -16,13 +16,15 @@ This is the spec and the map: how the game runs today, what we are building arou
 
 The big calls are written down so we do not reopen them by accident.
 
+> **Update 2026-10-07: Ash removed.** The Ash authoring layer (`Authoring.*`, `Authoring.Importer`, `mix tales.import_pack`) and the admin Ash resources (`AdminResources.*`) are gone, and the `adventures` / `locations` / `npc_definitions` tables are dropped. Authored content is the pack files under `priv/`; admin and play are plain Ecto. See tales-forge-docs `docs/decisions.md` (2026-10-07) and `docs/plan-remove-ash.md`. The PR plan below is history and still names Ash where it did at the time.
+
 ---
 
 ## Overview
 
 We noticed something while we were building the game: the AI was more consistent if we cleaned up what the player said *before* the storyteller saw it.
 
-Tales Forge is a text-first, instanced RPG on the BEAM. Phoenix LiveView for the table, Jido for the hot session and present NPCs, Ecto + PostgreSQL for the save, Oban for LLM work (and later simulation). Ash owns **pre-play authoring** only. The play loop is 100% Ecto.
+Tales Forge is a text-first, instanced RPG on the BEAM. Phoenix LiveView for the table, Jido for the hot session and present NPCs, Ecto + PostgreSQL for the save, Oban for LLM work (and later simulation). Authored content is pack files under `priv/`. Persistence is 100% Ecto.
 
 Today the loop is a two-tier turn against a static location graph. NPCs have personality, OCEAN traits, and a `current_concern` that can escalate into a line of dialogue. That is a person with a worry — not an adventure. **Crossroads Ledger** is a missing-ledger hook. Nobody is looking for the ledger off-screen. No guild is hiring steel. No nest is preparing. The table waits. The world does not run.
 
@@ -46,7 +48,7 @@ The OTP root in `lib/ex_tales_forge/application.ex` is a **flat** `:one_for_one`
 TalesForge.Supervisor
   ├── TalesForgeWeb.Telemetry
   ├── TalesForge.Repo
-  ├── Oban                         # queues: default:10, llm:5, images:3
+  ├── Oban                         # queues: default:10, llm:5
   ├── TalesForge.Jido              # global Jido runtime (max_tasks: 1000 = Task.Supervisor max_children, not agent cap)
   ├── TalesForge.NPCRecovery       # re-syncs present NPC agents on boot
   ├── DNSCluster
@@ -71,7 +73,7 @@ Play pipeline (`AGENTS.md` + `GameSessions` + workers):
 
 ```
 create_session
-  → NPC.seed_session (all priv/npcs/*.json or Ash NpcDefinition)
+  → NPC.seed_session (pack npcs/ for tin_valley, else all priv/npcs/*.json)
   → NPCRegistry.sync (agents only for present_npcs)
   → ProcessScene (Oban :llm) until last_scene_location == location_id
 submit_message
@@ -111,7 +113,7 @@ The other holes we have to close:
 
 ### Adjacent work (not this design)
 
-Image generation (Grok sketches for scenes and NPC portraits) lives on `feature/scene-image-generation` and in `TalesForge.Workers.GenerateImage` / Oban `:images`. Tigris can wait. Images are mentioned here only as a pattern we already have: **the table returns, Oban thinks, PubSub patches the UI**.
+Image generation (Grok sketches for scenes and NPC portraits) lives on `feature/scene-image-generation`; the unused `Workers.GenerateImage` and Oban `:images` queue were removed from main on 2026-10-07. Tigris can wait. The pattern still holds for any async work: **the table returns, Oban thinks, PubSub patches the UI**.
 
 ---
 
@@ -137,8 +139,7 @@ Image generation (Grok sketches for scenes and NPC portraits) lives on `feature/
 - Occupied `LocationAgent` processes (optional later; not required for the tracer).
 - Image generation / Tigris.
 - Porting text-forge Supabase code.
-- Putting runtime fronts in Ash.
-- Mixing Ash into `TurnProcessor`, `GameSessions` play paths, Jido, or Oban workers.
+- A second data layer (Ash was removed on 2026-10-07) for runtime fronts or play paths.
 
 ---
 
@@ -178,7 +179,7 @@ Marta remains a **person with a concern**, not a front. The thing under the mine
 
 9. **Do not block the player on faction LLM.** `ProcessTurn` returns after table GM + **synchronous rule tick**. Chronicler is an Oban job; the next turn/scene reads new facts.
 
-10. **Runtime fronts are Ecto (`FrontInstance`), not Ash, not stuffed into `world_state`.** Same split as `NpcInstance`. Ash may grow `Authoring.FrontDefinition` in Phase 2 for pack import; play paths never call it.
+10. **Runtime fronts are Ecto (`FrontInstance`), not stuffed into `world_state`.** Same split as `NpcInstance`. Front definitions come from the pack files.
 
 11. **Tracer pack is a new adventure (`tin_valley`), not a Crossroads extension.** Existing `crossroads_ledger` tests, `mix e2e.smoke` (Marta / chalk / square), and `World.default_world_state/0` stay green. `create_session(%{adventure_id: "tin_valley"})` is **not** plumbed today — PR-2 adds `Pack.load/1` and fixes materialization. Crossroads can gain a real opposing front later; it is not the first proof.
 
@@ -201,10 +202,10 @@ Marta remains a **person with a concern**, not a front. The thing under the mine
 `TalesForge.GameSessions.create_session/1` **today**:
 
 1. Reads `adventure_id` from attrs (or defaults to `"crossroads_ledger"`). That key is **not** a `GameSession` field — `GameSession.changeset/2` casts only `name | status | world_state | world_clock`, so extra keys are dropped at insert.
-2. `resolve_adventure_world_state/1` succeeds only if Ash `Authoring.Adventure` has a matching row. `priv/repo/seeds.exs` seeds **only** `crossroads_ledger` (plus Marta/Henrik `NpcDefinition`s and three Crossroads locations). On Ash miss it returns `nil` and the session uses `World.default_world_state/0` (`adventure_id: "crossroads_ledger"`, start `weary_pilgrim`, tick 36 = "Day 1 · late afternoon").
-3. Even when Ash **does** match, the materializer copies Crossroads leftovers: `location_name` stays `"The Weary Pilgrim"`, `character.location_id` stays `weary_pilgrim`, `situation_lines` stay Marta / tavern door. `TurnProcessor.apply_location_updates/1` then uses `Context.current_location_id/1`, which **prefers `character.location_id`**, so the first turn snaps the player back to the Pilgrim. `Context.build_intent_context/1` falls back to `present_npcs: ["marta_kellen"]` when the list is empty.
+2. `tin_valley` materializes from its pack (`Pack.materialize/1`); every other id uses `World.default_world_state/0` (`adventure_id: "crossroads_ledger"`, start `weary_pilgrim`, tick 36 = "Day 1 · late afternoon"). (Until 2026-10-07 an Ash `Authoring.Adventure` row could overlay this; that path is gone.)
+3. `Context.build_intent_context/1` falls back to `present_npcs: ["marta_kellen"]` when the list is empty on Crossroads.
 4. Inserts `GameSession`. Default `name` is `"Crossroads Hamlet"` (`create_session/1` Map.merge) unless attrs pass `name`.
-5. `NPC.seed_session/1` inserts an `NpcInstance` for **every** Ash `NpcDefinition` or, if Ash is empty, **every** `priv/npcs/*.json` (Marta **and** Henrik). There is no `adventure_id` filter (`NpcDefinition` identity is globally unique).
+5. `NPC.seed_session/1` inserts an `NpcInstance` for the pack's `npcs/` on tin_valley, else for **every** `priv/npcs/*.json` (Marta **and** Henrik).
 6. `present_npcs` is whoever shares the player's location (`NPC.sync_present_npcs/2`).
 7. Starts `PlayerSessionAgent`; `NPCRegistry.sync/1` starts agents only for present NPCs.
 8. `ensure_scene/1` enqueues `TalesForge.Workers.ProcessScene` if `last_scene_location != location_id`.
@@ -256,11 +257,10 @@ The shape is right (signals, rule-based concern, persist then notify). The scope
 | Layer | Owner | Examples |
 |-------|-------|----------|
 | Human-readable authored | `priv/rules/*.md`, `priv/prompts/*.txt`, `priv/adventures/**`, `priv/npcs/*.json` | Crossroads Ledger, Marta JSON |
-| Pre-play working copy | Ash `Authoring.*` via `Authoring.Importer` | `adventures`, `locations`, `npc_definitions` |
 | Live play | Ecto `GameSession`, `Turn`, `NpcInstance`, `Scene` | `world_state` JSON + instance rows |
-| Admin surfaces | Ash `AdminResources.*` over the same tables | `/admin` JSON editors |
+| Admin surfaces | `TalesForge.Admin` (Ecto changesets) over the same tables | `/admin` forms and JSON editors; NPC definitions read-only |
 
-Do not merge these layers. We already split authoring from play on purpose. Fronts follow the same split: pack JSON/markdown → optional Ash `FrontDefinition` (Phase 2 importer) → Ecto `FrontInstance`.
+Do not merge these layers. Authored files are copied into instance rows at session creation; play never writes them. Fronts follow the same split: pack JSON/markdown → Ecto `FrontInstance`.
 
 ### Pack materialization (PR-2; dual path — do not break Crossroads)
 
@@ -270,9 +270,9 @@ Do not merge these layers. We already split authoring from play on purpose. Fron
 
 | | **tin_valley** (and later complete packs) | **crossroads_ledger** (default) |
 |--|------------------------------------------|----------------------------------|
-| World | `Pack.load/1` → `Pack.materialize/1` | **Today’s seed**: `World.default_world_state/0`, with existing Ash overlay `resolve_adventure_world_state/1` if an Adventure row exists |
+| World | `Pack.load/1` → `Pack.materialize/1` | **Today’s seed**: `World.default_world_state/0` |
 | Exit graph | **Fail fast** if any `exits` id is missing from `locations`, if start is missing, if portent `spawns_front` is missing | **Allow dangling exits** (`kings_road`). Do not call fail-fast `Pack.load/1` |
-| NPCs | Pack `npcs/` only (innkeep, guild_steward). No Marta, no Henrik | **Today:** every Ash `NpcDefinition` or every `priv/npcs/*.json` (Marta **and** Henrik) |
+| NPCs | Pack `npcs/` only (innkeep, guild_steward). No Marta, no Henrik | **Today:** every `priv/npcs/*.json` (Marta **and** Henrik) |
 | Fronts | Two live + one dormant | **Zero** (`Fronts.seed_session/1` no-op) |
 | Character | `World.default_world_state()["character"]` then `Map.put("location_id", starting_location_id)` | Unchanged Elara in `World.default_world_state/0` (`location_id: "weary_pilgrim"`) |
 | Opening lines | Pack `situation_lines` | Unchanged Marta / tavern door |
@@ -316,16 +316,14 @@ Strip unknown keys (`adventure_id` is not a schema field) before `GameSession.ch
 def seed_session(session) do
   case Context.adventure_id(session.world_state) do
     "tin_valley" -> seed_from_pack(session, Pack.load("tin_valley").npcs)
-    _ -> seed_legacy(session)  # today’s Ash-or-priv/npcs/*.json (Marta + Henrik)
+    _ -> seed_legacy(session)  # priv/npcs/*.json (Marta + Henrik)
   end
 end
 ```
 
 **`Fronts.seed_session/1`:** pack fronts for tin_valley; **no-op** for Crossroads.
 
-**`resolve_adventure_world_state/1`:** remains the Crossroads/Ash overlay only. Do not “fix” it by switching Crossroads onto `Pack.load/1`. Optional later hygiene (not PR-2 merge bar): when Ash matches Crossroads, still start from `World.default_world_state/0` so Elara/situation_lines stay DRY.
-
-**Ash path (optional overlay, not the tracer gate):** `mix tales.import_pack priv/adventures/tin_valley --yes` writes `Authoring.Adventure` / `Location` / `NpcDefinition`. It does **not** understand `fronts/*.json` yet — Phase 2. Tests must not require a prior mix task. Do not seed tin_valley NPCs into the **global** `NpcDefinition` identity in a way that `seed_legacy/1` would insert innkeep into Crossroads sessions.
+**Crossroads world:** `World.default_world_state/0`. Do not “fix” it by switching Crossroads onto `Pack.load/1`. (The Ash overlay `resolve_adventure_world_state/1` and `mix tales.import_pack` were removed on 2026-10-07.)
 
 **`Context.build_intent_context/1`:** gate the `present_npcs: [] → ["marta_kellen"]` fallback on `adventure_id == "crossroads_ledger"`. Empty present is valid on tin_valley (empty road). Do **not** remove the fallback for Crossroads in PR-2.
 
@@ -636,7 +634,7 @@ def tick(%{fronts: fronts, events: events}) do
 end
 ```
 
-`TalesForge.Fronts.persist_tick(session, sim)` writes `FrontInstance` rows. `list_live/1` is `status == "live"` only (`thing_below` starts `dormant` and is excluded until a portent).
+`TalesForge.Fronts.persist_tick(session, sim)` writes `FrontInstance` rows. Live fronts are the `status == "live"` rows from `list_all/1` (`thing_below` starts `dormant` and is excluded until a portent); the planned `list_live/1` helper was removed on 2026-10-07 as unused.
 
 Rules are a **tiny predicate table** for PR-3 (hardcoding the two proofs with a comment "compiler in a follow-up" is acceptable if the pack JSON still documents them):
 
@@ -892,14 +890,13 @@ TalesForge.Game.Perception.npc_prompt_view(npc_instance) :: map()  # allow-list
 ```elixir
 # lib/ex_tales_forge/fronts.ex
 TalesForge.Fronts.seed_session(session) :: :ok
-TalesForge.Fronts.list_live(session_id) :: [%FrontInstance{}]   # status == "live"
 TalesForge.Fronts.list_all(session_id) :: [%FrontInstance{}]    # includes dormant
 TalesForge.Fronts.get_instance(session_id, front_id)
 TalesForge.Fronts.persist_tick(session, sim_result) :: {:ok, session} | {:error, term()}
 TalesForge.Fronts.record_memory(session_id, front_id, memory)
 ```
 
-Never `Ash.read` on the play path. Pack load is files (`Game.Pack`). Phase 2: `mix tales.import_pack priv/adventures/tin_valley --yes` plus `Authoring.FrontDefinition` — do not block the tracer.
+Pack load is files (`Game.Pack`); front definitions are never read from the database.
 
 ### LLM
 
@@ -931,7 +928,7 @@ end
 
 Job args include `session_id`, `turn_number`, `world_tick`, `unmatched_front_ids`. At perform: reload fronts; **re-check move preconditions**; if `Context.world_tick(session.world_state) > job.world_tick`, drop (the next turn already ticked). Optional `lock_version` on `front_instances` is welcome; re-check is the required contract. `runtime_state` JSON RMW is the same class of bug we rejected for `world_state` — do not pretend the table alone serializes chronicler vs `ProcessTurn`.
 
-`config :ex_tales_forge, Oban, queues: [default: 10, llm: 5, images: 3, sim: 4]`.
+`config :ex_tales_forge, Oban, queues: [default: 10, llm: 5, sim: 4]` (planned; today the config has `default: 10, llm: 5`).
 
 Worker is thin: load session + unmatched fronts, call `LLM.complete_chronicler`, `Moves.apply`, persist, log. No narration. No PubSub required for tracer; later a `{:world_sim_updated, %{}}` can refresh admin clocks.
 
@@ -996,7 +993,7 @@ Add a `## Perceived world` block from `Perception.visible_world/1`. NPC JSON use
 
 ### Pack format (authored, human-readable)
 
-New adventure `priv/adventures/tin_valley/` (tracer). Conventional containers already understood by `Authoring.Importer` (`world/`, `npcs/`, `rules/`). Add `fronts/` (JSON — clocks and predicates are data) and `portents/` (markdown prose).
+New adventure `priv/adventures/tin_valley/` (tracer). Conventional containers (`world/`, `npcs/`, `rules/`), read by `Game.Pack`. Add `fronts/` (JSON — clocks and predicates are data) and `portents/` (markdown prose).
 
 ```
 priv/adventures/tin_valley/
@@ -1151,7 +1148,7 @@ Example `fronts/miners_guild.json` (clocks only, tracer):
 }
 ```
 
-Importer (Phase 2, not tracer-blocking): `mix tales.import_pack priv/adventures/tin_valley --yes`; later recognize `fronts/` and upsert Ash `Authoring.FrontDefinition`. Tracer loads JSON via `Game.Pack.load/1`.
+The game loads the JSON via `Game.Pack.load/1`; there is no database import step.
 
 ### Runtime Ecto (play loop)
 
@@ -1166,7 +1163,7 @@ Importer (Phase 2, not tracer-blocking): `mix tales.import_pack priv/adventures/
 
 **Rejected: fronts only inside `world_state` JSON.** `world_state` is already a coordination snapshot (character, locations, present_npcs, situation_lines). Stuffing clocks/memories there repeats the NPC mistake we already escaped by adding `npc_instances`. Concurrent chronicler vs next turn would copy-overwrite JSON. Memories would not be queryable.
 
-**Rejected: Ash resource as runtime.** `AGENTS.md` non-negotiable 1. Admin may later add `AdminResources.FrontInstance` over the Ecto table, same as `AdminResources.NpcInstance`.
+**Rejected: Ash resource as runtime.** `AGENTS.md` non-negotiable 1 (and Ash is gone since 2026-10-07). Admin may later show `FrontInstance` rows through `TalesForge.Admin`, same as NPC instances.
 
 **Seed copy (`Fronts.seed_session/1`, NpcInstance pattern):** `definition` is the full authored JSON (immutable copy). Mutable clocks/resources/beliefs/public_facts/memories live in `runtime_state`. Do not mutate `definition` at runtime.
 
@@ -1331,7 +1328,7 @@ Generative "who hates whom" is cheap novelty and expensive consistency. It inven
 
 ### 6. Runtime fronts in Ash vs Ecto
 
-Ash is the admin/authoring tool (`AdminResources`, `Authoring.Importer`). Play paths are Ecto by contract (`GameSessions`, `TurnProcessor`, `NPC` all say so in moduledocs). Runtime fronts in Ash would mix layers, pull Ash into Oban workers, and fight the `NpcInstance` pattern. **Ecto `FrontInstance`.** Ash `FrontDefinition` can wait for pack import.
+At the time Ash was the admin/authoring tool. Play paths are Ecto by contract. Runtime fronts in Ash would have mixed layers, pulled Ash into Oban workers, and fought the `NpcInstance` pattern. **Ecto `FrontInstance`.** (Ash was removed entirely on 2026-10-07.)
 
 ### 7. `world_state` JSON vs `FrontInstance` table (decided: table)
 
@@ -1420,7 +1417,7 @@ The calls above are not open. These still are, and they do not block the tracer:
 
 4. **PubSub topic per location.** Optional for extras/overhear later. Tracer uses existing `game_session:{id}`.
 
-5. **Ash `FrontDefinition` timing.** Importer support can trail the file-based loader (same as NPCs still loading `priv/npcs/*.json` when Ash is empty). Do not block the tracer on Ash. Phase 2 hook: `mix tales.import_pack priv/adventures/tin_valley --yes` (`lib/mix/tasks/tales.import_pack.ex`); extend Importer for `fronts/` later.
+5. ~~**Ash `FrontDefinition` timing.**~~ Closed 2026-10-07: Ash and the importer were removed; front definitions stay in pack files.
 
 Not open: instancing, turn ticks, no invented major fronts, Ecto runtime, table GM as only voice, dawdle **cumulative** default of 8 (authored in pack), **dual-path session create** (tin_valley fail-fast Pack vs Crossroads today’s seed, including dangling `kings_road` + Henrik), one Multi per turn for session/turn/events/fronts.
 
@@ -1428,7 +1425,7 @@ Not open: instancing, turn ticks, no invented major fronts, Ecto runtime, table 
 
 ## References
 
-- `AGENTS.md` — non-negotiables (Ash vs Ecto, two-tier LLM, server dice, prompts as source of truth).
+- `AGENTS.md` — non-negotiables (plain Ecto, two-tier LLM, server dice, prompts as source of truth).
 - `lib/ex_tales_forge/application.ex` — current OTP tree.
 - `lib/ex_tales_forge/game_sessions.ex` — session create, intent, Oban enqueue.
 - `lib/ex_tales_forge/game/turn_processor.ex` — Tier 2 + mechanics + persist + NPC signals.
@@ -1438,8 +1435,6 @@ Not open: instancing, turn ticks, no invented major fronts, Ecto runtime, table 
 - `lib/ex_tales_forge/game/world.ex` — hardcoded Crossroads `location/1`; play path must use `runtime_location/2`.
 - `lib/ex_tales_forge_web/live/home_live.ex` — hardcodes Crossroads `create_session`.
 - `lib/ex_tales_forge_web/live/play_live.ex` — `maybe_start_scene_after_travel/3` enqueues scene after `turn_completed`.
-- `lib/mix/tasks/tales.import_pack.ex` — Phase 2 Ash import (`--yes`); does not yet read `fronts/`.
-- `priv/repo/seeds.exs` — Crossroads only.
 - `lib/ex_tales_forge/game/mechanics.ex` — 1d20 + LP; social unbounded.
 - `lib/ex_tales_forge/npc.ex`, `npc_registry.ex`, `npc_signals.ex`, `npc_recovery.ex` — present-NPC agency.
 - `lib/ex_tales_forge/agents/npc_agent.ex`, `player_session_agent.ex`.
@@ -1449,7 +1444,7 @@ Not open: instancing, turn ticks, no invented major fronts, Ecto runtime, table 
 - `priv/prompts/gm_system.txt` — table GM contract (extend, do not fork).
 - `priv/rules/*.md` — mechanics the GM already receives.
 - `.grok/skills/pragmatic-tracer-bullets/SKILL.md` — tracer before thickening.
-- Adjacent: `TalesForge.Workers.GenerateImage` / Oban `:images` as the async "don't block the player" pattern.
+- Adjacent: `TalesForge.Workers.ProcessScene` / Oban `:llm` as the async "don't block the player" pattern.
 
 ---
 
@@ -1474,7 +1469,7 @@ Each PR is independently reviewable and mergeable on a feature branch. The trace
   - `lib/ex_tales_forge/schemas/session_event.ex`
   - `lib/ex_tales_forge/schemas/game_session.ex` (`has_many`)
   - `lib/ex_tales_forge/game/pack.ex` — file loader
-  - `lib/ex_tales_forge/fronts.ex` — `seed_session/1`, `list_live/1`, `list_all/1`, `get_instance/2`
+  - `lib/ex_tales_forge/fronts.ex` — `seed_session/1`, `list_all/1`, `get_instance/2` (a planned `list_live/1` was later removed as unused)
   - `lib/ex_tales_forge/game/fronts.ex` — parse/validate (fail if portent `spawns_front` missing)
   - `lib/ex_tales_forge/game_sessions.ex` — **dual path**: `tin_valley` → `Pack.materialize/1`; `crossroads_ledger` → existing `World.default_world_state/0` / `resolve_adventure_world_state/1`. Strip non-schema attrs. `Fronts.seed_session/1` (no-op on Crossroads)
   - `lib/ex_tales_forge/npc.ex` — `seed_from_pack/2` only when `adventure_id == "tin_valley"`; **legacy seed unchanged** for Crossroads (Marta + Henrik)
@@ -1593,7 +1588,7 @@ PR-1 doc
               └── PR-7 extras (depends on PR-3, not PR-6)
 ```
 
-Admin clock visibility can be a small PR after PR-2 (`AdminResources.FrontInstance` + session show panel). Image work stays on its own branch.
+Admin clock visibility can be a small PR after PR-2 (front instances in `TalesForge.Admin` + session show panel). Image work stays on its own branch.
 
 ---
 

@@ -1,13 +1,12 @@
 defmodule TalesForgeWeb.AdminLive.NpcLive.Show do
   @moduledoc """
-  Admin: one NPC in a session, with an Ash form to edit it.
+  Admin: one NPC in a session, with an Ecto changeset form to edit it.
   """
 
   use TalesForgeWeb, :live_view
 
   import TalesForgeWeb.AdminComponents
 
-  alias AshPhoenix.Form
   alias TalesForge.Admin
 
   @impl true
@@ -15,7 +14,7 @@ defmodule TalesForgeWeb.AdminLive.NpcLive.Show do
     session = Admin.get_session!(session_id)
 
     # The URL carries the NPC's slug (npc_id), unique per session.
-    case Admin.get_admin_npc_instance(session.id, npc_id) do
+    case Admin.get_npc_instance(session.id, npc_id) do
       nil ->
         {:ok,
          socket
@@ -28,55 +27,45 @@ defmodule TalesForgeWeb.AdminLive.NpcLive.Show do
   end
 
   defp assign_npc(socket, session, npc) do
-    ash_form =
-      Form.for_update(npc, :update,
-        domain: TalesForge.AdminResources,
-        as: "npc"
-      )
-
     socket
     |> assign(:page_title, npc.npc_id)
     |> assign(:session, session)
     |> assign(:npc, npc)
     |> assign(:runtime_json, Admin.encode_json(npc.runtime_state || %{}))
     |> assign(:personality_json, Admin.encode_json(npc.personality || %{}))
-    |> assign(:ash_form, ash_form)
-    |> assign(:form, to_form(ash_form))
+    |> assign(:form, to_form(Admin.change_npc_instance(npc), as: "npc"))
   end
 
   @impl true
   def handle_event("save_disposition", %{"npc" => params}, socket) do
-    case Form.submit(socket.assigns.ash_form, params: params) do
-      {:ok, npc} ->
-        new_ash = Form.for_update(npc, :update, domain: TalesForge.AdminResources, as: "npc")
+    %{session: session, npc: npc} = socket.assigns
 
+    case Admin.save_npc_instance(npc, params) do
+      {:ok, npc} ->
         {:noreply,
          socket
-         |> assign(:npc, npc)
-         |> assign(:ash_form, new_ash)
-         |> assign(:form, to_form(new_ash))
+         |> assign_npc(session, npc)
          |> put_flash(:info, "Disposition updated.")}
 
-      {:error, ash_form} ->
-        {:noreply, assign(socket, :ash_form, ash_form) |> assign(:form, to_form(ash_form))}
+      {:error, changeset} ->
+        {:noreply, assign(socket, :form, to_form(changeset, as: "npc"))}
     end
   end
 
   def handle_event("validate_disposition", %{"npc" => params}, socket) do
-    ash_form = Form.validate(socket.assigns.ash_form, params)
-    {:noreply, assign(socket, :ash_form, ash_form) |> assign(:form, to_form(ash_form))}
+    changeset =
+      socket.assigns.npc
+      |> Admin.change_npc_instance(params)
+      |> Map.put(:action, :validate)
+
+    {:noreply, assign(socket, :form, to_form(changeset, as: "npc"))}
   end
 
   def handle_event("save_runtime", %{"runtime_json" => json}, socket) do
     %{session: session, npc: npc} = socket.assigns
-    # @npc is the Ash admin record (for the form); the JSON save goes through
-    # the Ecto context, then both are reloaded so the form isn't stale.
-    instance = Admin.get_npc_instance!(session.id, npc.npc_id)
 
-    case Admin.update_npc_runtime_state(instance, json) do
-      {:ok, _instance} ->
-        npc = Admin.get_admin_npc_instance(session.id, npc.npc_id)
-
+    case Admin.update_npc_runtime_state(npc, json) do
+      {:ok, npc} ->
         {:noreply,
          socket
          |> assign_npc(session, npc)

@@ -6,7 +6,7 @@ defmodule TalesForge.Game.TurnProcessor do
   events → WorldSim → Perception → table GM (tone only) → allow-listed
   patches → Multi → sync/signals → turn_completed.
 
-  Core runtime is 100% Ecto. Ash is not allowed here.
+  Core runtime is 100% Ecto.
   """
 
   require Logger
