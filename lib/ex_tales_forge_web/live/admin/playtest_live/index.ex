@@ -8,9 +8,15 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
   import TalesForgeWeb.AdminComponents
 
   alias TalesForge.Playtest.{Personas, Reports, Runner}
+  alias TalesForgeWeb.TimeAgo
+
+  # Re-render the "N minutes ago" words this often; the rows are not reloaded.
+  @tick_ms 60_000
 
   @impl true
   def mount(_params, _session, socket) do
+    if connected?(socket), do: :timer.send_interval(@tick_ms, :tick)
+
     {:ok,
      socket
      |> assign(:page_title, "Playtest runs")
@@ -21,8 +27,12 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
        :form,
        to_form(%{"persona" => "paul", "module" => "tin_valley", "turn_limit" => "5"})
      )
-     |> assign(:rows, Reports.list_runs())}
+     |> assign(:rows, Reports.list_runs())
+     |> assign(:now, DateTime.utc_now())}
   end
+
+  @impl true
+  def handle_info(:tick, socket), do: {:noreply, assign(socket, :now, DateTime.utc_now())}
 
   @impl true
   def handle_event("start", %{"persona" => persona, "module" => module} = params, socket) do
@@ -97,8 +107,11 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
                 >
                   {row.run.persona}
                 </.link>
-                <div class="text-xs text-[var(--paper-muted)]">
-                  {Calendar.strftime(row.run.started_at, "%m-%d %H:%M UTC")}
+                <div class="text-xs text-[var(--paper-muted)] sm:whitespace-nowrap">
+                  <.time_ago id={"run-#{row.run.id}-started"} at={row.run.started_at} now={@now} />
+                  <span class="hidden sm:inline">
+                    · {TimeAgo.stockholm(row.run.started_at, "%m-%d %H:%M")}
+                  </span>
                 </div>
                 <div class="text-xs text-[var(--paper-muted)] sm:hidden">{row.run.module}</div>
               </td>

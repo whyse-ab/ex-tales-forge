@@ -3,6 +3,8 @@ defmodule TalesForgeWeb.AdminComponents do
 
   use TalesForgeWeb, :html
 
+  alias TalesForgeWeb.TimeAgo
+
   attr :active, :string, default: "dashboard"
 
   def nav(assigns) do
@@ -112,6 +114,30 @@ defmodule TalesForgeWeb.AdminComponents do
       <h2 class="font-serif text-lg font-semibold text-[var(--paper-ink)]">{@title}</h2>
       {render_slot(@inner_block)}
     </section>
+    """
+  end
+
+  attr :at, DateTime, required: true, doc: "the instant to describe"
+
+  attr :now, DateTime,
+    required: true,
+    doc: "the render's \"now\"; tick it to keep the words fresh"
+
+  attr :id, :string, default: nil
+
+  @doc """
+  How long ago `at` was ("3 minutes ago"), as a `<time>` element whose
+  `title` tooltip is the absolute time in Europe/Stockholm. See
+  `TalesForgeWeb.TimeAgo`.
+  """
+  @spec time_ago(map()) :: Phoenix.LiveView.Rendered.t()
+  def time_ago(assigns) do
+    ~H"""
+    <time
+      id={@id}
+      datetime={DateTime.to_iso8601(@at)}
+      title={TimeAgo.stockholm(@at)}
+    >{TimeAgo.relative(@at, @now)}</time>
     """
   end
 

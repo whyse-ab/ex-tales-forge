@@ -47,6 +47,52 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     assert html =~ ~s(id="run-#{scored.id}")
   end
 
+  test "runs list says how long ago each run started, newest first, Stockholm time on hover",
+       %{conn: conn} do
+    now = DateTime.utc_now(:second)
+    old = seed_run(persona: "lotta", started_at: DateTime.add(now, -4 * 86_400, :second))
+    recent = seed_run(persona: "paul", started_at: DateTime.add(now, -3 * 60, :second))
+    middle = seed_run(persona: "hawk", started_at: DateTime.add(now, -2 * 3_600 - 60, :second))
+
+    {:ok, view, html} = live(conn, ~p"/admin/playtest")
+
+    # Order unchanged: newest started_at first, whatever the insert order.
+    assert Regex.scan(~r/<tr id="run-([^"]+)"/, html, capture: :all_but_first) ==
+             [[recent.id], [middle.id], [old.id]]
+
+    assert has_element?(view, "#run-#{recent.id}-started", "3 minutes ago")
+    assert has_element?(view, "#run-#{middle.id}-started", "2 hours ago")
+    assert has_element?(view, "#run-#{old.id}-started", "4 days ago")
+
+    title = TalesForgeWeb.TimeAgo.stockholm(recent.started_at)
+    assert has_element?(view, ~s(#run-#{recent.id}-started[title="#{title}"]))
+    assert html =~ TalesForgeWeb.TimeAgo.stockholm(recent.started_at, "%m-%d %H:%M")
+    refute html =~ "UTC"
+
+    # The minute tick re-renders without reloading or reordering the rows.
+    send(view.pid, :tick)
+    assert has_element?(view, "#run-#{recent.id}-started", "3 minutes ago")
+  end
+
+  test "run detail header says how long ago the run started and when, in Stockholm",
+       %{conn: conn} do
+    run =
+      seed_run(
+        score: true,
+        started_at: DateTime.add(DateTime.utc_now(:second), -2 * 3_600, :second)
+      )
+
+    {:ok, view, html} = live(conn, ~p"/admin/playtest/#{run.id}")
+
+    assert has_element?(view, "#run-started", "2 hours ago")
+    assert html =~ "(#{TalesForgeWeb.TimeAgo.stockholm(run.started_at)})"
+    assert has_element?(view, "#score-scored-at", "a few seconds ago")
+    refute html =~ "UTC"
+
+    send(view.pid, :tick)
+    assert has_element?(view, "#run-started", "2 hours ago")
+  end
+
   test "start form is hidden and refused when the runner is off", %{conn: conn} do
     {:ok, view, html} = live(conn, ~p"/admin/playtest")
     refute html =~ "Start a run"
@@ -197,6 +243,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
   end
 
   defp seed_run(opts \\ []) do
+    started_at = Keyword.get(opts, :started_at, ~U[2026-10-06 15:00:00Z])
     {:ok, session} = GameSessions.create_session(%{name: "Seeded", adventure_id: "tin_valley"})
 
     run =
@@ -209,8 +256,8 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
         turns_played: 1,
         status: "finished",
         stop_reason: "turn_limit",
-        started_at: ~U[2026-10-06 15:00:00Z],
-        finished_at: ~U[2026-10-06 15:00:20Z],
+        started_at: started_at,
+        finished_at: DateTime.add(started_at, 20, :second),
         game_ms: 12_300,
         persona_calls: 2,
         persona_ms: 3_100,
