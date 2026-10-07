@@ -298,7 +298,14 @@ defmodule TalesForge.World do
   defp check(false, reason), do: {:error, reason}
 
   defp resolve(about, agents) do
-    key = about |> to_string() |> String.trim() |> String.downcase()
+    # The prompt shows ids as "[valley_inn]"; the GM sometimes copies the brackets.
+    key =
+      about
+      |> to_string()
+      |> String.trim()
+      |> String.trim("[")
+      |> String.trim("]")
+      |> String.downcase()
 
     found =
       if key == "here",

@@ -81,7 +81,7 @@ defmodule TalesForge.WorldTest do
         "kind" => "promise",
         "text" => "Keep the back room for Lotta until dusk"
       },
-      %{"about" => "here", "kind" => "price", "text" => "Stabling: 4 copper a night"},
+      %{"about" => "[valley_inn]", "kind" => "price", "text" => "Stabling: 4 copper a night"},
       %{"about" => "valley_inn", "kind" => "price", "text" => "Room for the night: 2 silver"},
       %{"about" => "valley_inn", "kind" => "promise", "text" => "The inn promises nothing"},
       %{"about" => "harpy_roost", "kind" => "fact", "text" => "Harpies nest on the ridge"},
