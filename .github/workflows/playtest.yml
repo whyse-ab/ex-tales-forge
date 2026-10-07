@@ -51,7 +51,9 @@ jobs:
             echo "::error::Repo secret FLY_API_TOKEN_PLAYTEST is not set (app-scoped deploy token for tales-forge-playtest)."
             exit 1
           fi
-          flyctl deploy --remote-only -c fly.playtest.toml -a tales-forge-playtest --ha=false --depot="${FLY_USE_DEPOT:-false}"
+          # GIT_SHA: the commit checked out above goes into the image (Dockerfile).
+          flyctl deploy --remote-only -c fly.playtest.toml -a tales-forge-playtest --ha=false --depot="${FLY_USE_DEPOT:-false}" \
+            --build-arg GIT_SHA="$(git rev-parse HEAD)"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_PLAYTEST }}
           FLY_USE_DEPOT: ${{ vars.FLY_USE_DEPOT }}

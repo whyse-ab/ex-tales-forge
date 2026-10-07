@@ -7,7 +7,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
 
   import TalesForgeWeb.AdminComponents
 
-  alias TalesForge.Playtest.{Reports, Runner, Scorer}
+  alias TalesForge.Playtest.{Reports, RunMeta, Runner, Scorer}
   alias TalesForgeWeb.TimeAgo
 
   @refresh_ms 3_000
@@ -99,6 +99,28 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
             class="text-[var(--paper-accent)]"
           >session</.link>
         </p>
+        <p id="run-commit" class="text-sm text-[var(--paper-muted)]">
+          Commit
+          <.link
+            :if={@run.git_sha}
+            href={RunMeta.commit_url(@run.git_sha)}
+            title={@run.git_sha}
+            class="font-mono text-[var(--paper-accent)]"
+          >{RunMeta.short_sha(@run.git_sha)}</.link>
+          <span :if={is_nil(@run.git_sha)}>unknown</span>
+        </p>
+        <ul
+          :if={@run.flags not in [nil, %{}]}
+          id="run-flags"
+          class="flex flex-wrap gap-2 text-xs"
+        >
+          <li
+            :for={{name, value} <- Enum.sort(@run.flags)}
+            class="rounded border border-[var(--paper-rule)] bg-[var(--paper-bg)] px-2 py-0.5 font-mono"
+          >
+            {name}={value}
+          </li>
+        </ul>
         <p :if={@run.notes} class="text-sm text-[var(--paper-muted)]">
           {@run.notes}
         </p>

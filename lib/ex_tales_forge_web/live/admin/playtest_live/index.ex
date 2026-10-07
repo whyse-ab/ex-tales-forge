@@ -8,7 +8,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
   import TalesForgeWeb.AdminComponents
 
   alias TalesForge.Game.Variant
-  alias TalesForge.Playtest.{Personas, Reports, Runner}
+  alias TalesForge.Playtest.{Personas, Reports, RunMeta, Runner}
   alias TalesForgeWeb.TimeAgo
 
   # Re-render the "N minutes ago" words this often; the rows are not reloaded.
@@ -99,7 +99,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
             <tr>
               <th class="px-3 py-2">Persona</th>
               <th class="hidden px-3 py-2 sm:table-cell">Module</th>
-              <th class="hidden px-3 py-2 md:table-cell">Build</th>
+              <th class="hidden px-3 py-2 md:table-cell">Commit · flags</th>
               <th class="px-3 py-2">Status</th>
               <th class="px-3 py-2">Turns</th>
               <th class="hidden px-3 py-2 sm:table-cell">Game time</th>
@@ -126,8 +126,11 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
                 <div class="text-xs text-[var(--paper-muted)] sm:hidden">{row.run.module}</div>
               </td>
               <td class="hidden px-3 py-2 sm:table-cell">{row.run.module}</td>
-              <td class="hidden max-w-[10rem] truncate px-3 py-2 text-xs md:table-cell">
-                {row.run.build}
+              <td class="hidden max-w-[12rem] px-3 py-2 text-xs md:table-cell" title={row.run.build}>
+                <span class="font-mono">{RunMeta.short_sha(row.run.git_sha) || "—"}</span>
+                <div :if={row.run.flags not in [nil, %{}]} class="text-[var(--paper-muted)]">
+                  {flags_line(row.run.flags)}
+                </div>
               </td>
               <td class="px-3 py-2">
                 {row.run.status}
@@ -148,6 +151,17 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
       </div>
     </Layouts.admin>
     """
+  end
+
+  # The flags that tell runs apart at a glance; the run page lists them all.
+  defp flags_line(flags) do
+    [
+      flags["variant"],
+      flags["npc_reactions"] == "on" && "reactions",
+      flags["world_agents"] == "on" && "agents"
+    ]
+    |> Enum.filter(&is_binary/1)
+    |> Enum.join(" · ")
   end
 
   defp overall(nil), do: "—"

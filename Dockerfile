@@ -71,6 +71,13 @@ ENV MIX_ENV="prod"
 
 COPY --from=builder --chown=nobody:root /app/_build/${MIX_ENV}/rel/ex_tales_forge ./
 
+# The git commit this image was built from, read at runtime as GIT_SHA (stored
+# on playtest runs by TalesForge.Playtest.RunMeta). The deploy workflows pass
+# --build-arg GIT_SHA=<commit>; a build without it says "unknown". Declared
+# last so a new commit only rebuilds this layer.
+ARG GIT_SHA=unknown
+ENV GIT_SHA=${GIT_SHA}
+
 USER nobody
 
 CMD ["/app/bin/server"]

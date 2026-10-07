@@ -29,13 +29,25 @@ defmodule TalesForge.Playtest.RunnerTest do
     :ok
   end
 
-  test "plays to the turn limit and records the run" do
+  test "plays to the turn limit and records the run, its commit and flags" do
+    System.put_env("GIT_SHA", "abc1234def")
+    on_exit(fn -> System.delete_env("GIT_SHA") end)
     {:ok, run_id} = Runner.start("paul", "tin_valley", turn_limit: 2, notes: "smoke")
 
     assert {:ok, run} = await(run_id)
     assert %{status: "finished", stop_reason: "turn_limit", turns_played: 2, turn_limit: 2} = run
     assert %{persona: "paul", module: "tin_valley", notes: "smoke"} = run
     assert run.build =~ "0.1.0"
+    assert run.git_sha == "abc1234def"
+
+    assert %{
+             "npc_reactions" => "off",
+             "world_agents" => "off",
+             "variant" => "default",
+             "llm_provider" => "mock",
+             "jev_rubric" => "jev-affect-v1-" <> _
+           } = run.flags
+
     assert run.finished_at
     assert turns(run.game_session_id) |> length() == 2
   end
