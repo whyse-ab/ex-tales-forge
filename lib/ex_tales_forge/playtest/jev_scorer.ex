@@ -64,6 +64,13 @@ defmodule TalesForge.Playtest.JevScorer do
     end
   end
 
+  @doc """
+  The rubric version stored on a persona's Jev scores: the rubric name plus a
+  short hash of that persona's question and level text.
+  """
+  @spec rubric_version(String.t()) :: String.t()
+  def rubric_version(persona_id), do: "#{@rubric}-#{AffectLevels.rubric_hash(persona_id)}"
+
   @doc false
   def build_state(run) do
     opening = GameSessions.opening_scene(run.game_session_id)
@@ -96,22 +103,12 @@ defmodule TalesForge.Playtest.JevScorer do
   @doc false
   def questions(persona, turns) do
     levels = AffectLevels.levels(persona.id)
-    name = persona.name
-
-    session = {
-      "How frustrated (low) to delighted (high) would #{name} feel about this whole session?",
-      levels
-    }
+    session = {AffectLevels.session_question(persona.id, persona.name), levels}
 
     turn_qs =
       Map.new(turns, fn turn ->
         key = :"persona_turn_affect_#{turn.turn_number}"
-
-        {key,
-         {
-           "How frustrated (low) to delighted (high) would #{name} feel about turn #{turn.turn_number} alone?",
-           levels
-         }}
+        {key, {AffectLevels.turn_question(persona.id, persona.name, turn.turn_number), levels}}
       end)
 
     Map.put(turn_qs, :persona_session_affect, session)
@@ -160,7 +157,7 @@ defmodule TalesForge.Playtest.JevScorer do
   end
 
   defp persist(run, persona, turns, reply) do
-    version = "#{@rubric}-#{AffectLevels.rubric_hash(persona.id)}"
+    version = rubric_version(persona.id)
     model = Map.get(reply, :model) || @model
     conf = Map.get(reply, :confidence) || %{}
     probs = Map.get(reply, :probabilities) || %{}
