@@ -176,6 +176,7 @@ jobs:
       # built that way because Depot builds hung at "Waiting for depot builder"
       # for this org. Set the repo variable FLY_USE_DEPOT=true to try Depot again.
       - name: flyctl deploy
-        run: flyctl deploy --remote-only -a tales-forge --ha=false --depot=${{ vars.FLY_USE_DEPOT || 'false' }}
+        # GIT_SHA: the commit goes into the image (Dockerfile), so the app knows it.
+        run: flyctl deploy --remote-only -a tales-forge --ha=false --depot=${{ vars.FLY_USE_DEPOT || 'false' }} --build-arg GIT_SHA=${{ github.sha }}
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

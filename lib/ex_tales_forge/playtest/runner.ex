@@ -21,7 +21,7 @@ defmodule TalesForge.Playtest.Runner do
   alias TalesForge.Game.SceneProcessor
   alias TalesForge.GameSessions
   alias TalesForge.LLM
-  alias TalesForge.Playtest.{Personas, PlayerView, Reports, Scorer}
+  alias TalesForge.Playtest.{Personas, PlayerView, Reports, RunMeta, Scorer}
   alias TalesForge.PubSub.GameSession, as: SessionPubSub
   alias TalesForge.Repo
   alias TalesForge.Schemas.{PlaytestRun, Turn}
@@ -70,6 +70,8 @@ defmodule TalesForge.Playtest.Runner do
          :persona,
          :module,
          :build,
+         :git_sha,
+         :flags,
          :status,
          :stop_reason,
          :turns_played,
@@ -165,6 +167,8 @@ defmodule TalesForge.Playtest.Runner do
       persona: persona.id,
       module: module,
       build: build(),
+      git_sha: RunMeta.git_sha(),
+      flags: RunMeta.flags(persona.id, session.world_state),
       turn_limit: Keyword.get(opts, :turn_limit, @default_turn_limit),
       status: "running",
       started_at: now(),

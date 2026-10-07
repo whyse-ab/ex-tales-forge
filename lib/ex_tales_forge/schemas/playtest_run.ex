@@ -2,6 +2,10 @@ defmodule TalesForge.Schemas.PlaytestRun do
   @moduledoc """
   One persona bot run (`TalesForge.Playtest.Runner`). Its session is a bot session.
 
+  `build` is the app version and Fly image id; `git_sha` is the release's git
+  commit and `flags` the switches, variant and models in force when the run
+  started (`TalesForge.Playtest.RunMeta`).
+
   `game_ms` is the game's time (action submitted to turn done, plus scene waits);
   the persona_* totals are the bot's own calls, kept apart from the game's cost.
   """
@@ -18,6 +22,8 @@ defmodule TalesForge.Schemas.PlaytestRun do
     field :persona, :string
     field :module, :string
     field :build, :string
+    field :git_sha, :string
+    field :flags, :map, default: %{}
     field :turn_limit, :integer
     field :turns_played, :integer, default: 0
     field :status, :string
@@ -42,6 +48,8 @@ defmodule TalesForge.Schemas.PlaytestRun do
     :persona,
     :module,
     :build,
+    :git_sha,
+    :flags,
     :turn_limit,
     :turns_played,
     :status,

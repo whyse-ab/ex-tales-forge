@@ -93,6 +93,33 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     assert has_element?(view, "#run-started", "2 hours ago")
   end
 
+  test "run detail and list show the commit and the flags the run was played under",
+       %{conn: conn} do
+    sha = "00c370d1a2b3c4d5e6f708192a3b4c5d6e7f8091"
+    flags = %{"npc_reactions" => "on", "world_agents" => "off", "variant" => "default"}
+    run = seed_run(git_sha: sha, flags: flags)
+    bare = seed_run(persona: "lars")
+
+    {:ok, view, _html} = live(conn, ~p"/admin/playtest/#{run.id}")
+
+    assert has_element?(
+             view,
+             ~s(#run-commit a[href="https://github.com/whyse-ab/ex-tales-forge/commit/#{sha}"]),
+             "00c370d"
+           )
+
+    assert has_element?(view, "#run-flags li", "npc_reactions=on")
+    assert has_element?(view, "#run-flags li", "variant=default")
+
+    {:ok, view, _html} = live(conn, ~p"/admin/playtest/#{bare.id}")
+    assert has_element?(view, "#run-commit", "unknown")
+    refute has_element?(view, "#run-flags")
+
+    {:ok, _view, html} = live(conn, ~p"/admin/playtest")
+    assert html =~ "00c370d"
+    assert html =~ "default · reactions"
+  end
+
   test "start form is hidden and refused when the runner is off", %{conn: conn} do
     {:ok, view, html} = live(conn, ~p"/admin/playtest")
     refute html =~ "Start a run"
@@ -252,6 +279,8 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
         persona: Keyword.get(opts, :persona, "paul"),
         module: "tin_valley",
         build: "0.1.0",
+        git_sha: Keyword.get(opts, :git_sha),
+        flags: Keyword.get(opts, :flags, %{}),
         turn_limit: 5,
         turns_played: 1,
         status: "finished",
