@@ -6,6 +6,8 @@ defmodule TalesForge.CharacterCreationTest do
   alias TalesForge.Characters.{Defaults, Levers}
   alias TalesForge.Game.{Mechanics, Pack}
 
+  doctest CC, only: [level_cost: 3]
+
   @adventure "tin_valley"
 
   defp draft(opts \\ []), do: CC.new(@adventure, Keyword.put_new(opts, :seed_key, "seed-1"))
