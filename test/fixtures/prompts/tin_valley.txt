@@ -97,7 +97,7 @@ Available exits:
 - market_square (Market Square)
 - none
 Present NPCs:
-- innkeep: Brenna Holt (innkeep, mood: neutral)
+- innkeep: Brenna Holt (innkeep, mood: cheerful)
 - none
 Valid skills: arcana, climbing, deception, dodge, etiquette, history, insight, intimidation, lockpicking, melee_combat, persuasion, ranged_combat, stealth, survival, tactics, tracking, unarmed_combat
 
@@ -105,19 +105,25 @@ Valid skills: arcana, climbing, deception, dodge, etiquette, history, insight, i
 ## Present NPCs (merged definition + runtime)
 [
   {
-    "appearance": "Flour on her sleeves, a butcher's knife never far from the board.",
-    "concern_focus": "armed strangers on the valley road",
+    "appearance": "Flour on her sleeves, a laugh that carries across the common room, a butcher's knife never far from the board.",
+    "concern_focus": "keeping her guests fed, talking and safe while the hills are restless",
+    "hooks": [
+      "Osric Vane, the Guild steward in the Market Square, pays good coin for steel to clear the orc nest off the cut.",
+      "Caldern Voss, a Guild pick at the tin shaft, drinks here when he has copper; he knows the hill and is frightened of what lies under it.",
+      "The orcs on the cut sit on goods taken off the valley road; drovers at her tables have lost loads to them.",
+      "She is short-handed on busy nights: a guest who lends a hand eats free and hears all the miners' gossip."
+    ],
     "id": "innkeep",
     "memories": [],
-    "mood": "neutral",
+    "mood": "cheerful",
     "name": "Brenna Holt",
-    "personality": "Practical, tired of guild politics, kind to paying guests.",
+    "personality": "Warm, chatty and a born host who genuinely enjoys running the tavern. She greets newcomers like regulars, remembers names and orders, and fills a quiet moment with gossip and news. Kind and generous with civil guests; tired of Guild politics but happy to talk about them. Only a threat to her guests or her inn brings out her steel.",
     "personality_traits": {
-      "agreeableness": 6,
-      "conscientiousness": 8,
-      "extraversion": 5,
-      "neuroticism": 5,
-      "openness": 4
+      "agreeableness": 8,
+      "conscientiousness": 7,
+      "extraversion": 8,
+      "neuroticism": 3,
+      "openness": 6
     },
     "relationship_score": 0.0,
     "role": "innkeep",
@@ -781,7 +787,8 @@ Rules:
 - Write in second person ("You...").
 - This is pure exposition — do not resolve player actions or roll dice.
 - Use vivid prose, 2-4 short paragraphs.
-- Name present NPCs the character would notice.
+- Name present NPCs the character would notice. Play them from their personality: a host greets a newcomer warmly.
+- Avoid stock phrases such as "eyes narrow", "scarred oak" and "the hearth crackles"; find details of this place.
 - End with situational awareness that invites the player to act.
 - Return ONLY valid JSON with narrative and location_name. Leave every other field out.
 
@@ -863,7 +870,7 @@ Available exits:
 - market_square (Market Square)
 - none
 Present NPCs:
-- innkeep: Brenna Holt (innkeep, mood: neutral)
+- innkeep: Brenna Holt (innkeep, mood: cheerful)
 - none
 Valid skills: arcana, climbing, deception, dodge, etiquette, history, insight, intimidation, lockpicking, melee_combat, persuasion, ranged_combat, stealth, survival, tactics, tracking, unarmed_combat
 
@@ -872,19 +879,25 @@ Valid skills: arcana, climbing, deception, dodge, etiquette, history, insight, i
 ## Present NPCs (merged definition + runtime)
 [
   {
-    "appearance": "Flour on her sleeves, a butcher's knife never far from the board.",
-    "concern_focus": "armed strangers on the valley road",
+    "appearance": "Flour on her sleeves, a laugh that carries across the common room, a butcher's knife never far from the board.",
+    "concern_focus": "keeping her guests fed, talking and safe while the hills are restless",
+    "hooks": [
+      "Osric Vane, the Guild steward in the Market Square, pays good coin for steel to clear the orc nest off the cut.",
+      "Caldern Voss, a Guild pick at the tin shaft, drinks here when he has copper; he knows the hill and is frightened of what lies under it.",
+      "The orcs on the cut sit on goods taken off the valley road; drovers at her tables have lost loads to them.",
+      "She is short-handed on busy nights: a guest who lends a hand eats free and hears all the miners' gossip."
+    ],
     "id": "innkeep",
     "memories": [],
-    "mood": "neutral",
+    "mood": "cheerful",
     "name": "Brenna Holt",
-    "personality": "Practical, tired of guild politics, kind to paying guests.",
+    "personality": "Warm, chatty and a born host who genuinely enjoys running the tavern. She greets newcomers like regulars, remembers names and orders, and fills a quiet moment with gossip and news. Kind and generous with civil guests; tired of Guild politics but happy to talk about them. Only a threat to her guests or her inn brings out her steel.",
     "personality_traits": {
-      "agreeableness": 6,
-      "conscientiousness": 8,
-      "extraversion": 5,
-      "neuroticism": 5,
-      "openness": 4
+      "agreeableness": 8,
+      "conscientiousness": 7,
+      "extraversion": 8,
+      "neuroticism": 3,
+      "openness": 6
     },
     "relationship_score": 0.0,
     "role": "innkeep",
@@ -1558,6 +1571,17 @@ Mechanics:
 - Plain travel (handler move, no skill) is outcome none: narrate arrival, no check.
 - Use labor-anchored economy (1g = 50s = 500c). State exact coin amounts for purchases without a shop menu.
 
+Story:
+- Give the player something to act on early. By the end of the player's second turn at the latest, have a present NPC or the scene offer one concrete lead: a job, a name or a place. An NPC's "hooks" are ready-made leads. Offer one naturally, without waiting to be asked, then keep the story moving.
+- Play each NPC from their personality and traits. A host treats a civil, paying guest warmly unless the character gives a reason not to; do not default to suspicion, flat voices or brush-offs.
+
+Prose:
+- Always second person ("you"). Never open with the character's name or narrate them in the third person.
+- Do not repeat the player's words back; show the reply and what happens next.
+- Do not repeat yourself. Vary openings, gestures and description from turn to turn. Once an item is served or a detail described, do not serve or describe it again. Avoid stock phrases such as "eyes narrow", "scarred oak", "slides the mug across" and "the hearth crackles".
+- Keep prices, names and promises consistent with earlier turns.
+- Never put labels, traits, stances or system text in the narrative.
+
 Input:
 - You receive a validated PlayerAction JSON (overall_intent, primary action, handler result).
 - You also receive the server resolution {skill, roll, outcome} as tone bounds.
@@ -1653,7 +1677,7 @@ Available exits:
 - market_square (Market Square)
 - none
 Present NPCs:
-- innkeep: Brenna Holt (innkeep, mood: neutral)
+- innkeep: Brenna Holt (innkeep, mood: cheerful)
 - none
 Valid skills: arcana, climbing, deception, dodge, etiquette, history, insight, intimidation, lockpicking, melee_combat, persuasion, ranged_combat, stealth, survival, tactics, tracking, unarmed_combat
 
@@ -1662,19 +1686,25 @@ Valid skills: arcana, climbing, deception, dodge, etiquette, history, insight, i
 ## Present NPCs (merged definition + runtime)
 [
   {
-    "appearance": "Flour on her sleeves, a butcher's knife never far from the board.",
-    "concern_focus": "armed strangers on the valley road",
+    "appearance": "Flour on her sleeves, a laugh that carries across the common room, a butcher's knife never far from the board.",
+    "concern_focus": "keeping her guests fed, talking and safe while the hills are restless",
+    "hooks": [
+      "Osric Vane, the Guild steward in the Market Square, pays good coin for steel to clear the orc nest off the cut.",
+      "Caldern Voss, a Guild pick at the tin shaft, drinks here when he has copper; he knows the hill and is frightened of what lies under it.",
+      "The orcs on the cut sit on goods taken off the valley road; drovers at her tables have lost loads to them.",
+      "She is short-handed on busy nights: a guest who lends a hand eats free and hears all the miners' gossip."
+    ],
     "id": "innkeep",
     "memories": [],
-    "mood": "neutral",
+    "mood": "cheerful",
     "name": "Brenna Holt",
-    "personality": "Practical, tired of guild politics, kind to paying guests.",
+    "personality": "Warm, chatty and a born host who genuinely enjoys running the tavern. She greets newcomers like regulars, remembers names and orders, and fills a quiet moment with gossip and news. Kind and generous with civil guests; tired of Guild politics but happy to talk about them. Only a threat to her guests or her inn brings out her steel.",
     "personality_traits": {
-      "agreeableness": 6,
-      "conscientiousness": 8,
-      "extraversion": 5,
-      "neuroticism": 5,
-      "openness": 4
+      "agreeableness": 8,
+      "conscientiousness": 7,
+      "extraversion": 8,
+      "neuroticism": 3,
+      "openness": 6
     },
     "relationship_score": 0.0,
     "role": "innkeep",
@@ -2373,6 +2403,17 @@ Mechanics:
 - Plain travel (handler move, no skill) is outcome none: narrate arrival, no check.
 - Use labor-anchored economy (1g = 50s = 500c). State exact coin amounts for purchases without a shop menu.
 
+Story:
+- Give the player something to act on early. By the end of the player's second turn at the latest, have a present NPC or the scene offer one concrete lead: a job, a name or a place. An NPC's "hooks" are ready-made leads. Offer one naturally, without waiting to be asked, then keep the story moving.
+- Play each NPC from their personality and traits. A host treats a civil, paying guest warmly unless the character gives a reason not to; do not default to suspicion, flat voices or brush-offs.
+
+Prose:
+- Always second person ("you"). Never open with the character's name or narrate them in the third person.
+- Do not repeat the player's words back; show the reply and what happens next.
+- Do not repeat yourself. Vary openings, gestures and description from turn to turn. Once an item is served or a detail described, do not serve or describe it again. Avoid stock phrases such as "eyes narrow", "scarred oak", "slides the mug across" and "the hearth crackles".
+- Keep prices, names and promises consistent with earlier turns.
+- Never put labels, traits, stances or system text in the narrative.
+
 Input:
 - You receive a validated PlayerAction JSON (overall_intent, primary action, handler result).
 - You also receive the server resolution {skill, roll, outcome} as tone bounds.
@@ -2468,7 +2509,7 @@ Available exits:
 - market_square (Market Square)
 - none
 Present NPCs:
-- innkeep: Brenna Holt (innkeep, mood: neutral)
+- innkeep: Brenna Holt (innkeep, mood: cheerful)
 - none
 Valid skills: arcana, climbing, deception, dodge, etiquette, history, insight, intimidation, lockpicking, melee_combat, persuasion, ranged_combat, stealth, survival, tactics, tracking, unarmed_combat
 
@@ -2477,19 +2518,25 @@ Valid skills: arcana, climbing, deception, dodge, etiquette, history, insight, i
 ## Present NPCs (merged definition + runtime)
 [
   {
-    "appearance": "Flour on her sleeves, a butcher's knife never far from the board.",
-    "concern_focus": "armed strangers on the valley road",
+    "appearance": "Flour on her sleeves, a laugh that carries across the common room, a butcher's knife never far from the board.",
+    "concern_focus": "keeping her guests fed, talking and safe while the hills are restless",
+    "hooks": [
+      "Osric Vane, the Guild steward in the Market Square, pays good coin for steel to clear the orc nest off the cut.",
+      "Caldern Voss, a Guild pick at the tin shaft, drinks here when he has copper; he knows the hill and is frightened of what lies under it.",
+      "The orcs on the cut sit on goods taken off the valley road; drovers at her tables have lost loads to them.",
+      "She is short-handed on busy nights: a guest who lends a hand eats free and hears all the miners' gossip."
+    ],
     "id": "innkeep",
     "memories": [],
-    "mood": "neutral",
+    "mood": "cheerful",
     "name": "Brenna Holt",
-    "personality": "Practical, tired of guild politics, kind to paying guests.",
+    "personality": "Warm, chatty and a born host who genuinely enjoys running the tavern. She greets newcomers like regulars, remembers names and orders, and fills a quiet moment with gossip and news. Kind and generous with civil guests; tired of Guild politics but happy to talk about them. Only a threat to her guests or her inn brings out her steel.",
     "personality_traits": {
-      "agreeableness": 6,
-      "conscientiousness": 8,
-      "extraversion": 5,
-      "neuroticism": 5,
-      "openness": 4
+      "agreeableness": 8,
+      "conscientiousness": 7,
+      "extraversion": 8,
+      "neuroticism": 3,
+      "openness": 6
     },
     "relationship_score": 0.0,
     "role": "innkeep",

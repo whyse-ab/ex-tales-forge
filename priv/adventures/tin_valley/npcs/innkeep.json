@@ -3,14 +3,21 @@
   "derive": {"race": "human", "standing": "commoner", "occupation": "innkeep"},
   "fee_copper": 50,
   "motivations": {
+    "mood": "cheerful",
     "personality_traits": {
-      "openness": 4,
-      "conscientiousness": 8,
-      "extraversion": 5,
-      "agreeableness": 6,
-      "neuroticism": 5
+      "openness": 6,
+      "conscientiousness": 7,
+      "extraversion": 8,
+      "agreeableness": 8,
+      "neuroticism": 3
     }
   },
+  "hooks": [
+    "Osric Vane, the Guild steward in the Market Square, pays good coin for steel to clear the orc nest off the cut.",
+    "Caldern Voss, a Guild pick at the tin shaft, drinks here when he has copper; he knows the hill and is frightened of what lies under it.",
+    "The orcs on the cut sit on goods taken off the valley road; drovers at her tables have lost loads to them.",
+    "She is short-handed on busy nights: a guest who lends a hand eats free and hears all the miners' gossip."
+  ],
   "stock": [
     {
       "id": "ale_mug",
@@ -22,8 +29,8 @@
   "maslow": "belonging",
   "concerns": [
     {
-      "text": "Keep the inn full and her regulars safe while the hills are restless",
-      "focus": "regulars' safety",
+      "text": "Keep the common room full, warm and talking, and her regulars safe while the hills are restless",
+      "focus": "a lively, safe common room",
       "priority": 6
     }
   ]

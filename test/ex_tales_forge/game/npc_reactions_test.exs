@@ -68,15 +68,15 @@ defmodule TalesForge.Game.NpcReactionsTest do
     assert NpcReactions.enabled?()
   end
 
-  test "Brenna has prototype OCEAN scores", %{session: session} do
+  test "Brenna has the barkeep OCEAN scores (rework 2026-10-07)", %{session: session} do
     brenna = NPC.get_instance(session.id, "innkeep")
 
     assert get_in(brenna.personality, ["motivations", "personality_traits"]) == %{
-             "openness" => 4,
-             "conscientiousness" => 8,
-             "extraversion" => 5,
-             "agreeableness" => 6,
-             "neuroticism" => 5
+             "openness" => 6,
+             "conscientiousness" => 7,
+             "extraversion" => 8,
+             "agreeableness" => 8,
+             "neuroticism" => 3
            }
   end
 
@@ -89,7 +89,7 @@ defmodule TalesForge.Game.NpcReactionsTest do
     state = NpcReactions.state(brenna, nil, scene)
 
     assert state =~ "NPC: Brenna Holt (innkeep)."
-    assert state =~ "OCEAN (0-10): openness 4, conscientiousness 8"
+    assert state =~ "OCEAN (0-10): openness 6, conscientiousness 7"
     assert state =~ "Mood before this moment: neutral."
     assert state =~ "I tell her I'm the Guild's new assessor"
     assert state =~ "How it comes across: failure (persuasion attempt)."
