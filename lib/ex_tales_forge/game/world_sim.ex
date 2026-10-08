@@ -2,6 +2,12 @@ defmodule TalesForge.Game.WorldSim do
   @moduledoc """
   Pure front and people tick. No Repo, no LLM.
   Empty fronts or people is a no-op (Crossroads).
+
+  Fronts tick first. A clock can carry `"stages"` (`[%{"at" => 3, "move" =>
+  "incident"}]`): when a rule moves the clock to or past `at`, that pack move
+  fires once (`TalesForge.Game.Fronts.Moves`). What a front's moves do to
+  people (`move_people`, `people_memories`) is applied to them before they
+  tick, and a move's `status` (e.g. `"spent"`) becomes the front's status.
   """
 
   alias TalesForge.Game.Fronts.Moves
@@ -14,8 +20,9 @@ defmodule TalesForge.Game.WorldSim do
         }) :: {:ok, map()}
   def tick(%{fronts: fronts, events: events} = input) do
     people = Map.get(input, :people, [])
-    {updated_fronts, applied_fronts} = tick_actors(fronts, events)
-    {updated_people, applied_people} = tick_actors(people, events)
+    {ticked_fronts, applied_fronts} = tick_actors(fronts, events)
+    {updated_fronts, pending} = take_pending(ticked_fronts)
+    {updated_people, applied_people} = people |> apply_pending(pending) |> tick_actors(events)
 
     {:ok,
      %{
@@ -62,6 +69,7 @@ defmodule TalesForge.Game.WorldSim do
     Enum.reduce(Rules.matching_events(current, rule, events), {current, applied}, fn event,
                                                                                      {cur, acc} ->
       case apply_rule(cur, rule, event) do
+        {:ok, next, moves} when is_list(moves) -> {next, acc ++ moves}
         {:ok, next, move} -> {next, acc ++ [move]}
         {:ok, next} -> {maybe_threshold(next), acc}
         {:error, _} -> {cur, acc}
@@ -87,10 +95,90 @@ defmodule TalesForge.Game.WorldSim do
     path = ["clocks", clock, "value"]
     current = get_in(runtime, path) || 0
     scaled = delta * event_delta(event)
-    {:ok, put_runtime(front, put_in(runtime, path, current + scaled))}
+    moved = put_runtime(front, put_in(runtime, path, current + scaled))
+
+    case fire_stages(moved, clock, event) do
+      {next, []} -> {:ok, next}
+      {next, moves} -> {:ok, next, moves}
+    end
   end
 
   defp apply_rule(front, _rule, _event), do: {:ok, front}
+
+  # Stages of a clock that its value has reached and that have not fired. A
+  # stage with `unless_player_at` waits while the player is at one of those
+  # places (the event's location), e.g. a gang does not walk off mid-fight.
+  defp fire_stages(actor, clock, event) do
+    value = get_in(runtime(actor), ["clocks", clock, "value"])
+    stages = List.wrap(get_in(definition(actor), ["clocks", clock, "stages"]))
+    player_at = if is_map(event), do: event["location_id"]
+
+    Enum.reduce(stages, {actor, []}, fn stage, {acc, moves} ->
+      key = "#{clock}:#{stage["at"]}"
+      fired = List.wrap(runtime(acc)["stages_fired"])
+
+      if stage_due?(stage, value, key, fired, player_at) do
+        {:ok, state} = Moves.apply(runtime(acc), stage["move"], definition(acc))
+        state = Map.put(state, "stages_fired", fired ++ [key])
+        {put_runtime(acc, state), moves ++ [%{id: actor_id(acc), move: stage["move"]}]}
+      else
+        {acc, moves}
+      end
+    end)
+  end
+
+  defp stage_due?(stage, value, key, fired, player_at) do
+    is_integer(value) and is_integer(stage["at"]) and value >= stage["at"] and
+      key not in fired and is_binary(stage["move"]) and
+      player_at not in List.wrap(stage["unless_player_at"])
+  end
+
+  # Move a front's `status` and its pending people effects out of its runtime.
+  defp take_pending(fronts) do
+    Enum.map_reduce(fronts, %{}, fn front, acc ->
+      state = runtime(front)
+      {pending, state} = Map.pop(state, "pending", %{})
+      {status, state} = Map.pop(state, "status")
+
+      front = front |> put_runtime(state) |> maybe_put_status(status)
+      {front, merge_pending(acc, pending)}
+    end)
+  end
+
+  defp merge_pending(acc, pending) do
+    Map.merge(acc, pending, fn _key, left, right -> Map.merge(left, right) end)
+  end
+
+  defp maybe_put_status(front, nil), do: front
+  defp maybe_put_status(%{status: _} = front, status), do: %{front | status: status}
+  defp maybe_put_status(front, status), do: Map.put(front, "status", status)
+
+  defp apply_pending(people, pending) when map_size(pending) == 0, do: people
+
+  defp apply_pending(people, pending) do
+    moves = Map.get(pending, "move_people", %{})
+    memories = Map.get(pending, "people_memories", %{})
+
+    Enum.map(people, fn person ->
+      id = actor_id(person)
+
+      state =
+        person
+        |> runtime()
+        |> put_location(moves[id])
+        |> add_memory(memories[id])
+
+      put_runtime(person, state)
+    end)
+  end
+
+  defp put_location(state, nil), do: state
+  defp put_location(state, location_id), do: Map.put(state, "location_id", location_id)
+
+  defp add_memory(state, nil), do: state
+
+  defp add_memory(state, memory),
+    do: Map.update(state, "memories", [memory], &(List.wrap(&1) ++ [memory]))
 
   defp event_delta(event) when is_map(event) do
     case get_in(event, ["payload", "delta_ticks"]) do

@@ -1,0 +1,8 @@
+{
+  "_doc": "WORLD_ANTAGONIST (feature antagonist, needs inn_world): the Tinjacks. Design: tales-forge-docs docs/design-tin-valley-world.md.",
+  "npc_hooks": {
+    "herb_wife": ["Her grandson Pip has fallen in with Rusk's Tinjacks on the west road. She would give a great deal, and tell a great deal, to have him home."],
+    "stable_lad": ["The lampless carts are Rusk's crew, the Tinjacks; Tam has seen Pip, Maude's grandson, riding with them."],
+    "smith": ["The men who sell her cheap tin at the back door are Rusk's. She is afraid of him and would be glad to see him gone."]
+  }
+}

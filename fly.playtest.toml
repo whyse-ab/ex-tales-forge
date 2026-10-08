@@ -26,6 +26,7 @@ swap_size_mb = 512
   # World features read when a session is created (tales-forge-docs
   # docs/design-tin-valley-world.md); off on production (fly.toml).
   INN_WORLD = "on"
+  WORLD_ANTAGONIST = "on"
 
 [http_service]
   internal_port = 4000

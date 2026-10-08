@@ -260,6 +260,7 @@ defmodule TalesForge.Game.TurnProcessor do
 
     {world, spent} =
       world_paused
+      |> present_after_tick(sim.people)
       |> Perception.scrub_situation_lines(hidden)
       |> Perception.snapshot_public_facts(sim.fronts ++ sim.people)
       |> Mechanics.apply_vitality(mechanical, opts)
@@ -272,6 +273,22 @@ defmodule TalesForge.Game.TurnProcessor do
       improvements: improvements ++ spent,
       training: training
     }
+  end
+
+  # People a front moved this tick (e.g. the Tinjacks walking into the inn) are
+  # present this turn, not only from the next one.
+  defp present_after_tick(world, []), do: world
+
+  defp present_after_tick(world, people) do
+    here = world["location_id"]
+
+    present =
+      people
+      |> Enum.filter(&(get_in(&1, [:runtime_state, "location_id"]) == here))
+      |> Enum.map(& &1.npc_id)
+      |> Enum.sort()
+
+    Map.put(world, "present_npcs", present)
   end
 
   defp apply_pause_or_train(world, session, %{handler: "train"}, player_action, opts) do

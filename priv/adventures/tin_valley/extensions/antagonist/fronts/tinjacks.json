@@ -1,0 +1,258 @@
+{
+  "id": "tinjacks",
+  "name": "The Tinjacks",
+  "area": "tin_valley",
+  "status": "live",
+  "goal": "Grow rich on the valley's fear: rob drovers on the west road and let the orcs take the blame, sell the loads through the forge's back door, and squeeze the village for a road toll while the Guild looks at the cut.",
+  "personality": "Patient, greedy, cowardly when the odds turn.",
+  "resources": {
+    "blades": 2,
+    "lookouts": 1,
+    "coin": 6
+  },
+  "beliefs": {
+    "village_will_pay": true,
+    "orcs_take_the_blame": true
+  },
+  "clocks": {
+    "trouble": {
+      "value": 0,
+      "stages": [
+        {
+          "at": 3,
+          "move": "incident"
+        },
+        {
+          "at": 6,
+          "move": "toll",
+          "unless_player_at": [
+            "old_adit",
+            "west_road"
+          ]
+        },
+        {
+          "at": 12,
+          "move": "burning",
+          "unless_player_at": [
+            "valley_inn",
+            "inn_yard",
+            "old_adit",
+            "west_road"
+          ]
+        }
+      ]
+    },
+    "beaten": {
+      "value": 0,
+      "stages": [
+        {
+          "at": 2,
+          "move": "broken"
+        }
+      ]
+    }
+  },
+  "triggers": [
+    {
+      "id": "pip_watches_the_adit",
+      "on": "enter",
+      "location_id": "old_adit",
+      "unless_skill": [
+        "stealth"
+      ],
+      "event": "tinjacks.spotted",
+      "event_on_notice": "tinjacks.unseen"
+    },
+    {
+      "id": "fight_the_tinjacks",
+      "on": "combat",
+      "target_in": [
+        "rusk",
+        "cobb"
+      ],
+      "event_on_success": "tinjacks.hurt",
+      "event_on_failure": "tinjacks.won"
+    },
+    {
+      "id": "talk_pip_round",
+      "on": "check",
+      "target_in": [
+        "pip"
+      ],
+      "skill_in": [
+        "persuasion",
+        "intimidation",
+        "insight"
+      ],
+      "event": "tinjacks.lookout_turned"
+    }
+  ],
+  "rules": [
+    {
+      "id": "trouble_grows",
+      "on_event": "time.passed",
+      "clock": "trouble",
+      "delta": 1
+    },
+    {
+      "id": "hurt",
+      "on_event": "tinjacks.hurt",
+      "clock": "beaten",
+      "delta": 1
+    },
+    {
+      "id": "spotted",
+      "on_event": "tinjacks.spotted",
+      "move": "stand_ready"
+    },
+    {
+      "id": "won",
+      "on_event": "tinjacks.won",
+      "move": "gloat"
+    },
+    {
+      "id": "lookout_turned",
+      "on_event": "tinjacks.lookout_turned",
+      "move": "pip_turned"
+    }
+  ],
+  "moves": {
+    "incident": {
+      "public_fact": {
+        "id": "tinjacks_watchman",
+        "text": "Last night someone clubbed the Guild's night watchman and took tin ingots from the weighing shed. Muddy boot prints lead west along the road, and there is no orc sign.",
+        "visibility": [
+          "market_square",
+          "valley_inn",
+          "inn_yard",
+          "smithy",
+          "herb_cottage"
+        ]
+      }
+    },
+    "toll": {
+      "move_people": {
+        "rusk": "valley_inn",
+        "cobb": "valley_inn"
+      },
+      "public_fact": {
+        "id": "tinjacks_toll",
+        "text": "Rusk and his brute Cobb have come down from the west road and are collecting a 'road toll' at the Valley Inn: coin from Brenna and every guest, or a beating.",
+        "visibility": [
+          "valley_inn",
+          "inn_yard",
+          "market_square"
+        ]
+      }
+    },
+    "burning": {
+      "move_people": {
+        "rusk": "old_adit",
+        "cobb": "old_adit"
+      },
+      "public_fact": {
+        "id": "tinjacks_burning",
+        "text": "The Tinjacks set Mags Ferrow's wagon alight in the inn yard as a warning to anyone who won't pay, then went back up the west road. The village is frightened and angry.",
+        "visibility": [
+          "valley_inn",
+          "inn_yard",
+          "market_square",
+          "smithy",
+          "herb_cottage",
+          "west_road"
+        ]
+      },
+      "retract_facts": [
+        "tinjacks_toll"
+      ]
+    },
+    "stand_ready": {
+      "public_fact": {
+        "id": "tinjacks_ready",
+        "text": "A whistle from the pines warned the adit: Rusk and Cobb stand ready in its mouth, blades out.",
+        "visibility": [
+          "old_adit"
+        ]
+      }
+    },
+    "gloat": {
+      "memory": {
+        "who": "player",
+        "what": "the stranger tried us and bled for it",
+        "felt": "contempt"
+      }
+    },
+    "pip_turned": {
+      "move_people": {
+        "pip": "herb_cottage"
+      },
+      "public_fact": {
+        "id": "tinjacks_pip_home",
+        "text": "Pip has left the Tinjacks and gone home to his grandmother Maude. He says Rusk keeps the stolen salt and ingots in the old adit and sleeps there by day.",
+        "visibility": [
+          "herb_cottage",
+          "market_square",
+          "valley_inn",
+          "inn_yard",
+          "west_road",
+          "old_adit"
+        ]
+      }
+    },
+    "broken": {
+      "status": "spent",
+      "move_people": {
+        "rusk": "gone",
+        "cobb": "gone"
+      },
+      "public_fact": {
+        "id": "tinjacks_broken",
+        "text": "The Tinjacks are broken: Rusk fled down-valley, Cobb sits in the Guild's lock-up, and the stolen salt and ingots are stacked in the old adit. Osric Vane pays 2 silver for each Tinjack brought down, Mags wants her salt, and the village talks of little else.",
+        "visibility": [
+          "valley_inn",
+          "inn_yard",
+          "market_square",
+          "smithy",
+          "herb_cottage",
+          "west_road",
+          "old_adit",
+          "mine_workings"
+        ]
+      },
+      "people_memories": {
+        "innkeep": {
+          "who": "player",
+          "what": "broke the Tinjacks who squeezed my inn for a toll",
+          "felt": "grateful"
+        },
+        "guild_steward": {
+          "who": "player",
+          "what": "brought down the Tinjacks; the Guild owes the bounty",
+          "felt": "owed"
+        },
+        "drover": {
+          "who": "player",
+          "what": "broke the gang that stole my salt",
+          "felt": "grateful"
+        }
+      },
+      "retract_facts": [
+        "tinjacks_toll",
+        "tinjacks_ready",
+        "tinjacks_rumour"
+      ]
+    }
+  },
+  "public_facts": [
+    {
+      "id": "tinjacks_rumour",
+      "text": "Drovers grumble that another salt cart vanished on the west road; folk blame the orcs, though orcs never come down that far.",
+      "visibility": [
+        "valley_inn",
+        "inn_yard",
+        "market_square"
+      ]
+    }
+  ],
+  "portents": []
+}

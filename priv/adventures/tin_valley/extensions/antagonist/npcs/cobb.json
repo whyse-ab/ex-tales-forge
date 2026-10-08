@@ -1,0 +1,19 @@
+{
+  "id": "cobb",
+  "derive": {"race": "human", "standing": "underclass", "occupation": "laborer"},
+  "skills": {"melee_combat": 7, "unarmed_combat": 8, "intimidation": 6},
+  "fee_copper": 0,
+  "motivations": {
+    "agency_tier": "normal",
+    "mood": "surly",
+    "personality_traits": {"openness": 2, "conscientiousness": 4, "extraversion": 4, "agreeableness": 2, "neuroticism": 6}
+  },
+  "hooks": [
+    "He collects the road toll: coin from every guest, or a beating.",
+    "He swings first when someone laughs at him or reaches for a blade."
+  ],
+  "maslow": "belonging",
+  "concerns": [
+    {"text": "Do what Rusk says and keep people afraid of him", "focus": "doing what Rusk says", "priority": 6}
+  ]
+}

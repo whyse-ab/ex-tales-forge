@@ -4,6 +4,12 @@ defmodule TalesForge.Game.Events do
 
   Plain move onto a watched enter location is `player.failed_notice`
   unless the mechanical outcome is success with an unless_skill.
+
+  A `"combat"` trigger fires when the player fights one of `target_in` (the
+  action's target, or any of them present when the action names none):
+  `event_on_success` or `event_on_failure` by the roll. A `"check"` trigger
+  fires `event` when a check with a skill in `skill_in` on one of `target_in`
+  succeeds.
   """
 
   alias TalesForge.Game.Mechanics
@@ -32,6 +38,58 @@ defmodule TalesForge.Game.Events do
     |> Kernel.++(notice_events(triggers, handler, mechanical, loc_before, loc_after, tick))
     |> Kernel.++(dawdle_events(triggers, loc_after, tick, delta))
     |> Kernel.++(interact_events(triggers, player_action, loc_after, tick))
+    |> Kernel.++(combat_events(triggers, player_action, mechanical, world_after, tick))
+    |> Kernel.++(check_events(triggers, player_action, mechanical, world_after, tick))
+  end
+
+  defp combat_events(triggers, player_action, mechanical, world_after, tick) do
+    if action_type(player_action) == :combat do
+      outcome = mechanical_outcome(mechanical)
+
+      triggers
+      |> Enum.filter(&(&1["on"] == "combat" and aimed_at?(&1, player_action, world_after)))
+      |> Enum.flat_map(&combat_event(&1, outcome, character_loc(world_after), tick))
+    else
+      []
+    end
+  end
+
+  defp combat_event(trigger, outcome, location_id, tick) do
+    kind =
+      if outcome == "success", do: trigger["event_on_success"], else: trigger["event_on_failure"]
+
+    if is_binary(kind),
+      do: [event(kind, true, tick, location_id, %{"outcome" => outcome}, "player")],
+      else: []
+  end
+
+  defp check_events(triggers, player_action, mechanical, world_after, tick) do
+    skill = mechanical_skill(mechanical)
+
+    if mechanical_outcome(mechanical) == "success" and is_binary(skill) do
+      triggers
+      |> Enum.filter(fn trigger ->
+        trigger["on"] == "check" and skill in List.wrap(trigger["skill_in"]) and
+          aimed_at?(trigger, player_action, world_after)
+      end)
+      |> Enum.map(
+        &event(&1["event"], true, tick, character_loc(world_after), %{"skill" => skill}, "player")
+      )
+    else
+      []
+    end
+  end
+
+  # The action's target is one of the trigger's people, or the action names
+  # nobody and one of them is present.
+  defp aimed_at?(trigger, player_action, world_after) do
+    targets = List.wrap(trigger["target_in"])
+    present = List.wrap(world_after["present_npcs"])
+
+    case action_target(player_action) do
+      target when is_binary(target) -> target in targets and target in present
+      _ -> Enum.any?(targets, &(&1 in present))
+    end
   end
 
   defp travel_events(from, to, tick) when is_binary(from) and is_binary(to) and from != to do
