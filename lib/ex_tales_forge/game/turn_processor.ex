@@ -3,7 +3,8 @@ defmodule TalesForge.Game.TurnProcessor do
   Turn pipeline: board first, then one table GM, then one Multi.
 
   PlayerAction → handler → server mechanics → inventory → clock+move →
-  events → WorldSim → Perception → table GM (tone only) → allow-listed
+  events → WorldSim → Perception → vitality → LP spent on improvement attempts
+  (`TalesForge.Game.Progression`) → table GM (tone only) → allow-listed
   patches → Multi → NPC updates → characters mirror → sync/signals → turn_completed.
 
   Core runtime is 100% Ecto.
@@ -21,6 +22,8 @@ defmodule TalesForge.Game.TurnProcessor do
   alias TalesForge.Game.Mechanics
   alias TalesForge.Game.NpcReactions
   alias TalesForge.Game.Perception
+  alias TalesForge.Game.Progression
+  alias TalesForge.Game.Progression.Tiered
   alias TalesForge.Game.Prompts
   alias TalesForge.Game.SceneProcessor
   alias TalesForge.Game.Schemas.{GMStructuredResponse, MechanicalResolution, PlayerAction}
@@ -255,17 +258,18 @@ defmodule TalesForge.Game.TurnProcessor do
     {:ok, sim} = WorldSim.tick(%{fronts: fronts, people: people, events: events})
     hidden = Enum.reject(events, & &1["player_aware"])
 
-    world =
+    {world, spent} =
       world_paused
       |> Perception.scrub_situation_lines(hidden)
       |> Perception.snapshot_public_facts(sim.fronts ++ sim.people)
       |> Mechanics.apply_vitality(mechanical, opts)
+      |> maybe_spend_lp(opts)
 
     %{
       world: world,
       events: events,
       sim: sim,
-      improvements: improvements,
+      improvements: improvements ++ spent,
       training: training
     }
   end
@@ -280,6 +284,20 @@ defmodule TalesForge.Game.TurnProcessor do
     {world_improved, improvements, nil}
   end
 
+  # Default variant (decision 2026-10-07): at the end of every turn each whole
+  # LP buys one improvement attempt, so growth no longer waits for a rest that
+  # rarely comes. The dead learn nothing. The baseline variant spends LP only
+  # at a rest (maybe_attempt_improvements/3, the #64 rule).
+  defp maybe_spend_lp(world, opts) do
+    if Variant.baseline?(world) or Mechanics.dead?(world) do
+      {world, []}
+    else
+      character = Map.get(world, "character", %{})
+      {spent, attempts} = Progression.spend_lp(character, opts[:improvement_rolls] || %{})
+      {put_in(world, ["character"], spent), attempts}
+    end
+  end
+
   defp apply_training(world, session, player_action, opts) do
     action = player_action.action
     npc_id = action.target
@@ -288,7 +306,13 @@ defmodule TalesForge.Game.TurnProcessor do
     character = Map.get(world, "character", %{})
 
     {taught, improvements, training, ticks} =
-      Train.apply(character, npc_def, present_ids, action, opts)
+      Train.apply(
+        character,
+        npc_def,
+        present_ids,
+        action,
+        Keyword.put(opts, :variant, Variant.of(world))
+      )
 
     world =
       world
@@ -307,15 +331,17 @@ defmodule TalesForge.Game.TurnProcessor do
 
   defp trainer_personality(_session_id, _npc_id), do: %{}
 
+  # Baseline variant only: the #64 rule tries eligible skills at a rest of an
+  # hour or more.
   defp maybe_attempt_improvements(world, handler, opts) do
     pause? =
-      handler.handler == "wait" and
+      Variant.baseline?(world) and handler.handler == "wait" and
         ActionHandler.tick_delta(handler) >= WorldClock.ticks_per_hour()
 
     if pause? do
       rolls = opts[:improvement_rolls] || %{}
       character = Map.get(world, "character", %{})
-      {improved, improvements} = Mechanics.attempt_improvements(character, rolls)
+      {improved, improvements} = Tiered.attempt_improvements(character, rolls)
       {put_in(world, ["character"], improved), improvements}
     else
       {world, []}

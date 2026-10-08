@@ -137,7 +137,7 @@ defmodule TalesForge.Game.Context do
 
     %{
       session_id: session.id,
-      rules: TalesForge.Game.Prompts.load_rules(adventure_id),
+      rules: TalesForge.Game.Prompts.load_rules(adventure_id, TalesForge.Game.Variant.of(world)),
       intent_context: intent,
       formatted_intent: format_intent_context(intent),
       world_state: world,

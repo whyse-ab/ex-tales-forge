@@ -196,7 +196,7 @@ This combat system, adapted from Savage Worlds' wound-based mechanics, is design
   - Success: +0.5 LP.
   - Natural 1: +1 LP (once per skill per session).
   - Near-death (saved): +2 LP for related skills.
-  - The tier's LP (5/7/10/15) trigger an improvement roll (d20 + tier modifier > skill level - trainer bonus).
+  - Each LP buys an improvement attempt at the end of the turn (d20 ≥ skill level: +1).
 
 ## Additional Features
 - **Multi-Actions**: Multiple actions per round (e.g., attack twice) at -2 skill per extra action, granting LP on failures.
@@ -239,15 +239,13 @@ This is a skill-based fantasy RPG system where character progress is measured by
   - Success (non-natural 1): +0.5 LP.
   - Natural 20: +2 LP.
   - Natural 1: +1 LP (capped once per skill per session).
-  - Threshold: the tier's LP (Novice 1-5: 5, Adept 6-10: 7, Expert 11-15: 10, Master 16+: 15) and ≥ 1 failure on that skill to attempt improvement.
+  - Spending: 1 LP buys one improvement attempt on that skill. No threshold, no failure and no rest needed.
   - Linked stat: +(Stat - 10)/4 LP per roll (rounded down, 0 to +2).
 - **Skill Improvement**:
-  - Attempt at rest / sleep / wait ≥ 1 hour, not session end.
-  - One 1d20 per eligible skill per pause.
-  - Roll 1d20 &gt; raw skill (Expert -3 and Master -5 to the roll; Master needs a trainer).
-  - Success: skill +1, LP 0, failures 0.
-  - Failure: skill unchanged, LP 1, failures 0.
-  - No skill cap; high levels become harder without bonuses.
+  - At the end of the turn, every whole LP a skill holds is spent, one attempt per LP (fractions wait for the next roll).
+  - Roll 1d20 ≥ raw skill: skill +1. Chance (21 - skill)/20: 90% at 3, 70% at 7, 45% at 12, 5% at 20.
+  - Each attempt costs 1 LP, hit or miss. No tier modifiers.
+  - No skill cap, but past 20 only a trainer's bonus can reach the target.
 - **Death Exception**: No LP from fatal failures; near-death grants +1 LP if survived.
 - **Skill List Categories** (Examples):
   - **Combat**: Melee Combat, Ranged Combat, Unarmed Combat, Tactics, Dodge.
@@ -258,9 +256,9 @@ This is a skill-based fantasy RPG system where character progress is measured by
 
 ## Trainers and Adventures
 
-- **Trainers**: NPCs with skill level ≥5 above the character's. Provide +5 bonus to improvement rolls (reduces target by 5).
+- **Trainers**: NPCs with skill level ≥5 above the character's. A training session is one free improvement attempt (no LP) with +5 to the roll (1d20 + 5 ≥ skill).
   - Found via quests (e.g., journey to a master thief for Stealth training).
-  - Bonus applies to one improvement per training session; requires time/resources.
+  - One attempt per training session; costs time and the trainer's fee.
   - Can be group quests for party training.
 - **Integration**: Trainers can bypass/reduce stat minima for advancements; quests add narrative depth.
 
@@ -749,19 +747,23 @@ High skill levels in a domain grant **contextual stat bonuses** when performing 
 
 ---
 
-## LP Progression: Scaled Thresholds
+## LP Progression: One LP, One Attempt
 
-| Tier | Level Range | LP to Attempt | Improvement Target | Trainer Required |
-|------|-------------|---------------|-------------------|------------------|
-| Novice | 1-5 | 5 LP | Roll > Level | No |
-| Adept | 6-10 | 7 LP | Roll > Level | No |
-| Expert | 11-15 | 10 LP | Roll - 3 > Level | Recommended |
-| Master | 16-20 | 15 LP | Roll - 5 > Level | Required |
+Each Learning Point buys one improvement attempt on its skill, spent at the end of the turn that earned it. Roll 1d20: equal to or higher than the current level raises the skill by 1.
+
+| Level | Chance per attempt | Attempts (LP) per level, on average |
+|-------|-------------------|-------------------------------------|
+| 3 | 90% | 1.1 |
+| 5 | 80% | 1.25 |
+| 7 | 70% | 1.4 |
+| 12 | 45% | 2.2 |
+| 16 | 25% | 4 |
+| 20 | 5% | 20 |
 
 ### Trainer Bonuses
 - Trainers must have skill level ≥5 above student
-- Trainer provides +5 bonus to improvement roll
-- At Master tier, improvement without trainer auto-fails
+- A training session is one free attempt (no LP) with +5 to the roll
+- Past level 20, only a trainer's bonus can reach the target
 
 ---
 
@@ -773,11 +775,11 @@ Skills don't exist in isolation. A master swordsman has developed body awareness
 ### Why Floors Instead of Bonuses?
 Floors represent baseline competence, not enhancement. A master fighter doesn't get +6 to unarmed — they can't be *worse* than level 6 at unarmed. This distinction matters narratively.
 
-### Why Scaled LP?
-The 10,000-hour research shows diminishing returns at high levels. A novice improves rapidly; a master grinds for marginal gains. Scaling LP thresholds simulates this reality.
+### Why One LP per Attempt?
+The 10,000-hour research shows diminishing returns at high levels. A novice improves rapidly; a master grinds for marginal gains. The roll does this by itself: the higher the skill, the smaller the chance that an attempt pays off, so no thresholds or tier modifiers are needed.
 
-### Why Trainer Requirements?
-Beyond Expert level, self-study plateaus. Real masters seek other masters. This creates natural quest hooks and emphasizes that true mastery is rare.
+### Why Trainers?
+Beyond Expert level, self-study plateaus. Real masters seek other masters. A trainer's +5 matters most where attempts mostly fail, and past level 20 nothing else works. This creates natural quest hooks and emphasizes that true mastery is rare.
 
 --- system ---
 Your task: the player character has just arrived at a location. Describe what they perceive through their senses:
@@ -982,7 +984,7 @@ This combat system, adapted from Savage Worlds' wound-based mechanics, is design
   - Success: +0.5 LP.
   - Natural 1: +1 LP (once per skill per session).
   - Near-death (saved): +2 LP for related skills.
-  - The tier's LP (5/7/10/15) trigger an improvement roll (d20 + tier modifier > skill level - trainer bonus).
+  - Each LP buys an improvement attempt at the end of the turn (d20 ≥ skill level: +1).
 
 ## Additional Features
 - **Multi-Actions**: Multiple actions per round (e.g., attack twice) at -2 skill per extra action, granting LP on failures.
@@ -1025,15 +1027,13 @@ This is a skill-based fantasy RPG system where character progress is measured by
   - Success (non-natural 1): +0.5 LP.
   - Natural 20: +2 LP.
   - Natural 1: +1 LP (capped once per skill per session).
-  - Threshold: the tier's LP (Novice 1-5: 5, Adept 6-10: 7, Expert 11-15: 10, Master 16+: 15) and ≥ 1 failure on that skill to attempt improvement.
+  - Spending: 1 LP buys one improvement attempt on that skill. No threshold, no failure and no rest needed.
   - Linked stat: +(Stat - 10)/4 LP per roll (rounded down, 0 to +2).
 - **Skill Improvement**:
-  - Attempt at rest / sleep / wait ≥ 1 hour, not session end.
-  - One 1d20 per eligible skill per pause.
-  - Roll 1d20 &gt; raw skill (Expert -3 and Master -5 to the roll; Master needs a trainer).
-  - Success: skill +1, LP 0, failures 0.
-  - Failure: skill unchanged, LP 1, failures 0.
-  - No skill cap; high levels become harder without bonuses.
+  - At the end of the turn, every whole LP a skill holds is spent, one attempt per LP (fractions wait for the next roll).
+  - Roll 1d20 ≥ raw skill: skill +1. Chance (21 - skill)/20: 90% at 3, 70% at 7, 45% at 12, 5% at 20.
+  - Each attempt costs 1 LP, hit or miss. No tier modifiers.
+  - No skill cap, but past 20 only a trainer's bonus can reach the target.
 - **Death Exception**: No LP from fatal failures; near-death grants +1 LP if survived.
 - **Skill List Categories** (Examples):
   - **Combat**: Melee Combat, Ranged Combat, Unarmed Combat, Tactics, Dodge.
@@ -1044,9 +1044,9 @@ This is a skill-based fantasy RPG system where character progress is measured by
 
 ## Trainers and Adventures
 
-- **Trainers**: NPCs with skill level ≥5 above the character's. Provide +5 bonus to improvement rolls (reduces target by 5).
+- **Trainers**: NPCs with skill level ≥5 above the character's. A training session is one free improvement attempt (no LP) with +5 to the roll (1d20 + 5 ≥ skill).
   - Found via quests (e.g., journey to a master thief for Stealth training).
-  - Bonus applies to one improvement per training session; requires time/resources.
+  - One attempt per training session; costs time and the trainer's fee.
   - Can be group quests for party training.
 - **Integration**: Trainers can bypass/reduce stat minima for advancements; quests add narrative depth.
 
@@ -1535,19 +1535,23 @@ High skill levels in a domain grant **contextual stat bonuses** when performing 
 
 ---
 
-## LP Progression: Scaled Thresholds
+## LP Progression: One LP, One Attempt
 
-| Tier | Level Range | LP to Attempt | Improvement Target | Trainer Required |
-|------|-------------|---------------|-------------------|------------------|
-| Novice | 1-5 | 5 LP | Roll > Level | No |
-| Adept | 6-10 | 7 LP | Roll > Level | No |
-| Expert | 11-15 | 10 LP | Roll - 3 > Level | Recommended |
-| Master | 16-20 | 15 LP | Roll - 5 > Level | Required |
+Each Learning Point buys one improvement attempt on its skill, spent at the end of the turn that earned it. Roll 1d20: equal to or higher than the current level raises the skill by 1.
+
+| Level | Chance per attempt | Attempts (LP) per level, on average |
+|-------|-------------------|-------------------------------------|
+| 3 | 90% | 1.1 |
+| 5 | 80% | 1.25 |
+| 7 | 70% | 1.4 |
+| 12 | 45% | 2.2 |
+| 16 | 25% | 4 |
+| 20 | 5% | 20 |
 
 ### Trainer Bonuses
 - Trainers must have skill level ≥5 above student
-- Trainer provides +5 bonus to improvement roll
-- At Master tier, improvement without trainer auto-fails
+- A training session is one free attempt (no LP) with +5 to the roll
+- Past level 20, only a trainer's bonus can reach the target
 
 ---
 
@@ -1559,11 +1563,11 @@ Skills don't exist in isolation. A master swordsman has developed body awareness
 ### Why Floors Instead of Bonuses?
 Floors represent baseline competence, not enhancement. A master fighter doesn't get +6 to unarmed — they can't be *worse* than level 6 at unarmed. This distinction matters narratively.
 
-### Why Scaled LP?
-The 10,000-hour research shows diminishing returns at high levels. A novice improves rapidly; a master grinds for marginal gains. Scaling LP thresholds simulates this reality.
+### Why One LP per Attempt?
+The 10,000-hour research shows diminishing returns at high levels. A novice improves rapidly; a master grinds for marginal gains. The roll does this by itself: the higher the skill, the smaller the chance that an attempt pays off, so no thresholds or tier modifiers are needed.
 
-### Why Trainer Requirements?
-Beyond Expert level, self-study plateaus. Real masters seek other masters. This creates natural quest hooks and emphasizes that true mastery is rare.
+### Why Trainers?
+Beyond Expert level, self-study plateaus. Real masters seek other masters. A trainer's +5 matters most where attempts mostly fail, and past level 20 nothing else works. This creates natural quest hooks and emphasizes that true mastery is rare.
 
 --- system ---
 Your task: narrate the result of the player's action this turn.
@@ -1830,7 +1834,7 @@ This combat system, adapted from Savage Worlds' wound-based mechanics, is design
   - Success: +0.5 LP.
   - Natural 1: +1 LP (once per skill per session).
   - Near-death (saved): +2 LP for related skills.
-  - The tier's LP (5/7/10/15) trigger an improvement roll (d20 + tier modifier > skill level - trainer bonus).
+  - Each LP buys an improvement attempt at the end of the turn (d20 ≥ skill level: +1).
 
 ## Additional Features
 - **Multi-Actions**: Multiple actions per round (e.g., attack twice) at -2 skill per extra action, granting LP on failures.
@@ -1873,15 +1877,13 @@ This is a skill-based fantasy RPG system where character progress is measured by
   - Success (non-natural 1): +0.5 LP.
   - Natural 20: +2 LP.
   - Natural 1: +1 LP (capped once per skill per session).
-  - Threshold: the tier's LP (Novice 1-5: 5, Adept 6-10: 7, Expert 11-15: 10, Master 16+: 15) and ≥ 1 failure on that skill to attempt improvement.
+  - Spending: 1 LP buys one improvement attempt on that skill. No threshold, no failure and no rest needed.
   - Linked stat: +(Stat - 10)/4 LP per roll (rounded down, 0 to +2).
 - **Skill Improvement**:
-  - Attempt at rest / sleep / wait ≥ 1 hour, not session end.
-  - One 1d20 per eligible skill per pause.
-  - Roll 1d20 &gt; raw skill (Expert -3 and Master -5 to the roll; Master needs a trainer).
-  - Success: skill +1, LP 0, failures 0.
-  - Failure: skill unchanged, LP 1, failures 0.
-  - No skill cap; high levels become harder without bonuses.
+  - At the end of the turn, every whole LP a skill holds is spent, one attempt per LP (fractions wait for the next roll).
+  - Roll 1d20 ≥ raw skill: skill +1. Chance (21 - skill)/20: 90% at 3, 70% at 7, 45% at 12, 5% at 20.
+  - Each attempt costs 1 LP, hit or miss. No tier modifiers.
+  - No skill cap, but past 20 only a trainer's bonus can reach the target.
 - **Death Exception**: No LP from fatal failures; near-death grants +1 LP if survived.
 - **Skill List Categories** (Examples):
   - **Combat**: Melee Combat, Ranged Combat, Unarmed Combat, Tactics, Dodge.
@@ -1892,9 +1894,9 @@ This is a skill-based fantasy RPG system where character progress is measured by
 
 ## Trainers and Adventures
 
-- **Trainers**: NPCs with skill level ≥5 above the character's. Provide +5 bonus to improvement rolls (reduces target by 5).
+- **Trainers**: NPCs with skill level ≥5 above the character's. A training session is one free improvement attempt (no LP) with +5 to the roll (1d20 + 5 ≥ skill).
   - Found via quests (e.g., journey to a master thief for Stealth training).
-  - Bonus applies to one improvement per training session; requires time/resources.
+  - One attempt per training session; costs time and the trainer's fee.
   - Can be group quests for party training.
 - **Integration**: Trainers can bypass/reduce stat minima for advancements; quests add narrative depth.
 
@@ -2383,19 +2385,23 @@ High skill levels in a domain grant **contextual stat bonuses** when performing 
 
 ---
 
-## LP Progression: Scaled Thresholds
+## LP Progression: One LP, One Attempt
 
-| Tier | Level Range | LP to Attempt | Improvement Target | Trainer Required |
-|------|-------------|---------------|-------------------|------------------|
-| Novice | 1-5 | 5 LP | Roll > Level | No |
-| Adept | 6-10 | 7 LP | Roll > Level | No |
-| Expert | 11-15 | 10 LP | Roll - 3 > Level | Recommended |
-| Master | 16-20 | 15 LP | Roll - 5 > Level | Required |
+Each Learning Point buys one improvement attempt on its skill, spent at the end of the turn that earned it. Roll 1d20: equal to or higher than the current level raises the skill by 1.
+
+| Level | Chance per attempt | Attempts (LP) per level, on average |
+|-------|-------------------|-------------------------------------|
+| 3 | 90% | 1.1 |
+| 5 | 80% | 1.25 |
+| 7 | 70% | 1.4 |
+| 12 | 45% | 2.2 |
+| 16 | 25% | 4 |
+| 20 | 5% | 20 |
 
 ### Trainer Bonuses
 - Trainers must have skill level ≥5 above student
-- Trainer provides +5 bonus to improvement roll
-- At Master tier, improvement without trainer auto-fails
+- A training session is one free attempt (no LP) with +5 to the roll
+- Past level 20, only a trainer's bonus can reach the target
 
 ---
 
@@ -2407,11 +2413,11 @@ Skills don't exist in isolation. A master swordsman has developed body awareness
 ### Why Floors Instead of Bonuses?
 Floors represent baseline competence, not enhancement. A master fighter doesn't get +6 to unarmed — they can't be *worse* than level 6 at unarmed. This distinction matters narratively.
 
-### Why Scaled LP?
-The 10,000-hour research shows diminishing returns at high levels. A novice improves rapidly; a master grinds for marginal gains. Scaling LP thresholds simulates this reality.
+### Why One LP per Attempt?
+The 10,000-hour research shows diminishing returns at high levels. A novice improves rapidly; a master grinds for marginal gains. The roll does this by itself: the higher the skill, the smaller the chance that an attempt pays off, so no thresholds or tier modifiers are needed.
 
-### Why Trainer Requirements?
-Beyond Expert level, self-study plateaus. Real masters seek other masters. This creates natural quest hooks and emphasizes that true mastery is rare.
+### Why Trainers?
+Beyond Expert level, self-study plateaus. Real masters seek other masters. A trainer's +5 matters most where attempts mostly fail, and past level 20 nothing else works. This creates natural quest hooks and emphasizes that true mastery is rare.
 
 --- system ---
 Your task: narrate the result of the player's action this turn.

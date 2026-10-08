@@ -84,6 +84,10 @@
                  "lib/ex_tales_forge/game/movement.ex",
                  "lib/ex_tales_forge/game/prompts.ex",
                  "lib/ex_tales_forge/game/npc_reactions.ex",
+                 "lib/ex_tales_forge/game/mechanics.ex",
+                 "lib/ex_tales_forge/game/progression.ex",
+                 "lib/ex_tales_forge/game/progression/",
+                 "lib/ex_tales_forge/game/train.ex",
                  "lib/ex_tales_forge/world.ex",
                  "lib/ex_tales_forge/world/",
                  "lib/ex_tales_forge_web/time_ago.ex"
