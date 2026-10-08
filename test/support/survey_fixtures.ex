@@ -44,6 +44,10 @@ defmodule TalesForge.SurveyFixtures do
                 "title" => "One story?",
                 "required" => true,
                 "options" => ["Yes", "No"],
+                "option_labels" => %{
+                  "Yes" => %{"reading" => "one", "later" => nil},
+                  "No" => %{"reading" => "many", "later" => "move"}
+                },
                 "follow_ups" => [%{"id" => "depends", "label" => "Depends on what?"}]
               },
               %{
@@ -162,6 +166,52 @@ defmodule TalesForge.SurveyFixtures do
     end)
 
     file
+  end
+
+  @doc """
+  Serves several survey files from one temporary docs checkout:
+  `files` maps a file name (e.g. `"a-survey.json"`) to its content.
+  """
+  def use_docs_files(files) do
+    dir = Path.join(System.tmp_dir!(), "tf-surveys-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(Path.join(dir, "docs"))
+
+    Enum.each(files, fn {name, content} ->
+      File.write!(Path.join([dir, "docs", name]), content)
+    end)
+
+    Application.put_env(:ex_tales_forge, :tales_forge_docs_path, dir)
+    Cache.clear()
+
+    on_exit(fn ->
+      File.rm_rf!(dir)
+      Application.delete_env(:ex_tales_forge, :tales_forge_docs_path)
+      Cache.clear()
+    end)
+
+    dir
+  end
+
+  @doc """
+  Three surveys plus a non-survey file: `open-survey` (active), `quiet-survey`
+  (open but not active) and `closed-survey` (active but closed). The first two
+  share the fixture's questions under their own ids and tab labels.
+  """
+  def three_surveys do
+    use_docs_files(%{
+      "open-survey.json" =>
+        survey_json(%{"id" => "open-survey", "active" => true, "tab" => "Open one"}),
+      "quiet-survey.json" => survey_json(%{"id" => "quiet-survey", "title" => "Quiet survey"}),
+      "closed-survey.json" =>
+        survey_json(%{
+          "id" => "closed-survey",
+          "title" => "Closed survey",
+          "active" => true,
+          "status" => "closed"
+        }),
+      "notes.json" => "{}",
+      "open-survey.md" => "# not a survey file"
+    })
   end
 
   @doc "No docs checkout and no GitHub token: definitions come from priv/surveys."

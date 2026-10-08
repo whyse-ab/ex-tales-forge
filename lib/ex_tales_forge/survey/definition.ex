@@ -17,6 +17,13 @@ defmodule TalesForge.Survey.Definition do
   Lists: `rows`, `columns` and `options` may be written as `"@name"` to reuse a
   list from the top-level `lists` object (e.g. `"@archetypes"`). Excerpt
   questions are rated on `lists.rating`.
+
+  Option labels: `single` and `checkboxes` questions may map options to flat
+  label objects (`option_labels`); see `TalesForge.Survey.Question`.
+
+  Tabs: a survey with `"active": true` (and not `closed`) is one of the tabs on
+  `/admin/survey` (`active?/1`), labelled with `tab` or else the title. An
+  inactive survey stays reachable at `/admin/surveys/<id>` and its results.
   """
 
   alias TalesForge.Survey.Question
@@ -46,7 +53,9 @@ defmodule TalesForge.Survey.Definition do
           id: String.t(),
           version: pos_integer(),
           status: status(),
+          active: boolean(),
           title: String.t(),
+          tab: String.t() | nil,
           intro: String.t() | nil,
           estimated_minutes: pos_integer() | nil,
           playtest_base_url: String.t() | nil,
@@ -62,10 +71,12 @@ defmodule TalesForge.Survey.Definition do
     :version,
     :status,
     :title,
+    :tab,
     :intro,
     :estimated_minutes,
     :playtest_base_url,
     :latest_findings,
+    active: false,
     notes: [],
     how_we_use: [],
     lists: %{},
@@ -116,6 +127,27 @@ defmodule TalesForge.Survey.Definition do
   @spec section(t(), String.t()) :: Section.t() | nil
   def section(%__MODULE__{sections: sections}, id), do: Enum.find(sections, &(&1.id == id))
 
+  @doc """
+  Is this survey one of the founder tabs? True when `active` is set and the
+  survey is not closed.
+
+      iex> TalesForge.Survey.Definition.active?(%TalesForge.Survey.Definition{active: true, status: :open})
+      true
+      iex> TalesForge.Survey.Definition.active?(%TalesForge.Survey.Definition{active: true, status: :closed})
+      false
+  """
+  @spec active?(t()) :: boolean()
+  def active?(%__MODULE__{active: active, status: status}), do: active and status != :closed
+
+  @doc """
+  The tab label: `tab` when set, else the title.
+
+      iex> TalesForge.Survey.Definition.tab_title(%TalesForge.Survey.Definition{title: "Long title", tab: "Short"})
+      "Short"
+  """
+  @spec tab_title(t()) :: String.t()
+  def tab_title(%__MODULE__{tab: tab, title: title}), do: tab || title
+
   @doc "Can answers be saved? True for draft and open surveys, false once closed."
   @spec answerable?(t()) :: boolean()
   def answerable?(%__MODULE__{status: status}), do: status in [:draft, :open]
@@ -146,7 +178,9 @@ defmodule TalesForge.Survey.Definition do
       |> take("id", :slug, required: true)
       |> take("version", :pos_integer, required: true)
       |> take_status()
+      |> take("active", :boolean, default: false)
       |> take("title", :string, required: true)
+      |> take("tab", :string)
       |> take("intro", :string)
       |> take("estimated_minutes", :pos_integer)
       |> take("playtest_base_url", :https_url)
@@ -319,10 +353,16 @@ defmodule TalesForge.Survey.Definition do
     end
   end
 
-  defp build_typed(%{out: %{type: :single}} = c), do: take_list_ref(c, "options")
+  defp build_typed(%{out: %{type: :single}} = c),
+    do: c |> take_list_ref("options") |> take_option_labels()
 
   defp build_typed(%{out: %{type: :checkboxes}} = c) do
-    c = c |> take_list_ref("options") |> take("other", :boolean, default: false)
+    c =
+      c
+      |> take_list_ref("options")
+      |> take("other", :boolean, default: false)
+      |> take_option_labels()
+
     if c.out.other, do: reserved_follow_up(c, "other"), else: c
   end
 
@@ -362,6 +402,41 @@ defmodule TalesForge.Survey.Definition do
   end
 
   defp build_typed(c), do: c
+
+  # `option_labels`: `{option text: {label: string or null}}`, every key one of
+  # the question's options. Optional; never shown to the person answering.
+  defp take_option_labels(c) do
+    path = at(c.path, "option_labels")
+
+    case Map.get(c.map, "option_labels", %{}) do
+      %{} = labels ->
+        errs =
+          Enum.reduce(labels, [], fn {option, value}, acc ->
+            option_label_errors(option, value, c.out.options, path) ++ acc
+          end)
+
+        %{c | errs: Enum.sort(errs, :desc) ++ c.errs} |> put(:option_labels, labels)
+
+      _other ->
+        c |> put(:option_labels, %{}) |> error("#{path} must be an object")
+    end
+  end
+
+  defp option_label_errors(option, value, options, path) do
+    cond do
+      option not in options ->
+        ["#{path} has #{inspect(option)}, which is not one of the options"]
+
+      not is_map(value) ->
+        ["#{path}[#{inspect(option)}] must be an object of labels"]
+
+      not Enum.all?(value, fn {_key, v} -> is_nil(v) or is_binary(v) end) ->
+        ["#{path}[#{inspect(option)}] values must be strings or null"]
+
+      true ->
+        []
+    end
+  end
 
   defp check_scale(%{out: %{min: min, max: max}} = c)
        when is_integer(min) and is_integer(max) and min < max and max - min <= 10,

@@ -85,6 +85,7 @@ defmodule TalesForgeWeb.Router do
       live "/docs/*path", DocLive.Index, :show
       live "/costs", CostsLive, :index
       live "/survey", SurveyLive.Show, :current
+      live "/surveys", SurveyLive.Index, :index
       live "/surveys/:id", SurveyLive.Show, :show
       live "/surveys/:id/results", SurveyLive.Results, :index
     end

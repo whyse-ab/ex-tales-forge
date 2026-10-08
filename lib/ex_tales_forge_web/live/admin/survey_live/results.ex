@@ -88,6 +88,13 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Results do
             >
               Survey page
             </.link>
+            ·
+            <.link navigate={~p"/admin/surveys"} class="text-[var(--paper-accent)] underline">
+              All surveys
+            </.link>
+            · {if TalesForge.Survey.Definition.active?(@definition),
+              do: "an open tab",
+              else: "not an open tab"}
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -249,6 +256,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Results do
           count={c.count}
           total={max(@agg.answered, 1)}
           earlier={c.earlier?}
+          labels={c.labels}
         />
       </div>
       <div :if={@agg.rows != []} class="overflow-x-auto">
@@ -315,9 +323,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Results do
 
   defp sorted_rows(%{rows: rows}), do: rows
 
-  defp survey_path(id) do
-    if id == Surveys.current_id(), do: ~p"/admin/survey", else: ~p"/admin/surveys/#{id}"
-  end
+  defp survey_path(id), do: ~p"/admin/surveys/#{id}"
 
   defp blank(""), do: "–"
   defp blank(text), do: text

@@ -1,7 +1,10 @@
 defmodule TalesForgeWeb.AdminLive.SurveyLive.Show do
   @moduledoc """
-  The founder survey page (`/admin/survey` for the current survey,
-  `/admin/surveys/:id` for any). Questions come from the survey file in
+  The founder survey page. `/admin/survey` shows one tab per active survey
+  (`TalesForge.Surveys.active/1`, from each docs file's `active` flag) with
+  the signed-in founder's status on each (not started, in progress, done) and
+  opens the first; `/admin/surveys/:id` opens any survey, active or not.
+  Questions come from the survey file in
   tales-forge-docs (`TalesForge.Survey.Source`); answers autosave per section
   into the signed-in user's response (`TalesForge.Surveys`), keyed by their
   GitHub login, so there is no name question. Shows who you answer as and the
@@ -22,14 +25,17 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Show do
 
   @impl true
   def mount(params, session, socket) do
-    id = params["id"] || Surveys.current_id()
+    login = session[AdminAuth.github_login_key()]
+    active = Surveys.active()
+    id = params["id"] || first_id(active)
 
     {:ok,
      socket
-     |> assign(:survey_id, id)
-     |> assign(:login, session[AdminAuth.github_login_key()])
+     |> assign(:login, login)
      |> assign(:saved_at, nil)
      |> assign(:save_error, nil)
+     |> assign(:tabs, tabs(active, login))
+     |> assign(:survey_id, id)
      |> load(Source.load(id))}
   end
 
@@ -44,7 +50,8 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Show do
          socket
          |> assign(:answers, response.answers)
          |> assign(:saved_at, response.updated_at)
-         |> assign(:save_error, nil)}
+         |> assign(:save_error, nil)
+         |> update_tab(response)}
 
       {:error, :closed} ->
         {:noreply, assign(socket, :save_error, "This survey is closed; nothing was saved.")}
@@ -55,7 +62,8 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Show do
   end
 
   def handle_event("reload", _params, socket) do
-    {:noreply, load(socket, Source.load(socket.assigns.survey_id, fresh: true))}
+    socket = load(socket, Source.load(socket.assigns.survey_id, fresh: true))
+    {:noreply, assign(socket, :tabs, tabs(Surveys.active(fresh: true), socket.assigns.login))}
   end
 
   def handle_event("clear", _params, socket) do
@@ -64,11 +72,41 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Show do
         {:noreply,
          socket
          |> assign(answers: %{}, saved_at: nil)
+         |> update_tab(nil)
          |> put_flash(:info, "Your answers were cleared.")}
 
       {:error, :closed} ->
         {:noreply, put_flash(socket, :error, "This survey is closed.")}
     end
+  end
+
+  # With no active survey (or no docs at all), fall back to the configured one.
+  defp first_id([first | _rest]), do: first.definition.id
+  defp first_id([]), do: Surveys.current_id()
+
+  defp tabs(active, login) do
+    Enum.map(active, fn %{definition: definition} ->
+      response = login && Surveys.get_response(definition.id, login)
+
+      %{
+        id: definition.id,
+        title: Definition.tab_title(definition),
+        status: Surveys.founder_status(definition, response)
+      }
+    end)
+  end
+
+  defp update_tab(socket, response) do
+    definition = socket.assigns.definition
+    status = Surveys.founder_status(definition, response)
+
+    tabs =
+      Enum.map(socket.assigns.tabs, fn
+        %{id: id} = tab when id == definition.id -> %{tab | status: status}
+        tab -> tab
+      end)
+
+    assign(socket, :tabs, tabs)
   end
 
   defp load(socket, {:ok, loaded}) do
@@ -97,6 +135,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Show do
   def render(%{definition: nil} = assigns) do
     ~H"""
     <Layouts.admin flash={@flash} active="survey">
+      <.survey_tabs tabs={@tabs} current={@survey_id} />
       <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Survey</h2>
       <.problems problems={@problems} source={Source.describe(@survey_id)} />
       <button type="button" phx-click="reload" class={button_class()}>Reload from docs</button>
@@ -113,6 +152,14 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Show do
 
     ~H"""
     <Layouts.admin flash={@flash} active="survey">
+      <.survey_tabs tabs={@tabs} current={@survey_id} />
+      <p
+        :if={not Definition.active?(@definition)}
+        id="survey-inactive"
+        class="rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-3 py-2 text-sm text-[var(--paper-muted)]"
+      >
+        This survey is not one of the open tabs right now. You can still read it here, and its results stay available.
+      </p>
       <header class="space-y-2">
         <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">{@definition.title}</h2>
         <p class="text-sm text-[var(--paper-muted)]">
@@ -122,6 +169,10 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Show do
             class="text-[var(--paper-accent)] underline"
           >
             Results
+          </.link>
+          ·
+          <.link navigate={~p"/admin/surveys"} class="text-[var(--paper-accent)] underline">
+            All surveys
           </.link>
         </p>
       </header>

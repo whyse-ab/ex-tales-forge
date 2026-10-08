@@ -16,6 +16,12 @@ defmodule TalesForge.Survey.Question do
 
   Every type can carry `follow_ups`: optional short free-text fields stored
   under `"<question id>.<follow-up id>"`.
+
+  `:single` and `:checkboxes` questions can carry `option_labels`: for each
+  option, a flat map of structured labels (e.g. the intent reading an option
+  stands for: `%{"action" => "speak", "target" => "innkeep"}`). They are never
+  shown to the person answering; the results page, the CSV and the Markdown
+  export show them next to each option (`labels_text/2`, `labels_json/2`).
   """
 
   @typedoc "A question type."
@@ -23,6 +29,9 @@ defmodule TalesForge.Survey.Question do
 
   @typedoc "An optional free-text field that belongs to a question."
   @type follow_up :: %{id: String.t(), label: String.t(), role: String.t() | nil}
+
+  @typedoc "Structured labels of one option: label name to value (nil for none)."
+  @type labels :: %{optional(String.t()) => String.t() | nil}
 
   @typedoc "A parsed question."
   @type t :: %__MODULE__{
@@ -35,6 +44,7 @@ defmodule TalesForge.Survey.Question do
           role: String.t() | nil,
           persona: String.t() | nil,
           options: [String.t()],
+          option_labels: %{optional(String.t()) => labels()},
           other: boolean(),
           rows: [String.t()],
           columns: [String.t()],
@@ -80,6 +90,7 @@ defmodule TalesForge.Survey.Question do
     :why_hint,
     required: false,
     options: [],
+    option_labels: %{},
     other: false,
     rows: [],
     columns: [],
@@ -128,4 +139,46 @@ defmodule TalesForge.Survey.Question do
   end
 
   def column_points(%__MODULE__{}, _column), do: nil
+
+  @doc """
+  The labels of `option` as one readable line (keys in alphabetical order,
+  nil shown as `none`), or nil when the option has no labels.
+
+      iex> q = %TalesForge.Survey.Question{option_labels: %{"Buys" => %{"target" => nil, "action" => "buy"}}}
+      iex> TalesForge.Survey.Question.labels_text(q, "Buys")
+      "action: buy · target: none"
+      iex> TalesForge.Survey.Question.labels_text(q, "Asks")
+      nil
+  """
+  @spec labels_text(t(), String.t()) :: String.t() | nil
+  def labels_text(%__MODULE__{option_labels: option_labels}, option) do
+    case Map.get(option_labels, option) do
+      nil ->
+        nil
+
+      labels ->
+        labels
+        |> Enum.sort()
+        |> Enum.map_join(" · ", fn {key, value} -> "#{key}: #{value || "none"}" end)
+    end
+  end
+
+  @doc """
+  The labels of `option` as compact JSON (keys sorted), or nil when it has none.
+
+      iex> q = %TalesForge.Survey.Question{option_labels: %{"Buys" => %{"target" => nil, "action" => "buy"}}}
+      iex> TalesForge.Survey.Question.labels_json(q, "Buys")
+      ~s({"action":"buy","target":null})
+  """
+  @spec labels_json(t(), String.t()) :: String.t() | nil
+  def labels_json(%__MODULE__{option_labels: option_labels}, option) do
+    case Map.get(option_labels, option) do
+      nil -> nil
+      labels -> labels |> Enum.sort() |> Jason.OrderedObject.new() |> Jason.encode!()
+    end
+  end
+
+  @doc "True when at least one option carries labels."
+  @spec labelled?(t()) :: boolean()
+  def labelled?(%__MODULE__{option_labels: option_labels}), do: option_labels != %{}
 end

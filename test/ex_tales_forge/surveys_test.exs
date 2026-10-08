@@ -17,6 +17,55 @@ defmodule TalesForge.SurveysTest do
     {:ok, loaded: loaded, user: %{login: "Ada", email: "ada@example.com"}}
   end
 
+  test "founder status: not started, in progress, done", %{loaded: loaded, user: user} do
+    d = loaded.definition
+    assert Surveys.founder_status(d, nil) == :not_started
+
+    {:ok, r} = Surveys.save_section(loaded, user, "general", %{"pace" => "3"})
+    assert Surveys.founder_status(d, r) == :in_progress
+
+    {:ok, r} = Surveys.save_section(loaded, user, "general", %{"one" => "Yes", "pace" => "3"})
+    assert Surveys.founder_status(d, r) == :in_progress
+
+    {:ok, r} = Surveys.save_section(loaded, user, "paul", %{"paul-excerpt" => "Too low"})
+    assert Surveys.founder_status(d, r) == :done
+
+    assert Surveys.founder_status(d, %{r | answers: %{}}) == :not_started
+    assert Surveys.status_label(:done) == "Done"
+    assert Surveys.status_label(:not_started) == "Not started"
+  end
+
+  test "active lists the open tabs only; overview lists every survey with statuses" do
+    three_surveys()
+    assert ["open-survey"] = Enum.map(Surveys.active(), & &1.definition.id)
+
+    {:ok, open} = Source.load("open-survey")
+    {:ok, closed} = Source.load("closed-survey")
+    {:ok, _} = Surveys.save_section(open, %{login: "bo", email: nil}, "general", %{"pace" => "2"})
+
+    assert {:error, :closed} =
+             Surveys.save_section(closed, %{login: "bo", email: nil}, "general", %{})
+
+    overview = Surveys.overview()
+    assert overview.logins == ["bo"]
+    assert overview.problems == []
+
+    assert Enum.map(overview.surveys, &{&1.id, &1.responses, &1.statuses}) == [
+             {"closed-survey", 0, %{}},
+             {"open-survey", 1, %{"bo" => :in_progress}},
+             {"quiet-survey", 0, %{}}
+           ]
+  end
+
+  test "overview keeps a broken survey file as a row with its problems" do
+    use_docs_files(%{"broken-survey.json" => "{nope"})
+    assert %{surveys: [row]} = Surveys.overview()
+    assert row.id == "broken-survey"
+    assert row.definition == nil
+    assert Enum.any?(row.problems, &(&1 =~ "not valid JSON"))
+    assert Surveys.active() == []
+  end
+
   test "saving a section creates one response per user, keyed by lowercased login",
        %{loaded: loaded, user: user} do
     assert {:ok, r1} =

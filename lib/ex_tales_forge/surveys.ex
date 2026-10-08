@@ -8,6 +8,11 @@ defmodule TalesForge.Surveys do
   section stores its answers, the survey version each changed answer was
   given under, and the exact survey file (`TalesForge.Survey.Snapshot`).
   Saves are refused once the survey's `status` is `closed`.
+
+  Several surveys can be open at once: `active/1` lists the founder tabs
+  (every discovered survey file with `"active": true` that is not closed),
+  `founder_status/2` says where a founder is with one survey, and
+  `overview/1` gives every founder's status per survey for the admin.
   """
 
   import Ecto.Query
@@ -23,9 +28,106 @@ defmodule TalesForge.Surveys do
   @typedoc "The signed-in user answering."
   @type user :: %{login: String.t(), email: String.t() | nil}
 
-  @doc "The survey id the admin nav links to (config `:current_survey`)."
+  @typedoc "Where one founder is with one survey."
+  @type founder_status :: :not_started | :in_progress | :done
+
+  @typedoc "One survey in the admin overview: its definition (nil if it failed to load) and statuses by login."
+  @type overview_row :: %{
+          id: String.t(),
+          definition: Definition.t() | nil,
+          problems: [String.t()],
+          responses: non_neg_integer(),
+          statuses: %{optional(String.t()) => founder_status()}
+        }
+
+  @doc """
+  The survey shown on `/admin/survey` when no survey is active or the docs
+  can't be read at all (config `:current_survey`).
+  """
   @spec current_id() :: String.t()
   def current_id, do: Application.get_env(:ex_tales_forge, :current_survey, "founder-survey-3")
+
+  @doc """
+  The founder tabs: every discovered survey that is active and not closed,
+  loaded, in id order. Surveys that fail to load are left out (their
+  problems show on their own page and in `overview/1`).
+  """
+  @spec active(keyword()) :: [Source.loaded()]
+  def active(opts \\ []) do
+    {ids, _problems} = Source.list_ids(opts)
+
+    for id <- ids,
+        {:ok, loaded} <- [Source.load(id)],
+        Definition.active?(loaded.definition),
+        do: loaded
+  end
+
+  @doc """
+  Where a founder is with a survey: `:not_started` (no response or nothing
+  answered), `:done` (every required question answered) or `:in_progress`.
+  """
+  @spec founder_status(Definition.t(), Response.t() | nil) :: founder_status()
+  def founder_status(%Definition{}, nil), do: :not_started
+
+  def founder_status(%Definition{} = definition, %Response{answers: answers}) do
+    progress = Answers.progress(definition, answers || %{})
+
+    cond do
+      progress.answered == 0 -> :not_started
+      progress.complete? -> :done
+      true -> :in_progress
+    end
+  end
+
+  @doc """
+  A short label for a founder status.
+
+      iex> TalesForge.Surveys.status_label(:in_progress)
+      "In progress"
+  """
+  @spec status_label(founder_status()) :: String.t()
+  def status_label(:not_started), do: "Not started"
+  def status_label(:in_progress), do: "In progress"
+  def status_label(:done), do: "Done"
+
+  @doc """
+  Every discovered survey (active or not, closed included) with each
+  founder's status, plus every login that has answered any of them, sorted.
+  """
+  @spec overview(keyword()) :: %{
+          surveys: [overview_row()],
+          logins: [String.t()],
+          problems: [String.t()]
+        }
+  def overview(opts \\ []) do
+    {ids, problems} = Source.list_ids(opts)
+
+    rows =
+      Enum.map(ids, fn id ->
+        case Source.load(id) do
+          {:ok, loaded} ->
+            overview_row(id, loaded)
+
+          {:error, errors} ->
+            %{id: id, definition: nil, problems: errors, responses: 0, statuses: %{}}
+        end
+      end)
+
+    logins = rows |> Enum.flat_map(&Map.keys(&1.statuses)) |> Enum.uniq() |> Enum.sort()
+    %{surveys: rows, logins: logins, problems: problems}
+  end
+
+  defp overview_row(id, %{definition: definition, problems: problems}) do
+    responses = list_responses(definition.id)
+
+    %{
+      id: id,
+      definition: definition,
+      problems: problems,
+      responses: Enum.count(responses, &(founder_status(definition, &1) != :not_started)),
+      statuses: Map.new(responses, &{&1.github_login, founder_status(definition, &1)})
+    }
+  end
 
   @doc "This user's response to `survey_id`, or nil."
   @spec get_response(String.t(), String.t()) :: Response.t() | nil

@@ -328,12 +328,69 @@ defmodule TalesForgeWeb.SurveyComponents do
     """
   end
 
+  @doc """
+  The founder tabs on the survey page: one link per active survey with the
+  signed-in founder's status. `current` is the open survey's id. Renders
+  nothing when there are no tabs.
+  """
+  @spec survey_tabs(map()) :: Phoenix.LiveView.Rendered.t()
+  attr :tabs, :list, required: true, doc: "`%{id, title, status}` per active survey"
+  attr :current, :string, default: nil
+
+  def survey_tabs(assigns) do
+    ~H"""
+    <nav
+      :if={@tabs != []}
+      id="survey-tabs"
+      aria-label="Open surveys"
+      class="flex flex-wrap gap-2 border-b border-[var(--paper-rule)] pb-2"
+    >
+      <.link
+        :for={tab <- @tabs}
+        id={"survey-tab-#{tab.id}"}
+        navigate={~p"/admin/surveys/#{tab.id}"}
+        aria-current={if tab.id == @current, do: "page", else: "false"}
+        class={[
+          "rounded-t border px-3 py-2 text-sm",
+          if(tab.id == @current,
+            do: "border-[var(--paper-accent)] bg-[var(--paper-panel)] text-[var(--paper-ink)]",
+            else: "border-transparent text-[var(--paper-muted)] hover:border-[var(--paper-rule)]"
+          )
+        ]}
+      >
+        <span class="font-medium">{tab.title}</span>
+        <span
+          class={["ml-1 rounded px-1.5 py-0.5 text-xs", status_class(tab.status)]}
+          data-status={tab.status}
+        >
+          {TalesForge.Surveys.status_label(tab.status)}
+        </span>
+      </.link>
+    </nav>
+    """
+  end
+
+  @doc """
+  CSS classes for a founder status badge.
+
+      iex> TalesForgeWeb.SurveyComponents.status_class(:done)
+      "bg-[var(--paper-accent)] text-[var(--paper-on-accent)]"
+  """
+  @spec status_class(TalesForge.Surveys.founder_status()) :: String.t()
+  def status_class(:done), do: "bg-[var(--paper-accent)] text-[var(--paper-on-accent)]"
+
+  def status_class(:in_progress),
+    do: "border border-[var(--paper-accent)] text-[var(--paper-ink)]"
+
+  def status_class(:not_started), do: "bg-[var(--paper-bg)] text-[var(--paper-muted)]"
+
   @doc "A horizontal count bar for the results page."
   @spec bar(map()) :: Phoenix.LiveView.Rendered.t()
   attr :label, :string, required: true
   attr :count, :integer, required: true
   attr :total, :integer, required: true
   attr :earlier, :boolean, default: false
+  attr :labels, :string, default: nil, doc: "the option's structured labels as text"
 
   def bar(assigns) do
     assigns =
@@ -348,6 +405,9 @@ defmodule TalesForgeWeb.SurveyComponents do
       <div class="min-w-0">
         <p class="truncate text-[var(--paper-ink)]" title={@label}>
           {@label}<span :if={@earlier} class="text-[var(--paper-muted)]"> (earlier wording)</span>
+        </p>
+        <p :if={@labels} class="truncate font-mono text-xs text-[var(--paper-muted)]" title={@labels}>
+          {@labels}
         </p>
         <div class="h-1.5 rounded bg-[var(--paper-bg)]">
           <div class="h-1.5 rounded bg-[var(--paper-accent)]" style={"width: #{@pct}%"}></div>

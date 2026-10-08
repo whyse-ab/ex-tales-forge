@@ -9,6 +9,11 @@ defmodule TalesForge.Survey.Results do
   text is no longer in the definition (the wording changed after it was
   given) is still counted, listed after the current options and marked
   "(earlier wording)".
+
+  Options with `option_labels` (`TalesForge.Survey.Question`) carry their
+  labels: in each count (`labels`), in an extra CSV column per question
+  (`"<question>: labels"`, the chosen option's labels as JSON) and after each
+  option in the Markdown summary.
   """
 
   alias TalesForge.Survey.Answers
@@ -20,8 +25,16 @@ defmodule TalesForge.Survey.Results do
   @typedoc "Free text with who wrote it."
   @type quote_entry :: %{login: String.t(), text: String.t()}
 
-  @typedoc "Counts for one option (or grid column); `earlier?` for old wording."
-  @type count :: %{label: String.t(), count: non_neg_integer(), earlier?: boolean()}
+  @typedoc """
+  Counts for one option (or grid column); `earlier?` for old wording, `labels`
+  the option's structured labels as text (nil when it has none).
+  """
+  @type count :: %{
+          label: String.t(),
+          count: non_neg_integer(),
+          earlier?: boolean(),
+          labels: String.t() | nil
+        }
 
   @typedoc "One grid row's results."
   @type row_result :: %{
@@ -177,10 +190,10 @@ defmodule TalesForge.Survey.Results do
 
   # -- aggregates ---------------------------------------------------------------
 
-  defp option_counts(%Question{type: type, options: options}, values)
+  defp option_counts(%Question{type: type, options: options} = q, values)
        when type in [:single, :excerpt, :checkboxes] do
     picked = Enum.flat_map(values, fn {_login, v} -> List.wrap(v) end)
-    counts(options, picked)
+    options |> counts(picked) |> Enum.map(&%{&1 | labels: Question.labels_text(q, &1.label)})
   end
 
   defp option_counts(%Question{type: :scale, min: min, max: max}, values) do
@@ -192,13 +205,17 @@ defmodule TalesForge.Survey.Results do
 
   defp counts(labels, picked) do
     freq = Enum.frequencies(picked)
-    current = Enum.map(labels, &%{label: &1, count: Map.get(freq, &1, 0), earlier?: false})
+
+    current =
+      Enum.map(labels, &%{label: &1, count: Map.get(freq, &1, 0), earlier?: false, labels: nil})
 
     earlier =
       freq
       |> Map.drop(labels)
       |> Enum.sort()
-      |> Enum.map(fn {label, count} -> %{label: label, count: count, earlier?: true} end)
+      |> Enum.map(fn {label, count} ->
+        %{label: label, count: count, earlier?: true, labels: nil}
+      end)
 
     current ++ earlier
   end
@@ -263,7 +280,26 @@ defmodule TalesForge.Survey.Results do
     end)
   end
 
-  defp main_columns(%Question{} = q, label), do: [{label, &answer_text(q, &1)}]
+  defp main_columns(%Question{} = q, label) do
+    if Question.labelled?(q),
+      do: [{label, &answer_text(q, &1)}, {"#{label}: labels", &labels_cell(q, &1)}],
+      else: [{label, &answer_text(q, &1)}]
+  end
+
+  # The chosen option's labels as JSON; checkboxes give a JSON list, one per option.
+  defp labels_cell(%Question{type: :checkboxes} = q, answers) do
+    case List.wrap(Map.get(answers, q.id)) do
+      [] -> ""
+      picked -> "[" <> Enum.map_join(picked, ",", &(Question.labels_json(q, &1) || "null")) <> "]"
+    end
+  end
+
+  defp labels_cell(%Question{} = q, answers) do
+    case Map.get(answers, q.id) do
+      option when is_binary(option) -> Question.labels_json(q, option) || ""
+      _other -> ""
+    end
+  end
 
   defp sub_column(key, label) do
     sub = key |> String.split(".", parts: 2) |> List.last()
@@ -323,7 +359,8 @@ defmodule TalesForge.Survey.Results do
     [
       "\n**#{q.number} #{title}**, #{agg.answered} #{plural(agg.answered, "answer", "answers")}#{mean}\n\n",
       Enum.map(agg.counts, fn c ->
-        "- #{c.label}#{if c.earlier?, do: " (earlier wording)", else: ""}: #{c.count}\n"
+        "- #{c.label}#{if c.earlier?, do: " (earlier wording)", else: ""}: #{c.count}" <>
+          if(c.labels, do: " — `#{c.labels}`", else: "") <> "\n"
       end),
       Enum.map(agg.other, &"- Other: “#{one_line(&1.text)}” (@#{&1.login})\n"),
       follow_ups_markdown(agg)
