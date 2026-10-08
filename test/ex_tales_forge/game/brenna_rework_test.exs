@@ -80,7 +80,8 @@ defmodule TalesForge.Game.BrennaReworkTest do
     assert gm =~ ~s(An NPC's "hooks" are ready-made leads)
     assert gm =~ "do not default to suspicion, flat voices or brush-offs"
     assert gm =~ "Always second person"
-    assert gm =~ "Do not repeat the player's words back"
+    # Refined 2026-10-07 (no default echo; a rare deliberate echo is the exception).
+    assert gm =~ "React, do not restate"
     assert gm =~ ~s("scarred oak")
 
     scene = Prompts.scene_system()
