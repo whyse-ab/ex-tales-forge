@@ -1,8 +1,8 @@
 defmodule Mix.Tasks.Characters.Backfill do
   @moduledoc """
-  Writes or refreshes `characters` rows for every existing session from the old
-  state (`world_state["character"]` and `npc_instances`). Idempotent and safe
-  to re-run; see `TalesForge.Characters.backfill/0`.
+  Writes or refreshes `characters` rows for every existing session from the
+  state the game plays on (`world_state["character"]` and `npc_instances`).
+  Idempotent and safe to re-run; see `TalesForge.Characters.backfill/0`.
 
       mix characters.backfill
 

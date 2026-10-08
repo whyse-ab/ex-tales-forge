@@ -95,7 +95,7 @@ Notes from the first deploy:
 
 - If the Depot builder hangs at "Waiting for depot builder...", use Fly's own builder:
   `fly deploy --remote-only --depot=false -a tales-forge --ha=false`.
-- The Docker image uses Elixir 1.18 (jido / jido_ai require `~> 1.18`).
+- The Docker image uses Elixir 1.18 (jido requires `~> 1.18`).
 - `mix compile` must run before `mix assets.deploy` (Phoenix 1.8 colocated hooks/CSS).
 - `ECTO_IPV6=true` is set in `fly.toml` because `.flycast` / `.internal` addresses are IPv6-only.
 - The HTTP health check hits `GET /health`, the only page that needs no sign-in (everything
@@ -150,6 +150,11 @@ GITHUB_DOCS_TOKEN=… mix tales.sync_docs --github
 In the UI: **Admin → Decisions → Sync from repo**.
 
 ## 6. Custom domain `admin.tales-forge.ai`
+
+Not in use. `tales-forge.ai` stays on Netlify for now (tales-forge-docs
+`docs/decisions.md`, 2026-10-06), no environment gets Fly certificates or DNS
+changes, and deploys are checked on `tales-forge.fly.dev` and
+`tales-forge-playtest.fly.dev`. Kept for when that decision changes:
 
 ```bash
 fly certs add admin.tales-forge.ai -a tales-forge

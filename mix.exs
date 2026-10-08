@@ -95,8 +95,8 @@ defmodule TalesForge.MixProject do
     ]
   end
 
-  # Dialyzer: PLTs live in priv/plts (cached in CI). Known warnings in legacy
-  # code are listed in .dialyzer_ignore.exs; new code must add none.
+  # Dialyzer: PLTs live in priv/plts (cached in CI). An accepted warning goes in
+  # .dialyzer_ignore.exs with a reason (empty today); new code must add none.
   defp dialyzer do
     [
       plt_local_path: "priv/plts",

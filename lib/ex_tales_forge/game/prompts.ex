@@ -106,7 +106,7 @@ defmodule TalesForge.Game.Prompts do
   end
 
   @doc """
-  Load rules for the global system (default, used for legacy / non-pack adventures).
+  Load the global rules in `priv/rules` (used by adventures without their own rules folder).
   """
   @spec load_rules() :: String.t()
   def load_rules do

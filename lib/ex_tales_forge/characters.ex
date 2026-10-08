@@ -41,7 +41,7 @@ defmodule TalesForge.Characters do
     "self_actualization" => "self_actualisation"
   }
 
-  # Columns copied from the old state on every sync. Everything else is set
+  # Columns copied from the game state on every sync. Everything else is set
   # once, when the row is first written.
   @mirrored ~w(name race role location_id stats skills inventory coins wounds wound_max
                vitality learning_points learning_failures mood relationships runtime)a
@@ -60,7 +60,7 @@ defmodule TalesForge.Characters do
   def seed_session(%GameSession{} = session, opts \\ %{}), do: sync_session(session, opts)
 
   @doc """
-  Inserts or updates every character of the session from the old state, in one
+  Inserts or updates every character of the session from the game state, in one
   transaction, then adds NPC memories that have no row yet. Options as for
   `seed_session/2`; they only matter for rows written for the first time.
   """
@@ -290,8 +290,8 @@ defmodule TalesForge.Characters do
 
   @doc """
   Character attrs for an NPC instance (controller `gm`). Stats default to 10
-  and OCEAN to 5 when the definition has none; the Maslow level falls back to
-  the legacy `primary_need`.
+  and OCEAN to 5 when the definition has none; without `maslow` the Maslow
+  level is read from `motivations.primary_need`, else `"safety"`.
   """
   @spec from_npc_instance(NpcInstance.t(), integer(), String.t() | nil, map() | nil) :: map()
   def from_npc_instance(%NpcInstance{} = inst, tick, pc_slug \\ nil, reaction \\ nil) do
@@ -337,7 +337,7 @@ defmodule TalesForge.Characters do
     |> Enum.map(&Map.put_new(&1, "since_tick", tick))
   end
 
-  # Sessions from before the pack levers have no `concerns`: use the legacy
+  # Sessions from before the pack levers have no `concerns`: use the
   # current_concern so the row still says what the NPC is after.
   defp npc_concerns(%{"concerns" => list}, _runtime, tick) when is_list(list),
     do: concerns(list, tick)
