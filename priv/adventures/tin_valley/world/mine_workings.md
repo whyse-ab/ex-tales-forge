@@ -6,6 +6,14 @@ exits:
 fixtures:
   - shaft
   - ore carts
+aliases:
+  - the mine
+  - the mines
+  - the shaft
+  - tin shaft
+  - the workings
+  - mine shaft
+  - mine head
 ---
 
 # Mine workings

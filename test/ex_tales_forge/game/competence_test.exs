@@ -9,6 +9,7 @@ defmodule TalesForge.Game.CompetenceTest do
   alias TalesForge.Game.TurnProcessor
   alias TalesForge.GameSessions
   alias TalesForge.Jido
+  alias TalesForge.Playtest.Growth
   alias TalesForge.Repo
   alias TalesForge.Schemas.{GameSession, SessionEvent, Turn}
 
@@ -23,124 +24,188 @@ defmodule TalesForge.Game.CompetenceTest do
     %{session: session}
   end
 
-  test "wait one hour with injected success raises climbing and audits the turn", %{
-    session: session
-  } do
-    session = seed_eligible(session)
+  describe "default variant: 1 LP buys one attempt at the end of the turn" do
+    test "a turn spends every whole LP and audits each attempt", %{session: session} do
+      session = seed_lp(session, 2.0)
 
-    {_session, turn, _payload} =
-      wait_sim(session, "I rest for an hour", %{"climbing" => 4})
+      {_session, turn, _payload} =
+        observe_sim(session, "study the cliff", %{"climbing" => [4, 3]})
 
-    session = reload(session.id)
-    assert get_in(session.world_state, ["character", "skills", "climbing"]) == 4
-    assert get_in(session.world_state, ["character", "learning_points", "climbing"]) == 0
-    assert get_in(session.world_state, ["character", "learning_failures", "climbing"]) == 0
+      session = reload(session.id)
+      assert get_in(session.world_state, ["character", "skills", "climbing"]) == 4
+      assert get_in(session.world_state, ["character", "learning_points", "climbing"]) == 0.0
 
-    assert [
-             %{
-               "skill" => "climbing",
-               "roll" => 4,
-               "raw_skill" => 3,
-               "improved" => true
-             }
-           ] = turn.mechanical_resolution["improvements"]
+      assert [
+               %{"skill" => "climbing", "roll" => 4, "raw_skill" => 3, "improved" => true},
+               %{"skill" => "climbing", "roll" => 3, "raw_skill" => 4, "improved" => false}
+             ] = turn.mechanical_resolution["improvements"]
+
+      assert Enum.all?(turn.mechanical_resolution["improvements"], &(&1["lp_spent"] == 1))
+    end
+
+    test "the per-run growth log counts the attempts", %{session: session} do
+      session = seed_lp(session, 2.5)
+      observe_sim(session, "study the cliff", %{"climbing" => [4, 3]})
+
+      growth = Growth.for_session(session.id)
+      assert growth["attempts"] == 2
+      assert growth["improvements"] == 1
+      assert growth["skills"]["climbing"]["attempts"] == 2
+
+      assert get_in(reload(session.id).world_state, ["character", "learning_points", "climbing"]) ==
+               0.5
+    end
+
+    test "a fraction of an LP waits for the next roll", %{session: session} do
+      session = seed_lp(session, 0.5)
+      {_session, turn, _payload} = observe_sim(session, "study the cliff", %{"climbing" => 20})
+
+      session = reload(session.id)
+      assert get_in(session.world_state, ["character", "skills", "climbing"]) == 3
+      assert get_in(session.world_state, ["character", "learning_points", "climbing"]) == 0.5
+      assert turn.mechanical_resolution["improvements"] == []
+    end
+
+    test "no rest, failure count or threshold is needed", %{session: session} do
+      session =
+        session
+        |> seed_lp(1.0)
+        |> put_character(&Map.put(&1, "learning_failures", %{}))
+
+      {_session, turn, _payload} = observe_sim(session, "study the cliff", %{"climbing" => 3})
+
+      assert [%{"improved" => true}] = turn.mechanical_resolution["improvements"]
+    end
+
+    test "resting adds no attempts beyond the LP", %{session: session} do
+      session = seed_lp(session, 1.0)
+
+      {_session, turn, _payload} =
+        wait_sim(session, "I spend three days drinking and gambling at the inn", %{
+          "climbing" => 4
+        })
+
+      session = reload(session.id)
+      assert get_in(session.world_state, ["character", "skills", "climbing"]) == 4
+      assert length(turn.mechanical_resolution["improvements"]) == 1
+    end
+
+    test "the dead learn nothing", %{session: session} do
+      session =
+        session
+        |> seed_lp(3.0)
+        |> put_character(&Map.put(&1, "vitality", "dead"))
+
+      {_session, turn, _payload} = observe_sim(session, "study the cliff", %{"climbing" => 20})
+
+      session = reload(session.id)
+      assert get_in(session.world_state, ["character", "skills", "climbing"]) == 3
+      assert get_in(session.world_state, ["character", "learning_points", "climbing"]) == 3.0
+      assert turn.mechanical_resolution["improvements"] == []
+    end
   end
 
-  test "wait one hour with injected miss leaves skill and sets LP 1.0", %{session: session} do
-    session = seed_eligible(session)
+  describe "baseline variant keeps the #64 rule" do
+    setup do
+      {:ok, session} =
+        GameSessions.create_session(%{
+          name: "LP Competence baseline",
+          adventure_id: "tin_valley",
+          variant: "baseline"
+        })
 
-    {_session, turn, _payload} =
-      wait_sim(session, "I rest for an hour", %{"climbing" => 3})
+      %{session: seed_eligible(session)}
+    end
 
-    session = reload(session.id)
-    assert get_in(session.world_state, ["character", "skills", "climbing"]) == 3
-    assert get_in(session.world_state, ["character", "learning_points", "climbing"]) == 1.0
-    assert get_in(session.world_state, ["character", "learning_failures", "climbing"]) == 0
+    test "wait one hour with injected success raises climbing and audits the turn", %{
+      session: session
+    } do
+      {_session, turn, _payload} = wait_sim(session, "I rest for an hour", %{"climbing" => 4})
 
-    assert [%{"skill" => "climbing", "improved" => false, "roll" => 3}] =
-             turn.mechanical_resolution["improvements"]
-  end
+      session = reload(session.id)
+      assert get_in(session.world_state, ["character", "skills", "climbing"]) == 4
+      assert get_in(session.world_state, ["character", "learning_points", "climbing"]) == 0
+      assert get_in(session.world_state, ["character", "learning_failures", "climbing"]) == 0
 
-  test "wait 15 minutes does not attempt improvements", %{session: session} do
-    session = seed_eligible(session)
-    before = session.world_state["character"]
+      assert [
+               %{
+                 "skill" => "climbing",
+                 "roll" => 4,
+                 "raw_skill" => 3,
+                 "improved" => true
+               }
+             ] = turn.mechanical_resolution["improvements"]
+    end
 
-    player_action =
-      PlayerAction.decode(%{
-        "overall_intent" => "wait a moment",
-        "action" => %{
-          "action_type" => "wait",
-          "target" => nil,
-          "parameters" => %{"ticks" => 1}
-        }
-      })
+    test "wait one hour with injected miss leaves skill and sets LP 1.0", %{session: session} do
+      {_session, turn, _payload} = wait_sim(session, "I rest for an hour", %{"climbing" => 3})
 
-    handler = ActionHandler.resolve(player_action)
+      session = reload(session.id)
+      assert get_in(session.world_state, ["character", "skills", "climbing"]) == 3
+      assert get_in(session.world_state, ["character", "learning_points", "climbing"]) == 1.0
+      assert get_in(session.world_state, ["character", "learning_failures", "climbing"]) == 0
 
-    {:ok, _} =
-      TurnProcessor.simulate!(
-        session,
-        "wait a moment",
-        player_action,
-        handler,
-        %MechanicalResolution{outcome: "none"},
-        improvement_rolls: %{"climbing" => 20}
-      )
+      assert [%{"skill" => "climbing", "improved" => false, "roll" => 3}] =
+               turn.mechanical_resolution["improvements"]
+    end
 
-    session = reload(session.id)
-    turn = latest_turn(session.id)
-    assert session.world_state["character"]["skills"] == before["skills"]
-    assert session.world_state["character"]["learning_points"] == before["learning_points"]
-    assert session.world_state["character"]["learning_failures"] == before["learning_failures"]
-    assert turn.mechanical_resolution["improvements"] == []
-  end
+    test "wait 15 minutes does not attempt improvements", %{session: session} do
+      before = session.world_state["character"]
 
-  test "ordinary skill turn does not improve even when bars are full", %{session: session} do
-    session = seed_eligible(session)
-    before = session.world_state["character"]
+      player_action =
+        PlayerAction.decode(%{
+          "overall_intent" => "wait a moment",
+          "action" => %{
+            "action_type" => "wait",
+            "target" => nil,
+            "parameters" => %{"ticks" => 1}
+          }
+        })
 
-    player_action =
-      PlayerAction.decode(%{
-        "overall_intent" => "study the cliff",
-        "action" => %{
-          "action_type" => "observe",
-          "target" => nil,
-          "parameters" => %{"skill" => "climbing"}
-        }
-      })
+      handler = ActionHandler.resolve(player_action)
 
-    handler = ActionHandler.resolve(player_action)
+      {:ok, _} =
+        TurnProcessor.simulate!(
+          session,
+          "wait a moment",
+          player_action,
+          handler,
+          %MechanicalResolution{outcome: "none"},
+          improvement_rolls: %{"climbing" => 20}
+        )
 
-    {:ok, _} =
-      TurnProcessor.simulate!(
-        session,
-        "study the cliff",
-        player_action,
-        handler,
-        %MechanicalResolution{outcome: "none"},
-        improvement_rolls: %{"climbing" => 20}
-      )
+      session = reload(session.id)
+      turn = latest_turn(session.id)
+      assert session.world_state["character"]["skills"] == before["skills"]
+      assert session.world_state["character"]["learning_points"] == before["learning_points"]
+      assert session.world_state["character"]["learning_failures"] == before["learning_failures"]
+      assert turn.mechanical_resolution["improvements"] == []
+    end
 
-    session = reload(session.id)
-    turn = latest_turn(session.id)
+    test "ordinary skill turn does not improve even when bars are full", %{session: session} do
+      before = session.world_state["character"]
 
-    assert get_in(session.world_state, ["character", "skills", "climbing"]) ==
-             get_in(before, ["skills", "climbing"])
+      {_session, turn, _payload} =
+        observe_sim(session, "study the cliff", %{"climbing" => 20})
 
-    assert turn.mechanical_resolution["improvements"] == []
-  end
+      session = reload(session.id)
 
-  test "wait three days still attempts each skill once", %{session: session} do
-    session = seed_eligible(session)
+      assert get_in(session.world_state, ["character", "skills", "climbing"]) ==
+               get_in(before, ["skills", "climbing"])
 
-    {_session, turn, _payload} =
-      wait_sim(session, "I spend three days drinking and gambling at the inn", %{
-        "climbing" => 4
-      })
+      assert turn.mechanical_resolution["improvements"] == []
+    end
 
-    session = reload(session.id)
-    assert get_in(session.world_state, ["character", "skills", "climbing"]) == 4
-    assert length(turn.mechanical_resolution["improvements"]) == 1
+    test "wait three days still attempts each skill once", %{session: session} do
+      {_session, turn, _payload} =
+        wait_sim(session, "I spend three days drinking and gambling at the inn", %{
+          "climbing" => 4
+        })
+
+      session = reload(session.id)
+      assert get_in(session.world_state, ["character", "skills", "climbing"]) == 4
+      assert length(turn.mechanical_resolution["improvements"]) == 1
+    end
   end
 
   test "wait does not emit player.improved", %{session: session} do
@@ -177,6 +242,46 @@ defmodule TalesForge.Game.CompetenceTest do
     assert gm =~ "you learned"
     assert gm =~ "XP"
     assert gm =~ "level"
+  end
+
+  defp seed_lp(session, lp) do
+    put_character(session, fn character ->
+      character
+      |> Map.update("skills", %{"climbing" => 3}, &Map.put(&1, "climbing", 3))
+      |> Map.put("learning_points", %{"climbing" => lp})
+    end)
+  end
+
+  defp put_character(session, fun) do
+    world = Map.update!(session.world_state, "character", fun)
+
+    session
+    |> GameSession.changeset(%{world_state: world})
+    |> Repo.update!()
+  end
+
+  defp observe_sim(session, raw, rolls) do
+    player_action =
+      PlayerAction.decode(%{
+        "overall_intent" => raw,
+        "action" => %{
+          "action_type" => "observe",
+          "target" => nil,
+          "parameters" => %{"skill" => "climbing"}
+        }
+      })
+
+    {:ok, payload} =
+      TurnProcessor.simulate!(
+        session,
+        raw,
+        player_action,
+        ActionHandler.resolve(player_action),
+        %MechanicalResolution{outcome: "none"},
+        improvement_rolls: rolls
+      )
+
+    {reload(session.id), latest_turn(session.id), payload}
   end
 
   defp seed_eligible(session) do

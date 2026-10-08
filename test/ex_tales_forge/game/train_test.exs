@@ -60,7 +60,9 @@ defmodule TalesForge.Game.TrainTest do
     assert hd(bundle.actions).action_type == :wait
   end
 
-  test "happy path spends a day, one improvement, deducts the day fee", %{session: session} do
+  test "happy path spends a day, one free attempt at +5, deducts the day fee", %{
+    session: session
+  } do
     session = seed_persuasion(session)
     before_coins = Inventory.coin_total_copper(session.world_state["character"]["coins"])
     before_tick = session.world_state["world_tick"]
@@ -84,6 +86,8 @@ defmodule TalesForge.Game.TrainTest do
                "roll" => 1,
                "raw_skill" => 3,
                "improved" => true,
+               "bonus" => 5,
+               "lp_spent" => 0,
                "trainer_npc_id" => "innkeep"
              }
            ] = turn.mechanical_resolution["improvements"]
@@ -172,7 +176,25 @@ defmodule TalesForge.Game.TrainTest do
     assert turn.mechanical_resolution["improvements"] == []
   end
 
-  test "declined when LP or failures are short", %{session: session} do
+  test "default variant: no LP and no failure needed", %{session: session} do
+    session = seed_bars(session, %{}, %{})
+
+    {_session, turn, payload} =
+      train_sim(session, "I train persuasion with Brenna for a day", %{"persuasion" => 20})
+
+    assert payload.mechanical_resolution["training"] == "took_place"
+    assert [%{"improved" => true, "lp_spent" => 0}] = turn.mechanical_resolution["improvements"]
+    assert get_in(reload(session.id).world_state, ["character", "skills", "persuasion"]) == 4
+  end
+
+  test "baseline variant: declined when LP or failures are short" do
+    {:ok, session} =
+      GameSessions.create_session(%{
+        name: "Trainers baseline",
+        adventure_id: "tin_valley",
+        variant: "baseline"
+      })
+
     session =
       seed_bars(session, %{"persuasion" => 4.0}, %{"persuasion" => 3})
 
@@ -201,7 +223,7 @@ defmodule TalesForge.Game.TrainTest do
 
   test "declined when Brenna has no authored stealth", %{session: session} do
     session =
-      seed_bars(session, %{"stealth" => 5.0}, %{"stealth" => 3})
+      seed_bars(session, %{"stealth" => 0.5}, %{"stealth" => 3})
 
     before = snapshot(session)
 
@@ -214,7 +236,14 @@ defmodule TalesForge.Game.TrainTest do
     assert turn.mechanical_resolution["improvements"] == []
   end
 
-  test "qualifier fail does not rest all eligible skills", %{session: session} do
+  test "baseline variant: qualifier fail does not rest all eligible skills" do
+    {:ok, session} =
+      GameSessions.create_session(%{
+        name: "Trainers baseline",
+        adventure_id: "tin_valley",
+        variant: "baseline"
+      })
+
     session =
       session
       |> seed_persuasion()
@@ -294,8 +323,14 @@ defmodule TalesForge.Game.TrainTest do
     assert Train.session_fee(80, WorldClock.ticks_per_day() * 2) == 160
   end
 
-  defp seed_persuasion(session) do
+  # Bars a baseline session needs to train; the default variant ignores them,
+  # and 0.0 LP leave nothing to spend at the end of the turn.
+  defp seed_persuasion(%{world_state: %{"variant" => "baseline"}} = session) do
     seed_bars(session, %{"persuasion" => 5.0}, %{"persuasion" => 3})
+  end
+
+  defp seed_persuasion(session) do
+    seed_bars(session, %{"persuasion" => 0.0}, %{"persuasion" => 0})
   end
 
   defp seed_bars(session, lp, failures) do

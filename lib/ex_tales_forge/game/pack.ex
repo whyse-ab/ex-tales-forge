@@ -181,6 +181,14 @@ defmodule TalesForge.Game.Pack do
       end
     end)
 
+    Enum.each(locations, fn {id, loc} ->
+      door = loc["door"]
+
+      if is_binary(door) and door not in List.wrap(loc["exits"]) do
+        raise ArgumentError, "location #{id} door #{inspect(door)} is not one of its exits"
+      end
+    end)
+
     :ok
   end
 
@@ -331,7 +339,20 @@ defmodule TalesForge.Game.Pack do
       "fixtures" => List.wrap(attrs["fixtures"]),
       "ground_items" => List.wrap(attrs["ground_items"])
     }
+    |> put_movement_keys(attrs)
   end
+
+  # Optional movement keys (`TalesForge.Game.Movement`): other names for the
+  # place, the exit "leave" means, and whether travel through it stops here.
+  defp put_movement_keys(location, attrs) do
+    location
+    |> maybe_put_location("aliases", attrs["aliases"] && List.wrap(attrs["aliases"]))
+    |> maybe_put_location("door", attrs["door"])
+    |> maybe_put_location("checkpoint", if(attrs["checkpoint"] == true, do: true))
+  end
+
+  defp maybe_put_location(location, _key, nil), do: location
+  defp maybe_put_location(location, key, value), do: Map.put(location, key, value)
 
   defp load_npcs!(dir, variant) do
     base = load_npc_dir!(Path.join(dir, "npcs"))

@@ -1,8 +1,9 @@
 defmodule TalesForge.Playtest.Growth do
   @moduledoc """
   How fast the character grew in a playtest run: per skill, the rolls, the
-  Learning Points gained and the improvements made (wait/rest rolls and
-  training), from the session's turns. The runner stores it on the run's
+  Learning Points gained, the improvement attempts and the improvements made
+  (LP spent on attempts, `TalesForge.Game.Progression`, and training; for the
+  baseline variant, rest rolls), from the session's turns. The runner stores it on the run's
   `growth` when the run ends, so the Jev baseline shows the growth pace.
   """
 

@@ -117,7 +117,7 @@ Valid skills: arcana, climbing, deception, dodge, etiquette, history, insight, i
     "memories": [],
     "mood": "cheerful",
     "name": "Brenna Holt",
-    "personality": "Warm, chatty and a born host who genuinely enjoys running the tavern. She greets newcomers like regulars, remembers names and orders, and fills a quiet moment with gossip and news. Kind and generous with civil guests; tired of Guild politics but happy to talk about them. Only a threat to her guests or her inn brings out her steel.",
+    "personality": "Warm, chatty and a born host who genuinely enjoys running the tavern. She greets newcomers like regulars, remembers names and orders, and fills a quiet moment with gossip and news. Kind to civil guests, but she runs a business on thin margins: ale and stew are paid for, and a free plate is earned (a hand on a busy night, a favour, a regular's tab), never a reflex. Her gossip is free; her goods are not. Tired of Guild politics but happy to talk about them. Only a threat to her guests or her inn brings out her steel.",
     "personality_traits": {
       "agreeableness": 8,
       "conscientiousness": 7,
@@ -195,7 +195,7 @@ This combat system, adapted from Savage Worlds' wound-based mechanics, is design
   - Success: +0.5 LP.
   - Natural 1: +1 LP (once per skill per session).
   - Near-death (saved): +2 LP for related skills.
-  - The tier's LP (5/7/10/15) trigger an improvement roll (d20 + tier modifier > skill level - trainer bonus).
+  - Each LP buys an improvement attempt at the end of the turn (d20 ≥ skill level: +1).
 
 ## Additional Features
 - **Multi-Actions**: Multiple actions per round (e.g., attack twice) at -2 skill per extra action, granting LP on failures.
@@ -238,15 +238,13 @@ This is a skill-based fantasy RPG system where character progress is measured by
   - Success (non-natural 1): +0.5 LP.
   - Natural 20: +2 LP.
   - Natural 1: +1 LP (capped once per skill per session).
-  - Threshold: the tier's LP (Novice 1-5: 5, Adept 6-10: 7, Expert 11-15: 10, Master 16+: 15) and ≥ 1 failure on that skill to attempt improvement.
+  - Spending: 1 LP buys one improvement attempt on that skill. No threshold, no failure and no rest needed.
   - Linked stat: +(Stat - 10)/4 LP per roll (rounded down, 0 to +2).
 - **Skill Improvement**:
-  - Attempt at rest / sleep / wait ≥ 1 hour, not session end.
-  - One 1d20 per eligible skill per pause.
-  - Roll 1d20 &gt; raw skill (Expert -3 and Master -5 to the roll; Master needs a trainer).
-  - Success: skill +1, LP 0, failures 0.
-  - Failure: skill unchanged, LP 1, failures 0.
-  - No skill cap; high levels become harder without bonuses.
+  - At the end of the turn, every whole LP a skill holds is spent, one attempt per LP (fractions wait for the next roll).
+  - Roll 1d20 ≥ raw skill: skill +1. Chance (21 - skill)/20: 90% at 3, 70% at 7, 45% at 12, 5% at 20.
+  - Each attempt costs 1 LP, hit or miss. No tier modifiers.
+  - No skill cap, but past 20 only a trainer's bonus can reach the target.
 - **Death Exception**: No LP from fatal failures; near-death grants +1 LP if survived.
 - **Skill List Categories** (Examples):
   - **Combat**: Melee Combat, Ranged Combat, Unarmed Combat, Tactics, Dodge.
@@ -257,9 +255,9 @@ This is a skill-based fantasy RPG system where character progress is measured by
 
 ## Trainers and Adventures
 
-- **Trainers**: NPCs with skill level ≥5 above the character's. Provide +5 bonus to improvement rolls (reduces target by 5).
+- **Trainers**: NPCs with skill level ≥5 above the character's. A training session is one free improvement attempt (no LP) with +5 to the roll (1d20 + 5 ≥ skill).
   - Found via quests (e.g., journey to a master thief for Stealth training).
-  - Bonus applies to one improvement per training session; requires time/resources.
+  - One attempt per training session; costs time and the trainer's fee.
   - Can be group quests for party training.
 - **Integration**: Trainers can bypass/reduce stat minima for advancements; quests add narrative depth.
 
@@ -748,19 +746,23 @@ High skill levels in a domain grant **contextual stat bonuses** when performing 
 
 ---
 
-## LP Progression: Scaled Thresholds
+## LP Progression: One LP, One Attempt
 
-| Tier | Level Range | LP to Attempt | Improvement Target | Trainer Required |
-|------|-------------|---------------|-------------------|------------------|
-| Novice | 1-5 | 5 LP | Roll > Level | No |
-| Adept | 6-10 | 7 LP | Roll > Level | No |
-| Expert | 11-15 | 10 LP | Roll - 3 > Level | Recommended |
-| Master | 16-20 | 15 LP | Roll - 5 > Level | Required |
+Each Learning Point buys one improvement attempt on its skill, spent at the end of the turn that earned it. Roll 1d20: equal to or higher than the current level raises the skill by 1.
+
+| Level | Chance per attempt | Attempts (LP) per level, on average |
+|-------|-------------------|-------------------------------------|
+| 3 | 90% | 1.1 |
+| 5 | 80% | 1.25 |
+| 7 | 70% | 1.4 |
+| 12 | 45% | 2.2 |
+| 16 | 25% | 4 |
+| 20 | 5% | 20 |
 
 ### Trainer Bonuses
 - Trainers must have skill level ≥5 above student
-- Trainer provides +5 bonus to improvement roll
-- At Master tier, improvement without trainer auto-fails
+- A training session is one free attempt (no LP) with +5 to the roll
+- Past level 20, only a trainer's bonus can reach the target
 
 ---
 
@@ -772,11 +774,11 @@ Skills don't exist in isolation. A master swordsman has developed body awareness
 ### Why Floors Instead of Bonuses?
 Floors represent baseline competence, not enhancement. A master fighter doesn't get +6 to unarmed — they can't be *worse* than level 6 at unarmed. This distinction matters narratively.
 
-### Why Scaled LP?
-The 10,000-hour research shows diminishing returns at high levels. A novice improves rapidly; a master grinds for marginal gains. Scaling LP thresholds simulates this reality.
+### Why One LP per Attempt?
+The 10,000-hour research shows diminishing returns at high levels. A novice improves rapidly; a master grinds for marginal gains. The roll does this by itself: the higher the skill, the smaller the chance that an attempt pays off, so no thresholds or tier modifiers are needed.
 
-### Why Trainer Requirements?
-Beyond Expert level, self-study plateaus. Real masters seek other masters. This creates natural quest hooks and emphasizes that true mastery is rare.
+### Why Trainers?
+Beyond Expert level, self-study plateaus. Real masters seek other masters. A trainer's +5 matters most where attempts mostly fail, and past level 20 nothing else works. This creates natural quest hooks and emphasizes that true mastery is rare.
 
 --- system ---
 Your task: the player character has just arrived at a location. Describe what they perceive through their senses:
@@ -788,8 +790,8 @@ Rules:
 - Write in second person ("You...").
 - This is pure exposition — do not resolve player actions or roll dice.
 - Use vivid prose, 2-4 short paragraphs.
-- Name present NPCs the character would notice. Play them from their personality: a host greets a newcomer warmly.
-- Avoid stock phrases such as "eyes narrow", "scarred oak" and "the hearth crackles"; find details of this place.
+- Only the people listed as present are here. Name those the character would notice. Play them from their personality: a host greets a newcomer warmly.
+- Avoid stock phrases such as "eyes narrow", "scarred oak", "the hearth crackles", "tilts her head" and "hands on her apron"; find details of this place.
 - End with situational awareness that invites the player to act.
 - Return ONLY valid JSON with narrative and location_name. Leave every other field out.
 
@@ -801,8 +803,9 @@ character: Elara Voss (human)
 ---
 
 ## Opening scene (Valley Inn) — already told to the player
-Do not rewrite or re-narrate this as if it just happened. The player has
-already heard it; respond to their action from here.
+This is how the session began. Do not rewrite or re-narrate it. The
+character may have moved on since: "Scene now" in the per-turn state
+says where they are and who is with them, and it wins over this scene.
 
 A timber inn at the foot of the tin road. Miners drink here. The valley road runs east toward the cut.
 
@@ -892,7 +895,7 @@ Valid skills: arcana, climbing, deception, dodge, etiquette, history, insight, i
     "memories": [],
     "mood": "cheerful",
     "name": "Brenna Holt",
-    "personality": "Warm, chatty and a born host who genuinely enjoys running the tavern. She greets newcomers like regulars, remembers names and orders, and fills a quiet moment with gossip and news. Kind and generous with civil guests; tired of Guild politics but happy to talk about them. Only a threat to her guests or her inn brings out her steel.",
+    "personality": "Warm, chatty and a born host who genuinely enjoys running the tavern. She greets newcomers like regulars, remembers names and orders, and fills a quiet moment with gossip and news. Kind to civil guests, but she runs a business on thin margins: ale and stew are paid for, and a free plate is earned (a hand on a busy night, a favour, a regular's tab), never a reflex. Her gossip is free; her goods are not. Tired of Guild politics but happy to talk about them. Only a threat to her guests or her inn brings out her steel.",
     "personality_traits": {
       "agreeableness": 8,
       "conscientiousness": 7,
@@ -915,6 +918,15 @@ Valid skills: arcana, climbing, deception, dodge, etiquette, history, insight, i
 
 ## NPC Memories (recent)
 (none)
+
+
+---
+
+## Scene now
+Where: Valley Inn (valley_inn).
+Present: Brenna Holt (innkeep).
+Elsewhere (not here): Osric Vane at Market Square; Caldern Voss at Mine workings.
+Narrate from this place. Only the people present can speak or act here; anyone else is elsewhere.
 
 
 ===== gm turn 1 =====
@@ -970,7 +982,7 @@ This combat system, adapted from Savage Worlds' wound-based mechanics, is design
   - Success: +0.5 LP.
   - Natural 1: +1 LP (once per skill per session).
   - Near-death (saved): +2 LP for related skills.
-  - The tier's LP (5/7/10/15) trigger an improvement roll (d20 + tier modifier > skill level - trainer bonus).
+  - Each LP buys an improvement attempt at the end of the turn (d20 ≥ skill level: +1).
 
 ## Additional Features
 - **Multi-Actions**: Multiple actions per round (e.g., attack twice) at -2 skill per extra action, granting LP on failures.
@@ -1013,15 +1025,13 @@ This is a skill-based fantasy RPG system where character progress is measured by
   - Success (non-natural 1): +0.5 LP.
   - Natural 20: +2 LP.
   - Natural 1: +1 LP (capped once per skill per session).
-  - Threshold: the tier's LP (Novice 1-5: 5, Adept 6-10: 7, Expert 11-15: 10, Master 16+: 15) and ≥ 1 failure on that skill to attempt improvement.
+  - Spending: 1 LP buys one improvement attempt on that skill. No threshold, no failure and no rest needed.
   - Linked stat: +(Stat - 10)/4 LP per roll (rounded down, 0 to +2).
 - **Skill Improvement**:
-  - Attempt at rest / sleep / wait ≥ 1 hour, not session end.
-  - One 1d20 per eligible skill per pause.
-  - Roll 1d20 &gt; raw skill (Expert -3 and Master -5 to the roll; Master needs a trainer).
-  - Success: skill +1, LP 0, failures 0.
-  - Failure: skill unchanged, LP 1, failures 0.
-  - No skill cap; high levels become harder without bonuses.
+  - At the end of the turn, every whole LP a skill holds is spent, one attempt per LP (fractions wait for the next roll).
+  - Roll 1d20 ≥ raw skill: skill +1. Chance (21 - skill)/20: 90% at 3, 70% at 7, 45% at 12, 5% at 20.
+  - Each attempt costs 1 LP, hit or miss. No tier modifiers.
+  - No skill cap, but past 20 only a trainer's bonus can reach the target.
 - **Death Exception**: No LP from fatal failures; near-death grants +1 LP if survived.
 - **Skill List Categories** (Examples):
   - **Combat**: Melee Combat, Ranged Combat, Unarmed Combat, Tactics, Dodge.
@@ -1032,9 +1042,9 @@ This is a skill-based fantasy RPG system where character progress is measured by
 
 ## Trainers and Adventures
 
-- **Trainers**: NPCs with skill level ≥5 above the character's. Provide +5 bonus to improvement rolls (reduces target by 5).
+- **Trainers**: NPCs with skill level ≥5 above the character's. A training session is one free improvement attempt (no LP) with +5 to the roll (1d20 + 5 ≥ skill).
   - Found via quests (e.g., journey to a master thief for Stealth training).
-  - Bonus applies to one improvement per training session; requires time/resources.
+  - One attempt per training session; costs time and the trainer's fee.
   - Can be group quests for party training.
 - **Integration**: Trainers can bypass/reduce stat minima for advancements; quests add narrative depth.
 
@@ -1523,19 +1533,23 @@ High skill levels in a domain grant **contextual stat bonuses** when performing 
 
 ---
 
-## LP Progression: Scaled Thresholds
+## LP Progression: One LP, One Attempt
 
-| Tier | Level Range | LP to Attempt | Improvement Target | Trainer Required |
-|------|-------------|---------------|-------------------|------------------|
-| Novice | 1-5 | 5 LP | Roll > Level | No |
-| Adept | 6-10 | 7 LP | Roll > Level | No |
-| Expert | 11-15 | 10 LP | Roll - 3 > Level | Recommended |
-| Master | 16-20 | 15 LP | Roll - 5 > Level | Required |
+Each Learning Point buys one improvement attempt on its skill, spent at the end of the turn that earned it. Roll 1d20: equal to or higher than the current level raises the skill by 1.
+
+| Level | Chance per attempt | Attempts (LP) per level, on average |
+|-------|-------------------|-------------------------------------|
+| 3 | 90% | 1.1 |
+| 5 | 80% | 1.25 |
+| 7 | 70% | 1.4 |
+| 12 | 45% | 2.2 |
+| 16 | 25% | 4 |
+| 20 | 5% | 20 |
 
 ### Trainer Bonuses
 - Trainers must have skill level ≥5 above student
-- Trainer provides +5 bonus to improvement roll
-- At Master tier, improvement without trainer auto-fails
+- A training session is one free attempt (no LP) with +5 to the roll
+- Past level 20, only a trainer's bonus can reach the target
 
 ---
 
@@ -1547,11 +1561,11 @@ Skills don't exist in isolation. A master swordsman has developed body awareness
 ### Why Floors Instead of Bonuses?
 Floors represent baseline competence, not enhancement. A master fighter doesn't get +6 to unarmed — they can't be *worse* than level 6 at unarmed. This distinction matters narratively.
 
-### Why Scaled LP?
-The 10,000-hour research shows diminishing returns at high levels. A novice improves rapidly; a master grinds for marginal gains. Scaling LP thresholds simulates this reality.
+### Why One LP per Attempt?
+The 10,000-hour research shows diminishing returns at high levels. A novice improves rapidly; a master grinds for marginal gains. The roll does this by itself: the higher the skill, the smaller the chance that an attempt pays off, so no thresholds or tier modifiers are needed.
 
-### Why Trainer Requirements?
-Beyond Expert level, self-study plateaus. Real masters seek other masters. This creates natural quest hooks and emphasizes that true mastery is rare.
+### Why Trainers?
+Beyond Expert level, self-study plateaus. Real masters seek other masters. A trainer's +5 matters most where attempts mostly fail, and past level 20 nothing else works. This creates natural quest hooks and emphasizes that true mastery is rare.
 
 --- system ---
 Your task: narrate the result of the player's action this turn.
@@ -1573,14 +1587,21 @@ Mechanics:
 - Plain travel (handler move, no skill) is outcome none: narrate arrival, no check.
 - Use labor-anchored economy (1g = 50s = 500c). State exact coin amounts for purchases without a shop menu.
 
+Place and people:
+- "Scene now" in the per-turn state says where the character is and who is there. Narrate from that place. Only the people listed as present can speak or act; anyone else is elsewhere and cannot answer.
+- Only the server moves the character. When the handler is move, narrate the way and the arrival at the new place. Otherwise the character is still at the Scene now place at the end of the turn: do not walk them to another place, even when they talk about going.
+
 Story:
 - Give the player something to act on early. By the end of the player's second turn at the latest, have a present NPC or the scene offer one concrete lead: a job, a name or a place. An NPC's "hooks" are ready-made leads. Offer one naturally, without waiting to be asked, then keep the story moving.
 - Play each NPC from their personality and traits. A host treats a civil, paying guest warmly unless the character gives a reason not to; do not default to suspicion, flat voices or brush-offs.
+- Warmth is not free goods. NPCs charge their prices; nothing is "on the house" by default. A gift needs a reason in the story (a favour done, a debt repaid, a regular's tab, a celebration), and even then it is rare.
 
 Prose:
 - Always second person ("you"). Never open with the character's name or narrate them in the third person.
-- Do not repeat the player's words back; show the reply and what happens next.
-- Do not repeat yourself. Vary openings, gestures and description from turn to turn. Once an item is served or a detail described, do not serve or describe it again. Avoid stock phrases such as "eyes narrow", "scarred oak", "slides the mug across" and "the hearth crackles".
+- React, do not restate. Never open by echoing, quoting or paraphrasing what the player character just said or did; the player knows. Start with the reply, the reaction or what changes, and go on from there.
+- The one exception is a deliberate move by a character, used rarely: echoing the last two or three words of the player character's line as a question, to draw them out ("...the old shaft?"). It is dialogue, never the narration's opening, and not every turn.
+- Do not repeat yourself. Vary openings, gestures and description from turn to turn. Once an item is served or a detail described, do not serve or describe it again. A gesture that appears in the recent turns is used up: pick another or none.
+- Banned stock phrases: "eyes narrow", "scarred oak", "slides the mug across", "the hearth crackles", "tilts her head", "on the house", "hands on her apron", "wipes her hands", "leans on the counter", "a fresh mug of ale". Find a gesture that belongs to this person and this moment, or none.
 - Keep prices, names and promises consistent with earlier turns.
 - Never put labels, traits, stances or system text in the narrative.
 
@@ -1609,8 +1630,9 @@ character: Elara Voss (human)
 ---
 
 ## Opening scene (Valley Inn) — already told to the player
-Do not rewrite or re-narrate this as if it just happened. The player has
-already heard it; respond to their action from here.
+This is how the session began. Do not rewrite or re-narrate it. The
+character may have moved on since: "Scene now" in the per-turn state
+says where they are and who is with them, and it wins over this scene.
 
 A timber inn at the foot of the tin road. Miners drink here. The valley road runs east toward the cut.
 
@@ -1700,7 +1722,7 @@ Valid skills: arcana, climbing, deception, dodge, etiquette, history, insight, i
     "memories": [],
     "mood": "cheerful",
     "name": "Brenna Holt",
-    "personality": "Warm, chatty and a born host who genuinely enjoys running the tavern. She greets newcomers like regulars, remembers names and orders, and fills a quiet moment with gossip and news. Kind and generous with civil guests; tired of Guild politics but happy to talk about them. Only a threat to her guests or her inn brings out her steel.",
+    "personality": "Warm, chatty and a born host who genuinely enjoys running the tavern. She greets newcomers like regulars, remembers names and orders, and fills a quiet moment with gossip and news. Kind to civil guests, but she runs a business on thin margins: ale and stew are paid for, and a free plate is earned (a hand on a busy night, a favour, a regular's tab), never a reflex. Her gossip is free; her goods are not. Tired of Guild politics but happy to talk about them. Only a threat to her guests or her inn brings out her steel.",
     "personality_traits": {
       "agreeableness": 8,
       "conscientiousness": 7,
@@ -1723,6 +1745,15 @@ Valid skills: arcana, climbing, deception, dodge, etiquette, history, insight, i
 
 ## NPC Memories (recent)
 (none)
+
+
+---
+
+## Scene now
+Where: Valley Inn (valley_inn).
+Present: Brenna Holt (innkeep).
+Elsewhere (not here): Osric Vane at Market Square; Caldern Voss at Mine workings.
+Narrate from this place. Only the people present can speak or act here; anyone else is elsewhere.
 
 ## Server resolution (tone bounds only)
 skill: insight
@@ -1803,7 +1834,7 @@ This combat system, adapted from Savage Worlds' wound-based mechanics, is design
   - Success: +0.5 LP.
   - Natural 1: +1 LP (once per skill per session).
   - Near-death (saved): +2 LP for related skills.
-  - The tier's LP (5/7/10/15) trigger an improvement roll (d20 + tier modifier > skill level - trainer bonus).
+  - Each LP buys an improvement attempt at the end of the turn (d20 ≥ skill level: +1).
 
 ## Additional Features
 - **Multi-Actions**: Multiple actions per round (e.g., attack twice) at -2 skill per extra action, granting LP on failures.
@@ -1846,15 +1877,13 @@ This is a skill-based fantasy RPG system where character progress is measured by
   - Success (non-natural 1): +0.5 LP.
   - Natural 20: +2 LP.
   - Natural 1: +1 LP (capped once per skill per session).
-  - Threshold: the tier's LP (Novice 1-5: 5, Adept 6-10: 7, Expert 11-15: 10, Master 16+: 15) and ≥ 1 failure on that skill to attempt improvement.
+  - Spending: 1 LP buys one improvement attempt on that skill. No threshold, no failure and no rest needed.
   - Linked stat: +(Stat - 10)/4 LP per roll (rounded down, 0 to +2).
 - **Skill Improvement**:
-  - Attempt at rest / sleep / wait ≥ 1 hour, not session end.
-  - One 1d20 per eligible skill per pause.
-  - Roll 1d20 &gt; raw skill (Expert -3 and Master -5 to the roll; Master needs a trainer).
-  - Success: skill +1, LP 0, failures 0.
-  - Failure: skill unchanged, LP 1, failures 0.
-  - No skill cap; high levels become harder without bonuses.
+  - At the end of the turn, every whole LP a skill holds is spent, one attempt per LP (fractions wait for the next roll).
+  - Roll 1d20 ≥ raw skill: skill +1. Chance (21 - skill)/20: 90% at 3, 70% at 7, 45% at 12, 5% at 20.
+  - Each attempt costs 1 LP, hit or miss. No tier modifiers.
+  - No skill cap, but past 20 only a trainer's bonus can reach the target.
 - **Death Exception**: No LP from fatal failures; near-death grants +1 LP if survived.
 - **Skill List Categories** (Examples):
   - **Combat**: Melee Combat, Ranged Combat, Unarmed Combat, Tactics, Dodge.
@@ -1865,9 +1894,9 @@ This is a skill-based fantasy RPG system where character progress is measured by
 
 ## Trainers and Adventures
 
-- **Trainers**: NPCs with skill level ≥5 above the character's. Provide +5 bonus to improvement rolls (reduces target by 5).
+- **Trainers**: NPCs with skill level ≥5 above the character's. A training session is one free improvement attempt (no LP) with +5 to the roll (1d20 + 5 ≥ skill).
   - Found via quests (e.g., journey to a master thief for Stealth training).
-  - Bonus applies to one improvement per training session; requires time/resources.
+  - One attempt per training session; costs time and the trainer's fee.
   - Can be group quests for party training.
 - **Integration**: Trainers can bypass/reduce stat minima for advancements; quests add narrative depth.
 
@@ -2356,19 +2385,23 @@ High skill levels in a domain grant **contextual stat bonuses** when performing 
 
 ---
 
-## LP Progression: Scaled Thresholds
+## LP Progression: One LP, One Attempt
 
-| Tier | Level Range | LP to Attempt | Improvement Target | Trainer Required |
-|------|-------------|---------------|-------------------|------------------|
-| Novice | 1-5 | 5 LP | Roll > Level | No |
-| Adept | 6-10 | 7 LP | Roll > Level | No |
-| Expert | 11-15 | 10 LP | Roll - 3 > Level | Recommended |
-| Master | 16-20 | 15 LP | Roll - 5 > Level | Required |
+Each Learning Point buys one improvement attempt on its skill, spent at the end of the turn that earned it. Roll 1d20: equal to or higher than the current level raises the skill by 1.
+
+| Level | Chance per attempt | Attempts (LP) per level, on average |
+|-------|-------------------|-------------------------------------|
+| 3 | 90% | 1.1 |
+| 5 | 80% | 1.25 |
+| 7 | 70% | 1.4 |
+| 12 | 45% | 2.2 |
+| 16 | 25% | 4 |
+| 20 | 5% | 20 |
 
 ### Trainer Bonuses
 - Trainers must have skill level ≥5 above student
-- Trainer provides +5 bonus to improvement roll
-- At Master tier, improvement without trainer auto-fails
+- A training session is one free attempt (no LP) with +5 to the roll
+- Past level 20, only a trainer's bonus can reach the target
 
 ---
 
@@ -2380,11 +2413,11 @@ Skills don't exist in isolation. A master swordsman has developed body awareness
 ### Why Floors Instead of Bonuses?
 Floors represent baseline competence, not enhancement. A master fighter doesn't get +6 to unarmed — they can't be *worse* than level 6 at unarmed. This distinction matters narratively.
 
-### Why Scaled LP?
-The 10,000-hour research shows diminishing returns at high levels. A novice improves rapidly; a master grinds for marginal gains. Scaling LP thresholds simulates this reality.
+### Why One LP per Attempt?
+The 10,000-hour research shows diminishing returns at high levels. A novice improves rapidly; a master grinds for marginal gains. The roll does this by itself: the higher the skill, the smaller the chance that an attempt pays off, so no thresholds or tier modifiers are needed.
 
-### Why Trainer Requirements?
-Beyond Expert level, self-study plateaus. Real masters seek other masters. This creates natural quest hooks and emphasizes that true mastery is rare.
+### Why Trainers?
+Beyond Expert level, self-study plateaus. Real masters seek other masters. A trainer's +5 matters most where attempts mostly fail, and past level 20 nothing else works. This creates natural quest hooks and emphasizes that true mastery is rare.
 
 --- system ---
 Your task: narrate the result of the player's action this turn.
@@ -2406,14 +2439,21 @@ Mechanics:
 - Plain travel (handler move, no skill) is outcome none: narrate arrival, no check.
 - Use labor-anchored economy (1g = 50s = 500c). State exact coin amounts for purchases without a shop menu.
 
+Place and people:
+- "Scene now" in the per-turn state says where the character is and who is there. Narrate from that place. Only the people listed as present can speak or act; anyone else is elsewhere and cannot answer.
+- Only the server moves the character. When the handler is move, narrate the way and the arrival at the new place. Otherwise the character is still at the Scene now place at the end of the turn: do not walk them to another place, even when they talk about going.
+
 Story:
 - Give the player something to act on early. By the end of the player's second turn at the latest, have a present NPC or the scene offer one concrete lead: a job, a name or a place. An NPC's "hooks" are ready-made leads. Offer one naturally, without waiting to be asked, then keep the story moving.
 - Play each NPC from their personality and traits. A host treats a civil, paying guest warmly unless the character gives a reason not to; do not default to suspicion, flat voices or brush-offs.
+- Warmth is not free goods. NPCs charge their prices; nothing is "on the house" by default. A gift needs a reason in the story (a favour done, a debt repaid, a regular's tab, a celebration), and even then it is rare.
 
 Prose:
 - Always second person ("you"). Never open with the character's name or narrate them in the third person.
-- Do not repeat the player's words back; show the reply and what happens next.
-- Do not repeat yourself. Vary openings, gestures and description from turn to turn. Once an item is served or a detail described, do not serve or describe it again. Avoid stock phrases such as "eyes narrow", "scarred oak", "slides the mug across" and "the hearth crackles".
+- React, do not restate. Never open by echoing, quoting or paraphrasing what the player character just said or did; the player knows. Start with the reply, the reaction or what changes, and go on from there.
+- The one exception is a deliberate move by a character, used rarely: echoing the last two or three words of the player character's line as a question, to draw them out ("...the old shaft?"). It is dialogue, never the narration's opening, and not every turn.
+- Do not repeat yourself. Vary openings, gestures and description from turn to turn. Once an item is served or a detail described, do not serve or describe it again. A gesture that appears in the recent turns is used up: pick another or none.
+- Banned stock phrases: "eyes narrow", "scarred oak", "slides the mug across", "the hearth crackles", "tilts her head", "on the house", "hands on her apron", "wipes her hands", "leans on the counter", "a fresh mug of ale". Find a gesture that belongs to this person and this moment, or none.
 - Keep prices, names and promises consistent with earlier turns.
 - Never put labels, traits, stances or system text in the narrative.
 
@@ -2442,8 +2482,9 @@ character: Elara Voss (human)
 ---
 
 ## Opening scene (Valley Inn) — already told to the player
-Do not rewrite or re-narrate this as if it just happened. The player has
-already heard it; respond to their action from here.
+This is how the session began. Do not rewrite or re-narrate it. The
+character may have moved on since: "Scene now" in the per-turn state
+says where they are and who is with them, and it wins over this scene.
 
 A timber inn at the foot of the tin road. Miners drink here. The valley road runs east toward the cut.
 
@@ -2533,7 +2574,7 @@ Valid skills: arcana, climbing, deception, dodge, etiquette, history, insight, i
     "memories": [],
     "mood": "cheerful",
     "name": "Brenna Holt",
-    "personality": "Warm, chatty and a born host who genuinely enjoys running the tavern. She greets newcomers like regulars, remembers names and orders, and fills a quiet moment with gossip and news. Kind and generous with civil guests; tired of Guild politics but happy to talk about them. Only a threat to her guests or her inn brings out her steel.",
+    "personality": "Warm, chatty and a born host who genuinely enjoys running the tavern. She greets newcomers like regulars, remembers names and orders, and fills a quiet moment with gossip and news. Kind to civil guests, but she runs a business on thin margins: ale and stew are paid for, and a free plate is earned (a hand on a busy night, a favour, a regular's tab), never a reflex. Her gossip is free; her goods are not. Tired of Guild politics but happy to talk about them. Only a threat to her guests or her inn brings out her steel.",
     "personality_traits": {
       "agreeableness": 8,
       "conscientiousness": 7,
@@ -2556,6 +2597,15 @@ Valid skills: arcana, climbing, deception, dodge, etiquette, history, insight, i
 
 ## NPC Memories (recent)
 (none)
+
+
+---
+
+## Scene now
+Where: Valley Inn (valley_inn).
+Present: Brenna Holt (innkeep).
+Elsewhere (not here): Osric Vane at Market Square; Caldern Voss at Mine workings.
+Narrate from this place. Only the people present can speak or act here; anyone else is elsewhere.
 
 ## Server resolution (tone bounds only)
 skill: insight

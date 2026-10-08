@@ -25,11 +25,34 @@ defmodule TalesForge.Playtest.AffectLevelsTest do
     assert AffectLevels.levels("ronny") |> List.first() =~ "Unlocked"
   end
 
-  test "Paul, Lotta and Lars keep the frustrated-to-delighted question and rubric version" do
-    for {id, hash} <- [{"paul", "dfec71a"}, {"lotta", "4545d3b"}, {"lars", "fc771be"}] do
+  test "Paul, Lotta and Lars keep the frustrated-to-delighted question; only Lars keeps his version" do
+    for {id, hash} <- [{"paul", "fd84ebb"}, {"lotta", "ce84a1a"}, {"lars", "fc771be"}] do
       assert AffectLevels.session_question(id, "X") =~ "frustrated (low) to delighted (high)"
       assert AffectLevels.rubric_hash(id) == hash
     end
+  end
+
+  test "Paul's and Lotta's stricter rubric versions never mix with the baseline scores" do
+    refute AffectLevels.rubric_hash("paul") == "dfec71a"
+    refute AffectLevels.rubric_hash("lotta") == "4545d3b"
+    assert JevScorer.rubric_version("paul") == "jev-affect-v1-fd84ebb"
+    assert JevScorer.rubric_version("lotta") == "jev-affect-v1-ce84a1a"
+  end
+
+  test "Paul's and Lotta's top level needs concrete evidence, not just a pleasant stretch" do
+    for id <- ["paul", "lotta"] do
+      [_, _, mixed, pleased, top] = AffectLevels.levels(id)
+      assert mixed =~ "generic" or mixed =~ "interchangeable"
+      assert pleased =~ "polite guest"
+      assert top =~ "concrete evidence of at least two of"
+      assert top =~ "surprise"
+      assert top =~ "consequence"
+      assert top =~ "calling back"
+      assert top =~ "own goals"
+      assert top =~ "uneventful stretch is never this level"
+    end
+
+    assert List.last(AffectLevels.levels("lotta")) =~ "care shown when stakes hurt"
   end
 
   test "Hawk's and Ronny's rubric versions changed, so old and new scores never mix" do

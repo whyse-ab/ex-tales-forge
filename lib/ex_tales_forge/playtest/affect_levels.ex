@@ -19,15 +19,31 @@ defmodule TalesForge.Playtest.AffectLevels do
   - **Ronny** is the anti-persona: high means the game resisted him. His
     question used to ask how delighted he would be, which contradicted his
     inverted levels. Keep Ronny out of any averaged "player delight" figure.
+
+  **Paul and Lotta have a stricter top** (2026-10-07, tales-forge-docs
+  `docs/decisions.md`, "A stricter Jev rubric before the next A/B"). In the
+  65-run baseline Lotta's most likely level was 4 on 130 of 130 turns and
+  Paul's was 5 on 124 of 130, so no change could show. Level 3 now also covers
+  smooth but generic play, level 4 needs a reply to that persona's particular
+  character, and level 5 needs concrete evidence of at least two of: a
+  surprise, a consequence of their choice, a callback to earlier play, an NPC
+  acting on its own goals (Lotta: or care when stakes hurt). Their rubric
+  hashes changed, so the old scores and the new ones never mix: any comparison
+  with the 2026-10-07 baseline must re-score the baseline with this rubric.
+  The personas themselves are unchanged; they model real players.
   """
 
   @levels %{
     "paul" => [
+      # Stricter top (2026-10-07, before the next A/B): Paul saturated at 5 on
+      # 124 of 130 baseline turns. Smooth, warm play with nothing particular
+      # in it is now 3; level 4 needs a reply to *his* character, level 5
+      # concrete evidence in the transcript.
       "Left cold — the session felt mechanical, broke immersion, or shoved dice and rules into his face",
       "Uneasy — the story limped; he could stay in character only by ignoring the seams",
-      "Mixed — some moments answered his play as real, others pulled him out of character",
-      "Pleased — the world mostly treated his in-character play as real and natural",
-      "Delighted — the world answered his play as real and natural, even when he failed or died well"
+      "Mixed — smooth and polite but generic: the world went along with him without answering anything particular about his character, or some moments answered his play as real while others pulled him out of character",
+      "Pleased — the world treated his in-character play as real throughout, and an NPC answered something specific he said, did or is, not just a polite guest",
+      "Delighted — all of Pleased, plus concrete evidence of at least two of: a surprise he could not have predicted; a choice of his with a consequence that changed the situation; an NPC or the world calling back to something from earlier in play; an NPC acting on their own goals, not only reacting to him. A pleasant but uneventful stretch is never this level"
     ],
     "hawk" => [
       # One axis: how much real, fair danger he faced.
@@ -38,11 +54,15 @@ defmodule TalesForge.Playtest.AffectLevels do
       "Hard mode done right — foreshadowed danger, meaningful choices, a fight or escape that could go either way"
     ],
     "lotta" => [
+      # Stricter top (2026-10-07, before the next A/B): Lotta sat at 4 on all
+      # 130 baseline turns. A warm, safe world that would treat anyone the
+      # same is now 3; level 4 needs a world that sees *her* character, level
+      # 5 concrete evidence in the transcript.
       "Devastated or ejected — she could not be someone better; harm or death crushed identification without care",
       "Alienated — the character never felt like her escape; the world stayed cold or mechanical",
-      "Mixed — flashes of being someone else, broken by tone-deaf harm or flat NPCs",
-      "Immersed — she could live as a better version of herself for stretches of play",
-      "Transported — fully identified; the world held her as that person, with care when stakes hurt"
+      "Mixed — pleasant but interchangeable: the world was kind to her but nothing was about who her character is, or flashes of being someone else broken by tone-deaf harm or flat NPCs",
+      "Immersed — she could live as a better version of herself: the world responded to her character's particular traits, background or choices, not just to a polite guest",
+      "Transported — all of Immersed, plus concrete evidence of at least two of: a surprise; a choice of hers with a consequence that changed someone or something; an NPC remembering or calling back to her earlier words or deeds; an NPC acting on their own goals toward her; care shown when stakes hurt. A warm, safe, uneventful stretch is never this level"
     ],
     "lars" => [
       "Stuck — no grand adventure, no impact; the world ignored his push for action",

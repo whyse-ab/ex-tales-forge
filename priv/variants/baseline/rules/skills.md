@@ -142,23 +142,19 @@ High skill levels in a domain grant **contextual stat bonuses** when performing 
 
 ---
 
-## LP Progression: One LP, One Attempt
+## LP Progression: Scaled Thresholds
 
-Each Learning Point buys one improvement attempt on its skill, spent at the end of the turn that earned it. Roll 1d20: equal to or higher than the current level raises the skill by 1.
-
-| Level | Chance per attempt | Attempts (LP) per level, on average |
-|-------|-------------------|-------------------------------------|
-| 3 | 90% | 1.1 |
-| 5 | 80% | 1.25 |
-| 7 | 70% | 1.4 |
-| 12 | 45% | 2.2 |
-| 16 | 25% | 4 |
-| 20 | 5% | 20 |
+| Tier | Level Range | LP to Attempt | Improvement Target | Trainer Required |
+|------|-------------|---------------|-------------------|------------------|
+| Novice | 1-5 | 5 LP | Roll > Level | No |
+| Adept | 6-10 | 7 LP | Roll > Level | No |
+| Expert | 11-15 | 10 LP | Roll - 3 > Level | Recommended |
+| Master | 16-20 | 15 LP | Roll - 5 > Level | Required |
 
 ### Trainer Bonuses
 - Trainers must have skill level ≥5 above student
-- A training session is one free attempt (no LP) with +5 to the roll
-- Past level 20, only a trainer's bonus can reach the target
+- Trainer provides +5 bonus to improvement roll
+- At Master tier, improvement without trainer auto-fails
 
 ---
 
@@ -170,8 +166,8 @@ Skills don't exist in isolation. A master swordsman has developed body awareness
 ### Why Floors Instead of Bonuses?
 Floors represent baseline competence, not enhancement. A master fighter doesn't get +6 to unarmed — they can't be *worse* than level 6 at unarmed. This distinction matters narratively.
 
-### Why One LP per Attempt?
-The 10,000-hour research shows diminishing returns at high levels. A novice improves rapidly; a master grinds for marginal gains. The roll does this by itself: the higher the skill, the smaller the chance that an attempt pays off, so no thresholds or tier modifiers are needed.
+### Why Scaled LP?
+The 10,000-hour research shows diminishing returns at high levels. A novice improves rapidly; a master grinds for marginal gains. Scaling LP thresholds simulates this reality.
 
-### Why Trainers?
-Beyond Expert level, self-study plateaus. Real masters seek other masters. A trainer's +5 matters most where attempts mostly fail, and past level 20 nothing else works. This creates natural quest hooks and emphasizes that true mastery is rare.
+### Why Trainer Requirements?
+Beyond Expert level, self-study plateaus. Real masters seek other masters. This creates natural quest hooks and emphasizes that true mastery is rare.
