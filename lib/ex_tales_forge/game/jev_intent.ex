@@ -23,10 +23,12 @@ defmodule TalesForge.Game.JevIntent do
   candidate. `state/2` is a deterministic map (JSON encodes map keys sorted), so
   the same scene and text always serialise byte-identically.
 
-  This module is **not** wired into live turns. It exists to be measured by
-  `mix intent.eval` against the labelled fixture before any rollout.
+  Live turns call it through `TalesForge.IntentJev` when the session's
+  `INTENT_JEV` mode is `:shadow` or `:on` (`:off` never calls it). `mix
+  intent.eval` measures the same request against the labelled fixture.
   """
 
+  alias TalesForge.Game.IntentCalibration
   alias TalesForge.Game.Inventory
   alias TalesForge.Game.Schemas.{IntentExtraction, SingleAction}
   alias TalesForge.Game.WorldClock
@@ -98,11 +100,38 @@ defmodule TalesForge.Game.JevIntent do
   # Action types whose reading is only meaningful with a target.
   @target_actions ~w(speak move combat buy sell trade spend pickup drop interact use_item)a
 
+  # Which kinds of candidate each action type can be aimed at (post-processing
+  # in decode/3). Types not listed (wait, other, freeform) take no target.
+  @target_kinds %{
+    move: [:place, :npc_elsewhere],
+    speak: [:npc, :npc_elsewhere],
+    combat: [:npc],
+    spend: [:npc],
+    train: [:npc],
+    buy: [:item, :npc],
+    sell: [:item, :npc],
+    trade: [:item, :npc],
+    pickup: [:item],
+    drop: [:item],
+    use_item: [:item],
+    interact: [:fixture, :item, :npc],
+    observe: [:npc, :fixture, :item]
+  }
+
+  # Action types that never roll a skill in the game (put_skill/3 below), so
+  # the reading carries none either.
+  @no_skill_actions ~w(move wait pickup drop buy sell trade spend other)a
+
   @typedoc """
   One proposed target: its index `label`, `kind`, world `id` and the human
   `text` shown to the model.
   """
-  @type candidate :: %{label: atom(), kind: atom(), id: String.t(), text: String.t()}
+  @type candidate :: %{
+          label: atom(),
+          kind: :place | :npc | :npc_elsewhere | :fixture | :item,
+          id: String.t(),
+          text: String.t()
+        }
 
   @typedoc "The decoded reading of one Jev intent call."
   @type reading :: %{
@@ -114,10 +143,14 @@ defmodule TalesForge.Game.JevIntent do
           later_target: String.t() | nil,
           safety: atom(),
           confidence: float() | nil,
+          raw_confidence: float() | nil,
+          calibration: String.t(),
+          probabilities: map(),
           safety_confidence: float() | nil,
           benign_probability: float() | nil,
           action_probabilities: %{atom() => float()},
           top2: [atom()],
+          target_ranking: [{String.t() | nil, float()}],
           usage: map(),
           cost: float(),
           model: String.t() | nil
@@ -154,7 +187,11 @@ defmodule TalesForge.Game.JevIntent do
     |> Map.get("npc_locations", %{})
     |> Enum.sort_by(fn {id, _} -> id end)
     |> Enum.map(fn {id, info} ->
-      %{kind: :npc, id: id, text: "#{info["name"] || id} — elsewhere, at #{info["location_id"]}"}
+      %{
+        kind: :npc_elsewhere,
+        id: id,
+        text: "#{info["name"] || id} — elsewhere, at #{info["location_id"]}"
+      }
     end)
   end
 
@@ -321,13 +358,14 @@ defmodule TalesForge.Game.JevIntent do
     by_label = Map.new(candidates, fn c -> {c.label, c} end)
 
     action = reply[:action] || :other
-    target = candidate_id(by_label, reply[:target])
-    skill = skill_name(reply[:skill])
-    later = later_type(reply[:later])
-    later_target = if later, do: candidate_id(by_label, reply[:later_target]), else: nil
     safety = reply[:safety] || :benign
+    target = pick_target(reply, :target, action, by_label, context)
+    skill = if action in @no_skill_actions, do: nil, else: skill_name(reply[:skill])
+    later = later_type(reply[:later], action, safety)
+    later_target = if later, do: pick_target(reply, :later_target, later, by_label, context)
 
-    confidence = intent_confidence(reply, action)
+    raw_confidence = intent_confidence(reply, action)
+    confidence = IntentCalibration.apply(raw_confidence)
     probs = get_in(reply, [:probabilities, :action]) || %{}
 
     %{
@@ -340,10 +378,14 @@ defmodule TalesForge.Game.JevIntent do
       later_target: later_target,
       safety: safety,
       confidence: confidence,
+      raw_confidence: raw_confidence,
+      calibration: IntentCalibration.version(),
+      probabilities: Map.get(reply, :probabilities, %{}),
       safety_confidence: get_in(reply, [:confidence, :safety]),
       benign_probability: get_in(reply, [:probabilities, :safety, :benign]),
       action_probabilities: probs,
       top2: top2(probs, action),
+      target_ranking: target_ranking(reply, by_label),
       usage: Map.get(reply, :usage, %{}),
       cost: reply |> Map.get(:usage, %{}) |> Map.get(:cost, 0.0),
       model: Map.get(reply, :model)
@@ -364,9 +406,50 @@ defmodule TalesForge.Game.JevIntent do
   defp skill_name(nil), do: nil
   defp skill_name(skill) when is_atom(skill), do: Atom.to_string(skill)
 
-  defp later_type(:none), do: nil
-  defp later_type(nil), do: nil
-  defp later_type(type) when is_atom(type), do: type
+  # Post-processing of the `later` answer (fitted on nothing; each rule is a
+  # fact about the game): a message whose main action is `other` (out of
+  # character, meta talk, an attack) or that is not benign defers nothing, and
+  # an `other` / `freeform` plan carries nothing the game can act on later.
+  defp later_type(type, action, safety)
+       when type in [nil, :none, :other, :freeform] or action == :other or safety != :benign,
+       do: nil
+
+  defp later_type(type, _action, _safety) when is_atom(type), do: type
+
+  # Post-processing of a target answer: only the kinds of candidate the action
+  # can take compete (a fight or talk is aimed at a person, a move at a place
+  # or at a person elsewhere, a purchase at an item ...), against "none". A
+  # move never answers "none" while a place is on offer (a move without a place
+  # does not move), and a move to a person elsewhere goes to where they are.
+  defp pick_target(reply, question, action, by_label, context) do
+    kinds = Map.get(@target_kinds, action, [])
+    probs = get_in(reply, [:probabilities, question]) || %{}
+
+    ranked =
+      probs
+      |> Enum.filter(fn {label, _p} ->
+        label == :none or Map.get(by_label, label, %{})[:kind] in kinds
+      end)
+      |> Enum.reject(fn {label, _p} -> action == :move and label == :none end)
+      |> Enum.sort_by(fn {label, p} -> {-p, label} end)
+
+    case {ranked, map_size(probs)} do
+      {_, 0} -> resolve_target(candidate_id(by_label, reply[question]), action, context)
+      {[{label, _p} | _], _} -> resolve_target(candidate_id(by_label, label), action, context)
+      {[], _} -> nil
+    end
+  end
+
+  defp resolve_target(nil, _action, _context), do: nil
+
+  defp resolve_target(id, :move, context) do
+    case get_in(context, ["npc_locations", id, "location_id"]) do
+      place when is_binary(place) -> place
+      _ -> id
+    end
+  end
+
+  defp resolve_target(id, _action, _context), do: id
 
   # Intent confidence: the action read, lowered to the target read when the
   # action is one that needs a target.
@@ -379,6 +462,14 @@ defmodule TalesForge.Game.JevIntent do
       action in @target_actions and is_number(target_c) -> min(action_c, target_c)
       true -> action_c
     end
+  end
+
+  defp target_ranking(reply, by_label) do
+    reply
+    |> get_in([:probabilities, :target])
+    |> Kernel.||(%{})
+    |> Enum.map(fn {label, p} -> {candidate_id(by_label, label), p} end)
+    |> Enum.sort_by(fn {_id, p} -> -p end)
   end
 
   defp top2(probs, action) when map_size(probs) == 0, do: [action]
@@ -420,9 +511,7 @@ defmodule TalesForge.Game.JevIntent do
 
   defp put_skill(params, nil, _action), do: params
 
-  defp put_skill(params, _skill, action)
-       when action in [:move, :wait, :pickup, :drop, :buy, :sell, :trade, :spend],
-       do: params
+  defp put_skill(params, _skill, action) when action in @no_skill_actions, do: params
 
   defp put_skill(params, skill, _action), do: Map.put(params, "skill", skill)
 

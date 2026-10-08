@@ -30,9 +30,23 @@ defmodule Mix.Tasks.Intent.Eval do
     * `--readers` — comma list of `jev,heuristic,tier1` (default all three).
     * `--ask-below` — clarification threshold to include in the clarifying table.
     * `--limit` — only the first N items of the split.
+    * `--concurrency` — read N items at once (default 1).
+    * `--timeout-ms` — the Jev reader's receive timeout (default 4000).
+    * `--retries` — retries on 429/5xx for the Jev reader (default 0).
     * `--fixture` / `--worlds` — override the fixture paths.
     * `--jev-model` — Jev model (default `jev-1.13.0`).
+    * `--cache` — a directory for Jev replies, keyed by the SHA-256 of each exact
+      request (`TalesForge.IntentEval.Readers.request_key/3`). Unchanged requests
+      are read from it instead of the network, so tuning post-processing or the
+      calibration map costs nothing; any change to a request calls Jev again.
+    * `--dump` — also write one JSON line per item (gold and every reading) to
+      this path, for offline analysis.
     * `--out` — also write the report to this path.
+    * `--fit-calibration` — fit the Jev confidence map
+      (`TalesForge.IntentEval.Calibration.fit_scored/2`) on this run's Jev
+      readings and write it to this path (normally
+      `priv/intent/calibration.json`), with `--calibration-version`. Tune split
+      only; prints the raw, in-sample and 5-fold cross-validated ECE.
   """
 
   use Mix.Task
@@ -44,11 +58,18 @@ defmodule Mix.Tasks.Intent.Eval do
     readers: :string,
     ask_below: :float,
     limit: :integer,
+    concurrency: :integer,
+    timeout_ms: :integer,
+    retries: :integer,
     fixture: :string,
     worlds: :string,
     jev_model: :string,
     api_key: :string,
+    cache: :string,
+    dump: :string,
     out: :string,
+    fit_calibration: :string,
+    calibration_version: :string,
     i_mean_it: :boolean
   ]
 
@@ -68,6 +89,10 @@ defmodule Mix.Tasks.Intent.Eval do
       )
     end
 
+    if opts[:fit_calibration] && (split != "tune" or is_nil(opts[:calibration_version])) do
+      Mix.raise("--fit-calibration needs the tune split and --calibration-version.")
+    end
+
     start_app()
 
     {key, source} = api_key(opts)
@@ -79,6 +104,8 @@ defmodule Mix.Tasks.Intent.Eval do
     maybe_banner(split)
     Mix.shell().info(report)
     maybe_write(opts[:out], report)
+    maybe_dump(opts[:dump], results)
+    maybe_fit(opts[:fit_calibration], opts[:calibration_version], results)
     summarise_cost(results)
   end
 
@@ -117,6 +144,7 @@ defmodule Mix.Tasks.Intent.Eval do
     ]
     |> put_opt(:ask_below, opts[:ask_below])
     |> put_opt(:limit, opts[:limit])
+    |> put_opt(:concurrency, opts[:concurrency])
     |> put_opt(:fixture, opts[:fixture])
     |> put_opt(:worlds, opts[:worlds])
   end
@@ -137,6 +165,9 @@ defmodule Mix.Tasks.Intent.Eval do
     []
     |> put_opt(:model, opts[:jev_model])
     |> put_opt(:api_key, key)
+    |> put_opt(:cache_dir, opts[:cache])
+    |> put_opt(:timeout_ms, opts[:timeout_ms])
+    |> put_opt(:max_retries, opts[:retries])
   end
 
   defp put_opt(kw, _key, nil), do: kw
@@ -160,8 +191,54 @@ defmodule Mix.Tasks.Intent.Eval do
     Mix.shell().info("\nWrote #{path}")
   end
 
+  defp maybe_dump(nil, _results), do: :ok
+
+  defp maybe_dump(path, %{scored: scored}) do
+    File.mkdir_p!(Path.dirname(path))
+    File.write!(path, Enum.map_join(scored, "\n", &dump_line/1) <> "\n")
+    Mix.shell().info("Wrote #{path}")
+  end
+
+  # One JSON line per item: its id, category, gold labels and every reader's
+  # normalised reading (probabilities included), for offline analysis.
+  defp dump_line(%{item: item, readings: readings}) do
+    Jason.encode!(%{
+      id: item["id"],
+      category: item["category"],
+      gold: item["gold"],
+      readings:
+        Map.new(readings, fn {reader, reading} -> {reader, Map.drop(reading, [:reader])} end)
+    })
+  end
+
+  defp maybe_fit(nil, _version, _results), do: :ok
+
+  defp maybe_fit(path, version, %{scored: scored}) do
+    {map, stats} = IntentEval.Calibration.fit_scored(scored, version: version)
+    File.mkdir_p!(Path.dirname(path))
+
+    File.write!(
+      path,
+      Jason.encode_to_iodata!(map, pretty: true) |> IO.iodata_to_binary() |> Kernel.<>("\n")
+    )
+
+    Mix.shell().info(
+      "\nCalibration #{version} (n=#{stats.n}, #{length(map["points"])} knots) -> #{path}\n" <>
+        "ECE raw #{fmt(stats.raw_ece)}, in-sample #{fmt(stats.in_sample_ece)}, " <>
+        "5-fold CV #{fmt(stats.cv_ece)}"
+    )
+  end
+
+  defp fmt(nil), do: "n/a"
+  defp fmt(x), do: :erlang.float_to_binary(x / 1, decimals: 3)
+
   defp summarise_cost(%{metrics: metrics}) do
     total = metrics |> Map.values() |> Enum.map(& &1.cost) |> Enum.sum()
+    spent = metrics |> Map.values() |> Enum.map(&Map.get(&1, :spent, &1.cost)) |> Enum.sum()
     Mix.shell().info("\nTotal measured cost: $#{:erlang.float_to_binary(total / 1, decimals: 5)}")
+
+    Mix.shell().info(
+      "Spent on this run (cache misses): $#{:erlang.float_to_binary(spent / 1, decimals: 5)}"
+    )
   end
 end

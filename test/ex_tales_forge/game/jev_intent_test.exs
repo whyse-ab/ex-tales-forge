@@ -1,7 +1,7 @@
 defmodule TalesForge.Game.JevIntentTest do
   use ExUnit.Case, async: true
 
-  alias TalesForge.Game.{JevIntent, Mechanics}
+  alias TalesForge.Game.{IntentCalibration, JevIntent, Mechanics}
   alias TalesForge.Game.Schemas.IntentExtraction
 
   defp context do
@@ -97,7 +97,9 @@ defmodule TalesForge.Game.JevIntentTest do
     assert reading.skill == "persuasion"
     assert reading.later == nil
     assert reading.safety == :benign
-    assert reading.confidence == 0.8
+    assert reading.raw_confidence == 0.8
+    assert reading.confidence == IntentCalibration.apply(0.8)
+    assert reading.calibration == IntentCalibration.version()
     assert reading.benign_probability == 0.98
     assert reading.top2 == [:speak, :move]
     assert %IntentExtraction{} = reading.extraction
@@ -155,5 +157,73 @@ defmodule TalesForge.Game.JevIntentTest do
     assert reading.target == nil
     assert reading.safety == :prompt_injection
     assert reading.benign_probability == 0.02
+  end
+
+  describe "target post-processing" do
+    defp label_of(cands, id, kind \\ nil) do
+      Enum.find(cands, &(&1.id == id and (is_nil(kind) or &1.kind == kind))).label
+    end
+
+    defp read(action, target_probs, opts \\ []) do
+      cands = JevIntent.candidates(context())
+
+      probs =
+        Map.new(target_probs, fn
+          {:none, p} -> {:none, p}
+          {id, p} -> {label_of(cands, id), p}
+        end)
+
+      reply = %{
+        action: action,
+        target: probs |> Enum.max_by(&elem(&1, 1)) |> elem(0),
+        skill: Keyword.get(opts, :skill, :none),
+        later: Keyword.get(opts, :later, :none),
+        safety: Keyword.get(opts, :safety, :benign),
+        confidence: %{action: 0.9, target: 0.9},
+        probabilities: %{action: %{action => 0.9}, target: probs}
+      }
+
+      JevIntent.decode(reply, cands, text: "x", context: context())
+    end
+
+    test "a fight is aimed at a person even when a place reads higher" do
+      reading = read(:combat, %{"market_square" => 0.6, "innkeep" => 0.3, :none => 0.1})
+      assert reading.target == "innkeep"
+    end
+
+    test "a move never answers none while a place is on offer" do
+      reading = read(:move, %{:none => 0.7, "market_square" => 0.2, "innkeep" => 0.1})
+      assert reading.target == "market_square"
+    end
+
+    test "a move to a person elsewhere goes to where they are" do
+      reading = read(:move, %{"guild_steward" => 0.8, "inn_yard" => 0.2})
+      assert reading.target == "market_square"
+    end
+
+    test "an action without targets keeps none" do
+      reading = read(:wait, %{"innkeep" => 0.9, :none => 0.1})
+      assert reading.target == nil
+    end
+
+    test "the ranking keeps every candidate, best first" do
+      reading = read(:speak, %{"innkeep" => 0.7, "guild_steward" => 0.2, :none => 0.1})
+      assert [{"innkeep", 0.7}, {"guild_steward", 0.2}, {nil, 0.1}] = reading.target_ranking
+    end
+  end
+
+  describe "skill and later post-processing" do
+    test "actions that never roll drop the skill" do
+      reading = read(:move, %{"market_square" => 1.0}, skill: :stealth)
+      assert reading.skill == nil
+      refute Map.has_key?(hd(reading.extraction.actions).parameters, "skill")
+    end
+
+    test "an 'other' action or a flagged message has no deferred action" do
+      assert read(:other, %{none: 1.0}, later: :move).later == nil
+      assert read(:speak, %{"innkeep" => 1.0}, later: :move, safety: :jailbreak).later == nil
+      assert read(:speak, %{"innkeep" => 1.0}, later: :other).later == nil
+      assert read(:speak, %{"innkeep" => 1.0}, later: :move).later == :move
+    end
   end
 end

@@ -10,13 +10,18 @@ defmodule TalesForge.Workers.ProcessTurn do
 
   @impl Oban.Worker
   def perform(%Oban.Job{
-        args: %{
-          "session_id" => session_id,
-          "raw_action" => raw_action,
-          "player_action" => player_action
-        }
+        args:
+          %{
+            "session_id" => session_id,
+            "raw_action" => raw_action,
+            "player_action" => player_action
+          } = args
       }) do
-    case TurnProcessor.run(session_id, raw_action, player_action) do
+    # gm_quote / gm_note: set only by the Jev intent path (INTENT_JEV=on,
+    # TalesForge.IntentJev); absent otherwise, so the turn is exactly today's.
+    gm = [gm_quote: args["gm_quote"], gm_note: args["gm_note"]]
+
+    case TurnProcessor.run(session_id, raw_action, player_action, gm) do
       {:ok, _payload} -> :ok
       {:error, {:spend_cap, _kind} = reason} -> {:cancel, reason}
       {:error, reason} -> {:error, reason}

@@ -57,9 +57,20 @@ defmodule TalesForge.Game.TurnProcessor do
   so the Oban job records it and retries. Before this a crashed turn was
   silent: the job failed three times, nothing was logged or broadcast, and
   the player (or the playtest runner) waited until its timeout.
+
+  `opts` (set only by the Jev intent path, `INTENT_JEV=on`):
+
+    * `:gm_quote` — the text the GM gets as the action's `overall_intent`: the
+      player's own words when the safety read was confidently benign, else a
+      typed summary (`TalesForge.Game.PlayerQuote`). The rules still read
+      `player_action_map`.
+    * `:gm_note` — `"decline_nefarious"`: the GM declines the request in
+      character (`TalesForge.Game.Context.player_request_section/1`).
+
+  Without them the GM prompt is byte-identical to before.
   """
-  @spec run(String.t(), String.t(), map()) :: {:ok, map()} | {:error, term()}
-  def run(session_id, raw_action, player_action_map) do
+  @spec run(String.t(), String.t(), map(), keyword()) :: {:ok, map()} | {:error, term()}
+  def run(session_id, raw_action, player_action_map, opts \\ []) do
     started = System.monotonic_time(:millisecond)
 
     case Repo.get(GameSession, session_id) do
@@ -72,7 +83,7 @@ defmodule TalesForge.Game.TurnProcessor do
         {result, steps} =
           Steps.collect(fn ->
             player_action = PlayerAction.decode(player_action_map)
-            run_steps(session, turn_number, raw_action, player_action)
+            run_steps(session, turn_number, raw_action, player_action, opts)
           end)
 
         Steps.record(steps, session_id, turn_number, Tags.for_world(session.world_state))
@@ -80,7 +91,7 @@ defmodule TalesForge.Game.TurnProcessor do
     end
   end
 
-  defp run_steps(session, turn_number, raw_action, player_action) do
+  defp run_steps(session, turn_number, raw_action, player_action, gm_opts) do
     {handler, mechanical, ruled} =
       Steps.time(:rules, fn -> resolve_rules(session, player_action) end)
 
@@ -101,8 +112,15 @@ defmodule TalesForge.Game.TurnProcessor do
           |> Map.put(:world_facts, agents)
           |> Map.put(:price_lines, price_lines)
           |> Map.put(:moved_from, moved_from(session.world_state, board.world))
+          |> put_player_request(gm_opts[:gm_note])
 
-        Prompts.gm_messages(gm_context, mechanical, player_action, handler, turn_number)
+        Prompts.gm_messages(
+          gm_context,
+          mechanical,
+          gm_action(player_action, gm_opts[:gm_quote]),
+          handler,
+          turn_number
+        )
       end)
 
     with {:ok, gm_result} <-
@@ -189,6 +207,17 @@ defmodule TalesForge.Game.TurnProcessor do
     board = apply_board(session, character, handler, player_action, rolled)
     {handler, %{rolled | improvements: board.improvements, training: board.training}, board}
   end
+
+  # INTENT_JEV=on: the GM's quote replaces overall_intent in the prompt only.
+  defp gm_action(player_action, quote) when is_binary(quote) and quote != "",
+    do: %PlayerAction{player_action | overall_intent: quote}
+
+  defp gm_action(player_action, _quote), do: player_action
+
+  defp put_player_request(gm_context, nil), do: gm_context
+
+  defp put_player_request(gm_context, note) when is_binary(note),
+    do: Map.put(gm_context, :player_request, note)
 
   defp finish({:ok, payload}, session_id, turn_number, started) do
     elapsed = System.monotonic_time(:millisecond) - started

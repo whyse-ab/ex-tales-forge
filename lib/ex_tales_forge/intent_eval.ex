@@ -36,7 +36,9 @@ defmodule TalesForge.IntentEval do
     * `:readers` — list of `:jev | :heuristic | :tier1` (default `[:jev, :heuristic, :tier1]`);
     * `:ask_below` — clarification threshold for the clarifying-rate metric;
     * `:limit` — cap the number of items (after the split filter);
-    * `:jev` — options forwarded to the Jev reader (`:api_key`, `:model`, `:timeout_ms`).
+    * `:concurrency` — how many items are read at once (default 1);
+    * `:jev` — options forwarded to the Jev reader (`:api_key`, `:model`,
+      `:timeout_ms`, `:cache_dir`).
   """
   @spec run(keyword()) :: {String.t(), map()}
   def run(opts \\ []) do
@@ -210,17 +212,25 @@ defmodule TalesForge.IntentEval do
     ~w(observe interact speak move combat use_item pickup drop buy sell trade spend wait train freeform other)a
   end
 
+  # Items are read concurrently (`:concurrency`, default 1) and kept in order.
   defp score(items, worlds, readers, opts) do
-    Enum.map(items, fn item ->
-      context = build_context(item, worlds)
+    items
+    |> Task.async_stream(
+      fn item ->
+        context = build_context(item, worlds)
 
-      readings =
-        Map.new(readers, fn reader ->
-          {reader, Readers.read(reader, item, context, opts)}
-        end)
+        readings =
+          Map.new(readers, fn reader ->
+            {reader, Readers.read(reader, item, context, opts)}
+          end)
 
-      %{item: item, readings: readings}
-    end)
+        %{item: item, readings: readings}
+      end,
+      max_concurrency: Keyword.get(opts, :concurrency, 1),
+      ordered: true,
+      timeout: :infinity
+    )
+    |> Enum.map(fn {:ok, scored} -> scored end)
   end
 
   defp filter_split(items, "all"), do: items

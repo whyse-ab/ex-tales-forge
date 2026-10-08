@@ -189,6 +189,57 @@ if config_env() != :test do
   config :jev, api_key: System.get_env("TYPESAFE_API_KEY")
 end
 
+# Player intent as one Jev call (TalesForge.IntentJev). Config, not secrets.
+# INTENT_JEV: off (default) | shadow | on, fixed per new default-variant session.
+# The key is TYPESAFE_INTENT_API_KEY (a secret; each Fly app has its own), on the
+# named Jev endpoint :intent, which inherits neither the TypeSafe key nor the
+# price, so both are set here. Not read in test (config/test.exs).
+if config_env() != :test do
+  intent_float = fn name, default ->
+    case String.trim(System.get_env(name, "")) do
+      "" ->
+        default
+
+      value ->
+        case Float.parse(value) do
+          {c, ""} when c >= 0 and c <= 1 -> c
+          _ -> raise "#{name} must be a number from 0 to 1 like 0.70, got: #{inspect(value)}"
+        end
+    end
+  end
+
+  intent_jev =
+    case System.get_env("INTENT_JEV", "off") |> String.trim() |> String.downcase() do
+      mode when mode in ["", "off"] -> :off
+      "shadow" -> :shadow
+      "on" -> :on
+      other -> raise "INTENT_JEV must be off, shadow or on, got: #{inspect(other)}"
+    end
+
+  intent_timeout =
+    case Integer.parse(String.trim(System.get_env("INTENT_JEV_TIMEOUT_MS", "1500"))) do
+      {ms, ""} when ms > 0 -> ms
+      _ -> raise "INTENT_JEV_TIMEOUT_MS must be a positive integer (milliseconds)"
+    end
+
+  config :ex_tales_forge,
+    intent_jev: intent_jev,
+    intent_act_min_confidence: intent_float.("INTENT_ACT_MIN_CONFIDENCE", 0.70),
+    intent_ask_below_confidence: intent_float.("INTENT_ASK_BELOW_CONFIDENCE", 0.45),
+    intent_jev_timeout_ms: intent_timeout,
+    player_quote_min_benign_confidence: intent_float.("PLAYER_QUOTE_MIN_BENIGN_CONFIDENCE", 0.90)
+
+  config :jev,
+    endpoints: [
+      intent: [
+        base_url: "https://api.typesafe.ai",
+        api_key: System.get_env("TYPESAFE_INTENT_API_KEY"),
+        model: "jev-1.13.0",
+        usd_per_million_input: 0.042
+      ]
+    ]
+end
+
 # Admin costs page peer (/admin/costs). Both apps run the same code: whichever
 # side has both values set fetches the other side's aggregated AI spend.
 # COSTS_PEER_TOKEN (secret, same value on both apps) also turns on this app's

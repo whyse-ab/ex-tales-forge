@@ -239,7 +239,14 @@ defmodule TalesForge.Game.NpcReactions do
     ]
   end
 
-  defp last_narration(session_id) do
+  @doc """
+  The tail of the session's latest GM narration (the last turn's, or the
+  opening scene's when it is newer), at most #{@narration_chars} characters, or
+  nil before any. Also read by the Jev intent call (`TalesForge.IntentJev`),
+  so "him" and "the miner" resolve.
+  """
+  @spec last_narration(String.t()) :: String.t() | nil
+  def last_narration(session_id) do
     turn =
       Repo.one(
         from t in Turn,

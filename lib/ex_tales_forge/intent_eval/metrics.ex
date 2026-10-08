@@ -42,7 +42,12 @@ defmodule TalesForge.IntentEval.Metrics do
       safety: safety(usable),
       calibration: calibration(usable),
       clarifying: clarifying(usable, opts),
-      cost: usable |> Enum.map(fn {_item, r} -> r.cost end) |> Enum.sum()
+      cost: usable |> Enum.map(fn {_item, r} -> r.cost end) |> Enum.sum(),
+      spent:
+        usable
+        |> Enum.reject(fn {_item, r} -> Map.get(r, :cached, false) end)
+        |> Enum.map(fn {_item, r} -> r.cost end)
+        |> Enum.sum()
     }
   end
 
@@ -74,7 +79,13 @@ defmodule TalesForge.IntentEval.Metrics do
     %{n: n, correct: correct, rate: correct / n, lo: lo, hi: hi}
   end
 
-  defp action_correct?(item, r) do
+  @doc """
+  Whether reading `r` got the action of fixture `item` right: its action is the
+  gold one or one the labeller marked acceptable. The calibration fit
+  (`TalesForge.IntentEval.Calibration`) uses the same test.
+  """
+  @spec action_correct?(map(), map()) :: boolean()
+  def action_correct?(item, r) do
     not is_nil(r.action) and
       to_string(r.action) in acceptable(item, "action", "acceptable_actions")
   end

@@ -70,3 +70,14 @@ config :jev,
   api_key: nil,
   model: "jev-1.13.0",
   req_options: [plug: {Req.Test, Jev.HTTP}, retry_delay: 0]
+
+# Jev intent (TalesForge.IntentJev): the named :intent endpoint without a key, so
+# no test reaches TypeSafe; a test that needs it puts a key with
+# Application.put_env/3 and stubs Jev.HTTP with Req.Test. INTENT_JEV is off
+# unless a test sets :intent_jev.
+config :jev,
+  endpoints: [intent: [base_url: "https://api.typesafe.ai", api_key: nil, model: "jev-1.13.0"]]
+
+# The shadow Jev read runs inline in tests (async in dev and prod), so the
+# sandbox owns its queries and tests can assert on its ai_calls row.
+config :ex_tales_forge, :intent_jev_shadow, :sync
