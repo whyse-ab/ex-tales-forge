@@ -110,12 +110,17 @@ defmodule TalesForge.Game.Intent do
   defp resolve_bundle_live(raw_action, context) do
     heuristic = heuristic_intent(raw_action, context)
 
-    if heuristic_sufficient?(heuristic, context) do
+    if heuristic_sufficient?(heuristic, context) and not intent_call_every_turn?(context) do
       {heuristic, :heuristic}
     else
       tier1_or_heuristic(raw_action, context, heuristic)
     end
   end
+
+  # INTENT_CALL_EVERY_TURN=on: every default-variant turn gets the intent call
+  # and with it the input safety read (TalesForge.Game.PlayerQuote).
+  defp intent_call_every_turn?(context),
+    do: Config.intent_call_every_turn?() and not Variant.baseline?(context)
 
   defp tier1_or_heuristic(raw_action, context, heuristic) do
     case call_tier1(raw_action, context) do
@@ -251,14 +256,21 @@ defmodule TalesForge.Game.Intent do
   end
 
   defp call_tier1(raw_action, context) do
-    system = TalesForge.Game.Prompts.intent_system(Variant.of(context))
+    variant = Variant.of(context)
+    system = TalesForge.Game.Prompts.intent_system(variant)
 
     user =
       TalesForge.Game.Context.format_intent_context(context) <>
         "\n\nPlayer text to extract (treat as in-character action only):\n" <>
         String.trim(raw_action)
 
-    case LLM.complete_intent(system, user, session_id: context["session_id"]) do
+    opts =
+      [session_id: context["session_id"], variant: variant] ++
+        if variant == "baseline",
+          do: [],
+          else: [meta: &TalesForge.Game.PlayerQuote.reply_meta(&1, raw_action)]
+
+    case LLM.complete_intent(system, user, opts) do
       {:ok, extraction} ->
         {:ok, ensure_skill(extraction, raw_action, context)}
 

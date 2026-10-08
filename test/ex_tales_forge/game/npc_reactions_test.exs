@@ -213,14 +213,8 @@ defmodule TalesForge.Game.NpcReactionsTest do
     System.put_env("XAI_API_KEY", "test-key")
 
     Req.Test.stub(Jev.HTTP, fn conn ->
-      {request, conn} = Jev.Test.request(conn)
-
-      if safety_read?(request) do
-        Jev.Test.respond(conn, safety: :benign, confidence: %{safety: 0.97})
-      else
-        send(test_pid, {:at, :jev, System.monotonic_time()})
-        Jev.Test.respond(conn, @wary)
-      end
+      send(test_pid, {:at, :jev, System.monotonic_time()})
+      Jev.Test.respond(conn, @wary)
     end)
 
     Req.Test.stub(TalesForge.LLM, fn conn ->
@@ -254,24 +248,11 @@ defmodule TalesForge.Game.NpcReactionsTest do
     assert {"function", "turn.npc_reactions"} in purposes
   end
 
-  test "with the flag off a turn makes no NPC reaction call", %{session: session} do
+  test "with the flag off a turn makes no Jev call", %{session: session} do
     Application.put_env(:jev, :api_key, "test-key")
     System.put_env("LLM_PROVIDER", "xai")
     System.put_env("XAI_API_KEY", "test-key")
-    test_pid = self()
-
-    # Only the input safety read (TalesForge.Game.PlayerQuote) calls Jev.
-    Req.Test.stub(Jev.HTTP, fn conn ->
-      {request, conn} = Jev.Test.request(conn)
-
-      if safety_read?(request) do
-        Jev.Test.respond(conn, safety: :benign, confidence: %{safety: 0.97})
-      else
-        send(test_pid, :npc_reaction_called)
-        Jev.Test.error(conn, 500, "unexpected")
-      end
-    end)
-
+    Req.Test.stub(Jev.HTTP, fn _conn -> flunk("Jev called with NPC_REACTIONS off") end)
     Req.Test.stub(TalesForge.LLM, &Req.Test.json(&1, @xai_body))
 
     {action, _handler} = action(Context.build_gm_context(session), "ask Brenna for a room")
@@ -281,11 +262,7 @@ defmodule TalesForge.Game.NpcReactionsTest do
 
     refute Map.has_key?(GameSessions.get_session!(session.id).world_state, "npc_moods")
     assert Repo.all(from c in AICall, where: c.purpose == "npc_reaction") == []
-    refute_received :npc_reaction_called
   end
-
-  # The input safety read asks one question, "safety".
-  defp safety_read?(request), do: Map.has_key?(request["questions"], "safety")
 
   defp jev_on do
     System.put_env("NPC_REACTIONS", "on")

@@ -141,7 +141,7 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
           />
           <.metric_row
             id="costs-player-quote"
-            label="GM quote fallback (input safety)"
+            label="GM quote fallback (intent safety read)"
             value={player_quote_line(@metrics.player_quote)}
           />
         </dl>
@@ -522,7 +522,7 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
     "#{format_pct(cache.hit_rate)} of input tokens · #{cache.hits}/#{cache.calls} calls hit"
   end
 
-  defp player_quote_line(%{reads: 0}), do: "— (no reads)"
+  defp player_quote_line(%{reads: 0}), do: "— (no turns)"
 
   defp player_quote_line(pq) do
     reasons =

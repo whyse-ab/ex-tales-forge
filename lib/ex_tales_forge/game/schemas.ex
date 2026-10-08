@@ -111,6 +111,8 @@ defmodule TalesForge.Game.Schemas do
   defmodule IntentExtraction do
     @moduledoc """
     The intent step's reading of the player's free text, before validation.
+    In the default variant the intent call also returns its input safety read
+    (`safety`, `safety_confidence`; see `TalesForge.Game.PlayerQuote`).
     """
     @type t :: %__MODULE__{}
 
@@ -121,7 +123,9 @@ defmodule TalesForge.Game.Schemas do
       confidence: 1.0,
       needs_clarification: false,
       clarification_question: nil,
-      clarification_options: []
+      clarification_options: [],
+      safety: nil,
+      safety_confidence: nil
     ]
 
     # JSON null counts as missing (see `SingleAction.decode/1`).
@@ -138,7 +142,9 @@ defmodule TalesForge.Game.Schemas do
           |> Map.get("clarification_options")
           |> list()
           |> Enum.filter(&is_map/1)
-          |> Enum.map(&ClarificationOption.decode/1)
+          |> Enum.map(&ClarificationOption.decode/1),
+        safety: Map.get(map, "input_safety"),
+        safety_confidence: Map.get(map, "input_safety_confidence")
       }
     end
 

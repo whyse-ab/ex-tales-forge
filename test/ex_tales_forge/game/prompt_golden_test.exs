@@ -7,7 +7,8 @@ defmodule TalesForge.Game.PromptGoldenTest do
   phase deliberately changes what the models see, every prompt must stay
   exactly the same: the intent context, the opening-scene request and the GM
   turn messages (narrator, rules, task, session-stable and per-turn parts),
-  plus the player character's sheet in `world_state`.
+  plus the player character's sheet in `world_state`. The default-variant
+  files also hold the intent call's system prompt and schema.
 
   The golden files in `test/fixtures/prompts/` are one per adventure and
   behaviour variant (`TalesForge.Game.Variant`): `<adventure>.txt` for the
@@ -25,7 +26,9 @@ defmodule TalesForge.Game.PromptGoldenTest do
   alias TalesForge.Game.Prompts
   alias TalesForge.Game.Schemas.{HandlerResult, MechanicalResolution, PlayerAction, SingleAction}
   alias TalesForge.GameSessions
+  alias TalesForge.Game.Variant
   alias TalesForge.Jido
+  alias TalesForge.LLM
   alias TalesForge.NPC
 
   @dir Path.expand("../../fixtures/prompts", __DIR__)
@@ -68,19 +71,32 @@ defmodule TalesForge.Game.PromptGoldenTest do
     context = Context.build_gm_context(session)
     present = Map.get(context.intent_context, "present_npcs", [])
 
-    sections = [
-      {"world_state.character", Jason.encode!(session.world_state["character"], pretty: true)},
-      {"intent context",
-       session |> Context.build_intent_context() |> Context.format_intent_context()},
-      {"npc gm sections", NPC.format_gm_sections(session.id, present)},
-      {"scene messages", messages(Prompts.scene_messages(context))},
-      {"gm turn 1", messages(gm_messages(context, 1, "look around"))},
-      {"gm turn 4", messages(gm_messages(context, 4, "ask about the road"))}
-    ]
+    sections =
+      [
+        {"world_state.character", Jason.encode!(session.world_state["character"], pretty: true)},
+        {"intent context",
+         session |> Context.build_intent_context() |> Context.format_intent_context()},
+        {"npc gm sections", NPC.format_gm_sections(session.id, present)},
+        {"scene messages", messages(Prompts.scene_messages(context))},
+        {"gm turn 1", messages(gm_messages(context, 1, "look around"))},
+        {"gm turn 4", messages(gm_messages(context, 4, "ask about the road"))}
+      ] ++ intent_request(Variant.of(session.world_state))
 
     sections
     |> Enum.map_join("\n", fn {title, body} -> "===== #{title} =====\n#{body}\n" end)
     |> normalise(session.id)
+  end
+
+  # The intent call's static system prompt and schema. Default variant only:
+  # the baseline files predate this section and stay byte-identical (the
+  # baseline intent prompt and schema are frozen too, see PlayerQuoteTest).
+  defp intent_request("baseline"), do: []
+
+  defp intent_request(variant) do
+    [
+      {"intent system", Prompts.intent_system(variant)},
+      {"intent schema", Jason.encode!(LLM.intent_schema(variant), pretty: true)}
+    ]
   end
 
   defp gm_messages(context, turn_number, text) do

@@ -7,6 +7,7 @@ defmodule TalesForge.LLM do
 
   alias TalesForge.AICalls
   alias TalesForge.Config
+  alias TalesForge.Game.PlayerQuote
 
   alias TalesForge.Game.Schemas.{
     GMStructuredResponse,
@@ -15,6 +16,8 @@ defmodule TalesForge.LLM do
     PlayerAction
   }
 
+  # Baseline variant: frozen. The default variant adds the input safety read
+  # (intent_schema/1).
   @intent_schema %{
     "type" => "object",
     "required" => ["overall_intent", "actions"],
@@ -139,11 +142,36 @@ defmodule TalesForge.LLM do
   def llm_source(_), do: "api"
 
   @doc """
+  The intent call's JSON schema for a variant. The default variant adds the
+  input safety read: `input_safety`, one of
+  `TalesForge.Game.PlayerQuote.labels/0`, and `input_safety_confidence`
+  (0..1). The baseline variant keeps the schema it had (frozen).
+  """
+  @spec intent_schema(String.t()) :: map()
+  def intent_schema("baseline"), do: @intent_schema
+
+  def intent_schema(_variant) do
+    %{
+      @intent_schema
+      | "required" => @intent_schema["required"] ++ ["input_safety", "input_safety_confidence"],
+        "properties" =>
+          Map.merge(@intent_schema["properties"], %{
+            "input_safety" => %{"type" => "string", "enum" => PlayerQuote.labels()},
+            "input_safety_confidence" => %{"type" => "number"}
+          })
+    }
+  end
+
+  @doc """
   Player intent extraction (tier 1): the player's free text as an
   `IntentExtraction`. Returns `{:error, :mock_intent}` with the mock model, so
   callers fall back to the heuristic.
+
+  Options besides `t:call_opts/0`: `:variant` picks the schema
+  (`intent_schema/1`, default `"default"`); `:meta` is a function of the raw
+  decoded JSON reply whose result is stored as the call's `ai_calls.meta`.
   """
-  @spec complete_intent(String.t(), String.t(), call_opts()) :: result(IntentExtraction.t())
+  @spec complete_intent(String.t(), String.t(), keyword()) :: result(IntentExtraction.t())
   def complete_intent(system, user, opts \\ []) do
     model = tier1_model()
 
@@ -153,11 +181,12 @@ defmodule TalesForge.LLM do
       complete_json(
         model,
         simple_messages(system, user),
-        @intent_schema,
+        intent_schema(Keyword.get(opts, :variant, "default")),
         Config.tier1_temperature(),
         tier: :tier1,
         max_tokens: Config.tier1_max_tokens(),
-        session_id: opts[:session_id]
+        session_id: opts[:session_id],
+        meta: opts[:meta]
       )
       |> case do
         {:ok, map} -> {:ok, IntentExtraction.decode(map)}
@@ -514,9 +543,22 @@ defmodule TalesForge.LLM do
       usage: usage,
       call_type: "llm",
       started_at: extra[:started_at],
-      conv_id: extra[:conv_id]
+      conv_id: extra[:conv_id],
+      meta: call_meta(opts[:meta], result)
     })
   end
+
+  # The row's meta from the caller's :meta function and the decoded reply.
+  defp call_meta(fun, {:ok, content, _usage}) when is_function(fun, 1) do
+    case parse_json(content) do
+      {:ok, map} -> fun.(map)
+      _ -> nil
+    end
+  rescue
+    _ -> nil
+  end
+
+  defp call_meta(_fun, _result), do: nil
 
   defp purpose(:tier1), do: "intent"
   defp purpose(:tier2), do: "gm"

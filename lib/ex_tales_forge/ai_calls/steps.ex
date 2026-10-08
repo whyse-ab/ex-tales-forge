@@ -21,8 +21,7 @@ defmodule TalesForge.AICalls.Steps do
   @doc "Purposes of the turn steps, in pipeline order."
   def purposes,
     do:
-      ~w(turn.intent turn.rules turn.world_facts turn.prices turn.npc_reactions turn.player_quote
-         turn.prompt turn.gm
+      ~w(turn.intent turn.rules turn.world_facts turn.prices turn.npc_reactions turn.prompt turn.gm
          turn.world_writeback turn.persist)
 
   def model, do: @model

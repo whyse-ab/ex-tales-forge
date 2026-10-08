@@ -327,11 +327,12 @@ defmodule TalesForge.AICalls.Metrics do
   end
 
   @doc """
-  The input safety reads (`TalesForge.Game.PlayerQuote`, purpose
-  `input_safety`) inserted in `[from, to]` (UTC): `:reads`, `:quotes` (the GM
-  got the player's own words), `:fallbacks` (the intent summary),
-  `:fallback_rate` (nil without reads) and `:reasons` (fallback reason →
-  count, e.g. `"low_confidence"`, `"label_prompt_injection"`, `"unconfigured"`).
+  The GM quote decisions (`TalesForge.Game.PlayerQuote`) of the turns whose
+  intent step (`turn.intent` rows with `meta`) was recorded in `[from, to]`
+  (UTC): `:reads` (turns decided), `:quotes` (the GM got the player's own
+  words), `:fallbacks` (the intent summary), `:fallback_rate` (nil without
+  turns) and `:reasons` (fallback reason → count, e.g. `"low_confidence"`,
+  `"label_prompt_injection"`, `"no_intent_call_heuristic"`).
   """
   def player_quote(%DateTime{} = from, %DateTime{} = to) do
     {from, to} = {DateTime.truncate(from, :second), DateTime.truncate(to, :second)}
@@ -341,7 +342,7 @@ defmodule TalesForge.AICalls.Metrics do
   defp player_quote_counts(base) do
     reasons =
       base
-      |> where([c], c.purpose == "input_safety")
+      |> where([c], c.purpose == "turn.intent" and not is_nil(c.meta))
       |> group_by([c], [fragment("?->>'used'", c.meta), fragment("?->>'reason'", c.meta)])
       |> select(
         [c],

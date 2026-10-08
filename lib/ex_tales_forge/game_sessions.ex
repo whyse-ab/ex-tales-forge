@@ -18,6 +18,7 @@ defmodule TalesForge.GameSessions do
   alias TalesForge.Game.Intent
   alias TalesForge.Game.Mechanics
   alias TalesForge.Game.Pack
+  alias TalesForge.Game.PlayerQuote
   alias TalesForge.Game.SceneProcessor
   alias TalesForge.Game.Schemas.PlayerAction
   alias TalesForge.Game.TurnProcessor
@@ -247,17 +248,22 @@ defmodule TalesForge.GameSessions do
     started = System.monotonic_time(:millisecond)
 
     try do
-      {player_action, intent_source} =
+      {player_action, intent_source, extraction, quote_text} =
         build_player_action(session, raw_action, context, opts)
 
       elapsed = System.monotonic_time(:millisecond) - started
-      record_intent_step(session, started_at, elapsed)
+      turn_number = TurnProcessor.next_turn_number(session.id)
+
+      decision =
+        gm_quote(session, player_action, quote_text, extraction, intent_source, turn_number)
+
+      record_intent_step(session, started_at, elapsed, decision && PlayerQuote.meta(decision))
 
       Logger.info(
         "intent resolved session=#{session.id} duration_ms=#{elapsed} source=#{intent_source}"
       )
 
-      enqueue_turn(session, raw_action, player_action)
+      enqueue_turn(session, raw_action, player_action, decision && decision.quote)
     rescue
       e in [Intent.ClarificationNeeded] ->
         record_intent_step(session, started_at, System.monotonic_time(:millisecond) - started)
@@ -268,15 +274,29 @@ defmodule TalesForge.GameSessions do
     end
   end
 
+  # The GM's quote for this turn: the player's own words when the intent call's
+  # safety read is confident they are benign, else the intent summary
+  # (TalesForge.Game.PlayerQuote). Nil in the baseline variant (frozen).
+  defp gm_quote(session, player_action, quote_text, extraction, source, turn_number) do
+    unless Variant.baseline?(session.world_state) do
+      extraction = if source == :llm, do: extraction
+      decision = PlayerQuote.decide(player_action, quote_text, extraction, source)
+      PlayerQuote.log(decision, session.id, turn_number)
+      decision
+    end
+  end
+
   # Intent extraction + validation (heuristic, or the tier-1 LLM call, which has
   # its own llm row): the Elixir step before the turn job, on the player's clock.
-  defp record_intent_step(session, started_at, elapsed_ms) do
+  # `meta` is the GM quote decision (TalesForge.Game.PlayerQuote), when there is one.
+  defp record_intent_step(session, started_at, elapsed_ms, meta \\ nil) do
     %{
       purpose: "turn.intent",
       latency_ms: elapsed_ms,
       started_at: started_at,
       game_session_id: session.id,
-      turn_number: TurnProcessor.next_turn_number(session.id)
+      turn_number: TurnProcessor.next_turn_number(session.id),
+      meta: meta
     }
     |> Map.merge(Tags.for_world(session.world_state))
     |> Steps.record_one()
@@ -288,23 +308,30 @@ defmodule TalesForge.GameSessions do
 
     cond do
       option_id && clarification_id ->
+        pending = get_pending(session, clarification_id)
+
         {resolve_clarification_option(session, context, clarification_id, option_id),
-         :clarification}
+         :clarification, nil, pending["raw_action"] || raw_action}
 
       clarification_id && raw_action != "" ->
         pending = get_pending(session, clarification_id)
         enriched = pending["raw_action"] <> "\nClarification: " <> raw_action
-        {Intent.extract_intent(enriched, context), :llm}
+        resolve_text(enriched, context)
 
       true ->
-        {bundle, source} = Intent.resolve_bundle(raw_action, context)
-
-        if Intent.needs_clarification?(bundle) do
-          raise Intent.ClarificationNeeded, extraction: bundle
-        end
-
-        {Intent.validate_player_action(bundle, context), source}
+        resolve_text(raw_action, context)
     end
+  end
+
+  # {action, source, the intent call's extraction (or the heuristic's), text}
+  defp resolve_text(text, context) do
+    {bundle, source} = Intent.resolve_bundle(text, context)
+
+    if Intent.needs_clarification?(bundle) do
+      raise Intent.ClarificationNeeded, extraction: bundle
+    end
+
+    {Intent.validate_player_action(bundle, context), source, bundle, text}
   end
 
   defp resolve_clarification_option(session, context, clarification_id, option_id) do
@@ -395,7 +422,12 @@ defmodule TalesForge.GameSessions do
     end
   end
 
-  defp enqueue_turn(%GameSession{} = session, raw_action, %PlayerAction{} = player_action) do
+  defp enqueue_turn(
+         %GameSession{} = session,
+         raw_action,
+         %PlayerAction{} = player_action,
+         gm_quote
+       ) do
     session
     |> clear_clarification()
     |> case do
@@ -405,6 +437,7 @@ defmodule TalesForge.GameSessions do
           raw_action: raw_action,
           player_action: PlayerAction.encode(player_action)
         }
+        |> then(&if(gm_quote, do: Map.put(&1, :gm_quote, gm_quote), else: &1))
         |> ProcessTurn.new()
         |> Oban.insert()
         |> case do

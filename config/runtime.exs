@@ -177,16 +177,15 @@ end
 
 config :ex_tales_forge, :tales_forge_docs_path, System.get_env("TALES_FORGE_DOCS_PATH")
 
-# TypeSafe Jev (persona-affect scoring, NPC reactions, the input safety read before
-# the GM). Unset = those calls are skipped; the GM then gets the intent summary.
+# TypeSafe Jev (persona-affect scoring on playtest). Unset = Jev scoring skipped.
 # Key name TYPESAFE_API_KEY; set on tales-forge-playtest only for now.
 config :jev,
   api_key: System.get_env("TYPESAFE_API_KEY"),
   model: "jev-1.13.0"
 
-# Input safety read before the GM (TalesForge.Game.PlayerQuote): the GM gets the
-# player's own words when Jev labels the message benign with at least this
-# confidence (0..1), otherwise the intent summary. Config, not a secret.
+# The intent call's input safety read (TalesForge.Game.PlayerQuote): the GM gets
+# the player's own words when the intent call labels the message benign with at
+# least this confidence (0..1), otherwise the intent summary. Config, not a secret.
 if config_env() != :test do
   min_benign =
     case String.trim(System.get_env("PLAYER_QUOTE_MIN_BENIGN_CONFIDENCE", "")) do
@@ -204,10 +203,6 @@ if config_env() != :test do
     end
 
   config :ex_tales_forge, :player_quote_min_benign_confidence, min_benign
-
-  # Separate TypeSafe key for the safety read (secret, optional; staged on
-  # playtest as TYPESAFE_INTENT_API_KEY). Unset = TYPESAFE_API_KEY is used.
-  config :ex_tales_forge, :typesafe_intent_api_key, System.get_env("TYPESAFE_INTENT_API_KEY")
 end
 
 # Admin costs page peer (/admin/costs). Both apps run the same code: whichever

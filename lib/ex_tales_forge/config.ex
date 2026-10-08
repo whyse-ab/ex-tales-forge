@@ -28,6 +28,14 @@ defmodule TalesForge.Config do
   def tier1_max_tokens, do: env_int("TIER1_MAX_TOKENS", 400)
   def tier2_max_tokens, do: env_int("TIER2_MAX_TOKENS", 700)
 
+  @doc """
+  Every default-variant turn goes through the Tier 1 intent call, even when the
+  heuristic is confident, so every turn has the intent call's input safety read
+  (`TalesForge.Game.PlayerQuote`): INTENT_CALL_EVERY_TURN=on. Default off.
+  """
+  def intent_call_every_turn?,
+    do: System.get_env("INTENT_CALL_EVERY_TURN", "off") in ~w(on true 1)
+
   @doc "NPC reaction prototype (Jev, before the GM call): NPC_REACTIONS=on. Default off."
   def npc_reactions?, do: System.get_env("NPC_REACTIONS", "off") in ~w(on true 1)
 

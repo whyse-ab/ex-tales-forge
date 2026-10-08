@@ -171,14 +171,13 @@ defmodule TalesForge.AICallsTest do
     steps =
       Repo.all(
         from c in AICall,
-          where: c.call_type == "function" and like(c.purpose, "turn.%"),
+          where: c.call_type == "function",
           order_by: c.started_at,
           select: {c.purpose, c.turn_number, c.status, c.cost_micro_usd, c.adventure_id}
       )
 
     assert steps == [
              {"turn.rules", 1, "ok", 0, "crossroads_ledger"},
-             {"turn.player_quote", 1, "ok", 0, "crossroads_ledger"},
              {"turn.prompt", 1, "ok", 0, "crossroads_ledger"},
              {"turn.gm", 1, "ok", 0, "crossroads_ledger"},
              {"turn.persist", 1, "ok", 0, "crossroads_ledger"}
@@ -196,17 +195,12 @@ defmodule TalesForge.AICallsTest do
     steps =
       Repo.all(
         from c in AICall,
-          where: c.call_type == "function" and like(c.purpose, "turn.%"),
+          where: c.call_type == "function",
           order_by: c.started_at,
           select: {c.purpose, c.status}
       )
 
-    assert steps == [
-             {"turn.rules", "ok"},
-             {"turn.player_quote", "ok"},
-             {"turn.prompt", "ok"},
-             {"turn.gm", "error"}
-           ]
+    assert steps == [{"turn.rules", "ok"}, {"turn.prompt", "ok"}, {"turn.gm", "error"}]
   end
 
   test "a failed ai_call insert does not break the turn" do

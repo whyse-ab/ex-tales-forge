@@ -66,11 +66,12 @@ Use kebab-case names that describe the work (`feature/two-tier-llm`, `fix/oban-m
 1. **Plain Ecto + Repo everywhere** (play loop, Jido, Oban, GameSessions, NPC logic, admin). Ash was removed on 2026-10-07 ([#47](https://github.com/whyse-ab/ex-tales-forge/pull/47)); revisit only if an in-app adventure editor needs it. Authored content lives in pack files, not database tables. Don't add a second data layer without a decision entry.
 2. **Call-type rule** (decision 2026-10-07, tales-forge-docs `docs/call-types.md`): known structured input + structured output = Elixir function; unstructured input + structured output = Jev; prose output = LLM. Asking the LLM for structured output is a smell. Elixir is exact, free and instant, Jev is fast and cheap, the LLM is the slowest and most expensive: use the LLM last, with the smallest input possible.
 3. **One Character type** for player characters and NPCs: OCEAN, personality-filtered memory, a Maslow level and concerns; only the controller differs (`player`, `gm` or `bot`). `TalesForge.Characters` keeps a `characters` row per PC and NPC in step after every turn; the game still reads `world_state["character"]` and `npc_instances` until the Character plan's read switch (tales-forge-docs `docs/plan-unify-character.md`). Don't add a separate PC or NPC model.
-4. **Intent before the GM; the GM gets a typed struct plus the player's own words when they are safe.** Tier 1 intent (heuristic, or the intent LLM when the heuristic is unsure) runs first. The GM gets the validated, typed `PlayerAction`, whose `overall_intent` is a quote (decision 2026-10-08 "The GM gets the player's own words when the safety read is confident"):
-   - **The player's own words**, sanitised and at most 500 characters (`Intent.sanitize_quote/1`), on both intent paths, when the input safety read labels the message `benign` with confidence at least `PLAYER_QUOTE_MIN_BENIGN_CONFIDENCE` (default 0.90).
-   - **Otherwise the intent summary**: the intent LLM's summary when it read the turn, or a short typed summary (`speak (target: innkeep)`) when the heuristic did. The fallback is logged.
+4. **Intent before the GM; the GM gets a typed struct plus the player's own words when they are safe.** Tier 1 intent (heuristic, or the intent LLM call when the heuristic is unsure) runs first. The GM gets the validated, typed `PlayerAction`, whose `overall_intent` is a quote (decisions 2026-10-08 "The GM gets the player's own words when the safety read is confident" and "the safety read is part of the intent call"):
+   - **The player's own words**, sanitised and at most 500 characters (`Intent.sanitize_quote/1`), when the intent call's safety read labels the message `benign` with confidence at least `PLAYER_QUOTE_MIN_BENIGN_CONFIDENCE` (default 0.90).
+   - **Otherwise the intent summary**: the intent call's `overall_intent`, logged as a fallback.
+   - **No intent call, no safety read:** a turn the heuristic reads alone (most turns) gets a short typed summary (`speak (target: innkeep)`), never the unchecked text. `INTENT_CALL_EVERY_TURN=on` sends every default-variant turn through the intent call instead (one intent call per turn).
 
-   The safety read is one Jev call (`TalesForge.Game.PlayerQuote`, purpose `input_safety`, labels `benign`, `jailbreak`, `prompt_injection`, `nefarious`). It runs alongside the rules, prices and NPC reactions; the turn waits for it only before the GM prompt (step `turn.player_quote`). It uses `TYPESAFE_INTENT_API_KEY` when set, else `TYPESAFE_API_KEY`; an error, a timeout or no key means the summary. Only the GM prompt's quote changes: the rules keep the intent step's `PlayerAction`. The baseline variant makes no safety read. Every decision is stored in `ai_calls.meta`; the costs page shows the fallback rate.
+   The safety read is two fields of the intent call's reply, not a call of its own (`TalesForge.Game.PlayerQuote`, `LLM.intent_schema/1`): `input_safety` (`benign`, `jailbreak`, `prompt_injection`, `nefarious`) and `input_safety_confidence`; the instructions are in the static `intent_system.txt`. The decision is made at the intent step and travels to the turn job as `gm_quote`; only the GM prompt's quote changes, the rules keep the intent step's `PlayerAction`. The baseline variant keeps its old intent prompt and schema and gets no decision. Every decision is stored in `ai_calls.meta` (the intent call's row and the `turn.intent` row); the costs page shows the fallback rate.
 5. **The server owns mechanics.** It rolls dice and applies LP, inventory, coins, prices and time; the LLM narrates and never invents mechanics.
 6. Important authored state stays human-readable: `priv/rules/*.md`, `priv/prompts/*.txt`, pack files.
 7. LLM replies use structured JSON with a strict schema (Tier 1 `PlayerAction` via `TalesForge.Game.Intent`; the scene and GM reply via `TalesForge.LLM`).
@@ -100,7 +101,8 @@ Environment variables read through `TalesForge.Config`. Flags marked "new sessio
 | `NPC_REACTIONS` | Jev NPC reaction before each GM call (`TalesForge.Game.NpcReactions`; needs `TYPESAFE_API_KEY`) | off | off | `on` (Fly secret) |
 | `WORLD_AGENTS` | World-agents prototype: persons and locations hold facts for the GM; also turns on NPC reactions | off | off | off |
 | `PLAYTEST_RUNNER_ENABLED` | Persona bot runner; only `true` enables it | off | **never set** | `true` |
-| `PLAYER_QUOTE_MIN_BENIGN_CONFIDENCE` | Minimum `benign` confidence (0..1) of the input safety read for the GM to get the player's own words (`TalesForge.Game.PlayerQuote`); read in `config/runtime.exs`. Without a TypeSafe key the GM always gets the intent summary | `0.90` | not set (no TypeSafe key either) | not set |
+| `PLAYER_QUOTE_MIN_BENIGN_CONFIDENCE` | Minimum `benign` confidence (0..1) of the intent call's safety read for the GM to get the player's own words (`TalesForge.Game.PlayerQuote`); read in `config/runtime.exs` | `0.90` | not set | not set |
+| `INTENT_CALL_EVERY_TURN` | Every default-variant turn goes through the intent call, even when the heuristic is confident, so every turn has a safety read; costs one intent call per turn | off | off | off |
 
 The baseline variant gets no world features. The GM has one reply mode, the strict structured JSON schema (`TalesForge.LLM`); there is no reply-mode flag.
 
@@ -109,7 +111,7 @@ The baseline variant gets no world features. The GM has one reply mode, the stri
 Sources: decision 2026-10-07 "All amounts in USD", `TalesForge.AICalls`, tales-forge-docs `docs/fly-secrets.md`.
 
 - **All amounts are in USD.** AI costs are stored as integer **micro-USD** (`ai_calls`, `playtest_runs`); never floats. The provider-billed cost wins when present, otherwise it comes from `:llm_prices` in config. The costs page shows SEK beside USD at a fixed dated rate; fixed costs may be configured as SEK per year in `config :ex_tales_forge, TalesForge.Costs`.
-- **Every unit of work in a turn gets an `ai_calls` row** with a `call_type` (`llm`, `jev`, `function`) and adventure and game-system tags. Persona and scorer (bot) costs are kept apart from game cost. `meta` (JSON) holds call details that are not tokens or cost, e.g. the input safety read's label, confidence and quote decision.
+- **Every unit of work in a turn gets an `ai_calls` row** with a `call_type` (`llm`, `jev`, `function`) and adventure and game-system tags. Persona and scorer (bot) costs are kept apart from game cost. `meta` (JSON) holds call details that are not tokens or cost, e.g. the intent call's safety read and quote decision.
 - **AI spend caps**, decimal USD, read in `config/runtime.exs` and checked before each request:
 
 | Variable | Caps | When unset |
@@ -284,11 +286,11 @@ Set API keys in `.env` (loaded automatically in dev via `config/runtime.exs`). P
 | `openai` | `OPENAI_API_KEY` | |
 | `anthropic` | `ANTHROPIC_API_KEY` | |
 
-Jev calls (the input safety read, NPC reactions, persona-affect scoring) use `TYPESAFE_API_KEY`; the input safety read uses `TYPESAFE_INTENT_API_KEY` instead when that is set.
+Jev calls (NPC reactions, persona-affect scoring) use `TYPESAFE_API_KEY`.
 
 ### Two-tier LLM
 
-Each turn runs Tier 1 intent extraction (heuristic first, else a small-model LLM call at temperature 0) then Tier 2 storytelling (Grok). The GM sees the validated `PlayerAction`. Its `overall_intent` is the player's own words (sanitised, at most 500 characters) when the input safety read is confident they are benign, otherwise the intent summary (non-negotiable 4).
+Each turn runs Tier 1 intent extraction (heuristic first, else a small-model LLM call at temperature 0) then Tier 2 storytelling (Grok). The GM sees the validated `PlayerAction`. Its `overall_intent` is the player's own words (sanitised, at most 500 characters) when the intent call's safety read is confident they are benign, otherwise the intent summary, or a typed summary when the heuristic read the turn alone (non-negotiable 4).
 
 | Setting | Default | Purpose |
 |---------|---------|---------|
