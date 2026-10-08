@@ -1,0 +1,324 @@
+{
+ "1e9114ed": {
+  "herb_cottage": {
+   "aliases": [
+    "the cottage",
+    "maude's cottage",
+    "herb cottage",
+    "the healer",
+    "healer's cottage",
+    "herb-wife"
+   ],
+   "blurb": "A low cottage at the edge of the square, its rafters hung with drying herbs. There is a cot for the sick, shelves of jars and salves, and a wall of old miners' keepsakes: lamp hooks, carved tallies, a bent pick with marks no one reads any more.",
+   "exits": [
+    "market_square"
+   ],
+   "fixtures": [
+    "drying herbs",
+    "sickbed",
+    "shelf of jars",
+    "miners' keepsakes"
+   ],
+   "ground_items": [],
+   "name": "Maude's cottage"
+  },
+  "inn_yard": {
+   "aliases": [
+    "the yard",
+    "inn yard",
+    "the stable",
+    "the stables",
+    "the woodpile",
+    "the well",
+    "back door"
+   ],
+   "blurb": "Behind the Valley Inn: a muddy yard with a stable for drovers' mules, a woodpile under a lean-to, a well with a dented bucket, and two wagons with their loads tarped down. The inn's back door opens here, and a lane runs round to the square.",
+   "exits": [
+    "valley_inn",
+    "market_square"
+   ],
+   "fixtures": [
+    "stable",
+    "woodpile",
+    "well",
+    "drovers' wagons"
+   ],
+   "ground_items": [],
+   "name": "Inn yard"
+  },
+  "market_square": {
+   "aliases": [
+    "the square",
+    "the market",
+    "guild square",
+    "guild post",
+    "guild house",
+    "guild hall",
+    "guild office",
+    "hiring board",
+    "the stalls"
+   ],
+   "blurb": "Mud and ore-carts. A Miners Guild board lists wages in tin and coin.",
+   "exits": [
+    "valley_inn",
+    "orc_approach",
+    "mine_workings",
+    "herb_cottage",
+    "inn_yard",
+    "smithy",
+    "west_road"
+   ],
+   "fixtures": [
+    "guild post",
+    "stalls"
+   ],
+   "ground_items": [],
+   "name": "Market Square"
+  },
+  "mine_workings": {
+   "aliases": [
+    "the mine",
+    "the mines",
+    "the shaft",
+    "tin shaft",
+    "the workings",
+    "mine shaft",
+    "mine head"
+   ],
+   "blurb": "A tin shaft the Guild wants to drive deeper. The air tastes of wet stone.",
+   "exits": [
+    "market_square"
+   ],
+   "fixtures": [
+    "shaft",
+    "ore carts"
+   ],
+   "ground_items": [],
+   "name": "Mine workings"
+  },
+  "old_adit": {
+   "aliases": [
+    "the adit",
+    "old adit",
+    "the old mine",
+    "old workings",
+    "abandoned mine",
+    "the old workings"
+   ],
+   "blurb": "An abandoned mine entrance in the pines, propped with rotten timbers. Old miners cut warnings into the rock above the mouth: tally marks, a lamp, and a shape like an open hand. Cart tracks, some not so old, lead inside.",
+   "exits": [
+    "west_road"
+   ],
+   "fixtures": [
+    "adit mouth",
+    "old carvings",
+    "tarped crates",
+    "rotten timbers"
+   ],
+   "ground_items": [],
+   "name": "Old adit"
+  },
+  "orc_approach": {
+   "aliases": [
+    "the cut",
+    "high cut",
+    "goat path",
+    "goat track",
+    "the ridge",
+    "ridge path"
+   ],
+   "blurb": "A goat path drops toward smoke and hide tents. The trees are too quiet.",
+   "checkpoint": true,
+   "exits": [
+    "market_square",
+    "orc_nest"
+   ],
+   "fixtures": [],
+   "ground_items": [],
+   "name": "Cut above the nest"
+  },
+  "orc_nest": {
+   "aliases": [
+    "the nest",
+    "orc camp",
+    "the camp"
+   ],
+   "blurb": "Smoke, hide tents, and a stolen cache. The chieftain's warband holds this cut.",
+   "exits": [
+    "orc_approach"
+   ],
+   "fixtures": [
+    "hide tents",
+    "cookfire"
+   ],
+   "ground_items": [],
+   "name": "Orc nest"
+  },
+  "smithy": {
+   "aliases": [
+    "the forge",
+    "the smithy",
+    "the smith",
+    "brask's forge",
+    "smithy"
+   ],
+   "blurb": "An open-fronted forge off the square, hot even at night. Picks wait for new points, a rack holds knives, spearheads and a few honest swords, and a back door opens onto the lane. Half-sorted tin ingots sit in a crate by the coal.",
+   "exits": [
+    "market_square"
+   ],
+   "fixtures": [
+    "forge",
+    "anvil",
+    "rack of blades",
+    "back door"
+   ],
+   "ground_items": [],
+   "name": "Brask's forge"
+  },
+  "valley_inn": {
+   "aliases": [
+    "the inn",
+    "valley inn",
+    "common room",
+    "the tavern"
+   ],
+   "blurb": "A timber inn at the foot of the tin road. Miners drink here. The valley road runs east toward the cut.",
+   "exits": [
+    "market_square",
+    "inn_yard"
+   ],
+   "fixtures": [
+    "hearth",
+    "bar counter"
+   ],
+   "ground_items": [],
+   "name": "Valley Inn"
+  },
+  "west_road": {
+   "aliases": [
+    "the road",
+    "west road",
+    "west path",
+    "the west path",
+    "drovers' road",
+    "the pines",
+    "valley road west"
+   ],
+   "blurb": "The drovers' road leaves the square and runs down-valley under the pines. Deep cart ruts, a broken axle in the ditch, and a weathered shrine stone where drovers leave a copper for luck. A side track climbs into the trees toward the old workings.",
+   "exits": [
+    "market_square",
+    "old_adit"
+   ],
+   "fixtures": [
+    "cart ruts",
+    "roadside shrine stone",
+    "broken axle"
+   ],
+   "ground_items": [],
+   "name": "West road"
+  }
+ },
+ "cf7c13a7": {
+  "market_square": {
+   "blurb": "# Market Square",
+   "exits": [
+    "valley_inn",
+    "orc_approach",
+    "mine_workings"
+   ],
+   "fixtures": [
+    "guild post",
+    "stalls"
+   ],
+   "ground_items": [],
+   "name": "Market Square"
+  },
+  "mine_workings": {
+   "blurb": "# Mine workings",
+   "exits": [
+    "market_square"
+   ],
+   "fixtures": [
+    "shaft",
+    "ore carts"
+   ],
+   "ground_items": [],
+   "name": "Mine workings"
+  },
+  "orc_approach": {
+   "blurb": "# Cut above the nest",
+   "exits": [
+    "market_square",
+    "orc_nest"
+   ],
+   "fixtures": [],
+   "ground_items": [],
+   "name": "Cut above the nest"
+  },
+  "orc_nest": {
+   "blurb": "# Orc nest",
+   "exits": [
+    "orc_approach"
+   ],
+   "fixtures": [
+    "hide tents",
+    "cookfire"
+   ],
+   "ground_items": [],
+   "name": "Orc nest"
+  },
+  "valley_inn": {
+   "blurb": "# Valley Inn",
+   "exits": [
+    "market_square"
+   ],
+   "fixtures": [
+    "hearth",
+    "bar counter"
+   ],
+   "ground_items": [],
+   "name": "Valley Inn"
+  }
+ },
+ "8eab5ea0": {
+  "crossroads_square": {
+   "blurb": "Mud and cobbles churned by cart wheels. Merchants hawk wares beneath a weathered signpost.",
+   "exits": [
+    "weary_pilgrim",
+    "kings_road"
+   ],
+   "fixtures": [
+    "signpost",
+    "merchant stalls"
+   ],
+   "ground_items": [],
+   "name": "Crossroads Square"
+  },
+  "pilgrim_cellar": {
+   "blurb": "Cool stone steps descend to casks and shadows. The air tastes of wine and damp mortar.",
+   "exits": [
+    "weary_pilgrim"
+   ],
+   "fixtures": [
+    "wine casks",
+    "mortar seam"
+   ],
+   "ground_items": [],
+   "name": "Pilgrim Cellar"
+  },
+  "weary_pilgrim": {
+   "blurb": "A low-ceilinged tavern smelling of woodsmoke and spilled ale. Chalk marks score the slate behind the bar.",
+   "exits": [
+    "crossroads_square",
+    "pilgrim_cellar"
+   ],
+   "fixtures": [
+    "chalked slate",
+    "bar counter",
+    "hearth"
+   ],
+   "ground_items": [],
+   "name": "The Weary Pilgrim"
+  }
+ }
+}
