@@ -2,9 +2,12 @@ defmodule TalesForge.Game.MechanicsTest do
   use ExUnit.Case, async: true
 
   alias TalesForge.Game.Mechanics
+  alias TalesForge.Game.Progression.Tiered
   alias TalesForge.Game.Schemas.{HandlerResult, MechanicalResolution, PlayerAction, SingleAction}
 
-  doctest Mechanics, only: [lp_threshold: 1, improvement_modifier: 1, lp_stat_bonus: 1]
+  doctest Mechanics, only: [lp_stat_bonus: 1, normalize_skill_name: 1, resolve_check_skill: 3]
+  # The #64 rule, kept for the baseline variant only.
+  doctest Tiered
 
   @character %{
     "stats" => %{"STR" => 10, "DEX" => 10, "WIS" => 12, "CHA" => 14},
@@ -143,7 +146,7 @@ defmodule TalesForge.Game.MechanicsTest do
 
   test "attempt_improvements skips LP 4 with 3 failures" do
     character = eligible(%{"climbing" => 4}, %{"climbing" => 3})
-    {updated, improvements} = Mechanics.attempt_improvements(character, %{"climbing" => 20})
+    {updated, improvements} = Tiered.attempt_improvements(character, %{"climbing" => 20})
 
     assert improvements == []
     assert updated == character
@@ -151,7 +154,7 @@ defmodule TalesForge.Game.MechanicsTest do
 
   test "attempt_improvements skips LP 5 with no failure since the last attempt" do
     character = eligible(%{"climbing" => 5}, %{"climbing" => 0})
-    {updated, improvements} = Mechanics.attempt_improvements(character, %{"climbing" => 20})
+    {updated, improvements} = Tiered.attempt_improvements(character, %{"climbing" => 20})
 
     assert improvements == []
     assert updated == character
@@ -159,7 +162,7 @@ defmodule TalesForge.Game.MechanicsTest do
 
   test "attempt_improvements hit raises skill and clears bars" do
     character = eligible(%{"climbing" => 5}, %{"climbing" => 3})
-    {updated, [entry]} = Mechanics.attempt_improvements(character, %{"climbing" => 4})
+    {updated, [entry]} = Tiered.attempt_improvements(character, %{"climbing" => 4})
 
     assert entry == %{
              "skill" => "climbing",
@@ -175,7 +178,7 @@ defmodule TalesForge.Game.MechanicsTest do
 
   test "attempt_improvements miss leaves skill and sets LP 1.0" do
     character = eligible(%{"climbing" => 5}, %{"climbing" => 3})
-    {updated, [entry]} = Mechanics.attempt_improvements(character, %{"climbing" => 3})
+    {updated, [entry]} = Tiered.attempt_improvements(character, %{"climbing" => 3})
 
     assert entry["improved"] == false
     assert entry["roll"] == 3
@@ -186,7 +189,7 @@ defmodule TalesForge.Game.MechanicsTest do
 
   test "eligible LP 10 still only one +1 this pause" do
     character = eligible(%{"climbing" => 10}, %{"climbing" => 3})
-    {updated, improvements} = Mechanics.attempt_improvements(character, %{"climbing" => 4})
+    {updated, improvements} = Tiered.attempt_improvements(character, %{"climbing" => 4})
 
     assert length(improvements) == 1
     assert hd(improvements)["improved"] == true
@@ -202,7 +205,7 @@ defmodule TalesForge.Game.MechanicsTest do
       |> Map.put("learning_failures", %{"climbing" => 3, "stealth" => 3})
 
     {updated, improvements} =
-      Mechanics.attempt_improvements(character, %{"climbing" => 4, "stealth" => 2})
+      Tiered.attempt_improvements(character, %{"climbing" => 4, "stealth" => 2})
 
     assert Enum.map(improvements, & &1["skill"]) == ["climbing", "stealth"]
     assert get_in(updated, ["skills", "climbing"]) == 4
@@ -216,7 +219,7 @@ defmodule TalesForge.Game.MechanicsTest do
     character = put_in(character, ["skills", "persuasion"], 10)
 
     {updated, [entry]} =
-      Mechanics.attempt_trained_skill(character, "persuasion", %{"persuasion" => 6})
+      Tiered.attempt_trained_skill(character, "persuasion", %{"persuasion" => 6})
 
     assert entry["improved"] == true
     assert entry["roll"] == 6
@@ -231,7 +234,7 @@ defmodule TalesForge.Game.MechanicsTest do
     character = put_in(character, ["skills", "persuasion"], 10)
 
     {updated, [entry]} =
-      Mechanics.attempt_trained_skill(character, "persuasion", %{"persuasion" => 5})
+      Tiered.attempt_trained_skill(character, "persuasion", %{"persuasion" => 5})
 
     assert entry["improved"] == false
     assert entry["roll"] == 5
@@ -245,7 +248,7 @@ defmodule TalesForge.Game.MechanicsTest do
       eligible(%{"climbing" => 15}, %{"climbing" => 3})
       |> put_in(["skills", "climbing"], 16)
 
-    {updated, [entry]} = Mechanics.attempt_improvements(character, %{"climbing" => 20})
+    {updated, [entry]} = Tiered.attempt_improvements(character, %{"climbing" => 20})
 
     assert entry == %{
              "skill" => "climbing",
@@ -260,10 +263,10 @@ defmodule TalesForge.Game.MechanicsTest do
     assert Map.get(updated["learning_failures"], "climbing") == 3
   end
 
-  describe "tiered progression" do
+  describe "tiered progression (baseline variant)" do
     test "one failure is enough once the LP are there" do
       character = eligible(%{"climbing" => 5}, %{"climbing" => 1})
-      {_updated, [entry]} = Mechanics.attempt_improvements(character, %{"climbing" => 4})
+      {_updated, [entry]} = Tiered.attempt_improvements(character, %{"climbing" => 4})
 
       assert entry["improved"] == true
     end
@@ -275,13 +278,13 @@ defmodule TalesForge.Game.MechanicsTest do
                character
                |> Map.merge(%{"learning_points" => %{"climbing" => 6.5}})
                |> Map.put("learning_failures", %{"climbing" => 2})
-               |> Mechanics.attempt_improvements(%{"climbing" => 20})
+               |> Tiered.attempt_improvements(%{"climbing" => 20})
 
       {_c, [entry]} =
         character
         |> Map.put("learning_points", %{"climbing" => 7.0})
         |> Map.put("learning_failures", %{"climbing" => 2})
-        |> Mechanics.attempt_improvements(%{"climbing" => 20})
+        |> Tiered.attempt_improvements(%{"climbing" => 20})
 
       assert entry["improved"] == true
       refute Map.has_key?(entry, "modifier")
@@ -291,8 +294,8 @@ defmodule TalesForge.Game.MechanicsTest do
       character =
         eligible(%{"climbing" => 10}, %{"climbing" => 1}) |> put_in(["skills", "climbing"], 11)
 
-      {_c, [miss]} = Mechanics.attempt_improvements(character, %{"climbing" => 14})
-      {hit_char, [hit]} = Mechanics.attempt_improvements(character, %{"climbing" => 15})
+      {_c, [miss]} = Tiered.attempt_improvements(character, %{"climbing" => 14})
+      {hit_char, [hit]} = Tiered.attempt_improvements(character, %{"climbing" => 15})
 
       assert {miss["improved"], miss["modifier"]} == {false, -3}
       assert hit["improved"] == true
@@ -303,10 +306,10 @@ defmodule TalesForge.Game.MechanicsTest do
       character = put_in(@character, ["skills", "persuasion"], 12)
 
       {_c, [miss]} =
-        Mechanics.attempt_trained_skill(character, "persuasion", %{"persuasion" => 10})
+        Tiered.attempt_trained_skill(character, "persuasion", %{"persuasion" => 10})
 
       {_c, [hit]} =
-        Mechanics.attempt_trained_skill(character, "persuasion", %{"persuasion" => 11})
+        Tiered.attempt_trained_skill(character, "persuasion", %{"persuasion" => 11})
 
       # 10 - 3 = 7 is not above 12 - 5; 11 - 3 = 8 is
       assert {miss["improved"], hit["improved"]} == {false, true}
@@ -332,7 +335,7 @@ defmodule TalesForge.Game.MechanicsTest do
       |> Map.put("learning_points", %{"climbing" => 5})
       |> Map.put("learning_failures", %{"climbing" => 3})
 
-    {updated, [entry]} = Mechanics.attempt_improvements(character, %{"climbing" => 1})
+    {updated, [entry]} = Tiered.attempt_improvements(character, %{"climbing" => 1})
 
     assert entry["improved"] == true
     assert get_in(updated, ["skills", "climbing"]) == 1

@@ -18,13 +18,15 @@ This is a skill-based fantasy RPG system where character progress is measured by
   - Success (non-natural 1): +0.5 LP.
   - Natural 20: +2 LP.
   - Natural 1: +1 LP (capped once per skill per session).
-  - Spending: 1 LP buys one improvement attempt on that skill. No threshold, no failure and no rest needed.
+  - Threshold: the tier's LP (Novice 1-5: 5, Adept 6-10: 7, Expert 11-15: 10, Master 16+: 15) and ≥ 1 failure on that skill to attempt improvement.
   - Linked stat: +(Stat - 10)/4 LP per roll (rounded down, 0 to +2).
 - **Skill Improvement**:
-  - At the end of the turn, every whole LP a skill holds is spent, one attempt per LP (fractions wait for the next roll).
-  - Roll 1d20 ≥ raw skill: skill +1. Chance (21 - skill)/20: 90% at 3, 70% at 7, 45% at 12, 5% at 20.
-  - Each attempt costs 1 LP, hit or miss. No tier modifiers.
-  - No skill cap, but past 20 only a trainer's bonus can reach the target.
+  - Attempt at rest / sleep / wait ≥ 1 hour, not session end.
+  - One 1d20 per eligible skill per pause.
+  - Roll 1d20 &gt; raw skill (Expert -3 and Master -5 to the roll; Master needs a trainer).
+  - Success: skill +1, LP 0, failures 0.
+  - Failure: skill unchanged, LP 1, failures 0.
+  - No skill cap; high levels become harder without bonuses.
 - **Death Exception**: No LP from fatal failures; near-death grants +1 LP if survived.
 - **Skill List Categories** (Examples):
   - **Combat**: Melee Combat, Ranged Combat, Unarmed Combat, Tactics, Dodge.
@@ -35,9 +37,9 @@ This is a skill-based fantasy RPG system where character progress is measured by
 
 ## Trainers and Adventures
 
-- **Trainers**: NPCs with skill level ≥5 above the character's. A training session is one free improvement attempt (no LP) with +5 to the roll (1d20 + 5 ≥ skill).
+- **Trainers**: NPCs with skill level ≥5 above the character's. Provide +5 bonus to improvement rolls (reduces target by 5).
   - Found via quests (e.g., journey to a master thief for Stealth training).
-  - One attempt per training session; costs time and the trainer's fee.
+  - Bonus applies to one improvement per training session; requires time/resources.
   - Can be group quests for party training.
 - **Integration**: Trainers can bypass/reduce stat minima for advancements; quests add narrative depth.
 
