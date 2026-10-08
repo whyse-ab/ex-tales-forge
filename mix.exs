@@ -132,6 +132,7 @@ defmodule TalesForge.MixProject do
         "World agents": [TalesForge.World, ~r/^TalesForge\.World\./],
         "LLM and AI calls": [TalesForge.LLM, ~r/^TalesForge\.AICalls/],
         Playtest: ~r/^TalesForge\.Playtest/,
+        "Founder survey": [TalesForge.Surveys, ~r/^TalesForge\.Survey\./],
         Web: ~r/^TalesForgeWeb/
       ]
     ]

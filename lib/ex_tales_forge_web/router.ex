@@ -84,6 +84,9 @@ defmodule TalesForgeWeb.Router do
       live "/docs", DocLive.Index, :index
       live "/docs/*path", DocLive.Index, :show
       live "/costs", CostsLive, :index
+      live "/survey", SurveyLive.Show, :current
+      live "/surveys/:id", SurveyLive.Show, :show
+      live "/surveys/:id/results", SurveyLive.Results, :index
     end
   end
 
@@ -107,6 +110,10 @@ defmodule TalesForgeWeb.Router do
 
     # Images in tales-forge-docs pages (the repo is private; DocFilesController).
     get "/docs-files/*path", DocFilesController, :show
+
+    # Founder survey result downloads (team members only, like every page).
+    get "/surveys/:id/results.csv", SurveyExportController, :csv
+    get "/surveys/:id/results.md", SurveyExportController, :markdown
   end
 
   # Machine-to-machine: the peer app's costs page reads this app's aggregated AI

@@ -28,7 +28,17 @@ defmodule TalesForge.CodingStandardsTest do
     TalesForge.World.Extract,
     TalesForge.World.Prices,
     TalesForge.Game.Features,
-    TalesForgeWeb.TimeAgo
+    TalesForgeWeb.TimeAgo,
+    TalesForge.Surveys,
+    TalesForge.Survey.Answers,
+    TalesForge.Survey.Cache,
+    TalesForge.Survey.Definition,
+    TalesForge.Survey.Question,
+    TalesForge.Survey.Response,
+    TalesForge.Survey.Results,
+    TalesForge.Survey.Source,
+    TalesForgeWeb.SurveyComponents,
+    TalesForgeWeb.SurveyExportController
   ]
 
   for module <- @documented do

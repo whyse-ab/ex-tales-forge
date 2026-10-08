@@ -23,6 +23,7 @@ defmodule TalesForgeWeb.AdminComponents do
       <.nav_link href={~p"/admin/docs"} label="Docs" active={@active == "docs"} />
       <.nav_link href={~p"/admin/sessions"} label="Sessions" active={@active == "sessions"} />
       <.nav_link href={~p"/admin/playtest"} label="Playtest runs" active={@active == "playtest"} />
+      <.nav_link href={~p"/admin/survey"} label="Founder survey" active={@active == "survey"} />
       <.nav_link
         href={~p"/admin/npc-definitions"}
         label="NPC definitions"
