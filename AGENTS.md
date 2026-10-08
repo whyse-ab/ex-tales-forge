@@ -11,6 +11,10 @@ Text-first AI RPG on the BEAM. Jido agents own the play-session runtime;
 LiveView is the UI; PostgreSQL holds sessions and turn history; an AI game
 master narrates.
 
+ex-tales-forge stands on its own. Nothing is synced from an earlier app: the
+rules, prompts, packs and code here are maintained in this repo, and any
+history lives in tales-forge-docs.
+
 Who we build for is in [PRODUCT.md](PRODUCT.md). Core table: **Hawk** (hard mode), **Paul** (role-playing, mechanics invisible), **Lotta** (identification, world and character), **Lars** (adventure). **Ronny** (win, loot, highest level) is the anti-persona — do not add systems that exist to let him win.
 
 Rules identity (same file, Rules philosophy): prices ≈ human labor; you learn by failing, slowly, with transfer across related skills. Do not invent XP bars or loot-table gold. Fewer non-intuitive rules → easier to stay in the story.
@@ -62,7 +66,7 @@ Use kebab-case names that describe the work (`feature/two-tier-llm`, `fix/oban-m
 1. **Plain Ecto + Repo everywhere** (play loop, Jido, Oban, GameSessions, NPC logic, admin). Ash was removed on 2026-10-07 ([#47](https://github.com/whyse-ab/ex-tales-forge/pull/47)); revisit only if an in-app adventure editor needs it. Authored content lives in pack files, not database tables. Don't add a second data layer without a decision entry.
 2. **Call-type rule** (decision 2026-10-07, tales-forge-docs `docs/call-types.md`): known structured input + structured output = Elixir function; unstructured input + structured output = Jev; prose output = LLM. Asking the LLM for structured output is a smell. Elixir is exact, free and instant, Jev is fast and cheap, the LLM is the slowest and most expensive: use the LLM last, with the smallest input possible.
 3. **One Character type** for player characters and NPCs: OCEAN, personality-filtered memory, a Maslow level and concerns; only the controller differs (`player`, `gm` or `bot`). `TalesForge.Characters` keeps a `characters` row per PC and NPC in step after every turn; the game still reads `world_state["character"]` and `npc_instances` until the Character plan's read switch (tales-forge-docs `docs/plan-unify-character.md`). Don't add a separate PC or NPC model.
-4. **Intent before the GM.** Tier 1 intent (heuristic, or the intent LLM when the heuristic is unsure) runs first. The GM gets the validated `PlayerAction` (on the heuristic path its `overall_intent` is the player's text, sanitised and capped at 500 characters), never the raw message.
+4. **Intent before the GM; the GM gets a typed struct plus a short quote.** Tier 1 intent (heuristic, or the intent LLM when the heuristic is unsure) runs first. The GM gets the validated, typed `PlayerAction` plus a short, sanitised quote of the player's words (`overall_intent`, at most 500 characters), so it keeps the player's tone. This is intended (decisions 2026-10-07 "GM pipeline direction" and 2026-10-08). When the intent LLM handles the turn, `overall_intent` is its short summary of the message, sanitised the same way. The full raw message never goes to the GM.
 5. **The server owns mechanics.** It rolls dice and applies LP, inventory, coins, prices and time; the LLM narrates and never invents mechanics.
 6. Important authored state stays human-readable: `priv/rules/*.md`, `priv/prompts/*.txt`, pack files.
 7. LLM replies use structured JSON with a strict schema (Tier 1 `PlayerAction` via `TalesForge.Game.Intent`; the scene and GM reply via `TalesForge.LLM`).
@@ -91,10 +95,9 @@ Environment variables read through `TalesForge.Config`. Flags marked "new sessio
 | `WORLD_ANTAGONIST` | The Tinjacks antagonist for new Tin Valley sessions; needs `INN_WORLD` | off | off | `on` (`fly.playtest.toml`, [#73](https://github.com/whyse-ab/ex-tales-forge/pull/73)) |
 | `NPC_REACTIONS` | Jev NPC reaction before each GM call (`TalesForge.Game.NpcReactions`; needs `TYPESAFE_API_KEY`) | off | off | `on` (Fly secret) |
 | `WORLD_AGENTS` | World-agents prototype: persons and locations hold facts for the GM; also turns on NPC reactions | off | off | off |
-| GM reply mode | Only the structured GM reply schema exists on `main`. The prose-only prototype `GM_REPLY_MODE=prose` is in the unmerged [#38](https://github.com/whyse-ab/ex-tales-forge/pull/38) | structured | structured | structured |
 | `PLAYTEST_RUNNER_ENABLED` | Persona bot runner; only `true` enables it | off | **never set** | `true` |
 
-The baseline variant gets no world features.
+The baseline variant gets no world features. The GM has one reply mode, the strict structured JSON schema (`TalesForge.LLM`); there is no reply-mode flag.
 
 ## Money and AI spend
 
@@ -280,7 +283,7 @@ Jev calls (NPC reactions, persona-affect scoring) use `TYPESAFE_API_KEY`.
 
 ### Two-tier LLM
 
-Each turn runs Tier 1 intent extraction (heuristic first, else a small-model LLM call at temperature 0) then Tier 2 storytelling (Grok). The GM sees the validated `PlayerAction`, not the raw message.
+Each turn runs Tier 1 intent extraction (heuristic first, else a small-model LLM call at temperature 0) then Tier 2 storytelling (Grok). The GM sees the validated `PlayerAction` with a short sanitised quote of the player's words (`overall_intent`, at most 500 characters), not the full raw message.
 
 | Setting | Default | Purpose |
 |---------|---------|---------|
