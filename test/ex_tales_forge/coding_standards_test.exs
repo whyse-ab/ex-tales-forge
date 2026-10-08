@@ -49,7 +49,8 @@ defmodule TalesForge.CodingStandardsTest do
     TalesForge.Playtest.CharacterChanges.TurnEntry,
     TalesForge.Playtest.CharacterChanges.RunMetrics,
     TalesForge.Playtest.CharacterChanges.Summary,
-    TalesForgeWeb.CharacterChangesComponents
+    TalesForgeWeb.CharacterChangesComponents,
+    TalesForge.Playtest.Summary
   ]
 
   for module <- @documented do

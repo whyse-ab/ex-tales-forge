@@ -1,0 +1,63 @@
+{
+  "batches": [
+    {
+      "id": "elara",
+      "title": "The Elara runs",
+      "date": "2026-10-07",
+      "commit": null,
+      "commit_note": "several builds during the day, before runs recorded their commit",
+      "series": null,
+      "runs": 44,
+      "analysis": "https://github.com/whyse-ab/tales-forge-docs/blob/main/docs/analysis-jev-scores-2026-10-07.md",
+      "game": "Every bot played the same ready-made character, Elara, for about 5 turns in the Valley Inn. The rules rolled dice even for ordering an ale, and a failed roll made the innkeeper Brenna colder. Brenna was guarded and often brushed the player off. No run got out of the inn.",
+      "changes": "The first batch: the reference point for everything after it.",
+      "notes": "Mostly Paul (29 runs) and Lotta (11). Hawk, Lars and Ronny have only 1 or 2 runs each, so their numbers are anecdotes. 26 of the 44 runs were played on a laptop, not on the playtest server, so only the other 18 can be opened here and the cost is not comparable. Best and worst runs below are the ones on this server.",
+      "overall": {"hook_by_turn_2": 0.386, "brush_off": 0.449, "cost_per_run_usd": null},
+      "personas": {
+        "paul": {"runs": 29, "mean": 4.18, "best": "fc294b8a-dd56-45ed-9076-01bd3686af93", "best_score": 4.73, "worst": "f1a2102f-cd6d-4aa1-bb6a-30194f5888ee", "worst_score": 3.42},
+        "lotta": {"runs": 11, "mean": 3.63, "best": "3d2fe901-78c3-47d7-b454-09906aa0b68d", "best_score": 3.10, "worst": "20c48675-25d1-447f-a8cd-1725bc729039", "worst_score": 2.97},
+        "lars": {"runs": 1, "mean": 3.70, "best": "f5c98df8-6317-445a-a951-71b95a99d13d", "best_score": 3.70, "worst": "f5c98df8-6317-445a-a951-71b95a99d13d", "worst_score": 3.70},
+        "hawk": {"runs": 2, "mean": 2.28, "best": "0a18850a-064d-4caf-b4f3-5bf66246c090", "best_score": 2.37, "worst": "682fdd9e-34a6-48c9-bb1b-279398788f6e", "worst_score": 2.20},
+        "ronny": {"runs": 1, "mean": 4.14, "best": "fe4772e8-86ec-4978-9860-d8de2079b904", "best_score": 4.14, "worst": "fe4772e8-86ec-4978-9860-d8de2079b904", "worst_score": 4.14}
+      }
+    },
+    {
+      "id": "baseline-2026-10-07",
+      "title": "The baseline after the first rework",
+      "date": "2026-10-07",
+      "commit": "2a6589edcfcb2066731d951a7cd6c7fe45bdebd4",
+      "commit_note": null,
+      "series": "baseline-2026-10-07",
+      "variant": "default",
+      "runs": 65,
+      "analysis": "https://github.com/whyse-ab/tales-forge-docs/blob/main/docs/analysis-jev-baseline-2026-10-07.md",
+      "game": "Each persona played a character it made itself (Paul a preacher, Lotta a dwarf druid, Lars an elf ranger, Hawk and Ronny human warriors), 10 turns each (Hawk 12), all in Tin Valley. Brenna was now warm and chatty and offered a lead (a job, a name or a place) within two turns. Dice were rolled only when something was really at stake, and a failed roll no longer turned people against you.",
+      "changes": "No dice on ordinary talk, and failing only means you learn nothing extra. A warm Brenna with ready-made leads and cleaner writing. Each persona plays its own character instead of Elara. Longer runs. Characters have real skills and can grow. Hawk's and Ronny's scales were reworded, so compare those two with care.",
+      "notes": "13 runs per persona, played one after another on the playtest server in one evening (19:29–21:33). Every run finished; the whole batch cost about $6.",
+      "overall": {"hook_by_turn_2": 0.9846, "brush_off": 0.031, "cost_per_run_usd": 0.093},
+      "personas": {
+        "paul": {"runs": 13, "mean": 4.67, "best": "71db55ef-cb17-45d3-85a1-34e26d258b52", "best_score": 4.95, "worst": "761713eb-b3cd-4460-b4d0-34c7ba6f777c", "worst_score": 2.86, "hook_by_turn_2": 1.0, "brush_off": 0.008, "cost_per_run_usd": 0.090},
+        "lotta": {"runs": 13, "mean": 4.40, "best": "3912289c-2029-4d0a-9337-0d1e453adf63", "best_score": 4.52, "worst": "2974fb4e-e6f3-4fc9-a7eb-1f14a6bd23c2", "worst_score": 4.27, "hook_by_turn_2": 1.0, "brush_off": 0.015, "cost_per_run_usd": 0.086},
+        "lars": {"runs": 13, "mean": 4.04, "best": "d7cb8e6c-f95a-4ce7-8cfa-fd7b2b258bcb", "best_score": 4.59, "worst": "e588c587-38ab-4cf3-afc7-91b3c31d310a", "worst_score": 3.15, "hook_by_turn_2": 0.92, "brush_off": 0.038, "cost_per_run_usd": 0.087},
+        "hawk": {"runs": 13, "mean": 3.02, "best": "5dc4bfff-db85-42ad-8eba-5044246a427d", "best_score": 4.86, "worst": "16bdb938-0189-4ec4-9b16-ee88c4cbc1c6", "worst_score": 1.78, "hook_by_turn_2": 1.0, "brush_off": 0.019, "cost_per_run_usd": 0.116},
+        "ronny": {"runs": 13, "mean": 4.37, "best": "e5127175-61d9-4676-81be-99aa0228a5e3", "best_score": 4.74, "worst": "54c401ab-0c8c-49da-8fc1-a8aafada6b8c", "worst_score": 3.58, "hook_by_turn_2": 1.0, "brush_off": 0.077, "cost_per_run_usd": 0.085}
+      }
+    },
+    {
+      "id": "post-rework-2026-10-08",
+      "title": "After the baseline fixes",
+      "date": "2026-10-08",
+      "commit": null,
+      "commit_note": "shown from the runs once they are in",
+      "series": "post-rework-2026-10-08",
+      "variant": null,
+      "runs": 25,
+      "analysis": "https://github.com/whyse-ab/tales-forge-docs/blob/main/docs/analysis-jev-post-rework-2026-10-08.md",
+      "game": "Running now: 5 runs per persona. The numbers below fill in from the runs as they finish; the written analysis comes later.",
+      "changes": "The fixes decided after the baseline (code changes #67–#73): every bit of experience buys a chance to improve a skill, fights always roll the dice, and a stricter judge scale for Paul and Lotta. Planned in the same round: leaving the inn really moves you, Brenna stops repeating your words and giving things away, a world around the inn and a gang that stirs up trouble on its own. The commit shows which of these were live.",
+      "notes": "Paul's and Lotta's scores use the stricter scale, so a lower number for them does not by itself mean a worse game. Only 5 runs per persona: small differences are noise.",
+      "overall": {"hook_by_turn_2": null, "brush_off": null, "cost_per_run_usd": null},
+      "personas": {}
+    }
+  ]
+}

@@ -163,9 +163,15 @@ defmodule TalesForge.Playtest.Reports do
   def roll_text(%{"outcome" => outcome}) when outcome not in [nil, "none"], do: outcome
   def roll_text(_mechanical), do: nil
 
-  defp session_costs([]), do: %{}
+  @doc """
+  Game cost per session in micro-USD (every AI call except the bots' own:
+  persona and scorer), as `%{session_id => micro_usd}`. Sessions without calls
+  are left out.
+  """
+  @spec session_costs([Ecto.UUID.t()]) :: %{optional(Ecto.UUID.t()) => non_neg_integer()}
+  def session_costs([]), do: %{}
 
-  defp session_costs(session_ids) do
+  def session_costs(session_ids) do
     AICall
     |> where([c], c.game_session_id in ^session_ids and c.purpose not in ^AICalls.bot_purposes())
     |> group_by([c], c.game_session_id)
