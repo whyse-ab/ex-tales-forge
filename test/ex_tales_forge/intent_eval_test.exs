@@ -20,7 +20,12 @@ defmodule TalesForge.IntentEvalTest do
 
   test "run scores the jev and heuristic readers and renders a report" do
     {report, results} =
-      IntentEval.run(split: "tune", readers: [:jev, :heuristic], limit: 20, jev: [api_key: "test-key"])
+      IntentEval.run(
+        split: "tune",
+        readers: [:jev, :heuristic],
+        limit: 20,
+        jev: [api_key: "test-key"]
+      )
 
     assert is_binary(report)
     assert report =~ "# Intent evaluation"
