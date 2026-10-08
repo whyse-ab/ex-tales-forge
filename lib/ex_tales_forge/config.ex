@@ -38,6 +38,18 @@ defmodule TalesForge.Config do
   def world_agents?, do: System.get_env("WORLD_AGENTS", "off") in ~w(on true 1)
 
   @doc """
+  The places and people around the Valley Inn (`TalesForge.Game.Features`,
+  feature `inn_world`): INN_WORLD=on. Read when a session is created. Default off.
+  """
+  def inn_world?, do: System.get_env("INN_WORLD", "off") in ~w(on true 1)
+
+  @doc """
+  The Tinjacks antagonist (feature `antagonist`, needs INN_WORLD):
+  WORLD_ANTAGONIST=on. Read when a session is created. Default off.
+  """
+  def world_antagonist?, do: System.get_env("WORLD_ANTAGONIST", "off") in ~w(on true 1)
+
+  @doc """
   Behaviour variant of new sessions (`TalesForge.Game.Variant`): GAME_VARIANT,
   `default` unless set. `baseline` plays the game as before the 2026-10-07 rework.
   """

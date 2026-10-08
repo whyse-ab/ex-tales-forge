@@ -90,6 +90,7 @@
                  "lib/ex_tales_forge/game/train.ex",
                  "lib/ex_tales_forge/world.ex",
                  "lib/ex_tales_forge/world/",
+                 "lib/ex_tales_forge/game/features.ex",
                  "lib/ex_tales_forge_web/time_ago.ex"
                ]
              }

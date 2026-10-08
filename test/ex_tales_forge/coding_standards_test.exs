@@ -23,6 +23,7 @@ defmodule TalesForge.CodingStandardsTest do
     TalesForge.World.Agent,
     TalesForge.World.Extract,
     TalesForge.World.Prices,
+    TalesForge.Game.Features,
     TalesForgeWeb.TimeAgo
   ]
 

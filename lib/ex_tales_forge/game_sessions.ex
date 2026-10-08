@@ -14,6 +14,7 @@ defmodule TalesForge.GameSessions do
   alias TalesForge.Characters
   alias TalesForge.Fronts
   alias TalesForge.Game.Context
+  alias TalesForge.Game.Features
   alias TalesForge.Game.Intent
   alias TalesForge.Game.Mechanics
   alias TalesForge.Game.Pack
@@ -67,7 +68,7 @@ defmodule TalesForge.GameSessions do
          {:ok, character} <- validate_character(character_opts),
          world =
            adventure_id
-           |> materialize_world()
+           |> materialize_world(variant)
            |> put_character(character)
            |> Variant.put(variant) do
       insert_session(attrs, adventure_id, world, character_opts)
@@ -139,9 +140,12 @@ defmodule TalesForge.GameSessions do
   defp default_session_name(_), do: "Crossroads Hamlet"
 
   # Dual path: complete packs fail-fast via Pack; Crossroads keeps today's seed.
-  defp materialize_world("tin_valley"), do: Pack.materialize("tin_valley")
+  # The session's world features (INN_WORLD, WORLD_ANTAGONIST) are read here,
+  # once, and stored in world_state["features"].
+  defp materialize_world("tin_valley", variant),
+    do: Pack.materialize("tin_valley", variant, Features.for_new_session(variant))
 
-  defp materialize_world(_adventure_id), do: World.default_world_state()
+  defp materialize_world(_adventure_id, _variant), do: World.default_world_state()
 
   def scene_status(session_id) do
     session_id

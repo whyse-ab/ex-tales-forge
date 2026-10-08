@@ -1,0 +1,24 @@
+{
+  "id": "drover",
+  "derive": {"race": "human", "standing": "commoner", "occupation": "merchant"},
+  "skills": {"persuasion": 7, "survival": 6},
+  "fee_copper": 30,
+  "motivations": {
+    "mood": "aggrieved",
+    "personality_traits": {"openness": 5, "conscientiousness": 7, "extraversion": 8, "agreeableness": 5, "neuroticism": 4}
+  },
+  "hooks": [
+    "She sells from her wagon: rope, lamp oil, salt, a spare lantern, and mule hire by the day. She haggles hard and keeps her word.",
+    "Her cart of salt vanished on the west road last week. She will pay 2 silver to whoever brings it back, and more for the name of who took it.",
+    "She says there were no orc tracks, only boots and a cart turned off the road into the pines."
+  ],
+  "stock": [
+    {"id": "rope_coil", "name": "Coil of rope", "price_copper": 8, "quantity": 4},
+    {"id": "lamp_oil", "name": "Flask of lamp oil", "price_copper": 3, "quantity": 6},
+    {"id": "lantern", "name": "Lantern", "price_copper": 25, "quantity": 1}
+  ],
+  "maslow": "safety",
+  "concerns": [
+    {"text": "Get her stolen salt back or be paid for it", "focus": "the stolen salt", "priority": 7}
+  ]
+}

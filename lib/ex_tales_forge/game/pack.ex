@@ -14,6 +14,17 @@ defmodule TalesForge.Game.Pack do
   A behaviour variant (`TalesForge.Game.Variant`) can replace whole NPCs:
   `variants/<variant>/npcs/<id>.{md,json}` takes the place of `npcs/<id>.*`
   for sessions of that variant (e.g. the pre-rework Brenna for `baseline`).
+
+  A world feature (`TalesForge.Game.Features`) adds a pack extension,
+  `extensions/<feature>/` with optional `world/`, `npcs/`, `fronts/` and
+  `extension.json`. Its places, people and fronts are added to the base pack
+  (an id may not repeat); an exit from a new place to a base place is added
+  back on the base place too, so the graph stays two-way; `extension.json`
+  `"npc_hooks"` appends hooks to NPCs already loaded.
+
+  A location's blurb is the first paragraph of its body under the heading.
+  The baseline variant keeps the old reading, which returned the heading
+  itself (`# Valley Inn`), so its prompts stay unchanged.
   """
 
   alias TalesForge.Characters.{Defaults, Levers}
@@ -22,9 +33,14 @@ defmodule TalesForge.Game.Pack do
 
   @sheet_keys ~w(id name race stats skills)
 
-  def load(adventure_id, variant \\ "default")
+  @doc """
+  Loads and validates a pack for `variant`, with the extensions of
+  `features`. Raises `ArgumentError` on a broken pack.
+  """
+  @spec load(String.t(), String.t(), [String.t()]) :: map()
+  def load(adventure_id, variant \\ "default", features \\ [])
 
-  def load(adventure_id, variant) when is_binary(adventure_id) and adventure_id != "" do
+  def load(adventure_id, variant, features) when is_binary(adventure_id) and adventure_id != "" do
     dir = Path.join(adventures_dir(), adventure_id)
 
     unless File.dir?(dir) do
@@ -32,13 +48,20 @@ defmodule TalesForge.Game.Pack do
     end
 
     adventure = load_adventure!(dir)
-    locations = load_locations!(dir)
-    npcs = load_npcs!(dir, variant)
+    extensions = load_extensions!(dir, features, variant)
+    locations = dir |> load_locations!(variant) |> merge_locations!(extensions)
+    npcs = dir |> load_npcs!(variant) |> merge_npcs!(extensions)
     defaults = Defaults.rules(adventure_id)
     Enum.each(npcs, &validate_npc!(&1, defaults, "#{adventure_id} NPC #{&1["id"]}"))
     player_character = player_character!(adventure_id)
     fronts_dir = Path.join(dir, "fronts")
-    fronts = fronts_dir |> Fronts.parse_dir!() |> Enum.map(&attach_identity(&1, fronts_dir))
+
+    fronts =
+      fronts_dir
+      |> Fronts.parse_dir!()
+      |> Enum.map(&attach_identity(&1, fronts_dir))
+      |> Kernel.++(Enum.flat_map(extensions, & &1.fronts))
+      |> unique_ids!("front")
 
     validate_graph!(adventure["starting_location_id"], locations)
     Fronts.validate!(fronts)
@@ -56,10 +79,17 @@ defmodule TalesForge.Game.Pack do
     }
   end
 
-  def load(_, _), do: raise(ArgumentError, "adventure_id required")
+  def load(_, _, _), do: raise(ArgumentError, "adventure_id required")
 
-  def materialize(adventure_id) when is_binary(adventure_id) do
-    pack = load(adventure_id)
+  @doc """
+  The starting world_state of a new session of the pack: location, places,
+  present NPCs, clock, character and live fronts, plus `"features"` when any.
+  """
+  @spec materialize(String.t(), String.t(), [String.t()]) :: map()
+  def materialize(adventure_id, variant \\ "default", features \\ [])
+      when is_binary(adventure_id) do
+    features = TalesForge.Game.Features.normalize(features)
+    pack = load(adventure_id, variant, features)
     start_id = pack.starting_location_id
     start = Map.fetch!(pack.locations, start_id)
     elara = sheet(pack.player_character)
@@ -86,7 +116,11 @@ defmodule TalesForge.Game.Pack do
       "live_fronts" => live_fronts,
       "public_facts" => []
     }
+    |> put_features(features)
   end
+
+  defp put_features(world, []), do: world
+  defp put_features(world, features), do: Map.put(world, "features", features)
 
   @doc """
   The adventure's player character file (`characters/*.json`), levers included.
@@ -180,21 +214,119 @@ defmodule TalesForge.Game.Pack do
     end
   end
 
-  defp load_locations!(dir) do
+  defp load_locations!(dir, variant) do
     world_dir = Path.join(dir, "world")
 
     unless File.dir?(world_dir) do
       raise ArgumentError, "world/ missing in #{dir}"
     end
 
+    load_location_dir(world_dir, variant)
+  end
+
+  defp load_location_dir(world_dir, variant) do
     world_dir
     |> Path.join("*.md")
     |> Path.wildcard()
-    |> Enum.map(&parse_location!/1)
+    |> Enum.map(&parse_location!(&1, variant))
     |> Map.new(fn loc -> {loc["id"], loc} end)
   end
 
-  defp parse_location!(path) do
+  # --- extensions (world features) -------------------------------------------
+
+  defp load_extensions!(_dir, _features, "baseline"), do: []
+
+  defp load_extensions!(dir, features, variant) do
+    features
+    |> TalesForge.Game.Features.normalize()
+    |> Enum.map(&{&1, Path.join([dir, "extensions", &1])})
+    |> Enum.filter(fn {_feature, ext_dir} -> File.dir?(ext_dir) end)
+    |> Enum.map(fn {feature, ext_dir} -> load_extension!(feature, ext_dir, variant) end)
+  end
+
+  defp load_extension!(feature, ext_dir, variant) do
+    world_dir = Path.join(ext_dir, "world")
+    fronts_dir = Path.join(ext_dir, "fronts")
+    meta_path = Path.join(ext_dir, "extension.json")
+
+    %{
+      feature: feature,
+      locations: if(File.dir?(world_dir), do: load_location_dir(world_dir, variant), else: %{}),
+      npcs: load_npc_dir!(Path.join(ext_dir, "npcs")),
+      fronts:
+        if(File.dir?(fronts_dir),
+          do: fronts_dir |> Fronts.parse_dir!() |> Enum.map(&attach_identity(&1, fronts_dir)),
+          else: []
+        ),
+      meta:
+        if(File.exists?(meta_path), do: meta_path |> File.read!() |> Jason.decode!(), else: %{})
+    }
+  end
+
+  defp merge_locations!(base, extensions) do
+    Enum.reduce(extensions, base, fn ext, acc ->
+      Enum.reduce(ext.locations, acc, &add_location!(&2, &1, ext.feature))
+    end)
+  end
+
+  defp add_location!(places, {id, _loc}, feature) when is_map_key(places, id) do
+    raise ArgumentError, "extension #{feature}: location #{id} already exists"
+  end
+
+  defp add_location!(places, {id, loc}, _feature) do
+    places
+    |> Map.put(id, loc)
+    |> add_return_exits(id, loc["exits"])
+  end
+
+  # An exit from a new place back to a known place gets its way back.
+  defp add_return_exits(places, id, exits) do
+    Enum.reduce(List.wrap(exits), places, &add_return_exit(&2, &1, id))
+  end
+
+  defp add_return_exit(places, exit_id, id) do
+    case Map.get(places, exit_id) do
+      %{"exits" => back} = other when is_list(back) ->
+        if id in back,
+          do: places,
+          else: Map.put(places, exit_id, %{other | "exits" => back ++ [id]})
+
+      _ ->
+        places
+    end
+  end
+
+  defp merge_npcs!(base, extensions) do
+    extensions
+    |> Enum.reduce(base, fn ext, acc ->
+      (acc ++ ext.npcs)
+      |> unique_ids!("NPC")
+      |> append_hooks(Map.get(ext.meta, "npc_hooks", %{}))
+    end)
+  end
+
+  defp append_hooks(npcs, hooks) when map_size(hooks) == 0, do: npcs
+
+  defp append_hooks(npcs, hooks) do
+    Enum.map(npcs, fn npc ->
+      case Map.get(hooks, npc["id"]) do
+        extra when is_list(extra) -> Map.put(npc, "hooks", List.wrap(npc["hooks"]) ++ extra)
+        _ -> npc
+      end
+    end)
+  end
+
+  defp unique_ids!(items, what) do
+    items
+    |> Enum.frequencies_by(& &1["id"])
+    |> Enum.each(fn {id, n} ->
+      if n > 1, do: raise(ArgumentError, "#{what} #{inspect(id)} defined more than once")
+    end)
+
+    items
+  end
+
+  defp parse_location!(path, variant) do
     {raw_fm, body} = parse_md!(path)
     attrs = stringify_keys(raw_fm)
     id = attrs["id"] || Path.rootname(Path.basename(path))
@@ -203,7 +335,7 @@ defmodule TalesForge.Game.Pack do
       "id" => id,
       "name" => attrs["name"] || id,
       "exits" => List.wrap(attrs["exits"]),
-      "blurb" => attrs["blurb"] || first_paragraph(body),
+      "blurb" => attrs["blurb"] || location_blurb(body, variant),
       "fixtures" => List.wrap(attrs["fixtures"]),
       "ground_items" => List.wrap(attrs["ground_items"])
     }
@@ -429,6 +561,14 @@ defmodule TalesForge.Game.Pack do
 
   defp stringify_keys(list) when is_list(list), do: Enum.map(list, &stringify_keys/1)
   defp stringify_keys(other), do: other
+
+  defp location_blurb(body, "baseline"), do: first_paragraph(body)
+
+  defp location_blurb(body, _variant) do
+    body
+    |> String.replace(~r/\A\s*#[^\n]*\n+/, "")
+    |> first_paragraph()
+  end
 
   defp first_paragraph(body) do
     body

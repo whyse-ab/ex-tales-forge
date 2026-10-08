@@ -1,0 +1,23 @@
+{
+  "id": "herb_wife",
+  "derive": {"race": "human", "standing": "commoner", "occupation": "scholar"},
+  "skills": {"history": 9, "insight": 8, "arcana": 5},
+  "fee_copper": 20,
+  "motivations": {
+    "mood": "watchful",
+    "personality_traits": {"openness": 7, "conscientiousness": 6, "extraversion": 4, "agreeableness": 7, "neuroticism": 3}
+  },
+  "hooks": [
+    "She stitches wounds and sells salves: a poultice for 4 copper, a night on her sickbed for a silver or a favour.",
+    "She tells the old stories: the old adit was closed when the miners heard knocking from below; the open hand cut above it means 'go no deeper'.",
+    "She knows orc ways from her girlhood: they raid for food and iron and leave sign on what they take.",
+    "She would pay in salves for help gathering moss and roots on the west road, where she no longer goes alone."
+  ],
+  "stock": [
+    {"id": "poultice", "name": "Healing poultice", "price_copper": 4, "quantity": 5}
+  ],
+  "maslow": "belonging",
+  "concerns": [
+    {"text": "Keep the village's people whole while the Guild digs deeper", "focus": "the village's people", "priority": 6}
+  ]
+}

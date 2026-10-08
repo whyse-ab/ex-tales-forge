@@ -1,0 +1,26 @@
+{
+  "id": "smith",
+  "derive": {"race": "human", "standing": "commoner", "occupation": "laborer"},
+  "skills": {"melee_combat": 6, "history": 5},
+  "fee_copper": 40,
+  "motivations": {
+    "mood": "uneasy",
+    "personality_traits": {"openness": 4, "conscientiousness": 8, "extraversion": 4, "agreeableness": 4, "neuroticism": 6}
+  },
+  "hooks": [
+    "She sells and mends: a hunting knife 15 copper, a spearhead 20, a short sword 6 silver; sharpening 2 copper. A blade bought here is honest steel.",
+    "She needs a strong pair of arms at the bellows for an evening. She pays in coin or in work on your gear, and talks while she hammers.",
+    "She reads the marks on tin and tools: Guild stamps, old miners' tallies, the hand sign cut above the old workings.",
+    "She has been buying cheap tin at her back door after dark. Asked kindly she will admit it; pushed hard she shuts the forge."
+  ],
+  "stock": [
+    {"id": "hunting_knife", "name": "Hunting knife", "price_copper": 15, "quantity": 3},
+    {"id": "spearhead", "name": "Spearhead", "price_copper": 20, "quantity": 2},
+    {"id": "short_sword", "name": "Short sword", "price_copper": 60, "quantity": 1}
+  ],
+  "maslow": "safety",
+  "concerns": [
+    {"text": "Keep the forge paying while the Guild pays late", "focus": "the forge", "priority": 6},
+    {"text": "Keep quiet about the cheap tin bought at her back door", "focus": "the cheap tin", "priority": 5}
+  ]
+}

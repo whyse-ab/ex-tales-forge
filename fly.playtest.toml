@@ -23,6 +23,9 @@ swap_size_mb = 512
   PORT = "4000"
   # Fly private networking (.internal / .flycast) is IPv6-only
   ECTO_IPV6 = "true"
+  # World features read when a session is created (tales-forge-docs
+  # docs/design-tin-valley-world.md); off on production (fly.toml).
+  INN_WORLD = "on"
 
 [http_service]
   internal_port = 4000
