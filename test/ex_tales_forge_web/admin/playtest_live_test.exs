@@ -10,6 +10,9 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
   alias TalesForge.Schemas.{AICall, PlaytestRun, PlaytestScore, Scene, SessionEvent, Turn}
 
   setup %{conn: conn} do
+    # Scoring here is the LLM rubric path: no TypeSafe key, whatever the shell exports.
+    Application.put_env(:jev, :api_key, nil)
+
     on_exit(fn ->
       for pid <- Task.Supervisor.children(TalesForge.Playtest.Supervisor),
           do: Task.Supervisor.terminate_child(TalesForge.Playtest.Supervisor, pid)

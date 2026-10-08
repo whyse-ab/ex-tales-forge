@@ -68,6 +68,20 @@ defmodule TalesForge.Game.NpcReactionsTest do
     assert NpcReactions.enabled?()
   end
 
+  test "configured?/0 ignores TYPESAFE_API_KEY in the OS environment" do
+    previous = System.get_env("TYPESAFE_API_KEY")
+
+    on_exit(fn ->
+      if previous,
+        do: System.put_env("TYPESAFE_API_KEY", previous),
+        else: System.delete_env("TYPESAFE_API_KEY")
+    end)
+
+    Application.put_env(:jev, :api_key, nil)
+    System.put_env("TYPESAFE_API_KEY", "env-key")
+    refute NpcReactions.configured?()
+  end
+
   test "Brenna has the barkeep OCEAN scores (rework 2026-10-07)", %{session: session} do
     brenna = NPC.get_instance(session.id, "innkeep")
 

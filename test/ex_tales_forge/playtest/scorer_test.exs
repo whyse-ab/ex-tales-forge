@@ -10,6 +10,8 @@ defmodule TalesForge.Playtest.ScorerTest do
 
   setup do
     Application.put_env(:ex_tales_forge, :playtest_runner_enabled, true)
+    # LLM rubric path: no TypeSafe key, whatever the shell exports.
+    Application.put_env(:jev, :api_key, nil)
 
     on_exit(fn ->
       for pid <- Task.Supervisor.children(TalesForge.Playtest.Supervisor),

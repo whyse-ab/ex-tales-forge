@@ -8,7 +8,8 @@ defmodule TalesForge.Playtest.JevScorer do
   opening scene and per-turn player action + GM narration — never gm_notes,
   gm_reasoning, or player_aware=false events.
 
-  Primary auto-score when `TYPESAFE_API_KEY` is set (see `configured?/0`).
+  Primary auto-score when a TypeSafe key is configured (see `configured?/0`;
+  `config/runtime.exs` maps `TYPESAFE_API_KEY` to `config :jev, :api_key`).
   Model pinned to `jev-1.13.0`. Usage is recorded in `ai_calls` as purpose
   `scorer`, call_type `jev`. Scale stored as 1–5 (`jev_fractional + 1`); Jev's native score is
   0-indexed.
@@ -26,9 +27,15 @@ defmodule TalesForge.Playtest.JevScorer do
   @scoreable ~w(finished stopped)
   @rubric "jev-affect-v1"
 
-  @doc "True when a TypeSafe API key is configured (env or Application config)."
+  @doc """
+  True when a TypeSafe API key is configured in `config :jev, :api_key`.
+
+  Only the Application env is read, never the OS environment, so tests decide
+  the key with `Application.put_env/3`.
+  """
+  @spec configured?() :: boolean()
   def configured? do
-    case Application.get_env(:jev, :api_key) || System.get_env("TYPESAFE_API_KEY") do
+    case Application.get_env(:jev, :api_key) do
       key when is_binary(key) and key != "" -> true
       _ -> false
     end

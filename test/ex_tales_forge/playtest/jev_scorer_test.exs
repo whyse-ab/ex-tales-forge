@@ -42,6 +42,18 @@ defmodule TalesForge.Playtest.JevScorerTest do
     refute JevScorer.configured?()
   end
 
+  test "configured?/0 ignores TYPESAFE_API_KEY in the OS environment" do
+    previous = System.get_env("TYPESAFE_API_KEY")
+    on_exit(fn -> restore_env("TYPESAFE_API_KEY", previous) end)
+
+    Application.put_env(:jev, :api_key, nil)
+    System.put_env("TYPESAFE_API_KEY", "env-key")
+    refute JevScorer.configured?()
+  end
+
+  defp restore_env(name, nil), do: System.delete_env(name)
+  defp restore_env(name, value), do: System.put_env(name, value)
+
   test "build_state is player text and GM narration only — no gm_notes" do
     stub_llm(fn
       :gm, _ -> %{"narrative" => "VISIBLE-GM-NARRATION", "gm_notes" => "SECRET-GM-NOTE"}

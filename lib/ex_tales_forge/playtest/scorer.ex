@@ -2,7 +2,8 @@ defmodule TalesForge.Playtest.Scorer do
   @moduledoc """
   Scores a finished playtest run.
 
-  When `TYPESAFE_API_KEY` is set, the primary path is
+  When a TypeSafe key is configured (`TYPESAFE_API_KEY`; see
+  `TalesForge.Playtest.JevScorer.configured?/0`), the primary path is
   `TalesForge.Playtest.JevScorer` (persona-affect, player-visible text only).
   When the key is unset, falls back to the LLM rubric judge: one call reads the
   transcript plus server rolls and GM hidden notes, scores against the persona's
