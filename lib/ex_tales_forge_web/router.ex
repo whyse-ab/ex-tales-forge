@@ -82,6 +82,7 @@ defmodule TalesForgeWeb.Router do
       live "/decisions", DecisionLive.Index, :index
       live "/decisions/:slug", DecisionLive.Show, :show
       live "/docs", DocLive.Index, :index
+      live "/docs/*path", DocLive.Index, :show
       live "/costs", CostsLive, :index
     end
   end
@@ -96,12 +97,16 @@ defmodule TalesForgeWeb.Router do
       on_mount: [TalesForgeWeb.LiveAuth]
   end
 
-  # ExDoc site built into the release (CodeDocsController). Every page and
-  # asset needs a signed-in team member, like the rest of the app.
+  # ExDoc site built into the release (CodeDocsController) and the images of
+  # the docs viewer. Every page and asset needs a signed-in team member, like
+  # the rest of the app.
   scope "/admin", TalesForgeWeb do
     pipe_through :browser
 
     get "/code-docs/*path", CodeDocsController, :show
+
+    # Images in tales-forge-docs pages (the repo is private; DocFilesController).
+    get "/docs-files/*path", DocFilesController, :show
   end
 
   # Machine-to-machine: the peer app's costs page reads this app's aggregated AI

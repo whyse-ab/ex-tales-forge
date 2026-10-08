@@ -56,6 +56,9 @@ config :ex_tales_forge, :llm_req_options, plug: {Req.Test, TalesForge.LLM}
 # unset unless a test puts them.
 config :ex_tales_forge, :costs_peer_req_options, plug: {Req.Test, TalesForge.Costs.Peer}
 
+# Docs viewer images from GitHub go to Req.Test stubs (TalesForge.Collab.Files).
+config :ex_tales_forge, :docs_req_options, plug: {Req.Test, TalesForge.Collab.Files}
+
 # Jev HTTP goes to Req.Test stubs; no real TypeSafe calls in CI.
 # Jev HTTP goes to Req.Test when a test sets :api_key; default nil so Scorer
 # keeps using the LLM stub unless a Jev test opts in.

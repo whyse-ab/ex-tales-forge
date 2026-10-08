@@ -9,26 +9,49 @@ defmodule TalesForge.Collab.Markdown do
   @leading_h1 ~r/\A\s*#[ \t]+([^\r\n]+)(?:\r?\n|\z)/
 
   # GFM-flavoured CommonMark (tables, strikethrough, bare-URL links, task
-  # lists, smart quotes). Raw HTML in the markdown is escaped and shown as
-  # text, never rendered (`unsafe: false` + `escape: true`); code block
+  # lists, smart quotes). Headings get GitHub-style ids (`header_id_prefix: ""`),
+  # so `#anchor` links written for GitHub land on the same heading here. Raw
+  # HTML in the markdown is escaped and shown as text, never rendered (`unsafe: false` + `escape: true`); code block
   # content is always escaped, so e.g. `<br/>` in a ```mermaid fence reaches
   # the Mermaid hook intact via `code.textContent`.
   @mdex_options [
-    extension: [table: true, strikethrough: true, autolink: true, tasklist: true],
+    extension: [
+      table: true,
+      strikethrough: true,
+      autolink: true,
+      tasklist: true,
+      header_id_prefix: ""
+    ],
     parse: [smart: true],
     render: [unsafe: false, escape: true]
   ]
 
-  def to_html(nil), do: {:safe, ""}
-  def to_html(""), do: {:safe, ""}
+  @doc """
+  Renders Markdown to safe HTML. `links:` is a function applied to every link
+  and image URL first (the docs viewer maps the repo's relative links to admin
+  pages with `TalesForge.Collab.Links.rewrite/3`).
+  """
+  def to_html(markdown, opts \\ [])
+  def to_html(nil, _opts), do: {:safe, ""}
+  def to_html("", _opts), do: {:safe, ""}
 
-  def to_html(markdown) when is_binary(markdown) do
+  def to_html(markdown, opts) when is_binary(markdown) do
     html =
       markdown
       |> strip_front_matter()
+      |> MDEx.parse_document!(@mdex_options)
+      |> rewrite_links(Keyword.get(opts, :links))
       |> MDEx.to_html!(@mdex_options)
 
     {:safe, wrap_tables(html)}
+  end
+
+  defp rewrite_links(document, nil), do: document
+
+  defp rewrite_links(document, fun) when is_function(fun, 1) do
+    document
+    |> MDEx.Document.update_nodes(MDEx.Link, &%{&1 | url: fun.(&1.url)})
+    |> MDEx.Document.update_nodes(MDEx.Image, &%{&1 | url: fun.(&1.url)})
   end
 
   # Wide tables scroll sideways inside their own box instead of squashing the

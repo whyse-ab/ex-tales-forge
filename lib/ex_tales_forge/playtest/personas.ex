@@ -7,9 +7,9 @@ defmodule TalesForge.Playtest.Personas do
 
       cp ../tales-forge-docs/docs/personas.md priv/playtest/personas.md
 
-  Each `## Name (play style)` section is one persona; its whole text goes into
-  the bot's system prompt. The bullets under its `### How we test it` heading
-  are the scorecard the judge scores against (Ronny's probes are what the bot
+  Each level-2 section, headed "Name (play style)", is one persona; its whole
+  text goes into the bot's system prompt. The bullets under its "How we test
+  it" subheading are the scorecard the judge scores against (Ronny's probes are what the bot
   tries, not criteria).
   """
 
