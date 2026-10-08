@@ -99,7 +99,10 @@
                  "lib/ex_tales_forge/surveys.ex",
                  "lib/ex_tales_forge/survey/",
                  "lib/ex_tales_forge_web/components/survey_components.ex",
-                 "lib/ex_tales_forge_web/controllers/survey_export_controller.ex"
+                 "lib/ex_tales_forge_web/controllers/survey_export_controller.ex",
+                 "lib/ex_tales_forge/playtest/character_changes.ex",
+                 "lib/ex_tales_forge/playtest/character_changes/",
+                 "lib/ex_tales_forge_web/components/character_changes_components.ex"
                ]
              }
            ]}
