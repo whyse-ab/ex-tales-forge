@@ -64,8 +64,11 @@ defmodule TalesForge.Survey.ResultsTest do
 
     one = by_id["one"]
     assert one.answered == 2
-    assert %{label: "Yes", count: 1, earlier?: false} in one.counts
-    assert %{label: "Maybe (old wording)", count: 1, earlier?: true} in one.counts
+
+    assert %{label: "Yes", count: 1, earlier?: false, labels: "later: none · reading: one"} in one.counts
+
+    assert %{label: "Maybe (old wording)", count: 1, earlier?: true, labels: nil} in one.counts
+    assert Enum.find(by_id["pace"].counts, &(&1.label == "4")).labels == nil
 
     assert by_id["pace"].mean == 3.0
     assert Enum.find(by_id["pace"].counts, &(&1.label == "4")).count == 1
@@ -104,6 +107,8 @@ defmodule TalesForge.Survey.ResultsTest do
     [header | rows] = d |> Results.to_csv(rs) |> String.split("\r\n", trim: true)
 
     assert header =~ ~s("github_login","email","survey_version")
+    assert header =~ ~s("Q1 one","Q1 one: labels","Q1 one: depends")
+    refute header =~ "Q2 pace: labels"
     assert header =~ ~s("Q3 often: Bus","Q3 often: Bed")
     assert header =~ ~s("Q6 paul-keywords","Q6 paul-keywords: other","Q6 paul-keywords: own-word")
     assert header =~ ~s("Q7 paul-excerpt: why")
@@ -112,6 +117,9 @@ defmodule TalesForge.Survey.ResultsTest do
     [eve, ada | _] = rows
     assert eve =~ ~s|"'=HYPERLINK(""x"")"|
     assert ada =~ ~s("Speeches, Lies")
+    assert ada =~ ~s("Yes","{""later"":null,""reading"":""one""}")
+    [bo, _cy] = Enum.drop(rows, 2)
+    assert bo =~ ~s|"Maybe (old wording)",""|
     assert ada =~ ~s("Evenings\nmostly")
   end
 
@@ -135,7 +143,9 @@ defmodule TalesForge.Survey.ResultsTest do
     assert md =~ "| Knight | 2.5 | 2 |"
     assert md =~ "| Row | Never | Daily |"
     assert md =~ "- “Evenings mostly” (@ada)"
-    assert md =~ "- Maybe (old wording) (earlier wording): 1"
+    assert md =~ "- Maybe (old wording) (earlier wording): 1\n"
+    assert md =~ "- Yes: 1 — `later: none · reading: one`\n"
+    assert md =~ "- No: 0 — `later: move · reading: many`\n"
     assert md =~ "(mean 3.0)"
   end
 

@@ -20,6 +20,30 @@ defmodule TalesForge.Survey.SourceTest do
     assert Source.describe("founder-survey-3") =~ "GITHUB_DOCS_TOKEN not set"
   end
 
+  test "without docs, the survey list is the priv snapshots" do
+    assert Source.list_ids() == {["founder-survey-3", "founder-survey-4-intent"], []}
+  end
+
+  test "a local docs checkout lists its *survey*.json files, cached for a minute" do
+    dir = three_surveys()
+    assert {["closed-survey", "open-survey", "quiet-survey"], []} = Source.list_ids()
+
+    File.write!(Path.join([dir, "docs", "new-survey.json"]), "{}")
+    assert {["closed-survey", "open-survey", "quiet-survey"], []} = Source.list_ids()
+    assert {ids, []} = Source.list_ids(fresh: true)
+    assert "new-survey" in ids
+  end
+
+  test "an unreadable docs directory falls back to the snapshots, with a problem" do
+    dir = Path.join(System.tmp_dir!(), "tf-survey-none-#{System.unique_integer([:positive])}")
+    Application.put_env(:ex_tales_forge, :tales_forge_docs_path, dir)
+    on_exit(fn -> Application.delete_env(:ex_tales_forge, :tales_forge_docs_path) end)
+
+    assert {["founder-survey-3", "founder-survey-4-intent"], [problem, note]} = Source.list_ids()
+    assert problem =~ "could not list"
+    assert note =~ "snapshots instead"
+  end
+
   test "unknown or unsafe ids" do
     assert {:error, ["unknown survey"]} = Source.load("../etc/passwd")
     assert {:error, [message]} = Source.load("no-such-survey")
@@ -100,6 +124,34 @@ defmodule TalesForge.Survey.SourceTest do
       assert {:ok, loaded} = Source.load("test-survey")
       assert loaded.source == "tales-forge-docs main (blob abcdef1)"
       assert Source.describe("test-survey") =~ "GitHub whyse-ab/tales-forge-docs@main"
+    end
+
+    test "lists docs/ through the Contents API" do
+      Req.Test.stub(Source, fn conn ->
+        assert conn.request_path == "/repos/whyse-ab/tales-forge-docs/contents/docs"
+        assert conn.query_string == "ref=main"
+
+        Req.Test.json(conn, [
+          %{"type" => "file", "name" => "founder-survey-3.json"},
+          %{"type" => "file", "name" => "founder-survey-3.md"},
+          %{"type" => "file", "name" => "decisions.md"},
+          %{"type" => "dir", "name" => "x-survey.json"},
+          %{"type" => "file", "name" => "founder-survey-4-intent.json"}
+        ])
+      end)
+
+      assert Source.list_ids() == {["founder-survey-3", "founder-survey-4-intent"], []}
+    end
+
+    test "a failed listing falls back to the snapshots" do
+      Req.Test.stub(Source, &Plug.Conn.send_resp(&1, 403, "{}"))
+      assert {["founder-survey-3", "founder-survey-4-intent"], [problem | _]} = Source.list_ids()
+      assert problem =~ "HTTP 403 listing docs/"
+
+      Cache.clear()
+      Req.Test.stub(Source, &Req.Test.transport_error(&1, :timeout))
+      assert {_ids, [problem | _]} = Source.list_ids()
+      assert problem =~ "listing of docs/ failed"
     end
 
     test "HTTP errors fall back to the snapshot" do

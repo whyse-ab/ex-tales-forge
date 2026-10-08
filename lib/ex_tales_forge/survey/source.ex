@@ -18,6 +18,14 @@ defmodule TalesForge.Survey.Source do
   show an admin error instead of crashing. `{:error, problems}` only when
   nothing usable is left.
 
+  Discovery (`list_ids/1`): every `docs/*survey*.json` in the same source
+  (the local checkout's directory, or one GitHub Contents API listing of
+  `docs/`), cached for a minute like the files. When the listing fails, or
+  there is neither a checkout nor a token, the snapshots in `priv/surveys`
+  are listed instead. Which of them are founder tabs is up to each file's
+  `active` flag (`TalesForge.Survey.Definition.active?/1`), so opening or
+  closing a survey is a docs commit.
+
   The docs sync (`mix tales.sync_docs`) is not used: it has been unreliable
   (it misses files), and the survey would silently go stale.
   """
@@ -32,6 +40,7 @@ defmodule TalesForge.Survey.Source do
   @default_ref "main"
   @ttl_ms :timer.seconds(60)
   @error_ttl_ms :timer.seconds(20)
+  @survey_file ~r/\A([a-z0-9-]*survey[a-z0-9-]*)\.json\z/
 
   @typedoc """
   A loaded definition: where it came from (`source`, human-readable), the
@@ -62,6 +71,35 @@ defmodule TalesForge.Survey.Source do
       {:path, path} -> "local docs checkout #{Path.join(path, doc_path(id))}"
       {:github, _token} -> "GitHub #{repo()}@#{ref()}:#{doc_path(id)} (cached 60 s)"
       :none -> "snapshot priv/surveys/#{id}.json (GITHUB_DOCS_TOKEN not set)"
+    end
+  end
+
+  @doc """
+  The ids of every survey file in the docs (`docs/*survey*.json`), sorted, and
+  any problems listing them. Falls back to the `priv/surveys` snapshots when
+  the docs can't be listed. Cached for a minute; `fresh: true` skips the cache.
+  """
+  @spec list_ids(keyword()) :: {[String.t()], [String.t()]}
+  def list_ids(opts \\ []) do
+    case if(opts[:fresh], do: :miss, else: Cache.get(:survey_index)) do
+      {:fresh, result} -> result
+      _stale_or_miss -> fetch_index()
+    end
+  end
+
+  @doc """
+  The survey id in a file name, or nil when it is not a survey file.
+
+      iex> TalesForge.Survey.Source.survey_id_from_file("founder-survey-4-intent.json")
+      "founder-survey-4-intent"
+      iex> TalesForge.Survey.Source.survey_id_from_file("founder-survey-3.md")
+      nil
+  """
+  @spec survey_id_from_file(String.t()) :: String.t() | nil
+  def survey_id_from_file(name) do
+    case Regex.run(@survey_file, name) do
+      [_, id] -> id
+      nil -> nil
     end
   end
 
@@ -145,6 +183,60 @@ defmodule TalesForge.Survey.Source do
       fetched_at: DateTime.utc_now(),
       problems: problems
     }
+  end
+
+  defp fetch_index do
+    case list_primary() do
+      {:ok, names} ->
+        Cache.put(:survey_index, {ids_from(names), []}, @ttl_ms)
+
+      {:error, problem} ->
+        Logger.warning("survey index: #{problem}")
+        result = {snapshot_ids(), [problem, "listing the priv/surveys snapshots instead"]}
+        Cache.put(:survey_index, result, @error_ttl_ms)
+
+      :none ->
+        Cache.put(:survey_index, {snapshot_ids(), []}, @ttl_ms)
+    end
+  end
+
+  defp list_primary do
+    case primary() do
+      {:path, path} -> list_local(Path.join(path, "docs"))
+      {:github, token} -> list_github(token)
+      :none -> :none
+    end
+  end
+
+  defp list_local(dir) do
+    case File.ls(dir) do
+      {:ok, names} -> {:ok, names}
+      {:error, reason} -> {:error, "could not list #{dir}: #{:file.format_error(reason)}"}
+    end
+  end
+
+  defp list_github(token) do
+    case Req.get(github_req(token), url: "/repos/#{repo()}/contents/docs", params: [ref: ref()]) do
+      {:ok, %{status: 200, body: entries}} when is_list(entries) ->
+        {:ok, for(%{"type" => "file", "name" => name} <- entries, do: name)}
+
+      {:ok, %{status: status}} ->
+        {:error, "GitHub answered HTTP #{status} listing docs/"}
+
+      {:error, error} ->
+        {:error, "GitHub listing of docs/ failed: #{Exception.message(error)}"}
+    end
+  end
+
+  defp snapshot_ids do
+    case File.ls(Application.app_dir(:ex_tales_forge, "priv/surveys")) do
+      {:ok, names} -> ids_from(names)
+      {:error, _reason} -> []
+    end
+  end
+
+  defp ids_from(names) do
+    names |> Enum.map(&survey_id_from_file/1) |> Enum.reject(&is_nil/1) |> Enum.sort()
   end
 
   defp read_primary(id) do
