@@ -38,7 +38,16 @@ defmodule TalesForge.CodingStandardsTest do
     TalesForge.Survey.Results,
     TalesForge.Survey.Source,
     TalesForgeWeb.SurveyComponents,
-    TalesForgeWeb.SurveyExportController
+    TalesForgeWeb.SurveyExportController,
+    TalesForge.Playtest.CharacterChanges,
+    TalesForge.Playtest.CharacterChanges.Field,
+    TalesForge.Playtest.CharacterChanges.Memory,
+    TalesForge.Playtest.CharacterChanges.Character,
+    TalesForge.Playtest.CharacterChanges.Change,
+    TalesForge.Playtest.CharacterChanges.TurnEntry,
+    TalesForge.Playtest.CharacterChanges.RunMetrics,
+    TalesForge.Playtest.CharacterChanges.Summary,
+    TalesForgeWeb.CharacterChangesComponents
   ]
 
   for module <- @documented do

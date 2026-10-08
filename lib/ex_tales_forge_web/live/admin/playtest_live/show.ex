@@ -1,13 +1,16 @@
 defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
   @moduledoc """
-  Admin: one playtest run, with its turns, scores, costs and timings; refreshes while the run is going.
+  Admin: one playtest run, with its turns, scores, costs and timings, and how the
+  characters changed over it (`TalesForge.Playtest.CharacterChanges`); refreshes
+  while the run is going.
   """
 
   use TalesForgeWeb, :live_view
 
   import TalesForgeWeb.AdminComponents
+  import TalesForgeWeb.CharacterChangesComponents
 
-  alias TalesForge.Playtest.{JevHeadline, Reports, RunMeta, Runner, Scorer}
+  alias TalesForge.Playtest.{CharacterChanges, JevHeadline, Reports, RunMeta, Runner, Scorer}
   alias TalesForgeWeb.TimeAgo
 
   @refresh_ms 3_000
@@ -78,6 +81,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
     |> assign(:turns, Reports.turn_records(run.game_session_id))
     |> assign(:metrics, Reports.metrics(run.game_session_id))
     |> assign(:score, Reports.latest_score(run.id))
+    |> assign(:character_changes, CharacterChanges.for_session(run.game_session_id))
     |> assign_turn_affects(Reports.turn_affect_scores(run.id))
   end
 
@@ -341,6 +345,8 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
           </p>
         </div>
       </.section_card>
+
+      <.character_changes changes={@character_changes} />
 
       <.section_card title="Turns" id="turns">
         <article :if={@opening} id="turn-opening" class="space-y-1">

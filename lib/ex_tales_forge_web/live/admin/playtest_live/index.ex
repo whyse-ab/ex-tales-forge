@@ -1,14 +1,16 @@
 defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
   @moduledoc """
-  Admin: playtest runs, and a form to start a new run with a persona.
+  Admin: playtest runs, a form to start a new run with a persona, and the
+  character changes per batch (`TalesForge.Playtest.CharacterChanges.batches/1`).
   """
 
   use TalesForgeWeb, :live_view
 
   import TalesForgeWeb.AdminComponents
+  import TalesForgeWeb.CharacterChangesComponents
 
   alias TalesForge.Game.Variant
-  alias TalesForge.Playtest.{JevHeadline, Personas, Reports, RunMeta, Runner}
+  alias TalesForge.Playtest.{CharacterChanges, JevHeadline, Personas, Reports, RunMeta, Runner}
   alias TalesForgeWeb.TimeAgo
 
   # Re-render the "N minutes ago" words this often; the rows are not reloaded.
@@ -34,8 +36,14 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
          "variant" => "default"
        })
      )
-     |> assign(:rows, Reports.list_runs())
+     |> assign_rows(Reports.list_runs())
      |> assign(:now, DateTime.utc_now())}
+  end
+
+  defp assign_rows(socket, rows) do
+    socket
+    |> assign(:rows, rows)
+    |> assign(:batches, CharacterChanges.batches(Enum.map(rows, & &1.run)))
   end
 
   @impl true
@@ -94,6 +102,8 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
       </.section_card>
 
       <p :if={@rows == []} class="text-sm text-[var(--paper-muted)]">No runs yet.</p>
+
+      <.batch_character_changes :if={@rows != []} batches={@batches} />
 
       <div :if={@rows != []} class="overflow-x-auto rounded-lg border border-[var(--paper-rule)]">
         <table class="min-w-full divide-y divide-[var(--paper-rule)] text-sm">

@@ -4,10 +4,22 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
   import Phoenix.LiveViewTest
   import TalesForge.PlaytestHelpers
 
+  import Ecto.Query
+
   alias TalesForge.GameSessions
+  alias TalesForge.NPC
   alias TalesForge.Jido
   alias TalesForge.Repo
-  alias TalesForge.Schemas.{AICall, PlaytestRun, PlaytestScore, Scene, SessionEvent, Turn}
+
+  alias TalesForge.Schemas.{
+    AICall,
+    GameSession,
+    PlaytestRun,
+    PlaytestScore,
+    Scene,
+    SessionEvent,
+    Turn
+  }
 
   setup %{conn: conn} do
     # Scoring here is the LLM rubric path: no TypeSafe key, whatever the shell exports.
@@ -295,6 +307,88 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     refute has_element?(view, "#run-#{unscored.id}-jev")
   end
 
+  test "run detail shows how each character changed, with links to the turns and the gaps",
+       %{conn: conn} do
+    run = seed_run(notes: "series=cc-1 variant=default")
+    session = Repo.get!(GameSession, run.game_session_id)
+    tick = session.world_state["world_tick"] + 1
+
+    Repo.insert!(%SessionEvent{
+      game_session_id: session.id,
+      kind: "gm_reasoning",
+      actor: "gm",
+      player_aware: false,
+      tick: tick,
+      payload: %{
+        "turn_number" => 1,
+        "gm_reply" => %{
+          "npc_memory_updates" => [
+            %{"npc_id" => "innkeep", "summary" => "The stranger asked about the orcs."}
+          ]
+        }
+      }
+    })
+
+    :ok = NPC.record_memory(session.id, "innkeep", "The stranger asked about the orcs.", tick)
+    {:ok, _} = NPC.bump_relationship(session.id, "innkeep", 0.05)
+
+    world =
+      Map.put(session.world_state, "npc_moods", %{
+        "innkeep" => %{
+          "emotion" => "wary",
+          "intensity" => 0.6,
+          "stance" => "cool",
+          "turn_number" => 1
+        }
+      })
+
+    session |> GameSession.changeset(%{world_state: world}) |> Repo.update!()
+
+    {:ok, view, _html} = live(conn, ~p"/admin/playtest/#{run.id}")
+
+    assert has_element?(view, "#character-changes h2", "Character changes")
+    # The player character first, open; NPCs with a change before the rest.
+    assert has_element?(view, "#character-changes details[open] summary", "player character")
+    assert has_element?(view, "#cc-innkeep-summary", "1 memories added")
+    assert has_element?(view, "#cc-innkeep-field-stance", "cool (turn 1)")
+    assert has_element?(view, "#cc-innkeep-field-relationship", "0.05")
+    assert has_element?(view, "#cc-innkeep-memories", "The stranger asked about the orcs.")
+    assert has_element?(view, ~s(#cc-innkeep-memories a[href="#turn-1"]), "Turn 1")
+    assert has_element?(view, "#cc-innkeep-not-tracked", "Feelings toward other NPCs")
+    assert has_element?(view, "#cc-innkeep-not-tracked", "not tracked yet")
+    assert has_element?(view, ~s(#cc-turn-1 a[href="#turn-1"]))
+    assert has_element?(view, "#cc-turn-1", "GM: The stranger asked about the orcs.")
+    assert has_element?(view, "#cc-notes", "only each NPC's latest reaction is kept")
+    # The link target exists on the same page.
+    assert has_element?(view, "#turn-1")
+
+    {:ok, view, _html} = live(conn, ~p"/admin/playtest")
+    assert has_element?(view, "#batch-character-changes", "cc-1 · default")
+    assert has_element?(view, "#batch-character-changes", "100% (1/1")
+    assert has_element?(view, "#batch-character-changes", "Memories / run")
+  end
+
+  test "run detail of a run with no characters says so", %{conn: conn} do
+    run = seed_run()
+
+    Repo.delete_all(
+      from c in TalesForge.Schemas.Character, where: c.game_session_id == ^run.game_session_id
+    )
+
+    Repo.delete_all(
+      from n in TalesForge.Schemas.NpcInstance, where: n.game_session_id == ^run.game_session_id
+    )
+
+    session = Repo.get!(GameSession, run.game_session_id)
+
+    session
+    |> GameSession.changeset(%{world_state: Map.delete(session.world_state, "character")})
+    |> Repo.update!()
+
+    {:ok, view, _html} = live(conn, ~p"/admin/playtest/#{run.id}")
+    assert has_element?(view, "#character-changes", "No characters recorded for this run.")
+  end
+
   defp insert_turn_affect(run, turn_number, overall, confidence) do
     Repo.insert!(%PlaytestScore{
       playtest_run_id: run.id,
@@ -333,7 +427,8 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
         persona_ms: 3_100,
         persona_input_tokens: 4_000,
         persona_output_tokens: 120,
-        persona_cost_micro_usd: 4_000
+        persona_cost_micro_usd: 4_000,
+        notes: Keyword.get(opts, :notes)
       })
 
     Repo.insert!(%Turn{

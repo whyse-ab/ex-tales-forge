@@ -15,6 +15,8 @@ defmodule TalesForge.Schemas.PlaytestRun do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
+  @type t :: %__MODULE__{}
+
   @statuses ~w(running finished stopped failed)
   @stop_reasons ~w(ended turn_limit spend_cap persona_cap dead error timeout)
 
