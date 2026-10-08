@@ -42,7 +42,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
          "variant" => "default"
        })
      )
-     |> assign(:summary, load_summary())
+     |> assign_summary()
      |> assign_rows(Reports.list_runs())
      |> assign(:now, DateTime.utc_now())}
   end
@@ -89,7 +89,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
         </p>
       </header>
 
-      <.summary summary={@summary} />
+      <.summary summary={@summary} local_runs={@local_runs} />
 
       <header id="run-details" class="scroll-mt-4 border-t border-[var(--paper-rule)] pt-4">
         <h2 class="font-serif text-xl font-bold text-[var(--paper-ink)]">All runs, in detail</h2>
@@ -199,15 +199,22 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
   end
 
   # The curated summary plus live series numbers; nil if the files can't be read
-  # (the page then just says so and shows the runs).
-  defp load_summary do
+  # (the page then just says so and shows the runs). `:local_runs`: which of its
+  # best and worst runs are on this server (the others link to playtest).
+  defp assign_summary(socket) do
     case Summary.current() do
-      {:ok, summary} -> summary
-      {:error, _reason} -> nil
+      {:ok, summary} ->
+        socket
+        |> assign(:summary, summary)
+        |> assign(:local_runs, Summary.local_run_ids(summary.batches))
+
+      {:error, _reason} ->
+        socket |> assign(:summary, nil) |> assign(:local_runs, MapSet.new())
     end
   end
 
   attr :summary, :map, default: nil
+  attr :local_runs, :any, default: MapSet.new()
 
   defp summary(%{summary: nil} = assigns) do
     ~H"""
@@ -238,7 +245,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
           share of turns where someone in the game brushed the player off. <strong>Cost:</strong>
           AI cost of one game, including the bot player.
         </p>
-        <.batch :for={batch <- @summary.batches} batch={batch} />
+        <.batch :for={batch <- @summary.batches} batch={batch} local_runs={@local_runs} />
       </section>
 
       <article
@@ -253,6 +260,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
   end
 
   attr :batch, :map, required: true
+  attr :local_runs, :any, required: true
 
   defp batch(assigns) do
     ~H"""
@@ -327,10 +335,10 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
               <td class="hidden px-3 py-2 sm:table-cell">{pct(stats.brush_off)}</td>
               <td class="hidden px-3 py-2 sm:table-cell">{usd(stats.cost_per_run_usd)}</td>
               <td class="px-3 py-2">
-                <.run_link id={stats.best} score={stats.best_score} />
+                <.run_link id={stats.best} score={stats.best_score} local_runs={@local_runs} />
               </td>
               <td class="px-3 py-2">
-                <.run_link id={stats.worst} score={stats.worst_score} />
+                <.run_link id={stats.worst} score={stats.worst_score} local_runs={@local_runs} />
               </td>
             </tr>
           </tbody>
@@ -344,14 +352,28 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
 
   attr :id, :string, default: nil
   attr :score, :any, default: nil
+  attr :local_runs, :any, default: MapSet.new()
 
   defp run_link(%{id: nil} = assigns), do: ~H"—"
 
+  # A run on this server opens in place; a curated run that isn't here (e.g. on
+  # production) opens on the playtest server instead of "Run not found".
   defp run_link(assigns) do
     ~H"""
-    <.link navigate={~p"/admin/playtest/#{@id}"} class="text-[var(--paper-accent)] underline">
+    <.link
+      :if={MapSet.member?(@local_runs, @id)}
+      navigate={Summary.run_url(@id, @local_runs)}
+      class="text-[var(--paper-accent)] underline"
+    >
       {score(@score)}
     </.link>
+    <a
+      :if={!MapSet.member?(@local_runs, @id)}
+      href={Summary.run_url(@id, @local_runs)}
+      class="text-[var(--paper-accent)] underline"
+    >
+      {score(@score)}
+    </a>
     """
   end
 

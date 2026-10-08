@@ -82,9 +82,10 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     assert has_element?(view, "#batch-baseline-2026-10-07-hawk", "100%")
     assert has_element?(view, "#batch-baseline-2026-10-07-ronny", "cheater test")
 
+    # The curated runs are not on this server: their links open them on playtest.
     assert has_element?(
              view,
-             ~s(#batch-baseline-2026-10-07-hawk a[href="/admin/playtest/5dc4bfff-db85-42ad-8eba-5044246a427d"]),
+             ~s(#batch-baseline-2026-10-07-hawk a[href="https://tales-forge-playtest.fly.dev/admin/playtest/5dc4bfff-db85-42ad-8eba-5044246a427d"]),
              "4.86"
            )
 
@@ -95,11 +96,20 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     assert has_element?(view, "#batch-post-rework-2026-10-08-runs", "25 runs planned")
     assert has_element?(view, "#batch-post-rework-2026-10-08", "No numbers yet")
 
-    # Findings link to run pages.
+    # Findings link to run pages on the playtest server (so they work on
+    # production too), to the turn they talk about where they name one.
     assert has_element?(
              view,
-             ~s(#summary-findings a[href="/admin/playtest/761713eb-b3cd-4460-b4d0-34c7ba6f777c"])
+             ~s(#summary-findings a[href="https://tales-forge-playtest.fly.dev/admin/playtest/761713eb-b3cd-4460-b4d0-34c7ba6f777c"])
            )
+
+    assert has_element?(
+             view,
+             ~s(#summary-findings a[href="https://tales-forge-playtest.fly.dev/admin/playtest/72d7292e-5df7-4ffa-bd02-1277cc9d081c#turn-4"])
+           )
+
+    # No link to a written analysis that doesn't exist yet.
+    refute has_element?(view, "#batch-post-rework-2026-10-08 a", "written analysis")
   end
 
   test "a batch's numbers fill in live from its series runs on this server", %{conn: conn} do

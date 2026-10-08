@@ -38,6 +38,10 @@ defmodule TalesForge.Playtest.Summary do
 
   @personas ~w(paul lotta lars hawk ronny)
 
+  # The series run on the playtest server; its run pages are linked from
+  # servers that don't have the runs (`run_url/2`).
+  @playtest_server "https://tales-forge-playtest.fly.dev"
+
   # A persona the series has not played yet: no live numbers, never the curated ones.
   @no_live_runs %{
     runs: 0,
@@ -195,6 +199,46 @@ defmodule TalesForge.Playtest.Summary do
       personas:
         runs |> Enum.group_by(& &1.persona) |> Map.new(fn {p, rs} -> {p, persona_live(rs)} end)
     }
+  end
+
+  @doc """
+  The ids of the summary's best and worst runs that are in this database. The
+  curated runs were played on the playtest server; on any other server
+  (production, a laptop) `run_url/2` links them there instead.
+  """
+  @spec local_run_ids([batch()]) :: MapSet.t(String.t())
+  def local_run_ids(batches) do
+    ids =
+      for batch <- batches,
+          {_persona, stats} <- batch.personas,
+          id <- [stats.best, stats.worst],
+          is_binary(id),
+          match?({:ok, _}, Ecto.UUID.cast(id)),
+          uniq: true,
+          do: id
+
+    PlaytestRun
+    |> where([r], r.id in ^ids)
+    |> select([r], r.id)
+    |> Repo.all()
+    |> MapSet.new()
+  end
+
+  @doc """
+  Where a summary run link goes: the run page on this server when the run is
+  here (`local_ids`, from `local_run_ids/1`), otherwise the run page on the
+  playtest server, where the series run.
+
+      iex> TalesForge.Playtest.Summary.run_url("abc", MapSet.new(["abc"]))
+      "/admin/playtest/abc"
+      iex> TalesForge.Playtest.Summary.run_url("abc", MapSet.new())
+      "https://tales-forge-playtest.fly.dev/admin/playtest/abc"
+  """
+  @spec run_url(String.t(), MapSet.t(String.t())) :: String.t()
+  def run_url(id, local_ids) do
+    if MapSet.member?(local_ids, id),
+      do: "/admin/playtest/" <> id,
+      else: @playtest_server <> "/admin/playtest/" <> id
   end
 
   @doc ~S(Display name for a persona id: `"hawk"` → `"Hawk"`.)
