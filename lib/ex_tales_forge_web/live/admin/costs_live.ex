@@ -139,6 +139,11 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
             label="GM idle gap p50 / p90"
             value={"#{format_latency(@metrics.idle_gap.p50_ms)} / #{format_latency(@metrics.idle_gap.p90_ms)}"}
           />
+          <.metric_row
+            id="costs-player-quote"
+            label="GM quote fallback (input safety)"
+            value={player_quote_line(@metrics.player_quote)}
+          />
         </dl>
         <.call_breakdown id="costs-breakdown" rows={@metrics.breakdown} per_session />
         <p class="text-xs text-[var(--paper-muted)]">
@@ -515,6 +520,18 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
 
   defp cache_line(cache) do
     "#{format_pct(cache.hit_rate)} of input tokens · #{cache.hits}/#{cache.calls} calls hit"
+  end
+
+  defp player_quote_line(%{reads: 0}), do: "— (no reads)"
+
+  defp player_quote_line(pq) do
+    reasons =
+      pq.reasons
+      |> Enum.sort_by(fn {_reason, n} -> -n end)
+      |> Enum.map_join(", ", fn {reason, n} -> "#{reason} #{n}" end)
+
+    "#{format_pct(pq.fallback_rate)} · #{pq.fallbacks}/#{pq.reads} turns got the summary" <>
+      if(reasons == "", do: "", else: " (#{reasons})")
   end
 
   defp stockholm_time(%DateTime{} = dt), do: stockholm_time(DateTime.to_iso8601(dt))

@@ -287,7 +287,8 @@ defmodule TalesForge.AICalls.Metrics do
   The costs page's metrics for calls inserted in `[from, to]` (UTC):
   `:breakdown` (as `breakdown/1`, plus per-session and per-turn cost per row),
   `:counts` (sessions and turns per section), `:cache` (GM, GM turns 2+, all game
-  LLM calls), `:idle_gap` (GM p50/p90) and `:sessions` (the most recent ones).
+  LLM calls), `:idle_gap` (GM p50/p90), `:player_quote` (as `player_quote/2`)
+  and `:sessions` (the most recent ones).
   """
   def period(%DateTime{} = from, %DateTime{} = to) do
     {from, to} = {DateTime.truncate(from, :second), DateTime.truncate(to, :second)}
@@ -320,7 +321,47 @@ defmodule TalesForge.AICalls.Metrics do
         game: period_cache(where(base, [c], c.purpose not in ^AICalls.bot_purposes()))
       },
       idle_gap: period_idle_gap(from, to),
+      player_quote: player_quote_counts(base),
       sessions: recent_sessions(base)
+    }
+  end
+
+  @doc """
+  The input safety reads (`TalesForge.Game.PlayerQuote`, purpose
+  `input_safety`) inserted in `[from, to]` (UTC): `:reads`, `:quotes` (the GM
+  got the player's own words), `:fallbacks` (the intent summary),
+  `:fallback_rate` (nil without reads) and `:reasons` (fallback reason →
+  count, e.g. `"low_confidence"`, `"label_prompt_injection"`, `"unconfigured"`).
+  """
+  def player_quote(%DateTime{} = from, %DateTime{} = to) do
+    {from, to} = {DateTime.truncate(from, :second), DateTime.truncate(to, :second)}
+    player_quote_counts(where(AICall, [c], c.inserted_at >= ^from and c.inserted_at <= ^to))
+  end
+
+  defp player_quote_counts(base) do
+    reasons =
+      base
+      |> where([c], c.purpose == "input_safety")
+      |> group_by([c], [fragment("?->>'used'", c.meta), fragment("?->>'reason'", c.meta)])
+      |> select(
+        [c],
+        {fragment("?->>'used'", c.meta), fragment("?->>'reason'", c.meta), count(c.id)}
+      )
+      |> Repo.all()
+
+    quotes = for {"quote", _reason, n} <- reasons, reduce: 0, do: (acc -> acc + n)
+    reads = Enum.reduce(reasons, 0, fn {_used, _reason, n}, acc -> acc + n end)
+    fallbacks = reads - quotes
+
+    %{
+      reads: reads,
+      quotes: quotes,
+      fallbacks: fallbacks,
+      fallback_rate: if(reads > 0, do: fallbacks / reads),
+      reasons:
+        for({used, reason, n} <- reasons, used != "quote", do: {reason || "unknown", n})
+        |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
+        |> Map.new(fn {reason, ns} -> {reason, Enum.sum(ns)} end)
     }
   end
 

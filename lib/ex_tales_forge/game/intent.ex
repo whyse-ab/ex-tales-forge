@@ -148,7 +148,7 @@ defmodule TalesForge.Game.Intent do
       |> Enum.map(fn {action, _idx} -> action end)
 
     %PlayerAction{
-      overall_intent: sanitize_summary(extraction.overall_intent),
+      overall_intent: sanitize_quote(extraction.overall_intent),
       action: primary,
       confidence: extraction.confidence,
       deferred_actions: deferred
@@ -352,7 +352,7 @@ defmodule TalesForge.Game.Intent do
     }
 
     %IntentExtraction{
-      overall_intent: sanitize_summary(raw_action),
+      overall_intent: sanitize_quote(raw_action),
       actions: [action],
       primary_index: 0,
       confidence: heuristic_confidence(raw_action, action_type, context),
@@ -786,7 +786,16 @@ defmodule TalesForge.Game.Intent do
   defp maybe_put(map, _key, ""), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
-  defp sanitize_summary(text) do
+  @doc ~S"""
+  Sanitises text for the `overall_intent` quote the GM gets: trims, drops
+  "ignore (all) previous/prior instructions", collapses whitespace and keeps
+  at most 500 characters. Raises `ArgumentError` when nothing is left.
+
+      iex> TalesForge.Game.Intent.sanitize_quote("  I   greet the innkeep  ")
+      "I greet the innkeep"
+  """
+  @spec sanitize_quote(String.t()) :: String.t()
+  def sanitize_quote(text) do
     text
     |> String.trim()
     |> String.replace(~r/(?i)ignore\s+(all\s+)?(previous|prior)\s+instructions/u, "")

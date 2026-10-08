@@ -108,7 +108,7 @@ defmodule TalesForge.Playtest.JevScorerTest do
     assert {:ok, %{metrics: metrics}} = Runner.status(run.id)
     assert metrics.turns == 2
     assert [%{turn: 1, steps_ms: steps}, %{turn: 2}] = metrics.per_turn
-    assert Map.keys(steps) |> Enum.sort() == ~w(gm intent persist prompt rules)
+    assert Map.keys(steps) |> Enum.sort() == ~w(gm intent persist player_quote prompt rules)
   end
 
   test "Scorer.score prefers Jev when configured" do

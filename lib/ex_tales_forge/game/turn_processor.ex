@@ -22,6 +22,7 @@ defmodule TalesForge.Game.TurnProcessor do
   alias TalesForge.Game.Mechanics
   alias TalesForge.Game.NpcReactions
   alias TalesForge.Game.Perception
+  alias TalesForge.Game.PlayerQuote
   alias TalesForge.Game.Progression
   alias TalesForge.Game.Progression.Tiered
   alias TalesForge.Game.Prompts
@@ -81,6 +82,11 @@ defmodule TalesForge.Game.TurnProcessor do
   end
 
   defp run_steps(session, turn_number, raw_action, player_action) do
+    # The input safety read (Jev) runs alongside the steps below; the turn waits
+    # for it only before the GM prompt. It decides whether the GM gets the
+    # player's own words or the intent summary (TalesForge.Game.PlayerQuote).
+    safety = PlayerQuote.start(raw_action, session.world_state || %{})
+
     {handler, mechanical, ruled} =
       Steps.time(:rules, fn -> resolve_rules(session, player_action) end)
 
@@ -91,6 +97,7 @@ defmodule TalesForge.Game.TurnProcessor do
     agents = world_agents(session, ruled)
     {price_lines, priced} = world_prices(agents, session, ruled, raw_action, player_action)
     {reactions, board} = npc_reactions(session, priced, turn_number, raw_action, mechanical)
+    gm_action = gm_player_action(safety, session, turn_number, raw_action, player_action)
 
     messages =
       Steps.time(:prompt, fn ->
@@ -102,7 +109,7 @@ defmodule TalesForge.Game.TurnProcessor do
           |> Map.put(:price_lines, price_lines)
           |> Map.put(:moved_from, moved_from(session.world_state, board.world))
 
-        Prompts.gm_messages(gm_context, mechanical, player_action, handler, turn_number)
+        Prompts.gm_messages(gm_context, mechanical, gm_action, handler, turn_number)
       end)
 
     with {:ok, gm_result} <-
@@ -139,6 +146,25 @@ defmodule TalesForge.Game.TurnProcessor do
           :ok
       end)
     end
+  end
+
+  # The PlayerAction the GM prompt gets: overall_intent is the player's own
+  # words or the intent summary. The baseline variant makes no safety read.
+  defp gm_player_action(:skip, _session, _turn_number, _raw_action, player_action),
+    do: player_action
+
+  defp gm_player_action(safety, session, turn_number, raw_action, player_action) do
+    Steps.time(:player_quote, fn ->
+      {gm_action, _decision} =
+        PlayerQuote.await(safety,
+          player_action: player_action,
+          raw_action: raw_action,
+          session_id: session.id,
+          turn_number: turn_number
+        )
+
+      gm_action
+    end)
   end
 
   # The location the character left this turn, or nil (the scene block in

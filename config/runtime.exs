@@ -177,11 +177,34 @@ end
 
 config :ex_tales_forge, :tales_forge_docs_path, System.get_env("TALES_FORGE_DOCS_PATH")
 
-# TypeSafe Jev (persona-affect scoring on playtest). Unset = Jev scoring skipped.
+# TypeSafe Jev (persona-affect scoring, NPC reactions, the input safety read before
+# the GM). Unset = those calls are skipped; the GM then gets the intent summary.
 # Key name TYPESAFE_API_KEY; set on tales-forge-playtest only for now.
 config :jev,
   api_key: System.get_env("TYPESAFE_API_KEY"),
   model: "jev-1.13.0"
+
+# Input safety read before the GM (TalesForge.Game.PlayerQuote): the GM gets the
+# player's own words when Jev labels the message benign with at least this
+# confidence (0..1), otherwise the intent summary. Config, not a secret.
+if config_env() != :test do
+  min_benign =
+    case String.trim(System.get_env("PLAYER_QUOTE_MIN_BENIGN_CONFIDENCE", "")) do
+      "" ->
+        0.9
+
+      value ->
+        case Float.parse(value) do
+          {c, ""} when c >= 0 and c <= 1 ->
+            c
+
+          _ ->
+            raise "PLAYER_QUOTE_MIN_BENIGN_CONFIDENCE must be a number from 0 to 1 like 0.90, got: #{inspect(value)}"
+        end
+    end
+
+  config :ex_tales_forge, :player_quote_min_benign_confidence, min_benign
+end
 
 # Admin costs page peer (/admin/costs). Both apps run the same code: whichever
 # side has both values set fetches the other side's aggregated AI spend.

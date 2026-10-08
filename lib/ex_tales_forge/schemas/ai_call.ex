@@ -11,7 +11,9 @@ defmodule TalesForge.Schemas.AICall do
 
   `adventure_id` (world/module) and `game_system` tag every row so costs can be
   split per adventure and rules system. `started_at` (microseconds) is when the
-  request or step began; `inserted_at` is when it was recorded.
+  request or step began; `inserted_at` is when it was recorded. `meta` holds
+  call details that are not tokens or cost, e.g. the input safety read's
+  label, confidence and quote decision (`TalesForge.Game.PlayerQuote`).
   """
   use Ecto.Schema
   import Ecto.Changeset
@@ -36,6 +38,7 @@ defmodule TalesForge.Schemas.AICall do
     field :game_system, :string
     field :conv_id, :string
     field :started_at, :utc_datetime_usec
+    field :meta, :map
 
     belongs_to :game_session, TalesForge.Schemas.GameSession
 
@@ -59,7 +62,8 @@ defmodule TalesForge.Schemas.AICall do
     :adventure_id,
     :game_system,
     :conv_id,
-    :started_at
+    :started_at,
+    :meta
   ]
 
   @call_types ~w(function jev llm)
