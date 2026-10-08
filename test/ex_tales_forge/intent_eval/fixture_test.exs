@@ -15,8 +15,8 @@ defmodule TalesForge.IntentEval.FixtureTest do
     assert length(ids) == length(Enum.uniq(ids))
   end
 
-  test "every label is a draft (reviewed: false) with a labeller" do
-    assert Enum.all?(@items, &(&1["reviewed"] == false))
+  test "every label is reviewed, with a labeller" do
+    assert Enum.all?(@items, &(&1["reviewed"] == true))
     assert Enum.all?(@items, &is_binary(&1["labeller"]))
   end
 

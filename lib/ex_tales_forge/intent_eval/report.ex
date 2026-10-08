@@ -31,7 +31,7 @@ defmodule TalesForge.IntentEval.Report do
     [
       "# Intent evaluation — `#{split}` split",
       "",
-      "_Draft labels (`reviewed: false`); see the fixture README before trusting a number._",
+      label_status(items),
       "",
       composition(items),
       "",
@@ -40,6 +40,16 @@ defmodule TalesForge.IntentEval.Report do
       end)
     ]
     |> Enum.join("\n")
+  end
+
+  defp label_status(items) do
+    reviewed = Enum.count(items, &(&1["reviewed"] == true))
+
+    if reviewed == length(items) do
+      "_Reviewed labels (`reviewed: true`), pending a human spot-check; see the fixture README._"
+    else
+      "_Draft labels (#{reviewed}/#{length(items)} reviewed); see the fixture README before trusting a number._"
+    end
   end
 
   defp composition(items) do

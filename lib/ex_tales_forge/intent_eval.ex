@@ -9,8 +9,9 @@ defmodule TalesForge.IntentEval do
   (`TalesForge.IntentEval.Metrics`). `TalesForge.IntentEval.Report` renders the
   result as Markdown; `mix intent.eval` is the entry point.
 
-  Nothing here is wired into live turns. The fixture labels are **drafts**
-  (`reviewed: false`); see the fixture README before trusting a number.
+  Nothing here is wired into live turns. The fixture labels are agent drafts
+  reviewed by Case (`reviewed: true`), pending Fredrik's spot-check; see the
+  fixture README before trusting a number.
   """
 
   alias TalesForge.Game.Mechanics

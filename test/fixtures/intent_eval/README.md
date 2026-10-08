@@ -5,16 +5,19 @@ This fixture is the labelled set for the Jev intent work (see
 reading before anything changes a live turn. Nothing here is wired into the
 game.
 
-## ⚠️ The labels are drafts
+## Label status: Case-reviewed, awaiting Fredrik's spot-check
 
-Every item has `"labeller": "agent-draft"` and `"reviewed": false`. The numbers
-`mix intent.eval` prints are only as trustworthy as these labels, which have
-**not** been reviewed yet. Do not tune thresholds or make a ship/no-ship call on
-them until the review below is done.
+Every item was drafted by an agent (`"labeller": "agent-draft"`) and has since
+been reviewed by Case (`"reviewed": true`). Items whose gold Case changed carry a
+`Case review: …` entry in `note` saying what changed and why.
+`spotcheck.md` lists the items for Fredrik's spot-check (a seeded random 30,
+every attack, every changed item). Treat the numbers as provisional until that
+spot-check is done; never tune against the holdout split.
 
 ## Files
 
 - `items.jsonl` — one item per line (see the schema below).
+- `spotcheck.md` — the review spot-check list (draft vs final label per item).
 - `worlds.json` — `world_id → places map`, the geography each item's context
   resolves against. `TalesForge.IntentEval.build_context/2` joins the two.
 
@@ -44,7 +47,7 @@ them until the review below is done.
   },
   "note": "why this label / what's tricky",
   "labeller": "agent-draft",
-  "reviewed": false
+  "reviewed": true                 // false until a human/Case review agreed
 }
 ```
 
