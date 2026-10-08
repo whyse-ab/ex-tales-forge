@@ -786,7 +786,18 @@ defmodule TalesForge.Game.Intent do
   defp maybe_put(map, _key, ""), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
-  defp sanitize_summary(text) do
+  defp sanitize_summary(text), do: sanitize_quote(text)
+
+  @doc ~S"""
+  Sanitises text for the `overall_intent` quote the GM gets: trims, drops
+  "ignore (all) previous/prior instructions", collapses whitespace and keeps
+  at most 500 characters. Raises `ArgumentError` when nothing is left.
+
+      iex> TalesForge.Game.Intent.sanitize_quote("  I   greet the innkeep  ")
+      "I greet the innkeep"
+  """
+  @spec sanitize_quote(String.t()) :: String.t()
+  def sanitize_quote(text) do
     text
     |> String.trim()
     |> String.replace(~r/(?i)ignore\s+(all\s+)?(previous|prior)\s+instructions/u, "")

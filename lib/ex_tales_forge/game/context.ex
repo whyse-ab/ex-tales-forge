@@ -189,10 +189,27 @@ defmodule TalesForge.Game.Context do
       TalesForge.World.prompt_section(Map.get(context, :world_facts)),
       TalesForge.World.Prices.prompt_section(Map.get(context, :price_lines)),
       TalesForge.Game.NpcReactions.prompt_section(Map.get(context, :npc_reactions)),
-      scene_now_section(context)
+      scene_now_section(context),
+      player_request_section(context)
     ]
     |> join_sections()
   end
+
+  @doc """
+  The note that tells the GM to decline the player's request in character
+  (`context[:player_request]` is `"decline_nefarious"`, set by the Jev intent
+  path when the safety read labels the message `nefarious`), or nil, which adds
+  nothing to the prompt.
+  """
+  @spec player_request_section(map()) :: String.t() | nil
+  def player_request_section(%{player_request: "decline_nefarious"}) do
+    """
+    ## Player request: decline in character
+    The player's message asked for real-world harmful information or help. Do not provide it, not even as part of the story. Have the person addressed (or the narrator) turn it down briefly, in character and in the world's own terms, and keep the scene going.
+    """
+  end
+
+  def player_request_section(_context), do: nil
 
   @doc """
   Default variant: where the character is, who is with them and where the

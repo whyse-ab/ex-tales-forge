@@ -5,6 +5,7 @@ defmodule Mix.Tasks.Playtest.Run do
 
       mix playtest.run paul tin_valley
       mix playtest.run ronny crossroads_ledger --turns 5 --notes "red team"
+      mix playtest.run paul tin_valley --intent-jev shadow
 
   On a release, call `TalesForge.Playtest.Runner` over rpc instead.
   """
@@ -17,7 +18,9 @@ defmodule Mix.Tasks.Playtest.Run do
   @impl Mix.Task
   def run(args) do
     {opts, positional, _} =
-      OptionParser.parse(args, strict: [turns: :integer, turn_timeout: :integer, notes: :string])
+      OptionParser.parse(args,
+        strict: [turns: :integer, turn_timeout: :integer, notes: :string, intent_jev: :string]
+      )
 
     [persona, module] =
       case positional do
@@ -31,7 +34,8 @@ defmodule Mix.Tasks.Playtest.Run do
       [
         turn_limit: opts[:turns],
         turn_timeout_ms: opts[:turn_timeout] && opts[:turn_timeout] * 1_000,
-        notes: opts[:notes]
+        notes: opts[:notes],
+        intent_jev: opts[:intent_jev]
       ]
       |> Enum.reject(fn {_key, value} -> is_nil(value) end)
 

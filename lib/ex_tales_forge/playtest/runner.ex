@@ -60,7 +60,9 @@ defmodule TalesForge.Playtest.Runner do
   Options: `:turn_limit` (default #{@default_turn_limit}), `:turn_timeout_ms`
   (per turn or scene, default #{@default_turn_timeout_ms}), `:notes`,
   `:variant` (`"default"` or `"baseline"`, see `TalesForge.Game.Variant`; nil
-  means `GAME_VARIANT`), so both arms of a comparison run on one deploy, and
+  means `GAME_VARIANT`), so both arms of a comparison run on one deploy,
+  `:intent_jev` (`"off"`, `"shadow"` or `"on"`, overriding `INTENT_JEV` for this
+  run's session; see `TalesForge.IntentJev`), and
   `:character`: `:persona` (default) plays the character the persona created
   (`TalesForge.Playtest.PersonaCharacters`), `:default` the pack's default
   character (Elara). A persona without a pick plays the default character.
@@ -159,6 +161,7 @@ defmodule TalesForge.Playtest.Runner do
              name: "Playtest: #{persona.name} · #{module}",
              adventure_id: module,
              variant: opts[:variant],
+             intent_jev: opts[:intent_jev],
              controller: "bot",
              controller_ref: persona.id
            }

@@ -1,0 +1,29 @@
+{
+  "fitted_on": "tune",
+  "method": "isotonic (PAV), action-correct on raw Jev confidence",
+  "min_block": 15,
+  "n": 247,
+  "points": [
+    [
+      0.0,
+      0.0625
+    ],
+    [
+      0.4151,
+      0.8246
+    ],
+    [
+      0.6493,
+      0.9444
+    ],
+    [
+      0.9407,
+      0.9919
+    ],
+    [
+      1.0,
+      0.9919
+    ]
+  ],
+  "version": "jev-intent-cal-2026-10-08-v1"
+}

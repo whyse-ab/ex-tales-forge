@@ -28,6 +28,35 @@ defmodule TalesForge.Config do
   def tier1_max_tokens, do: env_int("TIER1_MAX_TOKENS", 400)
   def tier2_max_tokens, do: env_int("TIER2_MAX_TOKENS", 700)
 
+  @doc """
+  The Jev intent mode new default-variant sessions get (`INTENT_JEV`, read in
+  `config/runtime.exs`): `:off` (today's intent path), `:shadow` (today's path
+  plays; the Jev intent read runs alongside and is only logged) or `:on` (the
+  Jev intent read drives the turn). Default `:off`. See `TalesForge.IntentJev`.
+  """
+  @spec intent_jev_mode() :: :off | :shadow | :on
+  def intent_jev_mode, do: Application.get_env(:ex_tales_forge, :intent_jev, :off)
+
+  @doc "Jev intent: the confidence at or above which the turn acts on the top reading (`INTENT_ACT_MIN_CONFIDENCE`, default 0.70)."
+  @spec intent_act_min_confidence() :: float()
+  def intent_act_min_confidence,
+    do: Application.get_env(:ex_tales_forge, :intent_act_min_confidence, 0.70)
+
+  @doc "Jev intent: the confidence below which the turn may ask the player (`INTENT_ASK_BELOW_CONFIDENCE`, default 0.45)."
+  @spec intent_ask_below_confidence() :: float()
+  def intent_ask_below_confidence,
+    do: Application.get_env(:ex_tales_forge, :intent_ask_below_confidence, 0.45)
+
+  @doc "Jev intent: the call's receive timeout in ms on the player's clock (`INTENT_JEV_TIMEOUT_MS`, default 1500)."
+  @spec intent_jev_timeout_ms() :: pos_integer()
+  def intent_jev_timeout_ms,
+    do: Application.get_env(:ex_tales_forge, :intent_jev_timeout_ms, 1_500)
+
+  @doc "The minimum `benign` safety confidence for the GM to get the player's own words (`PLAYER_QUOTE_MIN_BENIGN_CONFIDENCE`, default 0.90)."
+  @spec player_quote_min_benign_confidence() :: float()
+  def player_quote_min_benign_confidence,
+    do: Application.get_env(:ex_tales_forge, :player_quote_min_benign_confidence, 0.90)
+
   @doc "NPC reaction prototype (Jev, before the GM call): NPC_REACTIONS=on. Default off."
   def npc_reactions?, do: System.get_env("NPC_REACTIONS", "off") in ~w(on true 1)
 

@@ -52,6 +52,8 @@ defmodule TalesForge.Playtest.RunMeta do
     session is created and the baseline variant never gets them;
   - `variant`: the session's behaviour variant (`world_state["variant"]`),
     `"default"` when the session has none;
+  - `intent_jev`: the session's Jev intent mode (`world_state["intent_jev"]`),
+    `"off"` when the session has none;
   - `llm_provider`, `gm_model`, `intent_model`: the models that play the game;
   - `jev_rubric`: the persona's Jev rubric version, as stored on its scores.
   """
@@ -63,6 +65,7 @@ defmodule TalesForge.Playtest.RunMeta do
       "inn_world" => on_off(Features.on?(world_state, "inn_world")),
       "world_antagonist" => on_off(Features.on?(world_state, "antagonist")),
       "variant" => variant(world_state),
+      "intent_jev" => intent_jev(world_state),
       "llm_provider" => Config.llm_provider(),
       "gm_model" => Config.tier2_model() || Config.xai_model(),
       "intent_model" => Config.tier1_model() || Config.xai_model(),
@@ -82,6 +85,9 @@ defmodule TalesForge.Playtest.RunMeta do
 
   defp variant(%{"variant" => variant}) when is_binary(variant) and variant != "", do: variant
   defp variant(_world_state), do: "default"
+
+  defp intent_jev(%{"intent_jev" => mode}) when is_binary(mode) and mode != "", do: mode
+  defp intent_jev(_world_state), do: "off"
 
   defp jev_rubric(persona_id) do
     JevScorer.rubric_version(persona_id)

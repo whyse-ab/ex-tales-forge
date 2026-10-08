@@ -19,6 +19,7 @@ defmodule TalesForge.Application do
       {Phoenix.PubSub, name: TalesForge.PubSub},
       {Task.Supervisor, name: TalesForge.Playtest.Supervisor},
       {Task.Supervisor, name: TalesForge.Playtest.SeriesSupervisor},
+      {Task.Supervisor, name: TalesForge.IntentJev.Supervisor},
       TalesForge.AdminAuth.MembershipCache,
       TalesForge.Survey.Cache,
       TalesForgeWeb.Endpoint

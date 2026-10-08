@@ -13,6 +13,8 @@ defmodule TalesForge.IntentEval.Readers do
   configured (the mock provider), so tests never reach the network.
   """
 
+  require Logger
+
   alias TalesForge.Game.{Context, Intent, JevIntent, Prompts, Variant}
   alias TalesForge.Game.Schemas.{IntentExtraction, SingleAction}
   alias TalesForge.LLM
@@ -22,19 +24,22 @@ defmodule TalesForge.IntentEval.Readers do
 
   @typedoc "A reader's normalised reading of one item."
   @type reading :: %{
-          reader: atom(),
-          status: :ok | :error | :unavailable,
-          action: atom() | nil,
-          target: String.t() | nil,
-          skill: String.t() | nil,
-          later: atom() | nil,
-          later_target: String.t() | nil,
-          safety: atom(),
-          confidence: float() | nil,
-          benign_probability: float() | nil,
-          action_probabilities: %{atom() => float()},
-          top2: [atom()],
-          cost: float()
+          required(:reader) => atom(),
+          required(:status) => :ok | :error | :unavailable,
+          required(:action) => atom() | nil,
+          required(:target) => String.t() | nil,
+          required(:skill) => String.t() | nil,
+          required(:later) => atom() | nil,
+          required(:later_target) => String.t() | nil,
+          required(:safety) => atom(),
+          required(:confidence) => float() | nil,
+          required(:benign_probability) => float() | nil,
+          required(:action_probabilities) => %{atom() => float()},
+          required(:top2) => [atom()],
+          required(:cost) => float(),
+          required(:cached) => boolean(),
+          optional(:raw_confidence) => float(),
+          optional(:probabilities) => %{atom() => %{atom() => float()}}
         }
 
   @doc "Reads `item` with `reader` over its live `context`."
@@ -86,22 +91,79 @@ defmodule TalesForge.IntentEval.Readers do
     post_opts =
       [
         model: Keyword.get(jev_opts, :model, @jev_model),
-        max_retries: 0,
+        max_retries: Keyword.get(jev_opts, :max_retries, 0),
         receive_timeout: Keyword.get(jev_opts, :timeout_ms, @default_timeout_ms)
       ]
       |> maybe_key(Keyword.get(jev_opts, :api_key))
 
-    case Jev.HTTP.post(state, questions, post_opts) do
-      {:ok, reply} ->
+    case cached_post(state, questions, post_opts, Keyword.get(jev_opts, :cache_dir)) do
+      {:ok, reply, cached?} ->
         reading = JevIntent.decode(reply, candidates, text: item["text"], context: context)
-        from_jev(reading)
+        reading |> from_jev() |> Map.put(:cached, cached?)
 
-      {:error, _reason} ->
+      {:error, reason} ->
+        Logger.warning("intent eval: jev error item=#{item["id"]} reason=#{error_reason(reason)}")
         %{blank(:jev) | status: :error}
     end
   rescue
-    _ -> %{blank(:jev) | status: :error}
+    e ->
+      Logger.warning("intent eval: jev crashed item=#{item["id"]} error=#{Exception.message(e)}")
+      %{blank(:jev) | status: :error}
   end
+
+  defp error_reason(%{status: status}) when is_integer(status), do: "http_#{status}"
+  defp error_reason(%{reason: reason}), do: inspect(reason)
+  defp error_reason(other), do: inspect(other.__struct__)
+
+  # With a cache dir, a reply is stored under the SHA-256 of the exact request
+  # (model, state, questions), so re-running with unchanged requests (e.g. while
+  # tuning post-processing or the calibration map) costs nothing, and any change
+  # to the request misses the cache and calls Jev again.
+  defp cached_post(state, questions, post_opts, nil) do
+    with {:ok, reply} <- Jev.HTTP.post(state, questions, post_opts), do: {:ok, reply, false}
+  end
+
+  defp cached_post(state, questions, post_opts, dir) do
+    path = Path.join(dir, request_key(state, questions, post_opts[:model]) <> ".etf")
+
+    case File.read(path) do
+      {:ok, binary} ->
+        {:ok, :erlang.binary_to_term(binary), true}
+
+      {:error, _} ->
+        with {:ok, reply} <- Jev.HTTP.post(state, questions, post_opts) do
+          File.mkdir_p!(dir)
+          File.write!(path, :erlang.term_to_binary(reply))
+          {:ok, reply, false}
+        end
+    end
+  end
+
+  @doc """
+  The cache key of a Jev request: the hex SHA-256 of its content (`model`,
+  `state`, `questions`) in a canonical form, with every map's keys sorted.
+
+  The JSON body itself is not stable across VMs: since OTP 26 small maps order
+  atom keys by the atom table, not alphabetically, so label order in the body
+  depends on which atoms a VM created first. The key does not.
+  """
+  @spec request_key(map(), keyword(), String.t() | nil) :: String.t()
+  def request_key(state, questions, model) do
+    %{model: model, state: state, questions: Jev.questions(questions)}
+    |> canonical()
+    |> :erlang.term_to_binary()
+    |> then(&:crypto.hash(:sha256, &1))
+    |> Base.encode16(case: :lower)
+  end
+
+  defp canonical(%_{} = struct), do: struct |> Map.from_struct() |> canonical()
+
+  defp canonical(map) when is_map(map),
+    do: map |> Enum.map(fn {k, v} -> {to_string(k), canonical(v)} end) |> Enum.sort()
+
+  defp canonical(list) when is_list(list), do: Enum.map(list, &canonical/1)
+  defp canonical(atom) when is_atom(atom) and atom not in [nil, true, false], do: to_string(atom)
+  defp canonical(other), do: other
 
   defp maybe_key(opts, key) when is_binary(key) and key != "",
     do: Keyword.put(opts, :api_key, key)
@@ -122,7 +184,10 @@ defmodule TalesForge.IntentEval.Readers do
       benign_probability: reading.benign_probability,
       action_probabilities: reading.action_probabilities,
       top2: reading.top2,
-      cost: reading.cost
+      cost: reading.cost,
+      cached: false,
+      raw_confidence: reading.raw_confidence,
+      probabilities: reading.probabilities
     }
   end
 
@@ -147,7 +212,8 @@ defmodule TalesForge.IntentEval.Readers do
       benign_probability: 1.0,
       action_probabilities: %{},
       top2: [action_type(primary)] |> Enum.reject(&is_nil/1),
-      cost: cost
+      cost: cost,
+      cached: false
     }
   end
 
@@ -184,7 +250,8 @@ defmodule TalesForge.IntentEval.Readers do
       benign_probability: 1.0,
       action_probabilities: %{},
       top2: [],
-      cost: 0.0
+      cost: 0.0,
+      cached: false
     }
   end
 end
