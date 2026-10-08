@@ -67,7 +67,8 @@ defmodule TalesForge.Collab.MarkdownTest do
     test "renders headings, links, lists and inline code" do
       out = html("## Plan\n\n- see [personas](personas.md)\n- `mix test`\n")
 
-      assert out =~ "<h2>Plan</h2>"
+      # GitHub-style heading ids, so `#plan` links written for GitHub work here.
+      assert out =~ ~s(<h2 id="plan">Plan)
       assert out =~ ~s(<a href="personas.md">personas</a>)
       assert out =~ "<li><code>mix test</code></li>"
     end
@@ -76,9 +77,20 @@ defmodule TalesForge.Collab.MarkdownTest do
       out = html("---\ntitle: x\n---\n# Doc\n")
 
       refute out =~ "title: x"
-      assert out =~ "<h1>Doc</h1>"
+      assert out =~ ~s(<h1 id="doc">Doc)
       assert html("") == ""
       assert html(nil) == ""
+    end
+
+    test "links: rewrites every link and image URL" do
+      {:safe, out} =
+        Markdown.to_html("[a](personas.md) ![b](images/x.png) https://example.com",
+          links: &("/r/" <> &1)
+        )
+
+      assert out =~ ~s(<a href="/r/personas.md">a</a>)
+      assert out =~ ~s(<img src="/r/images/x.png" alt="b" />)
+      assert out =~ ~s(<a href="/r/https://example.com">)
     end
   end
 end

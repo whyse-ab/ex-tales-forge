@@ -9,7 +9,7 @@ defmodule TalesForge.Collab do
 
   import Ecto.Query
 
-  alias TalesForge.Collab.Importer
+  alias TalesForge.Collab.{Importer, Links, Markdown}
   alias TalesForge.Collab.Schemas.{Comment, Decision, Doc, Interest}
   alias TalesForge.Repo
 
@@ -161,6 +161,34 @@ defmodule TalesForge.Collab do
   end
 
   def get_doc_by_path!(path), do: Repo.get_by!(Doc, path: path)
+
+  def get_doc_by_path(path), do: Repo.get_by(Doc, path: path)
+
+  @doc """
+  The docs and decisions in the database, for `TalesForge.Collab.Links.rewrite/3`
+  (which links in a doc can open in the admin).
+  """
+  @spec link_targets() :: Links.known()
+  def link_targets do
+    docs = Repo.all(from d in Doc, select: d.path)
+    decisions = Repo.all(from d in Decision, select: {d.source_path, d.slug})
+    Links.known(docs, decisions)
+  end
+
+  @doc """
+  Renders a doc or decision body from the repo file `repo_path` (e.g.
+  `docs/personas.md`) to HTML, with its relative links pointing at the admin
+  pages (or GitHub) that show their targets.
+  """
+  @spec render_body(String.t() | nil, String.t(), Links.known()) :: Phoenix.HTML.safe()
+  def render_body(body, repo_path, known \\ link_targets()) do
+    Markdown.to_html(body, links: &Links.rewrite(&1, repo_path, known))
+  end
+
+  @doc "The repo path of a decision's file: `decisions/<file>.md`."
+  @spec decision_repo_path(Ecto.Schema.t()) :: String.t()
+  def decision_repo_path(%Decision{source_path: source_path, slug: slug}),
+    do: "decisions/" <> Path.basename(source_path || slug <> ".md")
 
   def sync_from_path(path) when is_binary(path) do
     Importer.import_from_path(path)

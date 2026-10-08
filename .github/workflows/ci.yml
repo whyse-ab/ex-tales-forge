@@ -95,6 +95,14 @@ jobs:
       - name: Docs build
         run: mix docs --warnings-as-errors
 
+      # Every internal link of the built site (pages, sidebar, search) resolves
+      # under /admin/code-docs/, where the app serves it. No network: external
+      # links are not fetched. The signed-in app pages and the docs viewer have
+      # their own link tests (test/ex_tales_forge_web/link_crawl_test.exs,
+      # admin/doc_live_test.exs) in the Test step above.
+      - name: Docs link check
+        run: mix docs.check_links doc
+
       - name: Hex audit (retired packages)
         run: mix hex.audit
 

@@ -9,6 +9,10 @@ defmodule TalesForge.CodingStandardsTest do
 
   @documented [
     TalesForge.LLM,
+    TalesForge.Collab.Links,
+    TalesForge.Collab.Files,
+    TalesForgeWeb.DocFilesController,
+    Mix.Tasks.Docs.CheckLinks,
     TalesForge.Game.TurnProcessor,
     TalesForge.Game.Context,
     TalesForge.Game.Intent,
@@ -24,7 +28,17 @@ defmodule TalesForge.CodingStandardsTest do
     TalesForge.World.Extract,
     TalesForge.World.Prices,
     TalesForge.Game.Features,
-    TalesForgeWeb.TimeAgo
+    TalesForgeWeb.TimeAgo,
+    TalesForge.Surveys,
+    TalesForge.Survey.Answers,
+    TalesForge.Survey.Cache,
+    TalesForge.Survey.Definition,
+    TalesForge.Survey.Question,
+    TalesForge.Survey.Response,
+    TalesForge.Survey.Results,
+    TalesForge.Survey.Source,
+    TalesForgeWeb.SurveyComponents,
+    TalesForgeWeb.SurveyExportController
   ]
 
   for module <- @documented do

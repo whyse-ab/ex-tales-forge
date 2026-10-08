@@ -129,7 +129,7 @@ priv/
   adventures/        # Adventure packs (places, NPCs, per-pack rules)
 ```
 
-Who it is for: [PRODUCT.md](PRODUCT.md) (Hawk, Paul, Lotta, Lars — not Ronny). How it runs: [docs/architecture.md](docs/architecture.md). Three slides if we have to explain it at ElixirConf: [docs/elixirconf-2027/README.md](docs/elixirconf-2027/README.md).
+Who it is for: [PRODUCT.md](PRODUCT.md) (Hawk, Paul, Lotta, Lars — not Ronny). How it runs: [docs/architecture.md](docs/architecture.md). Three slides if we have to explain it at ElixirConf: [docs/elixirconf-2027/README.md](https://github.com/whyse-ab/ex-tales-forge/tree/main/docs/elixirconf-2027).
 
 ## Phase status
 

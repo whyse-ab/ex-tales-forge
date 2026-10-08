@@ -78,6 +78,10 @@
              files: %{
                included: [
                  "lib/ex_tales_forge/llm.ex",
+                 "lib/ex_tales_forge/collab/links.ex",
+                 "lib/ex_tales_forge/collab/files.ex",
+                 "lib/ex_tales_forge_web/controllers/doc_files_controller.ex",
+                 "lib/mix/tasks/docs.check_links.ex",
                  "lib/ex_tales_forge/game/turn_processor.ex",
                  "lib/ex_tales_forge/game/context.ex",
                  "lib/ex_tales_forge/game/intent.ex",
@@ -91,7 +95,11 @@
                  "lib/ex_tales_forge/world.ex",
                  "lib/ex_tales_forge/world/",
                  "lib/ex_tales_forge/game/features.ex",
-                 "lib/ex_tales_forge_web/time_ago.ex"
+                 "lib/ex_tales_forge_web/time_ago.ex",
+                 "lib/ex_tales_forge/surveys.ex",
+                 "lib/ex_tales_forge/survey/",
+                 "lib/ex_tales_forge_web/components/survey_components.ex",
+                 "lib/ex_tales_forge_web/controllers/survey_export_controller.ex"
                ]
              }
            ]}

@@ -20,6 +20,7 @@ defmodule TalesForge.Application do
       {Task.Supervisor, name: TalesForge.Playtest.Supervisor},
       {Task.Supervisor, name: TalesForge.Playtest.SeriesSupervisor},
       TalesForge.AdminAuth.MembershipCache,
+      TalesForge.Survey.Cache,
       TalesForgeWeb.Endpoint
     ]
 

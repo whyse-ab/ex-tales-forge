@@ -1,15 +1,19 @@
 defmodule TalesForge.Playtest.RunMeta do
+  # No function links in the first paragraph: ExDoc copies it to the API
+  # reference page, where links to this module's functions break
+  # (`mix docs.check_links`).
   @moduledoc """
   The conditions a playtest run was played under, stored on its
-  `playtest_runs` row when it starts: the release's git commit (`git_sha/0`)
-  and the active flags (`flags/2`).
+  `playtest_runs` row when it starts: the release's git commit and the active
+  flags.
 
-  The commit comes from `GIT_SHA`, baked into the image by the Dockerfile
-  (`--build-arg GIT_SHA=...` in the deploy workflows). The Fly image id in
+  The commit (`git_sha/0`) comes from `GIT_SHA`, baked into the image by the
+  Dockerfile (`--build-arg GIT_SHA=...` in the deploy workflows). The Fly image id in
   `build` is not a commit, so before this runs had to be mapped to releases by
   time (tales-forge-docs `docs/analysis-jev-scores-2026-10-07.md`).
 
-  Flags hold no secrets: on/off switches, model names and rubric versions only.
+  Flags (`flags/2`) hold no secrets: on/off switches, model names and rubric
+  versions only.
   """
 
   alias TalesForge.Config

@@ -49,12 +49,19 @@ config :ex_tales_forge, :github_oauth, client_id: nil, client_secret: nil
 config :ex_tales_forge, :admin_github_team, "whyse-ab/tales-forge"
 config :ex_tales_forge, :github_req_options, plug: {Req.Test, TalesForge.AdminAuth.GitHub}
 
+# Survey definitions: GitHub HTTP goes to Req.Test stubs; without a token the
+# snapshot in priv/surveys is used.
+config :ex_tales_forge, :survey_req_options, plug: {Req.Test, TalesForge.Survey.Source}
+
 # LLM HTTP goes to Req.Test stubs (tests that switch LLM_PROVIDER away from mock).
 config :ex_tales_forge, :llm_req_options, plug: {Req.Test, TalesForge.LLM}
 
 # Admin costs page peer HTTP goes to Req.Test stubs; the peer URL/token are
 # unset unless a test puts them.
 config :ex_tales_forge, :costs_peer_req_options, plug: {Req.Test, TalesForge.Costs.Peer}
+
+# Docs viewer images from GitHub go to Req.Test stubs (TalesForge.Collab.Files).
+config :ex_tales_forge, :docs_req_options, plug: {Req.Test, TalesForge.Collab.Files}
 
 # Jev HTTP goes to Req.Test stubs; no real TypeSafe calls in CI.
 # Jev HTTP goes to Req.Test when a test sets :api_key; default nil so Scorer

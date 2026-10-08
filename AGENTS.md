@@ -160,7 +160,7 @@ Humans may need to understand the code one day, including code written by bots. 
 
 ### Formatting
 
-- Run `mix format` before every commit; [.formatter.exs](.formatter.exs) is authoritative (Phoenix, Ecto, LiveView HEEx).
+- Run `mix format` before every commit; [.formatter.exs](https://github.com/whyse-ab/ex-tales-forge/blob/main/.formatter.exs) is authoritative (Phoenix, Ecto, LiveView HEEx).
 - `mix precommit` runs everything CI runs.
 
 ### Idioms
@@ -357,4 +357,4 @@ mix phx.server   # terminal 1
 mix e2e.smoke    # terminal 2
 ```
 
-See [`.grok/skills/play-test/SKILL.md`](.grok/skills/play-test/SKILL.md). Reports land in `priv/playtest/reports/`.
+See [`.grok/skills/play-test/SKILL.md`](https://github.com/whyse-ab/ex-tales-forge/blob/main/.grok/skills/play-test/SKILL.md). Reports land in `priv/playtest/reports/`.
