@@ -2,8 +2,6 @@
 
 A few friends and I have been building a text-first RPG on Elixir. Phoenix for the table, Jido for the hot session, Postgres for the save, Oban for the slow thinking.
 
-This is a greenfield rewrite. Rules and prompts come from [text-forge](../text-forge). We did not port the old Supabase code.
-
 ## Stack
 
 | Layer | Technology |
@@ -14,11 +12,11 @@ This is a greenfield rewrite. Rules and prompts come from [text-forge](../text-f
 | Background jobs | Oban |
 | LLM | xAI Grok (Tier 1 intent + Tier 2 GM) |
 | Images (planned) | Tigris on Fly.io |
-| Deploy (planned) | Fly.io |
+| Deploy | Fly.io (`tales-forge`, `tales-forge-playtest`) |
 
 ## Prerequisites
 
-- Elixir 1.15+
+- Elixir 1.18+ (OTP 27)
 - PostgreSQL 16+ (local default: `postgres` / `postgres`)
 - Node.js (for asset bundling)
 
@@ -126,7 +124,9 @@ lib/
   ex_tales_forge_web/
     live/            # HomeLive, PlayLive
 priv/
-  rules/             # Markdown rulebook (from text-forge)
+  rules/             # Markdown rulebook (the GM's rules)
+  prompts/           # LLM system prompts
+  adventures/        # Adventure packs (places, NPCs, per-pack rules)
 ```
 
 Who it is for: [PRODUCT.md](PRODUCT.md) (Hawk, Paul, Lotta, Lars — not Ronny). How it runs: [docs/architecture.md](docs/architecture.md). Three slides if we have to explain it at ElixirConf: [docs/elixirconf-2027/README.md](docs/elixirconf-2027/README.md).

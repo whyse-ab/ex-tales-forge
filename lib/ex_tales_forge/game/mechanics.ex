@@ -1,6 +1,6 @@
 defmodule TalesForge.Game.Mechanics do
   @moduledoc """
-  Server-side dice rolls and Learning Points (ported from text-forge).
+  Server-side dice rolls and Learning Points.
 
   A skill check rolls 1d20 against the effective level (raw level plus the
   linked stat's bonus, or the untrained floor at level 0): equal or under

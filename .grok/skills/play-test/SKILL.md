@@ -91,10 +91,6 @@ Optional UI verification at http://localhost:4000:
 
 ## Future enhancements
 
-Port from [text-forge/backend/app/playtest/](text-forge/backend/app/playtest/):
-
 - [ ] `priv/playtest/scenarios/*.yaml` — multiple scenarios
 - [ ] `--judge` mode using LLM to score narrative quality
-- [ ] Intent debug exposure on turn responses (like text-forge `PLAYTEST_EXPOSE_INTENT`)
-
-Reference: `text-forge/.grok/skills/play-test/SKILL.md`
+- [ ] Intent debug exposure on turn responses (a switch such as `PLAYTEST_EXPOSE_INTENT`)

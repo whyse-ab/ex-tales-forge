@@ -146,7 +146,6 @@ Image generation (Grok sketches for scenes and NPC portraits) lives on `feature/
 - Location-tree OTP (Inn under Village under Region).
 - Occupied `LocationAgent` processes (optional later; not required for the tracer).
 - Image generation / Tigris.
-- Porting text-forge Supabase code.
 - A second data layer (Ash was removed on 2026-10-07) for runtime fronts or play paths.
 
 ---

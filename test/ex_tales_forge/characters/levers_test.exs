@@ -43,7 +43,7 @@ defmodule TalesForge.Characters.LeversTest do
       end
     end
 
-    test "the legacy priv/npcs files carry valid levers" do
+    test "the priv/npcs files carry valid levers" do
       dir = Path.join(:code.priv_dir(:ex_tales_forge), "npcs")
 
       for file <- Path.wildcard(Path.join(dir, "*.json")) do
