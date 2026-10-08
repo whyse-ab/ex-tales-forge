@@ -31,9 +31,9 @@ defmodule TalesForgeWeb.AdminLive.SurveyLiveTest do
     assert html =~ "Answering as <strong>@ada</strong>"
     assert html =~ "Not started"
     assert html =~ "Latest findings"
-    assert html =~ "Placeholder"
+    assert html =~ "leaving the inn now works"
     assert html =~ "What a Jev score is"
-    assert html =~ "Draft."
+    refute html =~ "Draft."
     assert html =~ "Mute barbarian warrior"
 
     assert html =~

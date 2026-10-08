@@ -14,7 +14,8 @@ defmodule TalesForge.Survey.DefinitionTest do
     assert {:ok, definition} = Definition.parse(File.read!(path))
 
     assert definition.id == "founder-survey-3"
-    assert definition.latest_findings.placeholder
+    refute definition.latest_findings.placeholder
+    assert definition.status == :open
     assert length(Definition.questions(definition)) == 27
 
     excerpts = definition |> Definition.questions() |> Enum.filter(&(&1.type == :excerpt))

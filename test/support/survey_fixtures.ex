@@ -1,7 +1,8 @@
 defmodule TalesForge.SurveyFixtures do
   @moduledoc """
-  Survey test helpers: a small definition with every question type, and
-  `use_docs_dir/2` to serve it as the "docs copy" through a temporary
+  Survey test helpers: a small definition with every question type.
+
+  The docs-dir helper serves it as the "docs copy" through a temporary
   TALES_FORGE_DOCS_PATH.
   """
 

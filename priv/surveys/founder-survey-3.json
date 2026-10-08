@@ -2,7 +2,7 @@
   "format": 1,
   "id": "founder-survey-3",
   "version": 1,
-  "status": "draft",
+  "status": "open",
   "title": "Founder survey: how we'd play, and do the playtest scores feel right?",
   "estimated_minutes": 17,
   "playtest_base_url": "https://tales-forge-playtest.fly.dev/admin/playtest",
@@ -19,8 +19,8 @@
   ],
   "latest_findings": {
     "title": "Latest findings",
-    "placeholder": true,
-    "markdown": "**[PLACEHOLDER: post-rework findings, 2–3 plain sentences from `analysis-jev-post-rework-2026-10-08.md` (5 games per persona after the fixes). Fill in by a docs commit before opening the survey, and set `placeholder` to false.]**"
+    "placeholder": false,
+    "markdown": "From last night's 23 games with the fixes ([post-rework analysis](https://github.com/whyse-ab/tales-forge-docs/blob/main/docs/analysis-jev-post-rework-2026-10-08.md)): **leaving the inn now works**. The game still described the inn after 23% of attempts to leave, against 64% before. **The game master echoes the player's lines much less** (5% of turns, against 22%), and Brenna's old habits are mostly gone, though new repeated gestures took their place. **The Tinjacks gang now makes trouble on its own in every game**, and Hawk's score rose a little (3.34 against 3.02; 3.14 against 2.54 in games without a fight), but he rarely fights them. **Skills now grow** (about half a level per game, against none), while the overall scores didn't move measurably with only 4–5 games per persona."
   },
   "lists": {
     "situations": [
