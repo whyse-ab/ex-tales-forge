@@ -70,6 +70,14 @@ defmodule TalesForge.NPCHardeningTest do
     assert Jido.whereis(aid)
   end
 
+  test "the boot sync can be turned off with :npc_recovery_on_boot" do
+    on_exit(fn -> Application.delete_env(:ex_tales_forge, :npc_recovery_on_boot) end)
+
+    assert NPCRecovery.boot_sync?()
+    Application.put_env(:ex_tales_forge, :npc_recovery_on_boot, false)
+    refute NPCRecovery.boot_sync?()
+  end
+
   test "ensure_runtime_started syncs NPC agents on reconnect" do
     assert {:ok, session} = GameSessions.create_session(%{name: "NPC Reconnect"})
 

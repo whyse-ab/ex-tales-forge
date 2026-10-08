@@ -94,6 +94,10 @@ mix intent.eval --readers jev,heuristic
 mix intent.eval --split holdout --i-mean-it    # locked; only when a run is final
 ```
 
-The Jev reader reads `TYPESAFE_INTENT_API_KEY` / `TYPESAFE_API_KEY` (or
-`--api-key`); the key is never printed. The `baseline` playtest variant and the
+The Jev reader takes the first key set of `--api-key`,
+`TYPESAFE_INTENT_PLAYTEST_API_KEY`, `TYPESAFE_INTENT_API_KEY` and
+`TYPESAFE_API_KEY`. Set `TYPESAFE_INTENT_PLAYTEST_API_KEY` on dev machines so
+eval runs bill to the playtest key, not production. The task prints which source
+it used; the key itself is never printed. The task does not run the app's boot
+NPC sync, so it leaves the sessions in your local database alone. The `baseline` playtest variant and the
 GM prompts/goldens are untouched by any of this.
