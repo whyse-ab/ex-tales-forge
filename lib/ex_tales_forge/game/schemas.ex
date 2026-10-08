@@ -29,10 +29,21 @@ defmodule TalesForge.Game.Schemas do
 
     defstruct [:action_type, :target, parameters: %{}]
 
+    @doc """
+    Decodes one action from JSON (Tier 1 output or a stored job). JSON `null`
+    counts as missing: Tier 1 sends `"parameters": null` for an action that
+    needs no check, and `Map.get/3`'s default only covers a missing key, so a
+    nil `parameters` once reached the action handler and crashed the turn job
+    (playtest runs a76294d9, 0d1b8222 and 1a995c9f, 2026-10-08).
+
+        iex> TalesForge.Game.Schemas.SingleAction.decode(%{"action_type" => "move", "target" => "market_square", "parameters" => nil})
+        %TalesForge.Game.Schemas.SingleAction{action_type: :move, target: "market_square", parameters: %{}}
+    """
     def decode(map) when is_map(map) do
       type =
         map
-        |> Map.get("action_type", "other")
+        |> Map.get("action_type")
+        |> Kernel.||("other")
         |> to_string()
         |> String.downcase()
         |> action_type_atom()
@@ -40,9 +51,14 @@ defmodule TalesForge.Game.Schemas do
       %__MODULE__{
         action_type: type,
         target: Map.get(map, "target"),
-        parameters: Map.get(map, "parameters", %{})
+        parameters: map |> Map.get("parameters") |> parameters()
       }
     end
+
+    def decode(_not_a_map), do: decode(%{})
+
+    defp parameters(params) when is_map(params), do: params
+    defp parameters(_null_or_other), do: %{}
 
     defp action_type_atom(type) do
       case type do
@@ -108,18 +124,32 @@ defmodule TalesForge.Game.Schemas do
       clarification_options: []
     ]
 
+    # JSON null counts as missing (see `SingleAction.decode/1`).
     def decode(map) when is_map(map) do
       %__MODULE__{
-        overall_intent: Map.get(map, "overall_intent", ""),
-        actions: map |> Map.get("actions", []) |> Enum.map(&SingleAction.decode/1),
-        primary_index: Map.get(map, "primary_index", 0),
-        confidence: Map.get(map, "confidence", 1.0),
-        needs_clarification: Map.get(map, "needs_clarification", false),
+        overall_intent: Map.get(map, "overall_intent") || "",
+        actions: map |> Map.get("actions") |> list() |> Enum.map(&SingleAction.decode/1),
+        primary_index: integer(Map.get(map, "primary_index"), 0),
+        confidence: number(Map.get(map, "confidence"), 1.0),
+        needs_clarification: Map.get(map, "needs_clarification") == true,
         clarification_question: Map.get(map, "clarification_question"),
         clarification_options:
-          map |> Map.get("clarification_options", []) |> Enum.map(&ClarificationOption.decode/1)
+          map
+          |> Map.get("clarification_options")
+          |> list()
+          |> Enum.filter(&is_map/1)
+          |> Enum.map(&ClarificationOption.decode/1)
       }
     end
+
+    defp list(value) when is_list(value), do: value
+    defp list(_null_or_other), do: []
+
+    defp integer(value, _default) when is_integer(value), do: value
+    defp integer(_value, default), do: default
+
+    defp number(value, _default) when is_number(value), do: value
+    defp number(_value, default), do: default
 
     def encode(%__MODULE__{} = extraction) do
       %{
@@ -150,13 +180,17 @@ defmodule TalesForge.Game.Schemas do
 
     defstruct [:overall_intent, :action, confidence: 1.0, deferred_actions: []]
 
+    # JSON null counts as missing (see `SingleAction.decode/1`).
     def decode(map) when is_map(map) do
       %__MODULE__{
-        overall_intent: Map.get(map, "overall_intent", ""),
-        action: map |> Map.get("action", %{}) |> SingleAction.decode(),
-        confidence: Map.get(map, "confidence", 1.0),
+        overall_intent: Map.get(map, "overall_intent") || "",
+        action: map |> Map.get("action") |> SingleAction.decode(),
+        confidence: Map.get(map, "confidence") || 1.0,
         deferred_actions:
-          map |> Map.get("deferred_actions", []) |> Enum.map(&SingleAction.decode/1)
+          case Map.get(map, "deferred_actions") do
+            actions when is_list(actions) -> Enum.map(actions, &SingleAction.decode/1)
+            _null_or_other -> []
+          end
       }
     end
 

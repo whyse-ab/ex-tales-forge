@@ -26,12 +26,23 @@ defmodule TalesForge.AICalls.Steps do
 
   def model, do: @model
 
-  @doc "Runs `fun`, returning `{result, steps}` with the steps timed inside it, in order."
+  @doc """
+  Runs `fun`, returning `{result, steps}` with the steps timed inside it, in
+  order. A raise or throw in `fun` comes back as `{{:crash, kind, reason,
+  stacktrace}, steps}`, so the caller can still record the steps (the one that
+  crashed has status `"error"`) and report the crash.
+  """
   def collect(fun) when is_function(fun, 0) do
     previous = Process.put(@key, [])
 
     try do
-      result = fun.()
+      result =
+        try do
+          fun.()
+        catch
+          kind, reason -> {:crash, kind, reason, __STACKTRACE__}
+        end
+
       {result, Enum.reverse(Process.get(@key, []))}
     after
       if previous, do: Process.put(@key, previous), else: Process.delete(@key)
@@ -40,12 +51,27 @@ defmodule TalesForge.AICalls.Steps do
 
   @doc """
   Times `fun` as step `name` (an atom or string; stored as `turn.<name>`) and
-  returns its result. A result of `{:error, _}` or `nil` marks the step as an error.
+  returns its result. A result of `{:error, _}` or `nil` marks the step as an
+  error; so does a raise or throw, which is re-raised after the step is noted.
   """
   def time(name, fun) when is_function(fun, 0) do
     started_at = DateTime.utc_now()
     t0 = System.monotonic_time(:microsecond)
-    result = fun.()
+
+    try do
+      fun.()
+    catch
+      kind, reason ->
+        note(name, started_at, t0, "error")
+        :erlang.raise(kind, reason, __STACKTRACE__)
+    else
+      result ->
+        note(name, started_at, t0, status(result))
+        result
+    end
+  end
+
+  defp note(name, started_at, t0, status) do
     elapsed_us = System.monotonic_time(:microsecond) - t0
 
     case Process.get(@key) do
@@ -54,7 +80,7 @@ defmodule TalesForge.AICalls.Steps do
           purpose: "turn.#{name}",
           latency_ms: div(elapsed_us + 500, 1_000),
           started_at: started_at,
-          status: status(result)
+          status: status
         }
 
         Process.put(@key, [step | steps])
@@ -62,8 +88,6 @@ defmodule TalesForge.AICalls.Steps do
       _ ->
         :ok
     end
-
-    result
   end
 
   @doc "Writes the steps as function rows. Never raises (see `AICalls.record/1`)."

@@ -17,6 +17,7 @@ defmodule TalesForge.Playtest.RunMeta do
   """
 
   alias TalesForge.Config
+  alias TalesForge.Game.Features
   alias TalesForge.Playtest.JevScorer
 
   @doc """
@@ -45,6 +46,10 @@ defmodule TalesForge.Playtest.RunMeta do
   The flags in force for a run of `persona_id` in a session with `world_state`:
 
   - `npc_reactions`, `world_agents`: `"on"` / `"off"` (the env switches);
+  - `inn_world`, `world_antagonist`: `"on"` / `"off"`, the session's world
+    features (`INN_WORLD`, `WORLD_ANTAGONIST`; `TalesForge.Game.Features`).
+    Taken from the session, not the env, because they are fixed when the
+    session is created and the baseline variant never gets them;
   - `variant`: the session's behaviour variant (`world_state["variant"]`),
     `"default"` when the session has none;
   - `llm_provider`, `gm_model`, `intent_model`: the models that play the game;
@@ -55,6 +60,8 @@ defmodule TalesForge.Playtest.RunMeta do
     %{
       "npc_reactions" => on_off(Config.npc_reactions?()),
       "world_agents" => on_off(Config.world_agents?()),
+      "inn_world" => on_off(Features.on?(world_state, "inn_world")),
+      "world_antagonist" => on_off(Features.on?(world_state, "antagonist")),
       "variant" => variant(world_state),
       "llm_provider" => Config.llm_provider(),
       "gm_model" => Config.tier2_model() || Config.xai_model(),

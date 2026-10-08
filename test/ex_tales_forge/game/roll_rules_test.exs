@@ -72,6 +72,24 @@ defmodule TalesForge.Game.RollRulesTest do
     end
   end
 
+  test "\"scale\" as a noun is no climb (Paul to Rusk, run 3f7777a6, turn 7)" do
+    session = session("default")
+
+    paul =
+      "Rusk, my good fellow, a toll upon a wandering preacher who seeks only to lighten burdens " <>
+        "and serve stew to honest folk? Surely the road's own shadows weigh heavy enough without " <>
+        "adding silver to the scale. Come, share a bowl and a tale instead."
+
+    {_action, handler, rolled} = resolve(session, paul)
+    refute handler.skill == "climbing"
+    refute rolled.skill == "climbing"
+
+    for text <- ["I scale the wall behind the stable", "I start climbing the cliff path"] do
+      {_action, handler, _rolled} = resolve(session, text)
+      assert handler.skill == "climbing", "#{text} got skill #{inspect(handler.skill)}"
+    end
+  end
+
   test "the baseline variant keeps the old defaults: Insight or Persuasion on everything" do
     session = session("baseline")
 

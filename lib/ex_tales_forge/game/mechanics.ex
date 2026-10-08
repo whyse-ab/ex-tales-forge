@@ -61,7 +61,10 @@ defmodule TalesForge.Game.Mechanics do
     {~r/\b(search|inspect|examine)\b/i, "insight"},
     {~r/\b(fight|attack|strike|swing|stab)\b/i, "melee_combat"},
     {~r/\b(shoot|aim|bow|arrow)\b/i, "ranged_combat"},
-    {~r/\b(climb|scale)\b/i, "climbing"},
+    # "scale" only as a verb with something to go up: "silver to the scale"
+    # in Paul's speech to Rusk rolled climbing (run 3f7777a6, turn 7).
+    {~r/\b(?:climb(?:s|ing)?|scal(?:e|es|ing) (?:the|a|an|that|this|those|its|his|her|up|down))\b/i,
+     "climbing"},
     {~r/\b(track|follow trail)\b/i, "tracking"},
     {~r/\b(pick the lock|pick a lock|lockpick\w*)\b/i, "lockpicking"}
   ]
@@ -115,6 +118,10 @@ defmodule TalesForge.Game.Mechanics do
       iex> TalesForge.Game.Mechanics.infer_check_skill("A tankard of your finest ale, please")
       nil
       iex> TalesForge.Game.Mechanics.infer_check_skill("I ask Brenna what the miners talk about")
+      nil
+      iex> TalesForge.Game.Mechanics.infer_check_skill("I scale the wall behind the stable")
+      "climbing"
+      iex> TalesForge.Game.Mechanics.infer_check_skill("Why add silver to the scale?")
       nil
   """
   @spec infer_check_skill(String.t()) :: String.t() | nil

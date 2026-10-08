@@ -51,11 +51,16 @@ defmodule TalesForge.Game.TurnProcessor do
   `player_action_map` is the encoded `PlayerAction` from the intent step.
   Returns `{:ok, payload}` once the turn is persisted and broadcast, or
   `{:error, reason}` (also broadcast as `:turn_failed`).
+
+  A crash in a step (a raise, throw or exit) is logged with its stacktrace,
+  broadcast as `:turn_failed` and recorded on the step's row, then re-raised
+  so the Oban job records it and retries. Before this a crashed turn was
+  silent: the job failed three times, nothing was logged or broadcast, and
+  the player (or the playtest runner) waited until its timeout.
   """
   @spec run(String.t(), String.t(), map()) :: {:ok, map()} | {:error, term()}
   def run(session_id, raw_action, player_action_map) do
     started = System.monotonic_time(:millisecond)
-    player_action = PlayerAction.decode(player_action_map)
 
     case Repo.get(GameSession, session_id) do
       nil ->
@@ -65,7 +70,10 @@ defmodule TalesForge.Game.TurnProcessor do
         turn_number = next_turn_number(session_id)
 
         {result, steps} =
-          Steps.collect(fn -> run_steps(session, turn_number, raw_action, player_action) end)
+          Steps.collect(fn ->
+            player_action = PlayerAction.decode(player_action_map)
+            run_steps(session, turn_number, raw_action, player_action)
+          end)
 
         Steps.record(steps, session_id, turn_number, Tags.for_world(session.world_state))
         finish(result, session_id, turn_number, started)
@@ -198,6 +206,24 @@ defmodule TalesForge.Game.TurnProcessor do
     SessionPubSub.broadcast(session_id, {:turn_failed, SessionPubSub.failure_reason(reason)})
     err
   end
+
+  defp finish({:crash, kind, reason, stacktrace}, session_id, turn_number, _started) do
+    Logger.error(
+      "turn processor crashed session=#{session_id} turn=#{turn_number}\n" <>
+        Exception.format(kind, reason, stacktrace)
+    )
+
+    SessionPubSub.broadcast(session_id, {:turn_failed, crash_reason(kind, reason)})
+    :erlang.raise(kind, reason, stacktrace)
+  end
+
+  # What the player and the playtest run see: the kind of crash, no internals
+  # (the log has the details).
+  defp crash_reason(:error, reason) do
+    "crashed: " <> inspect(Exception.normalize(:error, reason, []).__struct__)
+  end
+
+  defp crash_reason(kind, _reason), do: "crashed: #{kind}"
 
   @doc false
   @spec simulate!(GameSession.t(), String.t(), struct(), struct(), struct(), keyword()) ::
