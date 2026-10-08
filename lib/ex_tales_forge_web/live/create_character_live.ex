@@ -1,7 +1,6 @@
 defmodule TalesForgeWeb.CreateCharacterLive do
   @moduledoc """
-  Player character creation screen (`/new/:adventure`), step 2 of the creation
-  port (tales-forge-docs `docs/character-creation-port.md`).
+  Player character creation screen (`/new/:adventure`).
 
   Four steps on one LiveView: race, class and past occupation; the 75-point
   stat buy with the race bonus choices; the skill budget (free levels from the

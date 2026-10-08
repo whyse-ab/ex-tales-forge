@@ -97,7 +97,7 @@ defmodule TalesForge.CharactersSyncTest do
 
   describe "backfill/0" do
     test "writes rows for sessions from before characters, idempotently", %{session: session} do
-      # A session as it looked before #48: no characters, legacy NPC definitions.
+      # A session as it looked before #48: no characters, NPC definitions without levers.
       Repo.delete_all(from c in Character, where: c.game_session_id == ^session.id)
 
       inst = NPC.get_instance(session.id, "prospector")

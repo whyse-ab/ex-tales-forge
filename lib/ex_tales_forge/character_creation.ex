@@ -16,7 +16,7 @@ defmodule TalesForge.CharacterCreation do
     and each final stat (after the race modifier) must be within the range. A
     race bonus that would push a stat past the maximum is an error, not a
     silent clamp.
-  * **Skills** (`creation.json` `skills`, ported from the old game's rules):
+  * **Skills** (`creation.json` `skills`):
     a 25-point skill budget where levels 1–3 cost 1 each and levels 4–5 cost 2
     each, a normal cap of 5 and at least 5 skills. One or two **signature
     skills** may go to 7; levels 6–7 cost 3 each. Free levels come first: the

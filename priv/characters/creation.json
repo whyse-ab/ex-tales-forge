@@ -21,7 +21,7 @@
     }
   },
   "skills": {
-    "_doc": "Skill rules ported from the old game (docs/game-rules: fantasy_rpg_game_mechanics_summary.md, racial_mechanics_summary.md; modules/merovingia/game-system.json). level_costs[n-1] is the price of level n: levels 1-3 cost 1, 4-5 cost 2, 6-7 (signature only) cost 3. Free levels (class package, race bonus, past occupation) fill the lowest levels and cost nothing. A skill above cap is a signature skill: at most signature_max of them, up to signature_cap. Free levels the caps cut off come back as points at the price of the levels lost (past the signature cap at the signature price).",
+    "_doc": "Skill rules for TalesForge.CharacterCreation. level_costs[n-1] is the price of level n: levels 1-3 cost 1, 4-5 cost 2, 6-7 (signature only) cost 3. Free levels (class package, race bonus, past occupation) fill the lowest levels and cost nothing. A skill above cap is a signature skill: at most signature_max of them, up to signature_cap. Free levels the caps cut off come back as points at the price of the levels lost (past the signature cap at the signature price).",
     "budget": 25,
     "level_costs": [1, 1, 1, 2, 2, 3, 3],
     "cap": 5,

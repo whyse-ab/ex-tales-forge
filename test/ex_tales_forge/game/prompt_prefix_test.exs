@@ -1,7 +1,6 @@
 defmodule TalesForge.Game.PromptPrefixTest do
   @moduledoc """
-  Prefix stability for xAI prompt caching. Ported from the old app's
-  `_shared/__tests__/promptOrdering.test.ts`.
+  Prefix stability for xAI prompt caching.
 
   The cache reuses the longest identical prefix of a request, so:
   - the shared narrator text and the rules must be byte-identical for the scene

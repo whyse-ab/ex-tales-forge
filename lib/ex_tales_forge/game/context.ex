@@ -27,7 +27,7 @@ defmodule TalesForge.Game.Context do
   alias TalesForge.Repo
   alias TalesForge.Schemas.{GameSession, Scene, Turn}
 
-  @doc ~s(The session's adventure id, or the legacy default `"crossroads_ledger"`.)
+  @doc ~s(The session's adventure id; `"crossroads_ledger"` when the world state has none.)
   @spec adventure_id(map() | nil) :: String.t()
   def adventure_id(world) when is_map(world) do
     Map.get(world, "adventure_id") || "crossroads_ledger"
