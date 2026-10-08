@@ -26,33 +26,69 @@ defmodule TalesForge.Playtest.AffectLevelsTest do
   end
 
   test "Paul, Lotta and Lars keep the frustrated-to-delighted question; only Lars keeps his version" do
-    for {id, hash} <- [{"paul", "fd84ebb"}, {"lotta", "ce84a1a"}, {"lars", "fc771be"}] do
+    for {id, hash} <- [{"paul", "df3c861"}, {"lotta", "989546a"}, {"lars", "fc771be"}] do
       assert AffectLevels.session_question(id, "X") =~ "frustrated (low) to delighted (high)"
       assert AffectLevels.rubric_hash(id) == hash
     end
   end
 
-  test "Paul's and Lotta's stricter rubric versions never mix with the baseline scores" do
-    refute AffectLevels.rubric_hash("paul") == "dfec71a"
-    refute AffectLevels.rubric_hash("lotta") == "4545d3b"
-    assert JevScorer.rubric_version("paul") == "jev-affect-v1-fd84ebb"
-    assert JevScorer.rubric_version("lotta") == "jev-affect-v1-ce84a1a"
+  test "Paul's and Lotta's rubric versions never mix with the baseline or #69 scores" do
+    for old <- ["dfec71a", "fd84ebb", "7862783"],
+        do: refute(AffectLevels.rubric_hash("paul") == old)
+
+    for old <- ["4545d3b", "ce84a1a"], do: refute(AffectLevels.rubric_hash("lotta") == old)
+    assert JevScorer.rubric_version("paul") == "jev-affect-v1-df3c861"
+    assert JevScorer.rubric_version("lotta") == "jev-affect-v1-989546a"
   end
 
-  test "Paul's and Lotta's top level needs concrete evidence, not just a pleasant stretch" do
-    for id <- ["paul", "lotta"] do
-      [_, _, mixed, pleased, top] = AffectLevels.levels(id)
-      assert mixed =~ "generic" or mixed =~ "interchangeable"
-      assert pleased =~ "polite guest"
-      assert top =~ "concrete evidence of at least two of"
-      assert top =~ "surprise"
-      assert top =~ "consequence"
-      assert top =~ "calling back"
-      assert top =~ "own goals"
-      assert top =~ "uneventful stretch is never this level"
-    end
+  test "Paul's 4/5 border: a vivid answer or new fact is 4; 5 needs a consequence of his own choice" do
+    [_, _, _, pleased, delighted] = AffectLevels.levels("paul")
+    assert pleased =~ "A vivid or rich answer is a 4"
 
-    assert List.last(AffectLevels.levels("lotta")) =~ "care shown when stakes hurt"
+    assert pleased =~
+             "new fact, rumour or detail volunteered with it, even one he did not ask about"
+
+    assert pleased =~ "polite guest"
+    assert pleased =~ "Example:"
+    assert delighted =~ "a consequence of his own choice or discovery"
+    assert delighted =~ "an NPC acts on what he learned or offered"
+    assert delighted =~ "a door opens or a way forward appears because he asked"
+
+    assert delighted =~
+             "A vivid answer, a new fact, a warm reply, a gift or a price is never a consequence"
+
+    assert delighted =~ "visible in this turn's narration"
+    assert delighted =~ "uneventful stretch is never this level"
+    assert delighted =~ "Example:"
+    refute delighted =~ "at least two of"
+  end
+
+  test "Lotta's 3/4 border: would another traveller saying her line get the same reply?" do
+    [_, _, mixed, immersed, _] = AffectLevels.levels("lotta")
+    assert mixed =~ "would read the same for any traveller who said her line"
+    assert mixed =~ "her name used"
+    assert immersed =~ "another traveller saying the same line would not get"
+    assert immersed =~ "using her name or answering her question is not enough"
+    assert mixed =~ "Example:" and immersed =~ "Example:"
+  end
+
+  test "Lars, Hawk and Ronny keep their rubric versions" do
+    assert Enum.map(~w(lars hawk ronny), &AffectLevels.rubric_hash/1) ==
+             ~w(fc771be 129f728 e8f0786)
+  end
+
+  test "Lotta's top level needs concrete evidence, not just a pleasant stretch" do
+    [_, _, mixed, pleased, top] = AffectLevels.levels("lotta")
+    assert mixed =~ "interchangeable"
+    assert pleased =~ "polite guest"
+    assert top =~ "concrete evidence of at least two of"
+    assert top =~ "surprise"
+    assert top =~ "consequence"
+    assert top =~ "calling back"
+    assert top =~ "own goals"
+    assert top =~ "uneventful stretch is never this level"
+    assert top =~ "care shown when stakes hurt"
+    assert Enum.at(AffectLevels.levels("paul"), 2) =~ "generic"
   end
 
   test "Hawk's and Ronny's rubric versions changed, so old and new scores never mix" do

@@ -7,7 +7,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
 
   import TalesForgeWeb.AdminComponents
 
-  alias TalesForge.Playtest.{Reports, RunMeta, Runner, Scorer}
+  alias TalesForge.Playtest.{JevHeadline, Reports, RunMeta, Runner, Scorer}
   alias TalesForgeWeb.TimeAgo
 
   @refresh_ms 3_000
@@ -78,7 +78,13 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
     |> assign(:turns, Reports.turn_records(run.game_session_id))
     |> assign(:metrics, Reports.metrics(run.game_session_id))
     |> assign(:score, Reports.latest_score(run.id))
-    |> assign(:turn_affects, Reports.turn_affect_scores(run.id))
+    |> assign_turn_affects(Reports.turn_affect_scores(run.id))
+  end
+
+  defp assign_turn_affects(socket, turn_affects) do
+    socket
+    |> assign(:turn_affects, turn_affects)
+    |> assign(:jev, Reports.jev_headline(turn_affects))
   end
 
   @impl true
@@ -135,8 +141,25 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
 
       <.section_card title="Score" id="score">
         <%= if @score do %>
-          <p class="font-serif text-xl font-semibold text-[var(--paper-ink)]">
-            {score_headline(@score)}
+          <div :if={@score.source == "jev" and @jev} id="jev-headline" class="space-y-1">
+            <p class="font-serif text-xl font-semibold text-[var(--paper-ink)]">
+              {JevHeadline.format(@jev)}
+              <span class="text-sm font-normal text-[var(--paper-muted)]">
+                confidence-weighted over {@jev.turns} turns
+              </span>
+            </p>
+            <p id="jev-breakdown" class="text-sm text-[var(--paper-ink)]">
+              {JevHeadline.breakdown(@jev)}
+              <span class="text-xs text-[var(--paper-muted)]">
+                (confident = confidence ≥ {JevHeadline.unsure_below()}; high ≥ 3.5, low ≤ 2.5)
+              </span>
+            </p>
+          </div>
+          <p class={[
+            "font-serif font-semibold text-[var(--paper-ink)]",
+            if(@score.source == "jev" and @jev, do: "text-base", else: "text-xl")
+          ]}>
+            <span :if={@score.source == "jev" and @jev}>Session:</span> {score_headline(@score)}
           </p>
           <p class="text-xs text-[var(--paper-muted)]">
             {score_meta(@score)} ·
@@ -147,7 +170,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
             id="score-confidence"
             class="text-sm text-[var(--paper-ink)]"
           >
-            Confidence {Float.round(@score.confidence * 100, 1)}%
+            Session confidence {Float.round(@score.confidence * 100, 1)}%
           </p>
           <div
             :if={@score.source == "jev" and @turn_affects != []}
