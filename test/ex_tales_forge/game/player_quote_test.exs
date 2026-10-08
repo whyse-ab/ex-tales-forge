@@ -48,6 +48,7 @@ defmodule TalesForge.Game.PlayerQuoteTest do
       System.put_env("LLM_PROVIDER", "mock")
       Application.put_env(:jev, :api_key, nil)
       Application.delete_env(:ex_tales_forge, :player_quote_min_benign_confidence)
+      Application.delete_env(:ex_tales_forge, :typesafe_intent_api_key)
     end)
 
     {:ok, session} = GameSessions.create_session(%{name: "Brenna", adventure_id: "tin_valley"})
@@ -108,6 +109,22 @@ defmodule TalesForge.Game.PlayerQuoteTest do
     assert PlayerQuote.threshold() == 0.9
     Application.put_env(:ex_tales_forge, :player_quote_min_benign_confidence, 0.99)
     assert PlayerQuote.threshold() == 0.99
+  end
+
+  test "TYPESAFE_INTENT_API_KEY, when set, is the key for the read", %{session: session} do
+    Application.put_env(:ex_tales_forge, :typesafe_intent_api_key, "intent-key")
+    assert PlayerQuote.configured?()
+    test_pid = self()
+
+    Req.Test.stub(Jev.HTTP, fn conn ->
+      send(test_pid, {:auth, Plug.Conn.get_req_header(conn, "authorization")})
+      Jev.Test.respond(conn, safety: :benign, confidence: %{safety: 0.95})
+    end)
+
+    run_turn(session, @words, heuristic(session, @words))
+
+    assert_receive {:auth, ["Bearer intent-key"]}
+    assert gm_action(:gm)["overall_intent"] == @own_words
   end
 
   test "the Jev state carries the player's message and asks for one fixed label" do

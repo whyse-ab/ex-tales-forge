@@ -204,6 +204,10 @@ if config_env() != :test do
     end
 
   config :ex_tales_forge, :player_quote_min_benign_confidence, min_benign
+
+  # Separate TypeSafe key for the safety read (secret, optional; staged on
+  # playtest as TYPESAFE_INTENT_API_KEY). Unset = TYPESAFE_API_KEY is used.
+  config :ex_tales_forge, :typesafe_intent_api_key, System.get_env("TYPESAFE_INTENT_API_KEY")
 end
 
 # Admin costs page peer (/admin/costs). Both apps run the same code: whichever

@@ -70,7 +70,7 @@ Use kebab-case names that describe the work (`feature/two-tier-llm`, `fix/oban-m
    - **The player's own words**, sanitised and at most 500 characters (`Intent.sanitize_quote/1`), on both intent paths, when the input safety read labels the message `benign` with confidence at least `PLAYER_QUOTE_MIN_BENIGN_CONFIDENCE` (default 0.90).
    - **Otherwise the intent summary**: the intent LLM's summary when it read the turn, or a short typed summary (`speak (target: innkeep)`) when the heuristic did. The fallback is logged.
 
-   The safety read is one Jev call (`TalesForge.Game.PlayerQuote`, purpose `input_safety`, labels `benign`, `jailbreak`, `prompt_injection`, `nefarious`). It runs alongside the rules, prices and NPC reactions; the turn waits for it only before the GM prompt (step `turn.player_quote`). An error, a timeout or no `TYPESAFE_API_KEY` means the summary. Only the GM prompt's quote changes: the rules keep the intent step's `PlayerAction`. The baseline variant makes no safety read. Every decision is stored in `ai_calls.meta`; the costs page shows the fallback rate.
+   The safety read is one Jev call (`TalesForge.Game.PlayerQuote`, purpose `input_safety`, labels `benign`, `jailbreak`, `prompt_injection`, `nefarious`). It runs alongside the rules, prices and NPC reactions; the turn waits for it only before the GM prompt (step `turn.player_quote`). It uses `TYPESAFE_INTENT_API_KEY` when set, else `TYPESAFE_API_KEY`; an error, a timeout or no key means the summary. Only the GM prompt's quote changes: the rules keep the intent step's `PlayerAction`. The baseline variant makes no safety read. Every decision is stored in `ai_calls.meta`; the costs page shows the fallback rate.
 5. **The server owns mechanics.** It rolls dice and applies LP, inventory, coins, prices and time; the LLM narrates and never invents mechanics.
 6. Important authored state stays human-readable: `priv/rules/*.md`, `priv/prompts/*.txt`, pack files.
 7. LLM replies use structured JSON with a strict schema (Tier 1 `PlayerAction` via `TalesForge.Game.Intent`; the scene and GM reply via `TalesForge.LLM`).
@@ -100,7 +100,7 @@ Environment variables read through `TalesForge.Config`. Flags marked "new sessio
 | `NPC_REACTIONS` | Jev NPC reaction before each GM call (`TalesForge.Game.NpcReactions`; needs `TYPESAFE_API_KEY`) | off | off | `on` (Fly secret) |
 | `WORLD_AGENTS` | World-agents prototype: persons and locations hold facts for the GM; also turns on NPC reactions | off | off | off |
 | `PLAYTEST_RUNNER_ENABLED` | Persona bot runner; only `true` enables it | off | **never set** | `true` |
-| `PLAYER_QUOTE_MIN_BENIGN_CONFIDENCE` | Minimum `benign` confidence (0..1) of the input safety read for the GM to get the player's own words (`TalesForge.Game.PlayerQuote`); read in `config/runtime.exs`. Without `TYPESAFE_API_KEY` the GM always gets the intent summary | `0.90` | not set (no `TYPESAFE_API_KEY` either) | not set |
+| `PLAYER_QUOTE_MIN_BENIGN_CONFIDENCE` | Minimum `benign` confidence (0..1) of the input safety read for the GM to get the player's own words (`TalesForge.Game.PlayerQuote`); read in `config/runtime.exs`. Without a TypeSafe key the GM always gets the intent summary | `0.90` | not set (no TypeSafe key either) | not set |
 
 The baseline variant gets no world features. The GM has one reply mode, the strict structured JSON schema (`TalesForge.LLM`); there is no reply-mode flag.
 
@@ -284,7 +284,7 @@ Set API keys in `.env` (loaded automatically in dev via `config/runtime.exs`). P
 | `openai` | `OPENAI_API_KEY` | |
 | `anthropic` | `ANTHROPIC_API_KEY` | |
 
-Jev calls (the input safety read, NPC reactions, persona-affect scoring) use `TYPESAFE_API_KEY`.
+Jev calls (the input safety read, NPC reactions, persona-affect scoring) use `TYPESAFE_API_KEY`; the input safety read uses `TYPESAFE_INTENT_API_KEY` instead when that is set.
 
 ### Two-tier LLM
 

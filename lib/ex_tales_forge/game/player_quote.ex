@@ -16,7 +16,8 @@ defmodule TalesForge.Game.PlayerQuote do
     the player's own words, sanitised and at most 500 characters
     (`TalesForge.Game.Intent.sanitize_quote/1`), on both intent paths.
   - **Summary (fallback):** otherwise — another label, a lower confidence, an
-    error, a timeout, or no TypeSafe key — the GM gets the intent summary: the
+    error, a timeout, or no TypeSafe key (`TYPESAFE_INTENT_API_KEY` when set,
+    else `TYPESAFE_API_KEY`) — the GM gets the intent summary: the
     intent LLM's `overall_intent` when it wrote one, or a short typed summary
     of the action when the heuristic read the turn (its `overall_intent` is the
     player's text itself). The fallback is logged.
@@ -91,13 +92,23 @@ defmodule TalesForge.Game.PlayerQuote do
   def threshold,
     do: Application.get_env(:ex_tales_forge, :player_quote_min_benign_confidence, 0.9)
 
-  @doc "True when a TypeSafe (Jev) API key is configured."
+  @doc """
+  True when a TypeSafe (Jev) API key is configured: `TYPESAFE_INTENT_API_KEY`
+  (used for this read when set, so its cost is billed apart) or
+  `TYPESAFE_API_KEY`.
+  """
   @spec configured?() :: boolean()
   def configured? do
-    case Application.get_env(:jev, :api_key) || System.get_env("TYPESAFE_API_KEY") do
-      key when is_binary(key) and key != "" -> true
-      _ -> false
-    end
+    present?(intent_key()) or
+      present?(Application.get_env(:jev, :api_key) || System.get_env("TYPESAFE_API_KEY"))
+  end
+
+  defp intent_key, do: Application.get_env(:ex_tales_forge, :typesafe_intent_api_key)
+
+  defp present?(key), do: is_binary(key) and key != ""
+
+  defp key_opts do
+    if present?(intent_key()), do: [api_key: intent_key()], else: []
   end
 
   @doc """
@@ -211,10 +222,10 @@ defmodule TalesForge.Game.PlayerQuote do
     started = System.monotonic_time(:millisecond)
 
     result =
-      Jev.HTTP.post(state(raw_action), questions(),
-        model: @model,
-        max_retries: 0,
-        receive_timeout: timeout_ms
+      Jev.HTTP.post(
+        state(raw_action),
+        questions(),
+        [model: @model, max_retries: 0, receive_timeout: timeout_ms] ++ key_opts()
       )
 
     elapsed = System.monotonic_time(:millisecond) - started
