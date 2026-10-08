@@ -791,7 +791,7 @@ Rules:
 - Write in second person ("You...").
 - This is pure exposition — do not resolve player actions or roll dice.
 - Use vivid prose, 2-4 short paragraphs.
-- Name present NPCs the character would notice. Play them from their personality: a host greets a newcomer warmly.
+- Only the people listed as present are here. Name those the character would notice. Play them from their personality: a host greets a newcomer warmly.
 - Avoid stock phrases such as "eyes narrow", "scarred oak" and "the hearth crackles"; find details of this place.
 - End with situational awareness that invites the player to act.
 - Return ONLY valid JSON with narrative and location_name. Leave every other field out.
@@ -804,8 +804,9 @@ character: Elara Voss (human)
 ---
 
 ## Opening scene (The Weary Pilgrim) — already told to the player
-Do not rewrite or re-narrate this as if it just happened. The player has
-already heard it; respond to their action from here.
+This is how the session began. Do not rewrite or re-narrate it. The
+character may have moved on since: "Scene now" in the per-turn state
+says where they are and who is with them, and it wins over this scene.
 
 A low-ceilinged tavern smelling of woodsmoke and spilled ale. Chalk marks score the slate behind the bar.
 
@@ -919,6 +920,15 @@ Valid skills: arcana, climbing, deception, dodge, etiquette, history, insight, i
 
 ## NPC Memories (recent)
 (none)
+
+
+---
+
+## Scene now
+Where: The Weary Pilgrim (weary_pilgrim).
+Present: Marta Kellen (marta_kellen).
+Elsewhere (not here): Henrik Bale at Crossroads Square.
+Narrate from this place. Only the people present can speak or act here; anyone else is elsewhere.
 
 
 ===== gm turn 1 =====
@@ -1579,6 +1589,10 @@ Mechanics:
 - Plain travel (handler move, no skill) is outcome none: narrate arrival, no check.
 - Use labor-anchored economy (1g = 50s = 500c). State exact coin amounts for purchases without a shop menu.
 
+Place and people:
+- "Scene now" in the per-turn state says where the character is and who is there. Narrate from that place. Only the people listed as present can speak or act; anyone else is elsewhere and cannot answer.
+- Only the server moves the character. When the handler is move, narrate the way and the arrival at the new place. Otherwise the character is still at the Scene now place at the end of the turn: do not walk them to another place, even when they talk about going.
+
 Story:
 - Give the player something to act on early. By the end of the player's second turn at the latest, have a present NPC or the scene offer one concrete lead: a job, a name or a place. An NPC's "hooks" are ready-made leads. Offer one naturally, without waiting to be asked, then keep the story moving.
 - Play each NPC from their personality and traits. A host treats a civil, paying guest warmly unless the character gives a reason not to; do not default to suspicion, flat voices or brush-offs.
@@ -1615,8 +1629,9 @@ character: Elara Voss (human)
 ---
 
 ## Opening scene (The Weary Pilgrim) — already told to the player
-Do not rewrite or re-narrate this as if it just happened. The player has
-already heard it; respond to their action from here.
+This is how the session began. Do not rewrite or re-narrate it. The
+character may have moved on since: "Scene now" in the per-turn state
+says where they are and who is with them, and it wins over this scene.
 
 A low-ceilinged tavern smelling of woodsmoke and spilled ale. Chalk marks score the slate behind the bar.
 
@@ -1730,6 +1745,15 @@ Valid skills: arcana, climbing, deception, dodge, etiquette, history, insight, i
 
 ## NPC Memories (recent)
 (none)
+
+
+---
+
+## Scene now
+Where: The Weary Pilgrim (weary_pilgrim).
+Present: Marta Kellen (marta_kellen).
+Elsewhere (not here): Henrik Bale at Crossroads Square.
+Narrate from this place. Only the people present can speak or act here; anyone else is elsewhere.
 
 ## Server resolution (tone bounds only)
 skill: insight
@@ -2415,6 +2439,10 @@ Mechanics:
 - Plain travel (handler move, no skill) is outcome none: narrate arrival, no check.
 - Use labor-anchored economy (1g = 50s = 500c). State exact coin amounts for purchases without a shop menu.
 
+Place and people:
+- "Scene now" in the per-turn state says where the character is and who is there. Narrate from that place. Only the people listed as present can speak or act; anyone else is elsewhere and cannot answer.
+- Only the server moves the character. When the handler is move, narrate the way and the arrival at the new place. Otherwise the character is still at the Scene now place at the end of the turn: do not walk them to another place, even when they talk about going.
+
 Story:
 - Give the player something to act on early. By the end of the player's second turn at the latest, have a present NPC or the scene offer one concrete lead: a job, a name or a place. An NPC's "hooks" are ready-made leads. Offer one naturally, without waiting to be asked, then keep the story moving.
 - Play each NPC from their personality and traits. A host treats a civil, paying guest warmly unless the character gives a reason not to; do not default to suspicion, flat voices or brush-offs.
@@ -2451,8 +2479,9 @@ character: Elara Voss (human)
 ---
 
 ## Opening scene (The Weary Pilgrim) — already told to the player
-Do not rewrite or re-narrate this as if it just happened. The player has
-already heard it; respond to their action from here.
+This is how the session began. Do not rewrite or re-narrate it. The
+character may have moved on since: "Scene now" in the per-turn state
+says where they are and who is with them, and it wins over this scene.
 
 A low-ceilinged tavern smelling of woodsmoke and spilled ale. Chalk marks score the slate behind the bar.
 
@@ -2566,6 +2595,15 @@ Valid skills: arcana, climbing, deception, dodge, etiquette, history, insight, i
 
 ## NPC Memories (recent)
 (none)
+
+
+---
+
+## Scene now
+Where: The Weary Pilgrim (weary_pilgrim).
+Present: Marta Kellen (marta_kellen).
+Elsewhere (not here): Henrik Bale at Crossroads Square.
+Narrate from this place. Only the people present can speak or act here; anyone else is elsewhere.
 
 ## Server resolution (tone bounds only)
 skill: insight

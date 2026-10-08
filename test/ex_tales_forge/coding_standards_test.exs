@@ -11,6 +11,8 @@ defmodule TalesForge.CodingStandardsTest do
     TalesForge.LLM,
     TalesForge.Game.TurnProcessor,
     TalesForge.Game.Context,
+    TalesForge.Game.Intent,
+    TalesForge.Game.Movement,
     TalesForge.Game.Prompts,
     TalesForge.Game.NpcReactions,
     TalesForge.Game.Mechanics,

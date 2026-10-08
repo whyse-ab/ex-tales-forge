@@ -17,6 +17,7 @@ defmodule TalesForge.Game.Context do
   # Rules come from Prompts (which may be pack-aware), but state is Ecto.
 
   alias TalesForge.Game.Mechanics
+  alias TalesForge.Game.Movement
   alias TalesForge.Game.Perception
   alias TalesForge.Game.Schemas.MechanicalResolution
   alias TalesForge.Game.Variant
@@ -62,9 +63,24 @@ defmodule TalesForge.Game.Context do
       "situation_lines" => Map.get(world, "situation_lines", []),
       "recent_turns" => recent_turns(session.id),
       "valid_skills" => Mechanics.skill_stat_map() |> Map.keys() |> Enum.sort(),
-      "variant" => Variant.of(world)
+      "variant" => Variant.of(world),
+      # For movement (not printed in the prompt): every place, and where the
+      # people who are not here are (TalesForge.Game.Movement).
+      "places" => Map.get(world, "locations") || World.locations(),
+      "npc_locations" => npc_locations(npc_state, present_npcs)
     }
   end
+
+  defp npc_locations(npc_state, present_npcs) when is_map(npc_state) do
+    npc_state
+    |> Enum.reject(fn {npc_id, _} -> npc_id in present_npcs end)
+    |> Enum.filter(fn {_npc_id, detail} -> is_binary(detail["location_id"]) end)
+    |> Map.new(fn {npc_id, detail} ->
+      {npc_id, %{"name" => detail["name"] || npc_id, "location_id" => detail["location_id"]}}
+    end)
+  end
+
+  defp npc_locations(_npc_state, _present_npcs), do: %{}
 
   @doc "The intent context as prompt text (location, exits, NPCs and their stock, skills)."
   @spec format_intent_context(map()) :: String.t()
@@ -150,7 +166,10 @@ defmodule TalesForge.Game.Context do
   """
   @spec session_stable_section(map()) :: String.t()
   def session_stable_section(context) do
-    [character_sheet(context.world_state), opening_section(Map.get(context, :opening_scene))]
+    [
+      character_sheet(context.world_state),
+      opening_section(Map.get(context, :opening_scene), context.world_state)
+    ]
     |> join_sections()
   end
 
@@ -169,9 +188,72 @@ defmodule TalesForge.Game.Context do
       npc_sections,
       TalesForge.World.prompt_section(Map.get(context, :world_facts)),
       TalesForge.World.Prices.prompt_section(Map.get(context, :price_lines)),
-      TalesForge.Game.NpcReactions.prompt_section(Map.get(context, :npc_reactions))
+      TalesForge.Game.NpcReactions.prompt_section(Map.get(context, :npc_reactions)),
+      scene_now_section(context)
     ]
     |> join_sections()
+  end
+
+  @doc """
+  Default variant: where the character is, who is with them and where the
+  others are, plus the move when this turn changed the location
+  (`context[:moved_from]`, set by the turn). The GM narrates from this place
+  and voices only the people present, so it can't answer Osric as Brenna
+  after the character has left the inn. nil for the baseline variant.
+  """
+  @spec scene_now_section(map()) :: String.t() | nil
+  def scene_now_section(context) do
+    world = context.world_state || %{}
+
+    if Variant.baseline?(world) do
+      nil
+    else
+      intent = context.intent_context
+      here = intent["location_name"] || intent["location_id"]
+
+      [
+        "## Scene now",
+        "Where: #{here} (#{intent["location_id"]}).",
+        "Present: #{present_names(intent)}.",
+        elsewhere_line(world, intent),
+        moved_line(world, Map.get(context, :moved_from), here),
+        "Narrate from this place. Only the people present can speak or act here; anyone else is elsewhere."
+      ]
+      |> Enum.reject(&is_nil/1)
+      |> Enum.map_join(&(&1 <> "\n"))
+    end
+  end
+
+  defp present_names(intent) do
+    case intent["present_npcs"] do
+      [] ->
+        "nobody you need to voice"
+
+      ids ->
+        Enum.map_join(ids, ", ", fn id ->
+          "#{get_in(intent, ["npc_details", id, "name"]) || id} (#{id})"
+        end)
+    end
+  end
+
+  defp elsewhere_line(world, intent) do
+    case Enum.sort(Map.get(intent, "npc_locations", %{})) do
+      [] ->
+        nil
+
+      others ->
+        "Elsewhere (not here): " <>
+          Enum.map_join(others, "; ", fn {_id, info} ->
+            "#{info["name"]} at #{Movement.name(world, info["location_id"])}"
+          end) <> "."
+    end
+  end
+
+  defp moved_line(_world, nil, _here), do: nil
+
+  defp moved_line(world, from, here) do
+    "Just now: the character left #{Movement.name(world, from)} for #{here}. " <>
+      "Narrate the way and the arrival here; whoever was at #{Movement.name(world, from)} stays there."
   end
 
   defp join_sections(sections) do
@@ -194,18 +276,30 @@ defmodule TalesForge.Game.Context do
 
   # Already told to the player before turn 1. Keep it on every GM turn so the
   # model doesn't re-narrate the arrival as if it just happened (humans and bots).
-  defp opening_section(nil), do: nil
+  defp opening_section(nil, _world), do: nil
 
-  defp opening_section(%Scene{} = scene) do
+  defp opening_section(%Scene{} = scene, world) do
     where = if(scene.location_name, do: " (#{scene.location_name})", else: "")
 
-    """
-    ## Opening scene#{where} — already told to the player
-    Do not rewrite or re-narrate this as if it just happened. The player has
-    already heard it; respond to their action from here.
+    if Variant.baseline?(world) do
+      """
+      ## Opening scene#{where} — already told to the player
+      Do not rewrite or re-narrate this as if it just happened. The player has
+      already heard it; respond to their action from here.
 
-    #{scene.narrative}
-    """
+      #{scene.narrative}
+      """
+    else
+      # Not "from here": after the character leaves, this scene is history.
+      """
+      ## Opening scene#{where} — already told to the player
+      This is how the session began. Do not rewrite or re-narrate it. The
+      character may have moved on since: "Scene now" in the per-turn state
+      says where they are and who is with them, and it wins over this scene.
+
+      #{scene.narrative}
+      """
+    end
     |> String.trim()
   end
 

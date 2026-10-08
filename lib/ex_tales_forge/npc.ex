@@ -457,7 +457,8 @@ defmodule TalesForge.NPC do
       "role" => Map.get(definition, "role", "present"),
       "disposition" => Map.get(inst.runtime_state, "mood", "neutral"),
       "concern_priority" => concern_priority(inst),
-      "portrait_url" => Map.get(definition, "portrait_url")
+      "portrait_url" => Map.get(definition, "portrait_url"),
+      "location_id" => Map.get(inst.runtime_state, "location_id")
     }
   end
 

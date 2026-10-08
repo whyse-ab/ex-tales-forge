@@ -6,6 +6,10 @@ exits:
 fixtures:
   - hide tents
   - cookfire
+aliases:
+  - the nest
+  - orc camp
+  - the camp
 ---
 
 # Orc nest
