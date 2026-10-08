@@ -28,7 +28,7 @@ This combat system, adapted from Savage Worlds' wound-based mechanics, is design
   - Success: +0.5 LP.
   - Natural 1: +1 LP (once per skill per session).
   - Near-death (saved): +2 LP for related skills.
-  - The tier's LP (5/7/10/15) trigger an improvement roll (d20 + tier modifier > skill level - trainer bonus).
+  - Each LP buys an improvement attempt at the end of the turn (d20 ≥ skill level: +1).
 
 ## Additional Features
 - **Multi-Actions**: Multiple actions per round (e.g., attack twice) at -2 skill per extra action, granting LP on failures.
