@@ -41,6 +41,16 @@ defmodule TalesForge.Playtest.AffectLevels do
   visible in the turn; Lotta stays at 3 when another traveller saying the same
   line would get the same reply. Their rubric versions changed again
   (`jev-affect-v1-7862783`, `jev-affect-v1-989546a`).
+
+  **Paul's level 5 is a consequence** (2026-10-08, tales-forge-docs
+  `docs/decisions.md`, "Paul's level 5 needs a consequence of his own choice
+  or discovery").
+  The sharper border still left Jev split about 0.42/0.45 between 4 and 5,
+  because a vivid answer full of new facts fits both. Now a vivid answer or a
+  new fact is a 4, and a 5 needs the world to react to his own choice or
+  discovery: an NPC acts on what he learned, or a door opens because he asked.
+  The other kinds of level-5 evidence (surprise, callback, NPC goals) no longer
+  apply to Paul; Lotta keeps them. His version is now `jev-affect-v1-df3c861`.
   """
 
   @levels %{
@@ -53,11 +63,15 @@ defmodule TalesForge.Playtest.AffectLevels do
       # turns. Level 4 now says a reply that only answers him stays 4; level 5
       # defines each kind of evidence as something visible in the turn, and
       # asked-for information, warmth, gifts and prices never count.
+      # Level 5 = a consequence (2026-10-08, Fredrik): the sharper border still
+      # split ~0.42/0.45 because vivid new facts fit both "answer" and
+      # "surprise". Now any answer or new fact is 4; 5 needs the world to react
+      # to his own choice or discovery.
       "Left cold — the session felt mechanical, broke immersion, or shoved dice and rules into his face",
       "Uneasy — the story limped; he could stay in character only by ignoring the seams",
       "Mixed — smooth and polite but generic: the world went along with him without answering anything particular about his character, or some moments answered his play as real while others pulled him out of character",
-      "Pleased — the world treated his in-character play as real throughout, and an NPC answered something specific he said, did or is (his preaching, his words, his offer), not just a polite guest; but the reply only answers him: it gives what he asked for (information, a price, a room, a welcome, a gift) and adds nothing he did not ask for. Example: he asks what proof Osric wants and Brenna tells him, a carved bone idol, and nothing more happens",
-      "Delighted — all of Pleased, plus concrete evidence of at least two of the following, each visible in this turn's narration: a surprise (a new fact, event or arrival he did not ask about or point to); a consequence (something in the situation changes because of a choice of his: an NPC acts on his offer or words, a door opens, a task or item results; an answer alone is not a consequence); an NPC or the world calling back to a specific earlier word or deed of his, named or quoted; an NPC acting on their own goals in a way that changes the scene (not background business such as wiping the bar). Information he asked for, a warm reply, a gift or a price never count as evidence. Example: he offers to help and Brenna puts him to stir the stewpot, then volunteers a black iron door seen in the cut. A pleasant but uneventful stretch is never this level"
+      "Pleased — the world treated his in-character play as real throughout, and an NPC answered something specific he said, did or is (his preaching, his words, his offer), not just a polite guest. A vivid or rich answer is a 4, and so is a new fact, rumour or detail volunteered with it, even one he did not ask about: however colourful, being told something is still a 4. Example: he asks whether any patrons lost kin and Brenna tells him of Old Jarek's boy, orcs with eyes like hot coals and something older stirring below, and points him to Caldern",
+      "Delighted — all of Pleased, plus a consequence of his own choice or discovery, visible in this turn's narration: the world reacts to something he did, said or found out, and the situation changes because of it, e.g. an NPC acts on what he learned or offered (sets out, changes plans, hands him a task or a key, takes a risk for him), or a door opens or a way forward appears because he asked. A vivid answer, a new fact, a warm reply, a gift or a price is never a consequence by itself. Example: he offers his preacher's hands and Brenna puts him to stir the stewpot and draws him into the kitchen talk. A pleasant but uneventful stretch is never this level"
     ],
     "hawk" => [
       # One axis: how much real, fair danger he faced.
