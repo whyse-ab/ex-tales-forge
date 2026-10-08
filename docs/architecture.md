@@ -10,7 +10,7 @@
 | **Canonical copy** | `docs/architecture.md` |
 | **Out of scope** | Scene/NPC image generation (`feature/scene-image-generation`); Tigris permanent storage |
 
-Teaching check (ElixirConf 2027, three slides): [elixirconf-2027/README.md](elixirconf-2027/README.md).
+Teaching check (ElixirConf 2027, three slides): [elixirconf-2027/README.md](https://github.com/whyse-ab/ex-tales-forge/tree/main/docs/elixirconf-2027).
 
 This is the spec and the map: how the game runs today, what we are building around fronts (antagonist plans), where Elixir processes live, how we split the table GM from the chronicler, and a tracer-first PR plan.
 
@@ -238,7 +238,7 @@ Raw player text never reaches Tier 2 (`Intent.sanitize_summary/1` strips instruc
 
 ### Server dice (kept, later bounded)
 
-`TalesForge.Game.Mechanics.apply_server_mechanics/4` rolls 1d20 vs effective skill (base + stat bonus). Outcomes: success / partial_success / failure. LP written onto `character.learning_points`. The GM is told not to invent rolls (`priv/prompts/gm_system.txt`) and not to patch LP or inventory. Skill is skipped for `move` and `inventory` handlers.
+`TalesForge.Game.Mechanics.apply_server_mechanics/3` rolls 1d20 vs effective skill (base + stat bonus). Outcomes: success / partial_success / failure. LP written onto `character.learning_points`. The GM is told not to invent rolls (`priv/prompts/gm_system.txt`) and not to patch LP or inventory. Skill is skipped for `move` and `inventory` handlers.
 
 The hole: there is no `outcome_bounds` structure. Social skills (intimidation, persuasion, deception) use the same numeric curve as climbing. Personality and relative power are prompt flavor, not a contract.
 
@@ -913,7 +913,7 @@ TalesForge.LLM.complete_chronicler(system, user) ::
   {:ok, %{move: String.t(), args: map()}} | {:error, term()}
 ```
 
-Schema lives in `TalesForge.Game.Prompts.chronicler_schema/0` (DRY with existing intent/gm/scene schemas).
+Planned: the schema goes in `TalesForge.Game.Prompts`, next to the intent, GM and scene schemas (not written yet).
 
 ### Config (`TalesForge.Config`)
 
@@ -993,7 +993,7 @@ Do not tick fronts *before* the table GM: this turn's GM is pre-move on purpose.
 
 ### `Context.format_gm_prompt/1`
 
-Add a `## Perceived world` block from `Perception.visible_world/1`. NPC JSON uses the allow-list. Pass `mechanical_resolution` into the GM user prompt only as **outcome bounds** once PR-9 exists; today the GM still guesses tone before the server roll (`TurnProcessor` calls LLM *then* `apply_mechanics`). That ordering is a smell. **Do not silently invert this in the tracer.** PR-9: **roll first, then GM**. That is a behavior change and needs its own PR so Crossroads playtests stay comparable until then.
+Add a "Perceived world" section (a level-2 heading in the prompt) from `Perception.visible_world/1`. NPC JSON uses the allow-list. Pass `mechanical_resolution` into the GM user prompt only as **outcome bounds** once PR-9 exists; today the GM still guesses tone before the server roll (`TurnProcessor` calls LLM *then* `apply_mechanics`). That ordering is a smell. **Do not silently invert this in the tracer.** PR-9: **roll first, then GM**. That is a behavior change and needs its own PR so Crossroads playtests stay comparable until then.
 
 ---
 

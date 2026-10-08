@@ -46,8 +46,14 @@ RUN mix assets.deploy
 # ExDoc HTML for /admin/code-docs (admin only, see CodeDocsController). Built
 # here in the builder and written into priv/, so the release carries only the
 # HTML; ex_doc itself is runtime: false and never enters the release.
-COPY README.md AGENTS.md ./
-RUN mix docs --formatter html --output priv/code_docs
+# The extras and assets listed in mix.exs docs/0 (a missing one fails the build).
+# GIT_SHA (also declared in the runner stage below) pins the docs' source links
+# to this commit.
+COPY README.md AGENTS.md PRODUCT.md ./
+COPY docs/architecture.md docs/DEPLOY-FLY.md docs/
+COPY docs/exdoc docs/exdoc
+ARG GIT_SHA=unknown
+RUN GIT_SHA=${GIT_SHA} mix docs --formatter html --output priv/code_docs
 
 COPY config/runtime.exs config/
 COPY rel rel

@@ -2,8 +2,6 @@
 
 A few friends and I have been building a text-first RPG on Elixir. Phoenix for the table, Jido for the hot session, Postgres for the save, Oban for the slow thinking.
 
-This is a greenfield rewrite. Rules and prompts come from [text-forge](../text-forge). We did not port the old Supabase code.
-
 ## Stack
 
 | Layer | Technology |
@@ -129,7 +127,7 @@ priv/
   rules/             # Markdown rulebook (from text-forge)
 ```
 
-Who it is for: [PRODUCT.md](PRODUCT.md) (Hawk, Paul, Lotta, Lars — not Ronny). How it runs: [docs/architecture.md](docs/architecture.md). Three slides if we have to explain it at ElixirConf: [docs/elixirconf-2027/README.md](docs/elixirconf-2027/README.md).
+Who it is for: [PRODUCT.md](PRODUCT.md) (Hawk, Paul, Lotta, Lars — not Ronny). How it runs: [docs/architecture.md](docs/architecture.md). Three slides if we have to explain it at ElixirConf: [docs/elixirconf-2027/README.md](https://github.com/whyse-ab/ex-tales-forge/tree/main/docs/elixirconf-2027).
 
 ## Phase status
 

@@ -1,6 +1,11 @@
 defmodule TalesForgeWeb.AdminLive.DocLive.Index do
   @moduledoc """
   Admin: the project docs, rendered from Markdown.
+
+  Every doc has its own URL, `/admin/docs/<path under docs/>` (e.g.
+  `/admin/docs/founder-survey-3.md`), so docs can link to each other: relative
+  links in a doc are rewritten to those URLs, to decision pages or to GitHub
+  (`TalesForge.Collab.Links`).
   """
 
   use TalesForgeWeb, :live_view
@@ -24,24 +29,42 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
   end
 
   @impl true
+  def handle_params(%{"path" => segments}, _uri, socket) do
+    path = "docs/" <> Enum.join(segments, "/")
+
+    case Collab.get_doc_by_path(path) do
+      nil ->
+        {:noreply,
+         socket
+         |> put_flash(:error, "#{path} is not in the docs index. Sync from the decision queue.")
+         |> push_patch(to: ~p"/admin/docs")}
+
+      doc ->
+        {:noreply,
+         socket
+         |> assign(:page_title, doc.title)
+         |> assign(:selected, doc)
+         # The card heading already shows the title; don't repeat the doc's own H1.
+         |> assign(
+           :body_html,
+           doc.body |> Markdown.strip_title_heading(doc.title) |> Collab.render_body(doc.path)
+         )
+         |> push_event("scroll-into-view", %{id: "doc-preview", mobile_only: true})}
+    end
+  end
+
+  def handle_params(_params, _uri, socket),
+    do: {:noreply, assign(socket, page_title: "Docs", selected: nil, body_html: nil)}
+
+  @impl true
   def handle_event("search", %{"q" => q}, socket) do
     docs = Collab.search_docs(q)
     {:noreply, assign(socket, docs: docs, query: q)}
   end
 
-  def handle_event("select", %{"path" => path}, socket) do
-    doc = Collab.get_doc_by_path!(path)
-
-    {:noreply,
-     socket
-     |> assign(:selected, doc)
-     # The card heading already shows the title; don't repeat the doc's own H1.
-     |> assign(
-       :body_html,
-       doc.body |> Markdown.strip_title_heading(doc.title) |> Markdown.to_html()
-     )
-     |> push_event("scroll-into-view", %{id: "doc-preview", mobile_only: true})}
-  end
+  @doc "The doc viewer URL of a doc path (`docs/personas.md` -> `/admin/docs/personas.md`)."
+  @spec doc_url(String.t()) :: String.t()
+  def doc_url(path), do: "/admin/docs/" <> String.replace_prefix(path, "docs/", "")
 
   @impl true
   def render(assigns) do
@@ -52,7 +75,7 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
         <p class="text-[var(--paper-muted)]">Indexed from the tales-forge-docs repo.</p>
       </header>
 
-      <form phx-change="search" phx-submit="search" class="max-w-md">
+      <form id="doc-search" phx-change="search" phx-submit="search" class="max-w-md">
         <input
           type="search"
           name="q"
@@ -124,11 +147,11 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
     ~H"""
     <ul class="space-y-1 text-sm">
       <li :for={doc <- @docs}>
-        <button
-          type="button"
-          phx-click="select"
-          phx-value-path={doc.path}
+        <.link
+          patch={doc_url(doc.path)}
+          data-path={doc.path}
           class={[
+            "block",
             "w-full text-left rounded px-2 py-1.5",
             @selected && @selected.path == doc.path &&
               "bg-[var(--paper-accent)] text-[var(--paper-on-accent)]",
@@ -138,7 +161,7 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
         >
           <span class="block font-medium">{doc.title}</span>
           <span class="block break-all text-xs opacity-75">{doc.path}</span>
-        </button>
+        </.link>
       </li>
     </ul>
     <p :if={@docs == []} class="text-sm text-[var(--paper-muted)]">

@@ -4,7 +4,7 @@
 
 Text-first AI RPG on the BEAM. Jido agents own play-session runtime; LiveView is the UI; PostgreSQL holds sessions and turn history.
 
-Greenfield Elixir rewrite of [text-forge](../text-forge). Borrow rules, prompts, and lore from text-forge; do not port v1 Supabase code.
+Greenfield Elixir rewrite of text-forge (a separate, earlier app). Borrow rules, prompts, and lore from text-forge; do not port v1 Supabase code.
 
 Who we build for is in [PRODUCT.md](PRODUCT.md). Core table: **Hawk** (hard mode), **Paul** (role-playing, mechanics invisible), **Lotta** (identification, world and character), **Lars** (adventure). **Ronny** (win, loot, highest level) is the anti-persona — do not add systems that exist to let him win.
 
@@ -48,7 +48,7 @@ Rules identity (same file, Rules philosophy): prices ≈ human labor; you learn 
 
 - Run `mix format` before every commit
 - `mix precommit` runs `mix format` then `mix quality` (format check + Credo)
-- [.formatter.exs](.formatter.exs) is authoritative (Phoenix, Ecto, LiveView HEEx)
+- [.formatter.exs](https://github.com/whyse-ab/ex-tales-forge/blob/main/.formatter.exs) is authoritative (Phoenix, Ecto, LiveView HEEx)
 
 ### Docs, types and tests (mandatory)
 
@@ -267,4 +267,4 @@ mix phx.server   # terminal 1
 mix e2e.smoke    # terminal 2
 ```
 
-See [`.grok/skills/play-test/SKILL.md`](.grok/skills/play-test/SKILL.md). Reports land in `priv/playtest/reports/`.
+See [`.grok/skills/play-test/SKILL.md`](https://github.com/whyse-ab/ex-tales-forge/blob/main/.grok/skills/play-test/SKILL.md). Reports land in `priv/playtest/reports/`.

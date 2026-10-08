@@ -107,13 +107,26 @@ defmodule TalesForge.MixProject do
     ]
   end
 
-  # `mix docs` builds the browsable docs site into doc/.
+  # `mix docs` builds the browsable docs site into doc/ (served at
+  # /admin/code-docs). Every Markdown file the extras link to is an extra
+  # itself, so ExDoc turns those links into pages; links to other repo files are
+  # absolute GitHub URLs. `mix docs.check_links` (CI) checks the result.
   defp docs do
     [
       main: "readme",
-      extras: ["README.md", "AGENTS.md"],
-      # The guides link to repo files that are not part of the docs site.
-      skip_undefined_reference_warnings_on: ["README.md", "AGENTS.md"],
+      extras: [
+        "README.md",
+        "AGENTS.md",
+        "PRODUCT.md": [title: "Product"],
+        "docs/architecture.md": [title: "Architecture"],
+        "docs/DEPLOY-FLY.md": [title: "Deploy on Fly"]
+      ],
+      # Source links point at the commit the docs were built from (the Docker
+      # builder gets GIT_SHA), so line numbers match the deployed code.
+      source_ref: source_ref(),
+      # ExDoc's pages always load docs_config.js (its version menu); ship an
+      # empty one so that request doesn't 404.
+      assets: %{"docs/exdoc" => "."},
       groups_for_modules: [
         Game: ~r/^TalesForge\.Game\./,
         "World agents": [TalesForge.World, ~r/^TalesForge\.World\./],
@@ -122,6 +135,13 @@ defmodule TalesForge.MixProject do
         Web: ~r/^TalesForgeWeb/
       ]
     ]
+  end
+
+  defp source_ref do
+    case System.get_env("GIT_SHA") do
+      sha when is_binary(sha) and sha not in ["", "unknown"] -> sha
+      _ -> "main"
+    end
   end
 
   # `mix test --cover`: fails below the threshold (raise it as coverage grows).

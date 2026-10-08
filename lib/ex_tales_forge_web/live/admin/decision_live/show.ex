@@ -8,7 +8,6 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Show do
   import TalesForgeWeb.AdminComponents
 
   alias TalesForge.Collab
-  alias TalesForge.Collab.Markdown
 
   @impl true
   def mount(%{"slug" => slug}, _session, socket) do
@@ -26,7 +25,7 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Show do
      |> assign(:comment_body, "")
      |> assign(:outcome_decision, decision.decision || "")
      |> assign(:outcome_rationale, decision.rationale || "")
-     |> assign(:body_html, Markdown.to_html(decision.body))}
+     |> assign(:body_html, body_html(decision))}
   end
 
   @impl true
@@ -43,7 +42,7 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Show do
       {:noreply,
        socket
        |> assign(:decision, decision)
-       |> assign(:body_html, Markdown.to_html(decision.body))
+       |> assign(:body_html, body_html(decision))
        |> assign(:outcome_decision, decision.decision || "")
        |> assign(:outcome_rationale, decision.rationale || "")}
     else
@@ -55,6 +54,10 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Show do
     decision = Collab.get_decision_by_slug!(socket.assigns.decision.slug)
     {:noreply, assign(socket, :decision, decision)}
   end
+
+  # Relative links in the body (`../docs/why-elixir.md`) open the doc viewer.
+  defp body_html(decision),
+    do: Collab.render_body(decision.body, Collab.decision_repo_path(decision))
 
   @impl true
   def handle_event("toggle_interested", _params, socket) do
