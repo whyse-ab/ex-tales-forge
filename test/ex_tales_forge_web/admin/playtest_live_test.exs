@@ -108,8 +108,11 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
              ~s(#summary-findings a[href="https://tales-forge-playtest.fly.dev/admin/playtest/72d7292e-5df7-4ffa-bd02-1277cc9d081c#turn-4"])
            )
 
-    # No link to a written analysis that doesn't exist yet.
-    refute has_element?(view, "#batch-post-rework-2026-10-08 a", "written analysis")
+    # The post-rework batch links its written analysis.
+    assert has_element?(
+             view,
+             ~s(#batch-post-rework-2026-10-08 a[href$="analysis-jev-post-rework-2026-10-08.md"])
+           )
   end
 
   test "a batch's numbers fill in live from its series runs on this server", %{conn: conn} do

@@ -34,4 +34,4 @@ A few things to keep in mind:
 
 7. **Characters barely grew.** In 65 baseline games not a single skill improved. Next step: every bit of experience buys a chance to get better.
 
-The written analyses have the details: [Elara runs](https://github.com/whyse-ab/tales-forge-docs/blob/main/docs/analysis-jev-scores-2026-10-07.md), [baseline](https://github.com/whyse-ab/tales-forge-docs/blob/main/docs/analysis-jev-baseline-2026-10-07.md).
+The written analyses have the details: [Elara runs](https://github.com/whyse-ab/tales-forge-docs/blob/main/docs/analysis-jev-scores-2026-10-07.md), [baseline](https://github.com/whyse-ab/tales-forge-docs/blob/main/docs/analysis-jev-baseline-2026-10-07.md), [after the baseline fixes](https://github.com/whyse-ab/tales-forge-docs/blob/main/docs/analysis-jev-post-rework-2026-10-08.md).
