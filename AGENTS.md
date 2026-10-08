@@ -280,6 +280,7 @@ Set API keys in `.env` (loaded automatically in dev via `config/runtime.exs`). P
 | `anthropic` | `ANTHROPIC_API_KEY` | |
 
 Jev calls (NPC reactions, persona-affect scoring) use `TYPESAFE_API_KEY`.
+`mix intent.eval` takes `TYPESAFE_INTENT_PLAYTEST_API_KEY` first (then `TYPESAFE_INTENT_API_KEY`, `TYPESAFE_API_KEY`) so dev eval runs bill to the playtest key. Tests never read these env vars: `config :jev, :api_key` is `nil` in test and tests set it with `Application.put_env/3`.
 
 ### Two-tier LLM
 

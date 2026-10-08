@@ -1,0 +1,63 @@
+defmodule TalesForge.IntentEval.FixtureTest do
+  use ExUnit.Case, async: true
+
+  alias TalesForge.Game.Mechanics
+  alias TalesForge.IntentEval
+
+  @items IntentEval.load_items("test/fixtures/intent_eval/items.jsonl")
+
+  test "the fixture validates" do
+    assert IntentEval.validate(@items) == :ok
+  end
+
+  test "ids are unique" do
+    ids = Enum.map(@items, & &1["id"])
+    assert length(ids) == length(Enum.uniq(ids))
+  end
+
+  test "every label is reviewed, with a labeller" do
+    assert Enum.all?(@items, &(&1["reviewed"] == true))
+    assert Enum.all?(@items, &is_binary(&1["labeller"]))
+  end
+
+  test "there are at least 300 items with both real and handwritten sources" do
+    assert length(@items) >= 300
+    sources = @items |> Enum.map(& &1["source"]) |> Enum.uniq() |> Enum.sort()
+    assert sources == ["handwritten", "real_playtest"]
+  end
+
+  test "about 60 attacks across the three attack classes, in both splits" do
+    attacks = Enum.filter(@items, &(get_in(&1, ["gold", "safety"]) != "benign"))
+    assert length(attacks) >= 55
+
+    classes = attacks |> Enum.map(&get_in(&1, ["gold", "safety"])) |> Enum.uniq() |> Enum.sort()
+    assert classes == ["jailbreak", "nefarious", "prompt_injection"]
+
+    by_split = Enum.frequencies_by(attacks, & &1["split"])
+    assert by_split["tune"] > 0
+    assert by_split["holdout"] > 0
+  end
+
+  test "the holdout is roughly 30% and stratified by category" do
+    by_cat = Enum.group_by(@items, & &1["category"])
+
+    for {_cat, group} <- by_cat, length(group) >= 8 do
+      held = Enum.count(group, &(&1["split"] == "holdout"))
+      frac = held / length(group)
+      assert frac >= 0.2 and frac <= 0.4
+    end
+  end
+
+  test "the fixture skill vocabulary matches the game's skills" do
+    gold_skills =
+      @items
+      |> Enum.flat_map(fn item ->
+        [get_in(item, ["gold", "skill"]) | List.wrap(get_in(item, ["gold", "acceptable_skills"]))]
+      end)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.uniq()
+
+    valid = Mechanics.skill_stat_map() |> Map.keys()
+    assert Enum.all?(gold_skills, &(&1 in valid))
+  end
+end

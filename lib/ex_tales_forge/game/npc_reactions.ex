@@ -84,10 +84,14 @@ defmodule TalesForge.Game.NpcReactions do
   @spec enabled?() :: boolean()
   def enabled?, do: (Config.npc_reactions?() or Config.world_agents?()) and configured?()
 
-  @doc "True when a TypeSafe (Jev) API key is configured."
+  @doc """
+  True when a TypeSafe (Jev) API key is configured in `config :jev, :api_key`
+  (`config/runtime.exs` sets it from `TYPESAFE_API_KEY` outside test). The OS
+  environment is not read here, so tests decide the key with `Application.put_env/3`.
+  """
   @spec configured?() :: boolean()
   def configured? do
-    case Application.get_env(:jev, :api_key) || System.get_env("TYPESAFE_API_KEY") do
+    case Application.get_env(:jev, :api_key) do
       key when is_binary(key) and key != "" -> true
       _ -> false
     end

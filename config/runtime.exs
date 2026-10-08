@@ -179,9 +179,15 @@ config :ex_tales_forge, :tales_forge_docs_path, System.get_env("TALES_FORGE_DOCS
 
 # TypeSafe Jev (persona-affect scoring on playtest). Unset = Jev scoring skipped.
 # Key name TYPESAFE_API_KEY; set on tales-forge-playtest only for now.
-config :jev,
-  api_key: System.get_env("TYPESAFE_API_KEY"),
-  model: "jev-1.13.0"
+# Not read in test: config/test.exs sets api_key: nil and each test that needs a
+# key puts one with Application.put_env/3, so a key exported in the shell never
+# changes test results. The app reads the key only from this config, never from
+# the environment at call time.
+config :jev, model: "jev-1.13.0"
+
+if config_env() != :test do
+  config :jev, api_key: System.get_env("TYPESAFE_API_KEY")
+end
 
 # Admin costs page peer (/admin/costs). Both apps run the same code: whichever
 # side has both values set fetches the other side's aggregated AI spend.
