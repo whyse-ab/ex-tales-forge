@@ -260,13 +260,51 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
       probabilities: %{}
     })
 
+    insert_turn_affect(run, 2, 4.5, 0.9)
+    insert_turn_affect(run, 3, 2.0, 0.2)
+
     {:ok, view, html} = live(conn, ~p"/admin/playtest/#{run.id}")
 
     assert html =~ "4.2/5 persona affect"
     assert html =~ "Jev session_affect"
     assert html =~ "jev-1.13.0"
-    assert has_element?(view, "#score-confidence", "81.0%")
+    assert has_element?(view, "#score-confidence", "Session confidence 81.0%")
     assert has_element?(view, "#turn-affect-strip", "T1: 3.0")
+    # Headline: confidence-weighted turn average, (3.0×0.7 + 4.5×0.9 + 2.0×0.2) / 1.8.
+    assert has_element?(view, "#jev-headline", "3.64/5 · unsure 33%")
+    assert has_element?(view, "#jev-headline", "confidence-weighted over 3 turns")
+    assert has_element?(view, "#jev-breakdown", "1 high · 0 low · 1 middle · 1 unsure")
+  end
+
+  test "runs list shows the weighted Jev headline with the unsure share and the breakdown",
+       %{conn: conn} do
+    run = seed_run(persona: "lotta")
+    insert_turn_affect(run, 1, 4.0, 0.8)
+    insert_turn_affect(run, 2, 3.0, 0.4)
+    # A re-score of turn 2: only the newest row per turn counts.
+    insert_turn_affect(run, 2, 2.0, 0.8)
+    unscored = seed_run(persona: "hawk")
+
+    {:ok, view, _html} = live(conn, ~p"/admin/playtest")
+
+    assert has_element?(view, "#run-#{run.id}-jev", "3.00/5 · unsure 0%")
+    assert has_element?(view, "#run-#{run.id}", "1 high · 1 low · 0 middle · 0 unsure")
+    refute has_element?(view, "#run-#{unscored.id}-jev")
+  end
+
+  defp insert_turn_affect(run, turn_number, overall, confidence) do
+    Repo.insert!(%PlaytestScore{
+      playtest_run_id: run.id,
+      model: "jev-1.13.0",
+      rubric_version: "jev-affect-v1-abc1234",
+      source: "jev",
+      kind: "turn_affect",
+      turn_number: turn_number,
+      scores: %{},
+      overall: overall,
+      confidence: confidence,
+      probabilities: %{}
+    })
   end
 
   defp seed_run(opts \\ []) do

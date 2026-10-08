@@ -26,17 +26,42 @@ defmodule TalesForge.Playtest.AffectLevelsTest do
   end
 
   test "Paul, Lotta and Lars keep the frustrated-to-delighted question; only Lars keeps his version" do
-    for {id, hash} <- [{"paul", "fd84ebb"}, {"lotta", "ce84a1a"}, {"lars", "fc771be"}] do
+    for {id, hash} <- [{"paul", "7862783"}, {"lotta", "989546a"}, {"lars", "fc771be"}] do
       assert AffectLevels.session_question(id, "X") =~ "frustrated (low) to delighted (high)"
       assert AffectLevels.rubric_hash(id) == hash
     end
   end
 
-  test "Paul's and Lotta's stricter rubric versions never mix with the baseline scores" do
-    refute AffectLevels.rubric_hash("paul") == "dfec71a"
-    refute AffectLevels.rubric_hash("lotta") == "4545d3b"
-    assert JevScorer.rubric_version("paul") == "jev-affect-v1-fd84ebb"
-    assert JevScorer.rubric_version("lotta") == "jev-affect-v1-ce84a1a"
+  test "Paul's and Lotta's rubric versions never mix with the baseline or #69 scores" do
+    for old <- ["dfec71a", "fd84ebb"], do: refute(AffectLevels.rubric_hash("paul") == old)
+    for old <- ["4545d3b", "ce84a1a"], do: refute(AffectLevels.rubric_hash("lotta") == old)
+    assert JevScorer.rubric_version("paul") == "jev-affect-v1-7862783"
+    assert JevScorer.rubric_version("lotta") == "jev-affect-v1-989546a"
+  end
+
+  test "Paul's 4/5 border: a reply that only answers him is 4; evidence for 5 must be visible in the turn" do
+    [_, _, _, pleased, delighted] = AffectLevels.levels("paul")
+    assert pleased =~ "the reply only answers him"
+    assert pleased =~ "adds nothing he did not ask for"
+    assert pleased =~ "Example:"
+    assert delighted =~ "each visible in this turn's narration"
+    assert delighted =~ "an answer alone is not a consequence"
+    assert delighted =~ "Information he asked for, a warm reply, a gift or a price never count"
+    assert delighted =~ "Example:"
+  end
+
+  test "Lotta's 3/4 border: would another traveller saying her line get the same reply?" do
+    [_, _, mixed, immersed, _] = AffectLevels.levels("lotta")
+    assert mixed =~ "would read the same for any traveller who said her line"
+    assert mixed =~ "her name used"
+    assert immersed =~ "another traveller saying the same line would not get"
+    assert immersed =~ "using her name or answering her question is not enough"
+    assert mixed =~ "Example:" and immersed =~ "Example:"
+  end
+
+  test "Lars, Hawk and Ronny keep their rubric versions" do
+    assert Enum.map(~w(lars hawk ronny), &AffectLevels.rubric_hash/1) ==
+             ~w(fc771be 129f728 e8f0786)
   end
 
   test "Paul's and Lotta's top level needs concrete evidence, not just a pleasant stretch" do

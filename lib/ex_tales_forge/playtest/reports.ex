@@ -10,6 +10,7 @@ defmodule TalesForge.Playtest.Reports do
   alias TalesForge.AICalls
   alias TalesForge.AICalls.Metrics
   alias TalesForge.GMReasoning
+  alias TalesForge.Playtest.JevHeadline
   alias TalesForge.Repo
   alias TalesForge.Schemas.{AICall, PlaytestRun, PlaytestScore, Turn}
 
@@ -24,15 +25,26 @@ defmodule TalesForge.Playtest.Reports do
 
     costs = session_costs(Enum.map(runs, & &1.game_session_id))
     scores = latest_scores(Enum.map(runs, & &1.id))
+    turns = turn_affects_by_run(Enum.map(runs, & &1.id))
 
     Enum.map(runs, fn run ->
       %{
         run: run,
         game_cost_micro_usd: Map.get(costs, run.game_session_id, 0),
-        score: Map.get(scores, run.id)
+        score: Map.get(scores, run.id),
+        jev: jev_headline(Map.get(turns, run.id, []))
       }
     end)
   end
+
+  @doc """
+  The Jev headline for a run's turn rows (`TalesForge.Playtest.JevHeadline`):
+  the confidence-weighted turn average with the unsure share and the
+  breakdown, or nil when the run has no Jev turn scores.
+  """
+  @spec jev_headline([JevHeadline.row()]) :: JevHeadline.t() | nil
+  def jev_headline([]), do: nil
+  def jev_headline(turn_rows), do: JevHeadline.summarize(turn_rows)
 
   def get_run(id) do
     with {:ok, id} <- Ecto.UUID.cast(id), %PlaytestRun{} = run <- Repo.get(PlaytestRun, id) do
@@ -48,14 +60,21 @@ defmodule TalesForge.Playtest.Reports do
   """
   def latest_score(run_id), do: run_id |> List.wrap() |> latest_scores() |> Map.get(run_id)
 
-  @doc "Jev per-turn affect rows for a run, oldest turn first."
-  def turn_affect_scores(run_id) do
+  @doc "Jev per-turn affect rows for a run, oldest turn first (the newest row per turn)."
+  def turn_affect_scores(run_id),
+    do: run_id |> List.wrap() |> turn_affects_by_run() |> Map.get(run_id, [])
+
+  defp turn_affects_by_run([]), do: %{}
+
+  defp turn_affects_by_run(run_ids) do
     PlaytestScore
-    |> where([s], s.playtest_run_id == ^run_id and s.kind == "turn_affect")
-    |> order_by([s], asc: s.turn_number, desc: s.inserted_at)
+    |> where([s], s.playtest_run_id in ^run_ids and s.kind == "turn_affect")
+    |> order_by([s], asc: s.turn_number, desc: s.inserted_at, desc: s.id)
     |> Repo.all()
-    |> Enum.uniq_by(& &1.turn_number)
-    |> Enum.sort_by(& &1.turn_number)
+    |> Enum.group_by(& &1.playtest_run_id)
+    |> Map.new(fn {run_id, rows} ->
+      {run_id, rows |> Enum.uniq_by(& &1.turn_number) |> Enum.sort_by(& &1.turn_number)}
+    end)
   end
 
   @doc "Turns in order, each with its server roll and hidden GM notes (nil when missing)."

@@ -8,7 +8,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
   import TalesForgeWeb.AdminComponents
 
   alias TalesForge.Game.Variant
-  alias TalesForge.Playtest.{Personas, Reports, RunMeta, Runner}
+  alias TalesForge.Playtest.{JevHeadline, Personas, Reports, RunMeta, Runner}
   alias TalesForgeWeb.TimeAgo
 
   # Re-render the "N minutes ago" words this often; the rows are not reloaded.
@@ -68,6 +68,8 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
         <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Playtest runs</h2>
         <p class="text-sm text-[var(--paper-muted)]">
           Persona bot sessions and their judge scores. Game cost and time leave out the bot's own calls.
+          The Jev score is the confidence-weighted turn average with the share of unsure turns
+          (confidence below {JevHeadline.unsure_below()}) next to it.
         </p>
       </header>
 
@@ -144,7 +146,21 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
               <td class="hidden px-3 py-2 sm:table-cell">
                 {format_usd(row.run.persona_cost_micro_usd)}
               </td>
-              <td class="px-3 py-2">{overall(row.score)}</td>
+              <td class="px-3 py-2">
+                <%= if row.jev do %>
+                  <span id={"run-#{row.run.id}-jev"} class="whitespace-nowrap tabular-nums">
+                    {JevHeadline.format(row.jev)}
+                  </span>
+                  <div class="text-xs text-[var(--paper-muted)] sm:whitespace-nowrap">
+                    {JevHeadline.breakdown(row.jev)}
+                  </div>
+                  <div :if={row.score} class="text-xs text-[var(--paper-muted)]">
+                    session {overall(row.score)}
+                  </div>
+                <% else %>
+                  {overall(row.score)}
+                <% end %>
+              </td>
             </tr>
           </tbody>
         </table>

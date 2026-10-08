@@ -31,6 +31,16 @@ defmodule TalesForge.Playtest.AffectLevels do
   hashes changed, so the old scores and the new ones never mix: any comparison
   with the 2026-10-07 baseline must re-score the baseline with this rubric.
   The personas themselves are unchanged; they model real players.
+
+  **Sharper borders for Paul (4 vs 5) and Lotta (3 vs 4)** (2026-10-08,
+  tales-forge-docs `docs/decisions.md`, "Sharper Jev borders for Paul and
+  Lotta"). On the #69 rubric Jev split between those two levels on about half
+  of Paul's turns and most of Lotta's. Each border now names what to look for
+  in the turn, with a short example from a real playtest turn: Paul stays at 4
+  when the reply only answers him, and each kind of level-5 evidence must be
+  visible in the turn; Lotta stays at 3 when another traveller saying the same
+  line would get the same reply. Their rubric versions changed again
+  (`jev-affect-v1-7862783`, `jev-affect-v1-989546a`).
   """
 
   @levels %{
@@ -39,11 +49,15 @@ defmodule TalesForge.Playtest.AffectLevels do
       # 124 of 130 baseline turns. Smooth, warm play with nothing particular
       # in it is now 3; level 4 needs a reply to *his* character, level 5
       # concrete evidence in the transcript.
+      # Sharper 4/5 border (2026-10-08): Jev split 4 vs 5 on about half the
+      # turns. Level 4 now says a reply that only answers him stays 4; level 5
+      # defines each kind of evidence as something visible in the turn, and
+      # asked-for information, warmth, gifts and prices never count.
       "Left cold — the session felt mechanical, broke immersion, or shoved dice and rules into his face",
       "Uneasy — the story limped; he could stay in character only by ignoring the seams",
       "Mixed — smooth and polite but generic: the world went along with him without answering anything particular about his character, or some moments answered his play as real while others pulled him out of character",
-      "Pleased — the world treated his in-character play as real throughout, and an NPC answered something specific he said, did or is, not just a polite guest",
-      "Delighted — all of Pleased, plus concrete evidence of at least two of: a surprise he could not have predicted; a choice of his with a consequence that changed the situation; an NPC or the world calling back to something from earlier in play; an NPC acting on their own goals, not only reacting to him. A pleasant but uneventful stretch is never this level"
+      "Pleased — the world treated his in-character play as real throughout, and an NPC answered something specific he said, did or is (his preaching, his words, his offer), not just a polite guest; but the reply only answers him: it gives what he asked for (information, a price, a room, a welcome, a gift) and adds nothing he did not ask for. Example: he asks what proof Osric wants and Brenna tells him, a carved bone idol, and nothing more happens",
+      "Delighted — all of Pleased, plus concrete evidence of at least two of the following, each visible in this turn's narration: a surprise (a new fact, event or arrival he did not ask about or point to); a consequence (something in the situation changes because of a choice of his: an NPC acts on his offer or words, a door opens, a task or item results; an answer alone is not a consequence); an NPC or the world calling back to a specific earlier word or deed of his, named or quoted; an NPC acting on their own goals in a way that changes the scene (not background business such as wiping the bar). Information he asked for, a warm reply, a gift or a price never count as evidence. Example: he offers to help and Brenna puts him to stir the stewpot, then volunteers a black iron door seen in the cut. A pleasant but uneventful stretch is never this level"
     ],
     "hawk" => [
       # One axis: how much real, fair danger he faced.
@@ -58,10 +72,13 @@ defmodule TalesForge.Playtest.AffectLevels do
       # 130 baseline turns. A warm, safe world that would treat anyone the
       # same is now 3; level 4 needs a world that sees *her* character, level
       # 5 concrete evidence in the transcript.
+      # Sharper 3/4 border (2026-10-08): Jev split 3 vs 4 on most turns. The
+      # test is now "would another traveller saying the same line get the same
+      # reply?"; her name, her order or an answer to her question stays 3.
       "Devastated or ejected — she could not be someone better; harm or death crushed identification without care",
       "Alienated — the character never felt like her escape; the world stayed cold or mechanical",
-      "Mixed — pleasant but interchangeable: the world was kind to her but nothing was about who her character is, or flashes of being someone else broken by tone-deaf harm or flat NPCs",
-      "Immersed — she could live as a better version of herself: the world responded to her character's particular traits, background or choices, not just to a polite guest",
+      "Mixed — pleasant but interchangeable: the reply would read the same for any traveller who said her line: her name used, her order served, her question answered, a price named, a job or lead offered to anyone; or flashes of being someone else broken by tone-deaf harm or flat NPCs. Example: she gives her name and orders stew; Brenna welcomes her by name, names the price and mentions the bounty for anyone with steel",
+      "Immersed — she could live as a better version of herself: the reply picks up something particular to her character that another traveller saying the same line would not get: her race, craft or calling (a dwarf's roots, a druid's bond with the wilds, beasts or growing things), her stated background or manner, or something she did earlier in play; using her name or answering her question is not enough, not just a polite guest. Example: she says she is more at home in the wilds than the mines, and Brenna answers that the job in the wilds might suit her better than swinging a pick",
       "Transported — all of Immersed, plus concrete evidence of at least two of: a surprise; a choice of hers with a consequence that changed someone or something; an NPC remembering or calling back to her earlier words or deeds; an NPC acting on their own goals toward her; care shown when stakes hurt. A warm, safe, uneventful stretch is never this level"
     ],
     "lars" => [
