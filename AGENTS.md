@@ -88,7 +88,7 @@ Environment variables read through `TalesForge.Config`. Flags marked "new sessio
 |------|--------------|---------|------------|----------|
 | `GAME_VARIANT` | Behaviour variant of new sessions: `default` or `baseline` (`TalesForge.Game.Variant`). The playtest runner can pick a variant per run | `default` | not set in `fly.toml` | not set in `fly.playtest.toml`; runs choose per run |
 | `INN_WORLD` | Places and people around the Valley Inn for new Tin Valley sessions (`TalesForge.Game.Features`) | off | off | `on` (`fly.playtest.toml`) |
-| `WORLD_ANTAGONIST` | The Tinjacks antagonist for new Tin Valley sessions; needs `INN_WORLD` | off | off | off until [#73](https://github.com/whyse-ab/ex-tales-forge/pull/73) sets it |
+| `WORLD_ANTAGONIST` | The Tinjacks antagonist for new Tin Valley sessions; needs `INN_WORLD` | off | off | `on` (`fly.playtest.toml`, [#73](https://github.com/whyse-ab/ex-tales-forge/pull/73)) |
 | `NPC_REACTIONS` | Jev NPC reaction before each GM call (`TalesForge.Game.NpcReactions`; needs `TYPESAFE_API_KEY`) | off | off | `on` (Fly secret) |
 | `WORLD_AGENTS` | World-agents prototype: persons and locations hold facts for the GM; also turns on NPC reactions | off | off | off |
 | GM reply mode | Only the structured GM reply schema exists on `main`. The prose-only prototype `GM_REPLY_MODE=prose` is in the unmerged [#38](https://github.com/whyse-ab/ex-tales-forge/pull/38) | structured | structured | structured |
