@@ -49,6 +49,10 @@ config :ex_tales_forge, :github_oauth, client_id: nil, client_secret: nil
 config :ex_tales_forge, :admin_github_team, "whyse-ab/tales-forge"
 config :ex_tales_forge, :github_req_options, plug: {Req.Test, TalesForge.AdminAuth.GitHub}
 
+# Survey definitions: GitHub HTTP goes to Req.Test stubs; without a token the
+# snapshot in priv/surveys is used.
+config :ex_tales_forge, :survey_req_options, plug: {Req.Test, TalesForge.Survey.Source}
+
 # LLM HTTP goes to Req.Test stubs (tests that switch LLM_PROVIDER away from mock).
 config :ex_tales_forge, :llm_req_options, plug: {Req.Test, TalesForge.LLM}
 

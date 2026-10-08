@@ -95,7 +95,11 @@
                  "lib/ex_tales_forge/world.ex",
                  "lib/ex_tales_forge/world/",
                  "lib/ex_tales_forge/game/features.ex",
-                 "lib/ex_tales_forge_web/time_ago.ex"
+                 "lib/ex_tales_forge_web/time_ago.ex",
+                 "lib/ex_tales_forge/surveys.ex",
+                 "lib/ex_tales_forge/survey/",
+                 "lib/ex_tales_forge_web/components/survey_components.ex",
+                 "lib/ex_tales_forge_web/controllers/survey_export_controller.ex"
                ]
              }
            ]}
