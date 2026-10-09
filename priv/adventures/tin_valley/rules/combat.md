@@ -24,7 +24,7 @@ This combat system, adapted from Savage Worlds' wound-based mechanics, is design
 - **Learning Points (LP)**:
   - Miss (Natural 20 included): +1 LP for the skill rolled. A hit earns none.
   - Nothing spills to other skills.
-  - Banked LP are resolved on the next long rest or sleep: ceil(skill / 3) LP per roll, d20 ≥ 11 and ≥ skill level: +1, at most +1 per night; from skill 10 only after reflecting on it.
+  - Combat skills and dodge are physical: their LP are resolved at the end of the turn of the miss, not on a rest: ceil(skill / 3) LP per roll, d20 ≥ 11 and ≥ skill level: +1, at most +1 per skill between two long rests; from skill 10 only after reflecting on it. Other skills rolled in a fight (deception, intimidation) wait for sleep.
 
 ## Additional Features
 - **Multi-Actions**: Multiple actions per round (e.g., attack twice) at -2 skill per extra action, granting LP on failures.

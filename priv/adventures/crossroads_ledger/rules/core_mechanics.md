@@ -17,11 +17,12 @@ This is a skill-based fantasy RPG system where character progress is measured by
   - Failure or partial success: +1 LP for that skill, a banked improvement chance. Nothing spills to other skills.
   - Success (natural 1 included): no LP.
   - The linked stat adds no LP: talent helps you succeed, not learn faster.
-- **Skill Improvement** — it sinks in while you sleep:
+- **Skill Improvement** — it sinks in while you sleep, except for physical skills:
   - Banked LP are resolved on a long rest (sleep, or six hours or more of rest). Ordinary turns resolve nothing.
+  - Physical skills (melee, ranged and unarmed combat, dodge, climbing, lockpicking) improve right away: their LP are resolved at the end of the turn of the failure, by the same cost, roll and reflection rule. They too gain at most +1 per skill between two long rests; after that, their LP are dropped until the character has slept. LP too few for a roll wait for more failures until the next long rest.
   - Higher levels need more failures: one improvement roll costs ceil(skill / 3) banked LP (1 LP up to 3, 2 up to 6, 3 up to 9, 4 up to 12, 5 up to 15).
   - Roll 1d20 ≥ 11 and ≥ raw skill: skill +1. Chance (21 - max(skill, 11))/20: 50% up to 11, 45% at 12, 25% at 16, 5% at 20. No roll is a sure thing, not even at level 0.
-  - At most +1 per skill per night: the rolls stop at the first success. Then all of that skill's banked LP are gone, and they are gone too if every roll failed or there were too few for a roll. Nothing carries over to the next night.
+  - At most +1 per skill per night (for physical skills: per long-rest cycle): the rolls stop at the first success. Then all of that skill's banked LP are gone, and they are gone too if every roll failed or there were too few for a roll. Nothing carries over to the next night.
   - From skill 10, practice alone is not enough: the LP are only resolved on a rest when the character reflected on the skill, practised or studied it deliberately, or trained it with a trainer since the last long rest. Until then they stay banked.
   - No skill cap, but past 20 only a trainer's bonus can reach the target.
 - **Death Exception**: No LP from fatal failures, and the dead learn nothing.
