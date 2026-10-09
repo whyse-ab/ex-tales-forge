@@ -599,7 +599,6 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
         build: "0.1.0",
         git_sha: Keyword.get(opts, :git_sha),
         flags: Keyword.get(opts, :flags, %{}),
-        notes: Keyword.get(opts, :notes),
         turn_limit: 5,
         turns_played: 1,
         status: "finished",
