@@ -500,7 +500,9 @@ defmodule TalesForgeWeb.TeamPresentationLive do
       </ol>
       <button
         type="button"
-        class="team-replay mt-4 inline-flex items-center gap-1.5 rounded-full border border-[var(--paper-rule)] px-3 py-1 text-sm hover:bg-[var(--paper-bg)]"
+        id="replay-flow"
+        aria-label="Replay the animation of the change flow"
+        class="team-replay-btn min-h-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--paper-accent)] mt-4 inline-flex items-center gap-1.5 rounded-full border border-[var(--paper-rule)] px-3 py-1 text-sm hover:bg-[var(--paper-bg)]"
         data-flow-replay
       >
         <.icon name="hero-arrow-path-micro" class="size-4" /> Replay
