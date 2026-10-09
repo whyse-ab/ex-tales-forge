@@ -135,8 +135,8 @@ still the tip of main; otherwise it skips with a notice and the run still succee
 finish out of order when PRs merge close together, and this keeps playtest from going backwards
 (the tip gets its own deploy when its CI passes; if the tip's CI fails, playtest stays where it
 was). To deploy an older commit on purpose, run it by hand with
-`gh workflow run playtest.yml -f sha=<sha> -f force=true`. Playtest deploys run one at a time,
-and a newer one cancels a deploy still in progress.
+`gh workflow run playtest.yml -f sha=<sha> -f force=true`. Playtest deploys run one at a time
+and are never cancelled mid-way.
 It uses the Actions secret `FLY_API_TOKEN_PLAYTEST`, a deploy token scoped to the playtest app
 (`fly tokens create deploy -a tales-forge-playtest`). It is a separate workflow, so a failed
 playtest deploy never fails the CI run.

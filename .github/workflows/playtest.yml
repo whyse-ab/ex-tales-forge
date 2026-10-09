@@ -57,13 +57,12 @@ jobs:
        github.event.workflow_run.event == 'push')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    # One playtest deploy at a time, and a newer deploy cancels one still in
-    # progress (it would be superseded anyway). Job-level on purpose: a CI run
-    # that failed skips this job, so it never enters the group and never cancels
-    # a running deploy.
+    # One playtest deploy at a time; a running deploy is never cancelled
+    # (cancelling mid-migration is riskier than letting it finish). The tip
+    # check below already keeps an older build from landing after a newer one.
     concurrency:
       group: deploy-playtest
-      cancel-in-progress: true
+      cancel-in-progress: false
     steps:
       # Deploy exactly the commit CI tested; by hand, the given sha or main.
       - uses: actions/checkout@v7
