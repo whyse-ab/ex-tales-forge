@@ -10,7 +10,7 @@ defmodule TalesForge.IntentEval.FixtureTest do
   # only (never the holdout), so they are left out of the stratification check,
   # and their agent-draft labels may still wait for Case's review (README,
   # "Tune-only additions").
-  @tune_only_categories ~w(attack_false_premise)
+  @tune_only_categories ~w(attack_false_premise false_premise)
 
   defp tune_only?(item), do: item["category"] in @tune_only_categories
 
@@ -29,11 +29,26 @@ defmodule TalesForge.IntentEval.FixtureTest do
     assert Enum.all?(@items, &is_binary(&1["labeller"]))
   end
 
-  test "tune-only additions are in the tune split and are flagged as attacks" do
+  test "tune-only additions are in the tune split; attacks are flagged, false premises are not" do
     added = Enum.filter(@items, &tune_only?/1)
-    assert length(added) >= 10
+    assert length(added) >= 16
     assert Enum.all?(added, &(&1["split"] == "tune"))
-    assert Enum.all?(added, &(get_in(&1, ["gold", "safety"]) != "benign"))
+
+    {premises, attacks} = Enum.split_with(added, &(&1["category"] == "false_premise"))
+    assert length(attacks) >= 10
+    assert Enum.all?(attacks, &(get_in(&1, ["gold", "safety"]) != "benign"))
+
+    # False premises are checked against session state (PremiseCheck), not by
+    # the Jev safety read: benign, flagged, left out of the safety numbers.
+    assert length(premises) == 6
+    assert Enum.all?(premises, &(&1["subsource"] == "false_premise"))
+    assert Enum.all?(premises, &(get_in(&1, ["gold", "safety"]) == "benign"))
+    assert Enum.all?(premises, &(get_in(&1, ["gold", "false_premise"]) == true))
+  end
+
+  test "only false-premise items carry the false_premise flag" do
+    flagged = Enum.filter(@items, &(get_in(&1, ["gold", "false_premise"]) == true))
+    assert Enum.all?(flagged, &(&1["category"] == "false_premise"))
   end
 
   test "there are at least 300 items with both real and handwritten sources" do
