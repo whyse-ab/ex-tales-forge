@@ -54,6 +54,22 @@ defmodule TalesForge.Playtest.SummaryTest do
       for id <- linked ++ picked, do: assert({:ok, ^id} = Ecto.UUID.cast(id))
     end
 
+    test "a finished batch's run counts add up" do
+      {:ok, summary} = Summary.load(@shipped)
+
+      for %{status: :done, personas: [_ | _]} = batch <- summary.batches do
+        per_persona = batch.personas |> Enum.map(fn {_p, stats} -> stats.runs end) |> Enum.sum()
+        assert per_persona == batch.runs, batch.id
+        assert batch.planned_runs >= batch.runs, batch.id
+      end
+
+      post = Enum.find(summary.batches, &(&1.id == "post-rework-2026-10-08"))
+      assert {post.status, post.runs, post.planned_runs} == {:done, 23, 25}
+
+      arms = for b <- summary.batches, b.series == "intent-compare-2026-10-09", do: b.arm
+      assert arms == ["off", "on"]
+    end
+
     test "every batch says what the game was like and what changed" do
       {:ok, summary} = Summary.load(@shipped)
 
@@ -149,6 +165,47 @@ defmodule TalesForge.Playtest.SummaryTest do
       assert Map.keys(live.personas) |> Enum.sort() == ~w(hawk lars)
     end
 
+    test "live_stats/3 with an arm counts only that arm of a comparison" do
+      off = seed("cmp", "default", "lotta", arm: "off", score: [3.7])
+      on = seed("cmp", "default", "lotta", arm: "on", score: [3.2])
+      seed("cmp", "default", "lotta", arm: "online", score: [5.0])
+
+      assert %{runs: 1, personas: %{"lotta" => %{best: best}}} =
+               Summary.live_stats("cmp", "default", "off")
+
+      assert best == off.id
+
+      assert %{runs: 1, personas: %{"lotta" => %{mean: 3.2}}} =
+               Summary.live_stats("cmp", "default", "on")
+
+      assert on.id == Summary.live_stats("cmp", "default", "on").personas["lotta"].best
+      # Without an arm, every arm of the series counts.
+      assert Summary.live_stats("cmp", "default").runs == 3
+    end
+
+    test "status and planned runs: done by default, the plan defaults to the run count" do
+      dir = Path.join(System.tmp_dir!(), "summary-#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      on_exit(fn -> File.rm_rf!(dir) end)
+      File.write!(Path.join(dir, "summary.md"), "Intro")
+
+      File.write!(
+        Path.join(dir, "batches.json"),
+        Jason.encode!(%{
+          "batches" => [
+            %{"id" => "a", "runs" => 23, "planned_runs" => 25},
+            %{"id" => "b", "runs" => 25, "status" => "running", "arm" => "on"},
+            %{"id" => "c", "runs" => 10, "status" => "done"}
+          ]
+        })
+      )
+
+      assert {:ok, %{batches: [a, b, c]}} = Summary.load(dir)
+      assert {a.status, a.runs, a.planned_runs, a.arm} == {:done, 23, 25, nil}
+      assert {b.status, b.runs, b.planned_runs, b.arm} == {:running, 25, 25, "on"}
+      assert {c.status, c.planned_runs} == {:done, 10}
+    end
+
     test "live_stats/2 without a variant takes every variant; unscored runs still count" do
       seed("s3", "default", "paul", score: [4.0])
       seed("s3", "baseline", "paul", score: [])
@@ -173,6 +230,8 @@ defmodule TalesForge.Playtest.SummaryTest do
         commit_note: "to come",
         series: "live-1",
         variant: nil,
+        arm: nil,
+        status: :running,
         runs: 25,
         planned_runs: 25,
         analysis: nil,
@@ -241,7 +300,7 @@ defmodule TalesForge.Playtest.SummaryTest do
         persona: persona,
         module: "tin_valley",
         git_sha: "abc1234def",
-        notes: "series=#{series} variant=#{variant} · extra",
+        notes: "series=#{series} variant=#{variant}#{arm_tag(opts[:arm])} · extra",
         turn_limit: 10,
         turns_played: 10,
         status: Keyword.get(opts, :status, "finished"),
@@ -276,4 +335,7 @@ defmodule TalesForge.Playtest.SummaryTest do
 
     run
   end
+
+  defp arm_tag(nil), do: ""
+  defp arm_tag(arm), do: " arm=#{arm}"
 end

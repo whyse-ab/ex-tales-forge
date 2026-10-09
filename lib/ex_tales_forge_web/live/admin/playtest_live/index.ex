@@ -16,7 +16,17 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
 
   alias TalesForge.Collab.Markdown
   alias TalesForge.Game.Variant
-  alias TalesForge.Playtest.{CharacterChanges, JevHeadline, Personas, Reports, RunMeta, Runner, Summary}
+
+  alias TalesForge.Playtest.{
+    CharacterChanges,
+    JevHeadline,
+    Personas,
+    Reports,
+    RunMeta,
+    Runner,
+    Summary
+  }
+
   alias TalesForgeWeb.TimeAgo
 
   # Re-render the "N minutes ago" words this often; the rows are not reloaded.
@@ -377,13 +387,19 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
     """
   end
 
-  defp runs_text(%{source: :live, runs: runs, planned_runs: planned})
-       when is_integer(planned) and planned > runs,
-       do: "#{runs} of #{planned} runs done"
-
-  defp runs_text(%{source: :curated, personas: [], planned_runs: planned})
+  # A running batch counts up to its plan; a finished one says how many runs its
+  # numbers rest on, and the plan when it fell short of it.
+  defp runs_text(%{status: :running, source: :curated, personas: [], planned_runs: planned})
        when is_integer(planned),
        do: "#{planned} runs planned"
+
+  defp runs_text(%{status: :running, runs: runs, planned_runs: planned})
+       when is_integer(runs) and is_integer(planned) and planned > runs,
+       do: "#{runs} of #{planned} runs done so far"
+
+  defp runs_text(%{status: :done, runs: runs, planned_runs: planned})
+       when is_integer(runs) and is_integer(planned) and planned > runs,
+       do: "#{runs} of #{planned} planned runs done"
 
   defp runs_text(%{runs: nil}), do: "runs to come"
   defp runs_text(%{runs: 1}), do: "1 run"

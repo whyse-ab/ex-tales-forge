@@ -16,7 +16,8 @@ defmodule TalesForge.Playtest.Summary do
     cost per run).
 
   A batch with a `series` name (the `series=NAME variant=V` notes tag written
-  by `TalesForge.Playtest.Series`) also gets live numbers from this database:
+  by `TalesForge.Playtest.Series`, optionally followed by ` arm=A` for one arm
+  of a comparison) also gets live numbers from this database:
   done runs, mean score, best and worst run, cost per run and commit, per
   persona. They replace the curated ones whenever the series has runs here, so
   a new batch only needs a short entry in `batches.json` and its numbers fill in
@@ -26,6 +27,11 @@ defmodule TalesForge.Playtest.Summary do
 
   The live score of a run is its **first** Jev `session_affect` score, the
   scoring pass the analyses use; a later re-score does not move a batch.
+
+  Run counts: `runs` in `batches.json` is the number of runs the batch's
+  numbers are based on (the completed runs for a finished batch),
+  `planned_runs` the number it set out to play (default: `runs`), and `status`
+  says whether the batch is `"done"` (the default) or still `"running"`.
   """
 
   import Ecto.Query
@@ -76,8 +82,11 @@ defmodule TalesForge.Playtest.Summary do
         }
 
   @typedoc """
-  One batch of runs. `planned_runs` is the curated run count; `runs` is the live
-  count when `source` is `:live`. `personas` keeps the persona order of the page.
+  One batch of runs. `runs` is the curated count of runs the numbers rest on, or
+  the live count of done runs when `source` is `:live`; `planned_runs` is how many
+  the batch set out to play; `status` is `:done` or `:running`. `arm` narrows a
+  series to one arm of a comparison (`arm=A` after the variant in the run
+  notes). `personas` keeps the persona order of the page.
   """
   @type batch :: %{
           id: String.t(),
@@ -87,6 +96,8 @@ defmodule TalesForge.Playtest.Summary do
           commit_note: String.t() | nil,
           series: String.t() | nil,
           variant: String.t() | nil,
+          arm: String.t() | nil,
+          status: :done | :running,
           runs: non_neg_integer() | nil,
           planned_runs: non_neg_integer() | nil,
           analysis: String.t() | nil,
@@ -169,19 +180,20 @@ defmodule TalesForge.Playtest.Summary do
 
   @doc """
   Live numbers for the done runs (finished, or stopped by the character's
-  death) of series `name`, optionally only `variant`: the run count, the most
+  death) of series `name`, optionally only `variant` and, within it, only
+  comparison `arm` (`arm` needs a `variant`): the run count, the most
   common commit, the first start, cost per run, and per persona the runs, mean
   first Jev session score, best and worst run, and cost per run.
   """
-  @spec live_stats(String.t(), String.t() | nil) :: %{
+  @spec live_stats(String.t(), String.t() | nil, String.t() | nil) :: %{
           runs: non_neg_integer(),
           commit: String.t() | nil,
           started_at: DateTime.t() | nil,
           cost_per_run_usd: float() | nil,
           personas: %{optional(String.t()) => persona_stats()}
         }
-  def live_stats(name, variant \\ nil) do
-    done = series_runs(name, variant)
+  def live_stats(name, variant \\ nil, arm \\ nil) do
+    done = series_runs(name, variant, arm)
     scores = first_session_scores(Enum.map(done, & &1.id))
     costs = Reports.session_costs(Enum.map(done, & &1.game_session_id))
 
@@ -258,8 +270,10 @@ defmodule TalesForge.Playtest.Summary do
       commit_note: map["commit_note"],
       series: map["series"],
       variant: map["variant"],
+      arm: map["arm"],
+      status: status(map["status"]),
       runs: map["runs"],
-      planned_runs: map["runs"],
+      planned_runs: map["planned_runs"] || map["runs"],
       analysis: map["analysis"],
       game: map["game"],
       changes: map["changes"],
@@ -269,6 +283,9 @@ defmodule TalesForge.Playtest.Summary do
       source: :curated
     }
   end
+
+  defp status("running"), do: :running
+  defp status(_done), do: :done
 
   defp overall(map) do
     %{
@@ -298,7 +315,7 @@ defmodule TalesForge.Playtest.Summary do
   # --- live numbers -------------------------------------------------------------
 
   defp merge_live(%{series: series} = batch) when is_binary(series) and series != "" do
-    case live_stats(series, batch.variant) do
+    case live_stats(series, batch.variant, batch.arm) do
       %{runs: 0} -> batch
       live -> apply_live(batch, live)
     end
@@ -371,17 +388,33 @@ defmodule TalesForge.Playtest.Summary do
     end
   end
 
-  defp series_runs(name, variant) do
-    prefix = escape_like("series=#{name} variant=#{variant}")
+  defp series_runs(name, variant, arm) do
+    tag =
+      if is_binary(variant) and is_binary(arm),
+        do: "series=#{name} variant=#{variant} arm=#{arm}",
+        else: "series=#{name} variant=#{variant}"
 
     PlaytestRun
-    |> where([r], like(r.notes, ^"#{prefix}%"))
+    |> where_tagged(tag, is_binary(variant))
     |> where([r], r.status == "finished" or (r.status == "stopped" and r.stop_reason == "dead"))
     |> select(
       [r],
       map(r, [:id, :persona, :git_sha, :started_at, :game_session_id, :persona_cost_micro_usd])
     )
     |> Repo.all()
+  end
+
+  # A full tag (a variant, maybe an arm) must end at a space or the end of the
+  # notes, so arm "on" doesn't take arm "online"; without a variant, the tag
+  # "series=NAME variant=" is a prefix of every variant.
+  defp where_tagged(query, tag, true = _whole) do
+    pattern = escape_like(tag) <> " %"
+    where(query, [r], r.notes == ^tag or like(r.notes, ^pattern))
+  end
+
+  defp where_tagged(query, tag, false) do
+    pattern = escape_like(tag) <> "%"
+    where(query, [r], like(r.notes, ^pattern))
   end
 
   defp escape_like(text), do: String.replace(text, ~w(\\ % _), &"\\#{&1}")
