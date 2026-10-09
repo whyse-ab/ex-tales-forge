@@ -52,6 +52,13 @@ config :ex_tales_forge, :llm_prices, %{
   }
 }
 
+# Each thing lives in one place (TalesForge.AppRole): founder surveys only on
+# production, playtest runs only on playtest; each app redirects and links to
+# the other. The role comes from FLY_APP_NAME; these are the apps' base URLs.
+config :ex_tales_forge, TalesForge.AppRole,
+  production_url: "https://tales-forge.fly.dev",
+  playtest_url: "https://tales-forge-playtest.fly.dev"
+
 # Admin costs page (/admin/costs). Edit cost figures HERE, in one place.
 # fixed_monthly: one entry per fixed cost. amount is a tagged union:
 #   {:usd_per_month, n}  — Fly list prices and other USD monthly items

@@ -3,6 +3,7 @@ defmodule TalesForgeWeb.AdminComponents do
 
   use TalesForgeWeb, :html
 
+  alias TalesForge.AppRole
   alias TalesForgeWeb.TimeAgo
 
   attr :active, :string, default: "dashboard"
@@ -22,8 +23,19 @@ defmodule TalesForgeWeb.AdminComponents do
       <.nav_link href={~p"/admin/decisions"} label="Decisions" active={@active == "decisions"} />
       <.nav_link href={~p"/admin/docs"} label="Docs" active={@active == "docs"} />
       <.nav_link href={~p"/admin/sessions"} label="Sessions" active={@active == "sessions"} />
-      <.nav_link href={~p"/admin/playtest"} label="Playtest runs" active={@active == "playtest"} />
-      <.nav_link href={~p"/admin/survey"} label="Founder survey" active={@active == "survey"} />
+      <%!-- Each lives on one app (TalesForge.AppRole); the other app links there. --%>
+      <.home_app_link
+        area={:playtest_runs}
+        path={~p"/admin/playtest"}
+        label="Playtest runs"
+        active={@active == "playtest"}
+      />
+      <.home_app_link
+        area={:surveys}
+        path={~p"/admin/survey"}
+        label="Founder survey"
+        active={@active == "survey"}
+      />
       <.nav_link
         href={~p"/admin/npc-definitions"}
         label="NPC definitions"
@@ -43,6 +55,31 @@ defmodule TalesForgeWeb.AdminComponents do
       </.link>
     </nav>
     """
+  end
+
+  attr :area, :atom, required: true, doc: "TalesForge.AppRole area"
+  attr :path, :string, required: true
+  attr :label, :string, required: true
+  attr :active, :boolean, default: false
+
+  # A nav link to a page that lives on one app: a LiveView link here, or a full
+  # URL to the other app with its name in the label.
+  defp home_app_link(assigns) do
+    if AppRole.here?(assigns.area) do
+      ~H"""
+      <.nav_link href={@path} label={@label} active={@active} />
+      """
+    else
+      assigns =
+        assign(assigns,
+          href: AppRole.link(assigns.area, assigns.path),
+          label: "#{assigns.label} (#{AppRole.home_label(assigns.area)}) ↗"
+        )
+
+      ~H"""
+      <.nav_link href={@href} label={@label} active={false} external />
+      """
+    end
   end
 
   attr :href, :string, required: true

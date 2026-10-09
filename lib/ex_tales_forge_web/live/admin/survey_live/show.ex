@@ -56,6 +56,10 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Show do
       {:error, :closed} ->
         {:noreply, assign(socket, :save_error, "This survey is closed; nothing was saved.")}
 
+      {:error, :wrong_app} ->
+        {:noreply,
+         assign(socket, :save_error, "Surveys are answered on production; nothing was saved.")}
+
       {:error, _reason} ->
         {:noreply, assign(socket, :save_error, "Couldn't save. Try again in a moment.")}
     end
@@ -77,6 +81,9 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Show do
 
       {:error, :closed} ->
         {:noreply, put_flash(socket, :error, "This survey is closed.")}
+
+      {:error, :wrong_app} ->
+        {:noreply, put_flash(socket, :error, "Surveys are answered on production.")}
     end
   end
 

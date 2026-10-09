@@ -7,7 +7,8 @@ defmodule TalesForge.Surveys do
   there is one `TalesForge.Survey.Response` per user per survey id. Saving a
   section stores its answers, the survey version each changed answer was
   given under, and the exact survey file (`TalesForge.Survey.Snapshot`).
-  Saves are refused once the survey's `status` is `closed`.
+  Saves are refused once the survey's `status` is `closed`, and always on the
+  playtest app: surveys live only on production (`TalesForge.AppRole`).
 
   Several surveys can be open at once: `active/1` lists the founder tabs
   (every discovered survey file with `"active": true` that is not closed),
@@ -17,6 +18,7 @@ defmodule TalesForge.Surveys do
 
   import Ecto.Query
 
+  alias TalesForge.AppRole
   alias TalesForge.Repo
   alias TalesForge.Survey.Answers
   alias TalesForge.Survey.Definition
@@ -146,12 +148,15 @@ defmodule TalesForge.Surveys do
 
   @doc """
   Saves one section's posted `params` for `user`. Returns the updated
-  response, `{:error, :closed}` for a closed survey or `{:error, :unknown_section}`.
+  response, `{:error, :wrong_app}` on the playtest app (surveys live on
+  production), `{:error, :closed}` for a closed survey or `{:error, :unknown_section}`.
   """
   @spec save_section(Source.loaded(), user(), String.t(), map()) ::
-          {:ok, Response.t()} | {:error, :closed | :unknown_section | Ecto.Changeset.t()}
+          {:ok, Response.t()}
+          | {:error, :wrong_app | :closed | :unknown_section | Ecto.Changeset.t()}
   def save_section(%{definition: definition} = loaded, user, section_id, params) do
-    with :ok <- check_answerable(definition),
+    with :ok <- check_stored_here(),
+         :ok <- check_answerable(definition),
          %Section{} = section <- Definition.section(definition, section_id) || :unknown do
       section_answers = Answers.from_params(section, params)
       do_save(loaded, user, section_id, section_answers)
@@ -161,10 +166,14 @@ defmodule TalesForge.Surveys do
     end
   end
 
-  @doc "Deletes this user's response (the 'clear my answers' button). Refused once closed."
-  @spec clear_response(Source.loaded(), String.t()) :: :ok | {:error, :closed}
+  @doc """
+  Deletes this user's response (the 'clear my answers' button). Refused once
+  closed, and on the playtest app.
+  """
+  @spec clear_response(Source.loaded(), String.t()) :: :ok | {:error, :wrong_app | :closed}
   def clear_response(%{definition: definition}, login) do
-    with :ok <- check_answerable(definition) do
+    with :ok <- check_stored_here(),
+         :ok <- check_answerable(definition) do
       Response
       |> where([r], r.survey_id == ^definition.id)
       |> where([r], r.github_login == ^normalize_login(login))
@@ -192,6 +201,10 @@ defmodule TalesForge.Surveys do
   """
   @spec normalize_login(String.t()) :: String.t()
   def normalize_login(login), do: login |> String.trim() |> String.downcase()
+
+  defp check_stored_here do
+    if AppRole.here?(:surveys), do: :ok, else: {:error, :wrong_app}
+  end
 
   defp check_answerable(definition) do
     if Definition.answerable?(definition), do: :ok, else: {:error, :closed}
