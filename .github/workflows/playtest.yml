@@ -1,10 +1,17 @@
 # Deploy main to the long-lived PLAYTEST environment (Fly app tales-forge-playtest,
-# config fly.playtest.toml).
+# config fly.playtest.toml). Playtest is the FIRST stop for every merge to main
+# (tales-forge-docs decision 2026-10-09 "Deploy order: playtest first, then
+# production").
 #
-# Runs automatically after a successful CI run for a push to main (i.e. right
-# after the production deploy), and can be started by hand from the Actions tab.
-# This is a separate workflow on purpose: a failed or unconfigured playtest
-# deploy never fails the production CI run.
+# Runs automatically after a successful CI run (Test and Dialyzer) for a push to
+# main and deploys exactly the commit CI tested. It can also be started by hand
+# from the Actions tab or with
+#   gh workflow run playtest.yml -f sha=<commit on main>
+# (no sha = the tip of main).
+#
+# Production is NOT deployed from here or from CI: once Gentry and the playtest
+# batch have checked the build on playtest and Fredrik has OK'd it, the separate
+# manual workflow .github/workflows/deploy-production.yml deploys that commit.
 #
 # Needs the repo secret FLY_API_TOKEN_PLAYTEST: an app-scoped deploy token for
 # tales-forge-playtest (Fly dashboard -> tales-forge-playtest -> Tokens, or
@@ -14,6 +21,12 @@ name: Deploy to playtest
 
 on:
   workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit to deploy (full sha); empty = the tip of main"
+        required: false
+        type: string
+        default: ""
   workflow_run:
     workflows: [CI]
     types: [completed]
@@ -25,7 +38,7 @@ permissions:
 jobs:
   deploy:
     name: Deploy to playtest
-    # workflow_run: only after a green CI run for a push to main (prod deployed).
+    # workflow_run: only after a green CI run for a push to main.
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
@@ -37,14 +50,15 @@ jobs:
       group: deploy-playtest
       cancel-in-progress: false
     steps:
-      # Deploy exactly the commit CI tested and deployed to prod; by hand, deploy main.
+      # Deploy exactly the commit CI tested; by hand, the given sha or main.
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.workflow_run.head_sha || 'main' }}
+          ref: ${{ github.event.workflow_run.head_sha || inputs.sha || 'main' }}
 
       - uses: superfly/flyctl-actions/setup-flyctl@1.5
 
-      # --depot=false: same reason as the prod deploy in ci.yml (Depot builds hung).
+      # --depot=false: Fly's classic remote builder (Depot builds hung at
+      # "Waiting for depot builder" for this org); same as deploy-production.yml.
       - name: flyctl deploy
         run: |
           if [ -z "$FLY_API_TOKEN" ]; then
@@ -57,3 +71,14 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_PLAYTEST }}
           FLY_USE_DEPOT: ${{ vars.FLY_USE_DEPOT }}
+
+      - name: Summary
+        run: |
+          sha="$(git rev-parse HEAD)"
+          {
+            echo "Deployed \`$sha\` to playtest (tales-forge-playtest)."
+            echo
+            echo "Production is a separate manual step once this build is checked and OK'd:"
+            echo
+            echo "    gh workflow run deploy-production.yml -f sha=$sha"
+          } >> "$GITHUB_STEP_SUMMARY"

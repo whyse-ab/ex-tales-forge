@@ -4,7 +4,9 @@
 #
 # Deploy (main -> playtest):
 #   flyctl deploy --remote-only --depot=false -c fly.playtest.toml -a tales-forge-playtest --ha=false
-# or run the "Deploy to playtest" GitHub Actions workflow.
+# or run the "Deploy to playtest" GitHub Actions workflow (it also runs
+# automatically after every green CI run on main; playtest is deployed first,
+# production follows by hand via the "Deploy to production" workflow).
 #
 # Database: Fly Postgres app tales-forge-playtest-db (attached, sets DATABASE_URL).
 app = "tales-forge-playtest"

@@ -1,6 +1,10 @@
 # CI for Tales Forge: format, Credo, tests with coverage, docs and Dialyzer on
-# every PR and on every push to main (tales-forge-docs docs/coding-standards.md);
-# a push to main that passes Test and Dialyzer is deployed to production (Fly app tales-forge).
+# every PR and on every push to main (tales-forge-docs docs/coding-standards.md).
+# A push to main that passes Test and Dialyzer is deployed to PLAYTEST first
+# (.github/workflows/playtest.yml). Production is a separate, manual step
+# (.github/workflows/deploy-production.yml) once the build has been checked on
+# playtest and Fredrik has OK'd it (tales-forge-docs decision 2026-10-09
+# "Deploy order: playtest first, then production").
 name: CI
 
 on:
@@ -12,7 +16,7 @@ permissions:
   contents: read
 
 # Cancel superseded runs of the same PR. Pushes to main get their own group per
-# commit, so every commit on main is tested (deploys are serialized below).
+# commit, so every commit on main is tested.
 concurrency:
   group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -164,27 +168,3 @@ jobs:
 
       - name: Dialyzer
         run: mix dialyzer --format github
-
-  deploy:
-    name: Deploy to production
-    needs: [test, dialyzer]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    # One prod deploy at a time; a running deploy is never cancelled.
-    concurrency:
-      group: deploy-prod
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: superfly/flyctl-actions/setup-flyctl@1.5
-
-      # --depot=false: use Fly's classic remote builder. Every release so far was
-      # built that way because Depot builds hung at "Waiting for depot builder"
-      # for this org. Set the repo variable FLY_USE_DEPOT=true to try Depot again.
-      - name: flyctl deploy
-        # GIT_SHA: the commit goes into the image (Dockerfile), so the app knows it.
-        run: flyctl deploy --remote-only -a tales-forge --ha=false --depot=${{ vars.FLY_USE_DEPOT || 'false' }} --build-arg GIT_SHA=${{ github.sha }}
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

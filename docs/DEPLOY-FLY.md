@@ -81,9 +81,24 @@ Optional: `TALES_FORGE_DOCS_PATH` is for local/dev sync only; production should 
 
 ## 4. Deploy
 
-Normally you don't deploy by hand: GitHub Actions (`.github/workflows/ci.yml`) deploys every push to `main` after the tests pass, using the Actions secret `FLY_API_TOKEN` (a deploy token scoped to `tales-forge`, created with `fly tokens create deploy -a tales-forge`). Deploys run one at a time and are never cancelled mid-way.
+Normally you don't run `fly deploy` by hand. A push to `main` that passes CI deploys to
+**playtest** first (see [Playtest environment](#playtest-environment)). Production is a
+separate, manual GitHub Actions workflow, `.github/workflows/deploy-production.yml`
+("Deploy to production"), started once the build has been checked on playtest and Fredrik
+has OK'd it:
 
-Manual deploy (same command CI runs):
+```bash
+gh workflow run deploy-production.yml -R whyse-ab/ex-tales-forge -f sha=<full 40-character sha on main>
+```
+
+It first checks that the sha is on `main` and that its `Test` and `Dialyzer` checks passed
+(and warns if no successful playtest deploy of it is found), then deploys exactly that commit
+in the GitHub environment `production` (a required reviewer there makes the job wait for
+approval). It uses the Actions secret `FLY_API_TOKEN` (a deploy token scoped to `tales-forge`,
+created with `fly tokens create deploy -a tales-forge`). Deploys run one at a time and are
+never cancelled mid-way.
+
+Manual deploy, the fallback when Actions is down (same command the workflow runs):
 
 ```bash
 fly deploy --remote-only --depot=false -a tales-forge --ha=false
@@ -112,10 +127,12 @@ apart from app name, `PHX_HOST`, memory and `swap_size_mb = 512`: at 512MB witho
 is OOM-killed during boot).
 
 Deploys: `.github/workflows/playtest.yml` deploys main to playtest after every green CI run on
-main (i.e. after the prod deploy) and on demand (Actions → "Deploy to playtest" → Run workflow).
+main (playtest is the first stop; production follows by hand, see [Deploy](#4-deploy)) and on
+demand (Actions → "Deploy to playtest" → Run workflow, or
+`gh workflow run playtest.yml -f sha=<sha>`; no sha = the tip of main).
 It uses the Actions secret `FLY_API_TOKEN_PLAYTEST`, a deploy token scoped to the playtest app
 (`fly tokens create deploy -a tales-forge-playtest`). It is a separate workflow, so a failed
-playtest deploy never fails the prod CI run.
+playtest deploy never fails the CI run.
 
 Manual deploy:
 
