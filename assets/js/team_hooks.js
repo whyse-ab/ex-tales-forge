@@ -130,3 +130,71 @@ export const TeamFlow = {
     this.replayButton?.removeEventListener("click", this.onReplay)
   },
 }
+
+// One turn, three lanes (TalesForgeWeb.TeamCallTypes): the player's line, the
+// Jev card, the Elixir roll, the GM's prose and the parchment out to the
+// player appear one after another (about 6 s). Plays once when scrolled into
+// view, with a Replay button. Every [data-at] element is visible in the
+// server's static diagram; only while playing are the ones not yet reached
+// hidden (app.css, under data-motion="full").
+const LANE_STEPS = [200, 1100, 2200, 3600, 5300]
+const LANES_DONE = 6200
+
+export const TeamLanes = {
+  mounted() {
+    this.timers = []
+    this.mq = reducedMotion()
+    this.parts = [...this.el.querySelectorAll("[data-at]")]
+
+    this.onReplay = () => this.play()
+    this.replayButton = this.el.querySelector("[data-lanes-replay]")
+    this.replayButton?.addEventListener("click", this.onReplay)
+
+    this.onChange = () => this.mq.matches && this.settle()
+    this.mq.addEventListener("change", this.onChange)
+
+    if (this.mq.matches || !("IntersectionObserver" in window)) return this.settle()
+
+    this.observer = new IntersectionObserver(entries => {
+      if (!entries.some(e => e.isIntersecting)) return
+      this.observer.disconnect()
+      this.play()
+    }, {threshold: 0.3})
+    this.observer.observe(this.el)
+  },
+
+  // Static, numbered diagram: everything shown.
+  settle() {
+    this.clear()
+    this.el.dataset.lanes = "static"
+    this.parts.forEach(p => { delete p.dataset.shown })
+  },
+
+  play() {
+    if (this.mq.matches) return this.settle()
+    this.clear()
+    this.parts.forEach(p => { delete p.dataset.shown })
+    this.el.dataset.lanes = "playing"
+
+    LANE_STEPS.forEach((at, i) => {
+      this.later(at, () => {
+        this.parts.forEach(p => { if (p.dataset.at === String(i + 1)) p.dataset.shown = "true" })
+      })
+    })
+    this.later(LANES_DONE, () => { this.el.dataset.lanes = "done" })
+  },
+
+  later(ms, fun) { this.timers.push(setTimeout(fun, ms)) },
+
+  clear() {
+    this.timers.forEach(clearTimeout)
+    this.timers = []
+  },
+
+  destroyed() {
+    this.clear()
+    this.observer?.disconnect()
+    this.mq?.removeEventListener("change", this.onChange)
+    this.replayButton?.removeEventListener("click", this.onReplay)
+  },
+}

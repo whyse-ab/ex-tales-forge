@@ -4,8 +4,10 @@ defmodule TalesForgeWeb.TeamLiveTest do
   import Phoenix.LiveViewTest
 
   doctest TalesForgeWeb.TeamArt
+  doctest TalesForgeWeb.TeamCallTypes
 
   alias TalesForge.TeamPage
+  alias TalesForgeWeb.TeamCallTypes
   alias TalesForgeWeb.TeamLive
 
   # The file the page is built from, read independently of TalesForge.TeamPage.
@@ -154,6 +156,289 @@ defmodule TalesForgeWeb.TeamLiveTest do
     end
   end
 
+  describe "the call-type rule: one turn, three call types" do
+    setup %{conn: conn}, do: {:ok, conn: log_in_admin(conn)}
+
+    defp walkthrough_detail(data, lane) do
+      data["call_types"]["walkthrough"]["steps"]
+      |> Enum.find(&(&1["lane"] == lane))
+      |> Map.fetch!("detail")
+    end
+
+    test "rule 3 links to the walkthrough, which sits under it in 'How we work'", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/team")
+      anchor = TeamCallTypes.anchor()
+
+      assert has_element?(
+               view,
+               ~s(#rule-call-types a[href="##{anchor}"]),
+               "one turn, three call types"
+             )
+
+      assert has_element?(
+               view,
+               "#how ##{anchor} h3",
+               "The call-type rule: one turn, three call types"
+             )
+
+      assert has_element?(view, "##{anchor}", "This one rule shapes the whole game engine")
+    end
+
+    test "the rule in one breath: three pills in the call-type colours, with the why", %{
+      conn: conn
+    } do
+      {:ok, view, _html} = live(conn, ~p"/team")
+
+      for kind <- ~w(elixir jev llm) do
+        css_var = @data["call_types"]["colours"][kind]["css_var"]
+
+        assert has_element?(
+                 view,
+                 ~s|#pill-#{kind}.team-kind-#{kind}[style="--team-kind: var(#{css_var})"]|
+               )
+      end
+
+      assert has_element?(view, "#pill-elixir", "Elixir function.")
+      assert has_element?(view, "#pill-elixir", "a test can prove it")
+      assert has_element?(view, "#pill-jev", "Jev call (TypeSafe).")
+      assert has_element?(view, "#pill-jev", "about 0.25 s a read")
+
+      assert has_element?(
+               view,
+               "#pill-jev",
+               "median #{TeamPage.ms(@data["intent_shadow"]["p50_ms"])} in the shadow test"
+             )
+
+      assert has_element?(
+               view,
+               "#pill-jev",
+               "for about #{TeamPage.usd(@data["intent_shadow"]["cost_per_turn_usd"])} a turn"
+             )
+
+      assert has_element?(view, "#pill-llm", "LLM call (the GM on Grok).")
+      assert has_element?(view, "#pill-llm", "so we never ask it for data")
+
+      assert has_element?(
+               view,
+               "#calltype-smell",
+               "The LLM tells the story; it doesn't keep the books."
+             )
+    end
+
+    test "one turn, start to finish, from the walkthrough data", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/team")
+      jev = walkthrough_detail(@data, "jev")
+      elixir = walkthrough_detail(@data, "elixir")
+
+      assert has_element?(
+               view,
+               "#calltype-player",
+               @data["call_types"]["walkthrough"]["player_text"]
+             )
+
+      assert has_element?(
+               view,
+               "#calltype-turn",
+               "The private room is listed at 3 silver a night"
+             )
+
+      for field <- ~w(action target skill safety) do
+        assert has_element?(view, "#turn-jev-intent", jev[field])
+      end
+
+      assert has_element?(view, "#turn-jev-intent", "this turn (nothing deferred)")
+      assert has_element?(view, "#turn-jev-intent", "benign")
+      assert has_element?(view, "#turn-jev-intent", "(no trick, no injection)")
+
+      assert has_element?(
+               view,
+               "#turn-jev-intent",
+               "0.92, so act on it without asking the player to clarify"
+             )
+
+      assert has_element?(view, "#turn-roll", "1d20, roll-under")
+
+      assert has_element?(
+               view,
+               "#turn-roll",
+               "The character's persuasion is #{elixir["skill_level"]}"
+             )
+
+      assert has_element?(view, "#turn-roll", "Charisma bonus (CHA 14 gives +2)")
+      assert has_element?(view, "#turn-roll", "so the target is #{elixir["target"]}")
+      assert has_element?(view, "#turn-roll", "The die shows #{elixir["die"]}: success")
+      assert has_element?(view, "#turn-elixir", "a success earns nothing to learn from")
+      assert has_element?(view, "#turn-elixir", "it sinks in when you sleep")
+
+      assert has_element?(
+               view,
+               "#turn-llm",
+               "persuasion, success, Brenna, room listed at 3 silver"
+             )
+
+      assert has_element?(view, "#turn-prose", "She slides a heavy iron key across the oak.")
+      assert has_element?(view, "#turn-llm", "Sample prose, written to show the style")
+      assert has_element?(view, "#calltype-honesty", "How true is this today?")
+      assert has_element?(view, "#calltype-honesty", "there is no haggling-discount rule yet")
+
+      assert has_element?(
+               view,
+               "#calltype-honesty",
+               "live on both playtest and production, switched on 9 Oct 2026 after the shadow test"
+             )
+    end
+
+    test "examples per type and the closing line", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/team")
+
+      for module <-
+            ~w(Game.Mechanics Game.Progression World.Prices Game.PremiseCheck Game.WorldClock Game.Gestures) do
+        assert has_element?(view, "#examples-elixir code", module)
+      end
+
+      for module <- ~w(Game.JevIntent Game.NpcReactions Playtest.JevScorer) do
+        assert has_element?(view, "#examples-jev code", module)
+      end
+
+      assert has_element?(view, "#examples-jev", "decided, not built yet")
+      assert has_element?(view, "#examples-llm", "GM narration:")
+      assert has_element?(view, "#examples-llm", "NPC dialogue:")
+
+      assert has_element?(
+               view,
+               "#calltype-closing",
+               "Elixir keeps the rules, Jev understands the players, and the GM tells the story."
+             )
+    end
+
+    test "one turn, three lanes: Jev on top, then Elixir, then the GM, in the page's colours",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/team")
+      elixir = walkthrough_detail(@data, "elixir")
+
+      assert has_element?(view, ~s(#team-lanes[phx-hook="TeamLanes"][data-lanes="static"]))
+      assert has_element?(view, "#team-lanes [data-lanes-replay].team-replay")
+
+      for svg <- ~w(team-lanes-wide team-lanes-tall) do
+        lanes =
+          view
+          |> render()
+          |> LazyHTML.from_document()
+          |> LazyHTML.query("##{svg} [data-lane]")
+          |> Enum.map(&(&1 |> LazyHTML.attribute("data-lane") |> hd()))
+
+        assert lanes == TeamCallTypes.lanes(), svg
+
+        for lane <- lanes do
+          css_var = @data["call_types"]["colours"][lane]["css_var"]
+
+          assert has_element?(
+                   view,
+                   ~s|##{svg} [data-lane="#{lane}"].team-kind-#{lane}[style="--team-kind: var(#{css_var})"]|
+                 )
+        end
+
+        for step <- @data["call_types"]["walkthrough"]["steps"],
+            do: assert(has_element?(view, "##{svg} [data-lane='#{step["lane"]}']", step["label"]))
+
+        # Five numbered steps, each with a text label, so colour is never the only cue.
+        for n <- 1..5,
+            do: assert(has_element?(view, "##{svg} [data-at='#{n}'] .tl-badge", "#{n}"))
+
+        assert has_element?(view, "##{svg}", "speak · Brenna")
+        assert has_element?(view, "##{svg}", "~0.25 s")
+        assert has_element?(view, "##{svg} .tl-die", "#{elixir["die"]}")
+        assert has_element?(view, "##{svg}", "target #{elixir["target"]}")
+        assert has_element?(view, "##{svg} .tl-stamp", "✓ success")
+        assert has_element?(view, "##{svg}", "nothing to learn from a success")
+        assert has_element?(view, "##{svg}", "room: 3 silver (price list)")
+        assert has_element?(view, "##{svg} .tl-smell-group", "LLM → data?")
+        assert has_element?(view, "##{svg} .tl-smell-group", "That's a smell.")
+        assert has_element?(view, "##{svg} .tl-cross")
+        assert has_element?(view, "##{svg} [data-at='5']", "player")
+      end
+
+      # Wide lanes from 1024 px, stacked lanes below (no sideways scroll on phones).
+      assert has_element?(view, "#team-lanes-wide.hidden.w-full.lg\\:block")
+      assert has_element?(view, "#team-lanes-tall.w-full.lg\\:hidden")
+      assert has_element?(view, "#team-lanes figcaption.sr-only", "One turn in five steps.")
+    end
+
+    test "a changed walkthrough changes the page (nothing is hard-coded)" do
+      data =
+        @data
+        |> put_in(["intent_shadow", "p50_ms"], 410)
+        |> put_in(["call_types", "walkthrough", "player_text"], "I offer Brenna two copper.")
+        |> update_in(["call_types", "walkthrough", "steps"], fn steps ->
+          Enum.map(steps, fn
+            %{"lane" => "elixir"} = step ->
+              step
+              |> put_in(["detail", "die"], 13)
+              |> put_in(["detail", "target"], 11)
+              |> put_in(["detail", "room_price"], "5 silver (price list)")
+
+            %{"lane" => "jev"} = step ->
+              put_in(step, ["detail", "confidence"], 0.77)
+
+            step ->
+              step
+          end)
+        end)
+
+      html = render_with(data)
+      assert html =~ "I offer Brenna two copper."
+      assert html =~ "The die shows <strong>13</strong>"
+      assert html =~ "so the target is <strong>11</strong>"
+      assert html =~ "listed at 5 silver a night"
+      assert html =~ "speak · Brenna · persuasion · now · 0.77 · safe"
+      assert html =~ "~0.41 s"
+      assert html =~ "about 0.41 s a read"
+      assert html =~ "median 410 ms in the shadow test"
+    end
+
+    test "null and missing values in the walkthrough read 'not measured yet', never a zero" do
+      data =
+        @data
+        |> put_in(["intent_shadow", "p50_ms"], nil)
+        |> put_in(["intent_shadow", "cost_per_turn_usd"], nil)
+        |> update_in(["call_types", "walkthrough", "steps"], fn steps ->
+          Enum.map(steps, fn
+            %{"lane" => "elixir"} = step ->
+              step
+              |> put_in(["detail", "die"], nil)
+              |> update_in(["detail"], &Map.delete(&1, "target"))
+
+            %{"lane" => "jev"} = step ->
+              put_in(step, ["detail", "confidence"], nil)
+
+            step ->
+              step
+          end)
+        end)
+
+      doc = data |> render_with() |> LazyHTML.from_document()
+      text = &(doc |> LazyHTML.query(&1) |> LazyHTML.text())
+
+      assert text.("#turn-roll") =~ "so the target is not measured yet"
+      assert text.("#turn-roll") =~ "The die shows not measured yet"
+      assert text.("#turn-jev-intent") =~ ~r/confidence\s+not measured yet/
+      assert text.("#pill-jev") =~ "not measured yet a read"
+      assert text.("#pill-jev") =~ "for about not measured yet a turn"
+      assert text.("#team-lanes-wide") =~ ~r/lands on\s+not measured yet/
+      assert text.("#team-lanes-wide") =~ ~r/target\s+not measured yet/
+      assert text.("#team-lanes-wide") =~ "persuasion · now · not measured yet · safe"
+      refute text.("#team-lanes-wide") =~ ~r/target\s+0\b|lands on\s+0\b/
+    end
+
+    test "without any call-type data the walkthrough still renders" do
+      html = render_with(%{})
+      assert html =~ "The call-type rule: one turn, three call types"
+      assert html =~ "One turn, three lanes"
+      assert html =~ "I lean on the bar and try to talk Brenna down on the price of the room."
+      assert html =~ "The die shows <strong>not measured yet</strong>"
+    end
+  end
+
   describe "motion" do
     setup %{conn: conn}, do: {:ok, conn: log_in_admin(conn)}
 
@@ -190,6 +475,55 @@ defmodule TalesForgeWeb.TeamLiveTest do
       js = File.read!("assets/js/team_hooks.js")
       assert js =~ ~s{matchMedia("(prefers-reduced-motion: reduce)")}
       assert js =~ ~s{this.el.dataset.motion = reduce ? "reduce" : "full"}
+    end
+
+    test "the three lanes only move with motion allowed; reduced motion shows the static diagram" do
+      css = File.read!("assets/css/app.css")
+
+      # Hiding and moving the lanes' parts happens only while playing, only under
+      # data-motion="full".
+      lane_rules =
+        ~r/^[^\n{]*\.team-lanes[^\n{]*\{[^}]*(?:opacity: 0;|transform: translate|animation: team-)[^}]*\}/m
+        |> Regex.scan(css)
+        |> List.flatten()
+
+      assert length(lane_rules) >= 8
+
+      for rule <- lane_rules do
+        assert rule =~ ~s(.team-page[data-motion="full"] .team-lanes[data-lanes="playing"]), rule
+      end
+
+      [_, block] =
+        String.split(css, "@media (prefers-reduced-motion: reduce) {\n  .team-page *", parts: 2)
+
+      assert block =~
+               ".team-lanes [data-at] { opacity: 1 !important; transform: none !important; }"
+
+      js = File.read!("assets/js/team_hooks.js")
+      [_, lanes_js] = String.split(js, "export const TeamLanes = {", parts: 2)
+      assert lanes_js =~ "this.mq = reducedMotion()"
+
+      assert lanes_js =~
+               "if (this.mq.matches || !(\"IntersectionObserver\" in window)) return this.settle()"
+
+      assert lanes_js =~ ~s{this.el.dataset.lanes = "static"}
+
+      app_js = File.read!("assets/js/app.js")
+      assert app_js =~ "TeamLanes"
+    end
+
+    test "the lanes' colours follow the theme: CSS variables with a dark variant, no fixed lane colours" do
+      css = File.read!("assets/css/app.css")
+
+      for var <- ~w(--team-jev --team-elixir --team-llm) do
+        assert css =~ ~r/\.team-page \{[^}]*#{var}: #/
+        assert css =~ ~r/:root\[data-theme="dark"\] \.team-page \{[^}]*#{var}: #/
+      end
+
+      lanes_css =
+        ~r/^\.team-lanes \.tl-[^\n]*$/m |> Regex.scan(css) |> List.flatten() |> Enum.join("\n")
+
+      refute lanes_css =~ ~r/#[0-9a-fA-F]{3,6}\b/, "lane styles use the page's variables only"
     end
   end
 
