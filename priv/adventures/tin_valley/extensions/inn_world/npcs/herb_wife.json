@@ -16,6 +16,13 @@
   "stock": [
     {"id": "poultice", "name": "Healing poultice", "price_copper": 4, "quantity": 5}
   ],
+  "public_facts": [
+    {
+      "id": "maude_west_road_news",
+      "text": "Old Maude, the herb-wife in the cottage off the Market Square, asks every drover for news from the west road, and says the old adit up there has been knocking again, as it did before the miners sealed it.",
+      "visibility": ["valley_inn", "inn_yard", "market_square"]
+    }
+  ],
   "maslow": "belonging",
   "concerns": [
     {"text": "Keep the village's people whole while the Guild digs deeper", "focus": "the village's people", "priority": 6}

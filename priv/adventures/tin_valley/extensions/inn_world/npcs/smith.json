@@ -18,6 +18,13 @@
     {"id": "spearhead", "name": "Spearhead", "price_copper": 20, "quantity": 2},
     {"id": "short_sword", "name": "Short sword", "price_copper": 60, "quantity": 1}
   ],
+  "public_facts": [
+    {
+      "id": "smith_night_work",
+      "text": "Brask's forge off the Market Square rang past midnight again. Hilde Brask wants a strong arm at the bellows, and folk whisper that the tin she works these nights carries no Guild stamp.",
+      "visibility": ["valley_inn", "inn_yard", "market_square"]
+    }
+  ],
   "maslow": "safety",
   "concerns": [
     {"text": "Keep the forge paying while the Guild pays late", "focus": "the forge", "priority": 6},
