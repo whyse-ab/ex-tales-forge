@@ -179,6 +179,7 @@ defmodule TalesForge.MixProject do
         "deps.unlock --unused",
         "format",
         "quality",
+        "deploy.check_boundaries",
         "test --cover --warnings-as-errors",
         "docs --warnings-as-errors",
         "dialyzer"

@@ -1,0 +1,109 @@
+# Deploy lanes: the one place that says which files are admin work.
+#
+# Decision 2026-10-09 (Fredrik, tales-forge-docs docs/decisions.md "A fast
+# deploy lane for admin work"). Read by TalesForge.DeployLanes:
+#   - .github/workflows/playtest.yml picks the lane of each merge to main
+#     (.github/scripts/deploy_lane.exs),
+#   - `mix deploy.check_boundaries` (CI Test job) fails when game or shared code
+#     depends on an [admin] file,
+#   - .credo.exs leaves [admin] files out of Credo (lighter gates).
+#
+# Lanes:
+#   admin   Every file changed since the commit production runs is on [admin]:
+#           deploy to playtest AND production automatically (no Gentry/batch
+#           gate, no prod OK). Production still goes through deploy-production.yml's
+#           "Verify commit" job and the tip-of-main guard.
+#   normal  Anything else (game, shared, CI, docs, unknown files; a mixed merge):
+#           playtest only; production stays manual after Fredrik's OK.
+#
+# Format: one pattern per line under a [section]; `#` starts a comment.
+#   path/to/file.ex   exactly that file
+#   path/to/dir/      everything under that directory
+#   *  and  **        any characters within one path segment / across segments
+# Paths are relative to the repo root. Renames count as delete + add, so moving
+# a file onto or off the list counts both paths.
+#
+# Keep this list narrow. A file belongs here only if production may get its
+# changes without Gentry or the playtest batch: it must not be game engine code
+# (Game.*, intent, world, NPCs, rules, packs) or shared code (sign-in, Repo and
+# migrations, config, AICalls, mix.exs/deps, the router, CI, this file).
+
+[admin]
+# Founder surveys (production only): /admin/survey, /admin/surveys/*
+lib/ex_tales_forge/surveys.ex
+lib/ex_tales_forge/survey/
+lib/ex_tales_forge_web/live/admin/survey_live/
+lib/ex_tales_forge_web/components/survey_components.ex
+lib/ex_tales_forge_web/controllers/survey_export_controller.ex
+priv/surveys/
+test/ex_tales_forge/surveys_test.exs
+test/ex_tales_forge/survey/
+test/ex_tales_forge_web/admin/survey_live_test.exs
+test/support/survey_fixtures.ex
+
+# Costs page: /admin/costs (the token-guarded GET /internal/costs controller is
+# a signed-out route, so it stays in the normal lane)
+lib/ex_tales_forge/costs.ex
+lib/ex_tales_forge/costs/
+lib/ex_tales_forge_web/live/admin/costs_live.ex
+test/ex_tales_forge/costs_test.exs
+test/ex_tales_forge/costs/
+test/ex_tales_forge_web/admin/costs_live_test.exs
+
+# Playtest admin pages: /admin/playtest/* and the summary on top of them (the
+# persona runner, scorers, personas and reports read side drive the bot batch,
+# so they stay in the normal lane)
+lib/ex_tales_forge_web/live/admin/playtest_live/
+lib/ex_tales_forge/playtest/summary.ex
+lib/ex_tales_forge/playtest/character_changes.ex
+lib/ex_tales_forge/playtest/character_changes/
+lib/ex_tales_forge_web/components/character_changes_components.ex
+priv/playtest/summary/
+test/ex_tales_forge/playtest/summary_test.exs
+test/ex_tales_forge/playtest/character_changes_test.exs
+test/ex_tales_forge_web/admin/playtest_live_test.exs
+
+# Founders' pages: /team and /team/presentation (the route itself is in the
+# router, which is shared)
+lib/ex_tales_forge/team_page.ex
+lib/ex_tales_forge_web/live/team_live.ex
+lib/ex_tales_forge_web/live/team_presentation_live.ex
+lib/ex_tales_forge_web/components/team_*.ex
+assets/js/team_hooks.js
+priv/team/
+priv/static/images/team/
+test/ex_tales_forge/team_page_test.exs
+test/ex_tales_forge_web/live/team_live_test.exs
+test/ex_tales_forge_web/live/team_presentation_live_test.exs
+
+[game]
+# Game engine code. Used only by `mix deploy.check_boundaries` (game code must
+# never depend on [admin] files); for lanes, everything off [admin] is normal.
+lib/ex_tales_forge/game/
+lib/ex_tales_forge/world.ex
+lib/ex_tales_forge/world/
+lib/ex_tales_forge/npc*.ex
+lib/ex_tales_forge/actions/
+lib/ex_tales_forge/agents/
+lib/ex_tales_forge/intent_jev.ex
+lib/ex_tales_forge/gm_reasoning.ex
+lib/ex_tales_forge/fronts.ex
+lib/ex_tales_forge/game_sessions.ex
+lib/ex_tales_forge/character_creation.ex
+lib/ex_tales_forge/character_creation/
+lib/ex_tales_forge/characters.ex
+lib/ex_tales_forge/characters/
+lib/ex_tales_forge/workers/
+lib/ex_tales_forge/llm.ex
+lib/ex_tales_forge_web/live/play_live.ex
+lib/ex_tales_forge_web/live/create_character_live.ex
+lib/ex_tales_forge_web/components/play_components.ex
+
+[wiring]
+# Shared files that may name [admin] modules because they mount them: the
+# router (routes), the application (supervised caches) and the
+# GET /internal/costs controller. Every other shared file must not depend on
+# [admin] files either (`mix deploy.check_boundaries`).
+lib/ex_tales_forge_web/router.ex
+lib/ex_tales_forge/application.ex
+lib/ex_tales_forge_web/controllers/costs_peer_controller.ex

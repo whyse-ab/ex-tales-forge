@@ -1,10 +1,32 @@
+# Admin files (the [admin] list in .github/deploy-lanes.txt, the one place for
+# it) get lighter gates: format and tests, no Credo (so no @moduledoc/@spec
+# demands). Game and shared code keep the full checks below. Decision
+# 2026-10-09 "A fast deploy lane for admin work" (tales-forge-docs
+# docs/decisions.md). Directory patterns stay as they are; globs are expanded.
+admin_files =
+  ".github/deploy-lanes.txt"
+  |> File.read!()
+  |> String.split("\n")
+  |> Enum.map(&(&1 |> String.replace(~r/#.*$/, "") |> String.trim()))
+  |> Enum.drop_while(&(&1 != "[admin]"))
+  |> Enum.drop(1)
+  |> Enum.take_while(&(not String.starts_with?(&1, "[")))
+  |> Enum.reject(&(&1 == ""))
+  |> Enum.flat_map(fn pattern ->
+    cond do
+      String.ends_with?(pattern, "/") -> [pattern]
+      String.contains?(pattern, "*") -> Path.wildcard(pattern)
+      true -> [pattern]
+    end
+  end)
+
 %{
   configs: [
     %{
       name: "default",
       files: %{
         included: ["lib/"],
-        excluded: [~r"/_build/", ~r"/deps/", ~r"/node_modules/"]
+        excluded: [~r"/_build/", ~r"/deps/", ~r"/node_modules/" | admin_files]
       },
       plugins: [],
       requires: [],
@@ -99,20 +121,12 @@
                  "lib/ex_tales_forge/world/",
                  "lib/ex_tales_forge/game/features.ex",
                  "lib/ex_tales_forge_web/time_ago.ex",
-                 "lib/ex_tales_forge/surveys.ex",
-                 "lib/ex_tales_forge/survey/",
-                 "lib/ex_tales_forge_web/components/survey_components.ex",
-                 "lib/ex_tales_forge_web/controllers/survey_export_controller.ex",
-                 "lib/ex_tales_forge/playtest/character_changes.ex",
-                 "lib/ex_tales_forge/playtest/character_changes/",
-                 "lib/ex_tales_forge_web/components/character_changes_components.ex",
                  "lib/ex_tales_forge/app_role.ex",
                  "lib/ex_tales_forge_web/plugs/home_app.ex",
-                 "lib/ex_tales_forge/costs.ex",
-                 "lib/ex_tales_forge/costs/",
-                 "lib/ex_tales_forge_web/controllers/costs_peer_controller.ex",
-                 "lib/ex_tales_forge_web/live/admin/costs_live.ex",
-                 "lib/ex_tales_forge/playtest/summary.ex"
+                 "lib/ex_tales_forge/deploy_lanes.ex",
+                 "lib/ex_tales_forge/deploy_lanes/",
+                 "lib/mix/tasks/deploy.check_boundaries.ex",
+                 "lib/ex_tales_forge_web/controllers/costs_peer_controller.ex"
                ]
              }
            ]}

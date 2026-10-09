@@ -9,13 +9,11 @@ defmodule TalesForge.AppRole do
   (`TalesForge.Surveys.save_section/4`, `TalesForge.Playtest.Runner.enabled?/0`).
 
   The role comes from the app name (`FLY_APP_NAME`, set by Fly; config
-  `:app_name`, read through `TalesForge.Costs.app_name/0`): a name containing
+  `:app_name`, `app_name/0`): a name containing
   "playtest" is playtest, any other name is production, and no name (dev, test)
   is `:local`, where everything is available. The other app's base URL is
   config `TalesForge.AppRole` (`:production_url`, `:playtest_url`).
   """
-
-  alias TalesForge.Costs
 
   @typedoc "This app's role."
   @type role :: :production | :playtest | :local
@@ -25,6 +23,27 @@ defmodule TalesForge.AppRole do
 
   @default_production_url "https://tales-forge.fly.dev"
   @default_playtest_url "https://tales-forge-playtest.fly.dev"
+
+  @doc "This app's name (Fly's FLY_APP_NAME), or \"local\" off Fly."
+  @spec app_name() :: String.t()
+  def app_name do
+    case Application.get_env(:ex_tales_forge, :app_name) do
+      name when is_binary(name) and name != "" -> name
+      _ -> "local"
+    end
+  end
+
+  @doc """
+  True for the playtest app (its name contains "playtest").
+
+      iex> TalesForge.AppRole.playtest?("tales-forge-playtest")
+      true
+      iex> TalesForge.AppRole.playtest?(nil)
+      false
+  """
+  @spec playtest?(term()) :: boolean()
+  def playtest?(app) when is_binary(app), do: String.contains?(app, "playtest")
+  def playtest?(_app), do: false
 
   @doc """
   This app's role, from its app name.
@@ -37,10 +56,10 @@ defmodule TalesForge.AppRole do
       :local
   """
   @spec role(String.t()) :: role()
-  def role(app \\ Costs.app_name()) do
+  def role(app \\ app_name()) do
     cond do
       app == "local" -> :local
-      Costs.playtest?(app) -> :playtest
+      playtest?(app) -> :playtest
       true -> :production
     end
   end
