@@ -98,7 +98,8 @@ defmodule TalesForgeWeb.TeamLayout do
     >
       <p>Numbers as of {date_label(get(@d, ["_about", "as_of"]))}</p>
       <p class="mt-1 text-xs">
-        Every number comes from <code>docs/team-page/data.json</code>
+        Pull request and commit numbers come live from GitHub when the feed is up (otherwise from the same file, marked “as of”).
+        Every other number comes from <code>docs/team-page/data.json</code>
         in tales-forge-docs. Where we don't have one, it says “{TeamPage.not_measured()}”.
       </p>
     </footer>

@@ -10,12 +10,18 @@ defmodule TalesForge.PrFeed.GitHub do
 
   The three resources (`t:resource/0`) need the token permissions *Pull
   requests: read*, *Contents: read* and *Actions: read* on the repo.
+
+  The pull requests and main's commits are read page by page
+  (`fetch/3`, 100 per page), so the poller can count all of them
+  (`TalesForge.PrFeed.Pace`); each page has its own `ETag`. Pull requests
+  come newest first by creation, so a merge changes only the page it is on.
   """
 
   alias TalesForge.PrFeed
 
   @api "https://api.github.com"
   @timeout_ms 5_000
+  @per_page 100
 
   @typedoc "What the feed fetches."
   @type resource :: :pulls | :main | :ci
@@ -27,7 +33,7 @@ defmodule TalesForge.PrFeed.GitHub do
   The request path and query of `resource` for `repo`.
 
       iex> TalesForge.PrFeed.GitHub.path(:pulls, "o/r")
-      {"/repos/o/r/pulls", [state: "all", sort: "updated", direction: "desc", per_page: 100]}
+      {"/repos/o/r/pulls", [state: "all", sort: "created", direction: "desc", per_page: 100]}
       iex> TalesForge.PrFeed.GitHub.path(:main, "o/r")
       {"/repos/o/r/commits", [sha: "main", per_page: 100]}
       iex> TalesForge.PrFeed.GitHub.path(:ci, "o/r")
@@ -36,29 +42,35 @@ defmodule TalesForge.PrFeed.GitHub do
   @spec path(resource(), String.t()) :: {String.t(), keyword()}
   def path(:pulls, repo),
     do:
-      {"/repos/#{repo}/pulls", [state: "all", sort: "updated", direction: "desc", per_page: 100]}
+      {"/repos/#{repo}/pulls",
+       [state: "all", sort: "created", direction: "desc", per_page: @per_page]}
 
-  def path(:main, repo), do: {"/repos/#{repo}/commits", [sha: "main", per_page: 100]}
+  def path(:main, repo), do: {"/repos/#{repo}/commits", [sha: "main", per_page: @per_page]}
 
   def path(:ci, repo),
     do: {"/repos/#{repo}/actions/workflows/ci.yml/runs", [event: "pull_request", per_page: 100]}
 
+  @doc "How many entries a page of a list holds (GitHub's maximum)."
+  @spec per_page() :: pos_integer()
+  def per_page, do: @per_page
+
   @doc """
-  Fetches `resource`. `etag` is the previous answer's `ETag` (or nil).
-  Returns `{:ok, body, etag}`, `:not_modified` (304: keep the copy you have)
-  or `{:error, reason}`. Never raises.
+  Fetches `page` (from 1) of `resource`. `etag` is the previous answer's
+  `ETag` for that page (or nil). Returns `{:ok, body, etag}`, `:not_modified`
+  (304: keep the copy you have) or `{:error, reason}`. Never raises.
   """
-  @spec fetch(resource(), String.t() | nil) ::
+  @spec fetch(resource(), String.t() | nil, pos_integer()) ::
           {:ok, term(), String.t() | nil} | :not_modified | {:error, error()}
-  def fetch(resource, etag \\ nil) do
+  def fetch(resource, etag \\ nil, page \\ 1) do
     case PrFeed.token() do
       nil -> {:error, :not_configured}
-      token -> request(resource, etag, token)
+      token -> request(resource, etag, page, token)
     end
   end
 
-  defp request(resource, etag, token) do
+  defp request(resource, etag, page, token) do
     {path, params} = path(resource, PrFeed.repo())
+    params = if page > 1, do: params ++ [page: page], else: params
 
     headers =
       [

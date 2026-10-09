@@ -36,9 +36,34 @@ defmodule TalesForge.PrFeedFixtures do
     }
   end
 
-  @doc "A commits answer from shas, newest first."
-  @spec commits([String.t()]) :: [map()]
-  def commits(shas), do: Enum.map(shas, &%{"sha" => &1})
+  @doc "A commits answer from shas, newest first, each committed at `at`."
+  @spec commits([String.t()], String.t()) :: [map()]
+  def commits(shas, at \\ "2026-10-09T10:00:00Z"),
+    do: Enum.map(shas, &%{"sha" => &1, "commit" => %{"committer" => %{"date" => at}}})
+
+  @doc "Live pace numbers (`t:TalesForge.PrFeed.Pace.t/0`), with `overrides`."
+  @spec pace(map()) :: map()
+  def pace(overrides \\ %{}) do
+    Map.merge(
+      %{
+        as_of: "2026-10-09",
+        fetched_at: DateTime.utc_now(),
+        prs_total: 1234,
+        prs_merged: 1111,
+        prs_open: 77,
+        prs_closed_unmerged: 46,
+        prs_by_day: [
+          %{"date" => "2026-09-30", "created" => 5, "merged" => 4},
+          %{"date" => "2026-10-08", "created" => 21, "merged" => 19},
+          %{"date" => "2026-10-09", "created" => 13, "merged" => 12}
+        ],
+        commits: 4321,
+        commits_by_day: [%{"date" => "2026-10-09", "count" => 17}],
+        first_commit: "2026-07-02"
+      },
+      overrides
+    )
+  end
 
   @doc "An `:ok` snapshot with the given items (see `item/2`)."
   @spec snapshot([map()], keyword()) :: map()
@@ -48,7 +73,8 @@ defmodule TalesForge.PrFeedFixtures do
       items: items,
       merged_today: Keyword.get(opts, :today, 0),
       merged_week: Keyword.get(opts, :week, 0),
-      fetched_at: DateTime.utc_now()
+      fetched_at: DateTime.utc_now(),
+      pace: Keyword.get(opts, :pace)
     }
   end
 

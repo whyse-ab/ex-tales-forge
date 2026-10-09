@@ -13,11 +13,17 @@ defmodule TalesForgeWeb.TeamPresentationLive do
 
   Behind the GitHub team sign-in like every page (router `:browser` pipeline
   plus the `:require_team_member` mount hook, the same `:play` live session as
-  `/team`). Read-only: no events, no AI calls, no database.
+  `/team`). Read-only: no events, no AI calls, no database, no GitHub calls
+  (it only subscribes to the PR feed's PubSub topic).
 
   Copy follows tales-forge-docs `docs/team-page/content.md` (commit d118917,
-  2026-10-09). Every number comes from `TalesForge.TeamPage` (the bundled
-  `data.json`); a missing or empty value reads "not measured yet". Charts are
+  2026-10-09). The pace numbers (pull requests, merged, open, per day, and
+  commits on main) come from one place, `TalesForge.TeamPace.current/0`, for
+  both the headline stats and section 5: live from GitHub through the PR feed
+  (updated on every feed broadcast), or `data.json` labelled "as of <date>"
+  when the feed has no full count. Every other number comes from
+  `TalesForge.TeamPage` (the bundled `data.json`); a missing or empty value
+  reads "not measured yet". Charts are
   `TalesForgeWeb.TeamComponents`, pictures `TalesForgeWeb.TeamArt`, the header
   and footer `TalesForgeWeb.TeamLayout`. The animations (sections fading in,
   bars growing, the d20 rolling through the change flow, the three call-type
@@ -47,6 +53,8 @@ defmodule TalesForgeWeb.TeamPresentationLive do
   import TalesForgeWeb.TeamComponents
 
   alias TalesForge.AppRole
+  alias TalesForge.PrFeed
+  alias TalesForge.TeamPace
   alias TalesForge.TeamPage
   alias TalesForgeWeb.Layouts
   alias TalesForgeWeb.TeamArt
@@ -135,16 +143,29 @@ defmodule TalesForgeWeb.TeamPresentationLive do
   @impl true
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) :: {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, _session, socket) do
+    if connected?(socket), do: PrFeed.subscribe()
+    d = TeamPage.data()
+
     {:ok,
      socket
      |> assign(:page_title, "Team · presentation")
-     |> assign(:d, TeamPage.data())
+     |> assign(:d, d)
+     |> assign(:pace, TeamPace.current(PrFeed.snapshot(), d))
      |> assign(:sections, @sections)}
+  end
+
+  @impl true
+  def handle_info({:pr_feed, snapshot}, socket) do
+    {:noreply, assign(socket, :pace, TeamPace.current(snapshot, socket.assigns.d))}
   end
 
   @impl true
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(assigns) do
+    # Rendered without a mount (tests call render/1 with just `d`): the
+    # numbers of `d` itself, as the fallback.
+    assigns = Map.put_new_lazy(assigns, :pace, fn -> TeamPace.from_data(assigns.d) end)
+
     ~H"""
     <div
       id="team-page"
@@ -155,12 +176,12 @@ defmodule TalesForgeWeb.TeamPresentationLive do
       <TeamLayout.header page={:presentation} items={@sections} />
 
       <main class="mx-auto max-w-6xl space-y-20 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
-        <.hero d={@d} />
+        <.hero d={@d} pace={@pace} />
         <.team_section d={@d} />
         <.how_section d={@d} />
         <.infra_section d={@d} />
         <.playtests_section d={@d} />
-        <.pace_section d={@d} />
+        <.pace_section d={@d} pace={@pace} />
         <TeamBoard.section d={@d} />
         <.together_section d={@d} />
       </main>
@@ -174,6 +195,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
   # ── 0. Hero ────────────────────────────────────────────────────────────────
 
   attr :d, :map, required: true
+  attr :pace, :map, required: true, doc: "`TalesForge.TeamPace.current/0`"
 
   defp hero(assigns) do
     ~H"""
@@ -213,7 +235,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
       <div class="grid gap-3 sm:grid-cols-3 lg:col-span-2">
         <.stat
           id="stat-prs-merged"
-          value={number(get(@d, ["pace", "prs_merged"]))}
+          value={number(@pace.prs_merged)}
           label="pull requests merged"
         >
           <.explain text="a pull request, or PR, is one proposed change to the code that someone reviews before it goes in" />
@@ -228,6 +250,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
           value={number(get(@d, ["pace", "tests", "total"]))}
           label={tests_label(@d)}
         />
+        <.pace_source id="stat-source" pace={@pace} class="sm:col-span-3" />
       </div>
     </section>
     """
@@ -1237,10 +1260,11 @@ defmodule TalesForgeWeb.TeamPresentationLive do
   # ── 5. Pace and cost ───────────────────────────────────────────────────────
 
   attr :d, :map, required: true
+  attr :pace, :map, required: true, doc: "`TalesForge.TeamPace.current/0`"
 
   defp pace_section(assigns) do
-    {current, earlier} = split_prs_by_month(assigns.d)
-    as_of = get(assigns.d, ["_about", "as_of"])
+    {current, earlier} = split_prs_by_month(assigns.pace)
+    as_of = assigns.pace.as_of
 
     assigns =
       assign(assigns,
@@ -1257,12 +1281,14 @@ defmodule TalesForgeWeb.TeamPresentationLive do
       </.section_head>
 
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <.stat id="pace-prs" value={number(get(@d, ["pace", "prs_total"]))} label="PRs">
-          {number(get(@d, ["pace", "prs_merged"]))} merged, {number(get(@d, ["pace", "prs_open"]))} open
+        <.stat id="pace-prs" value={number(@pace.prs_total)} label="PRs">
+          <span id="pace-prs-merged">{number(@pace.prs_merged)}</span>
+          merged, <span id="pace-prs-open">{number(@pace.prs_open)}</span>
+          open
         </.stat>
         <.stat
           id="pace-commits"
-          value={number(get(@d, ["pace", "commits_main_ex_tales_forge"]))}
+          value={number(@pace.commits)}
           label="commits on the game's main branch"
         />
         <.stat
@@ -1279,6 +1305,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
           value={number(get(@d, ["decisions", "total"]))}
           label="decisions logged"
         />
+        <.pace_source id="pace-source" pace={@pace} class="sm:col-span-2 lg:col-span-4" />
       </div>
 
       <div class="grid gap-4 lg:grid-cols-2">
@@ -1317,7 +1344,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
             <.heat_strip
               id="chart-commits"
               label="Commits per day on the game's main branch"
-              days={get(@d, ["pace", "commits_by_day_main"]) || []}
+              days={@pace.commits_by_day}
             />
           </div>
           <div id="ai-spend" class="team-callout space-y-2 p-4 text-sm leading-relaxed">
@@ -1690,11 +1717,25 @@ defmodule TalesForgeWeb.TeamPresentationLive do
     end
   end
 
-  # PRs per day for the month of `as_of`; earlier days become one chip
-  # ("+14 PRs in July").
-  defp split_prs_by_month(d) do
-    days = get(d, ["pace", "prs_by_day"]) || []
-    month = d |> get(["_about", "as_of"]) |> Kernel.||("") |> String.slice(0, 7)
+  # Where the pace numbers came from, under the stats that show them: "live
+  # from GitHub" or "as of <date>" (TeamPace.label/1).
+  attr :id, :string, required: true
+  attr :pace, :map, required: true
+  attr :class, :string, default: nil
+
+  defp pace_source(assigns) do
+    ~H"""
+    <p id={@id} class={["text-xs text-[var(--paper-muted)]", @class]} data-source={@pace.source}>
+      Pull request and commit numbers: {TeamPace.label(@pace)}.
+    </p>
+    """
+  end
+
+  # PRs per day for the month of the pace's `as_of`; earlier days become one
+  # chip ("+14 PRs in July").
+  defp split_prs_by_month(pace) do
+    days = pace.prs_by_day
+    month = (pace.as_of || "") |> String.slice(0, 7)
     {current, earlier} = Enum.split_with(days, &String.starts_with?(&1["date"] || "", month))
     {current, earlier_chip(earlier)}
   end

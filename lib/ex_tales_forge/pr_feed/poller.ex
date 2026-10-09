@@ -6,8 +6,13 @@ defmodule TalesForge.PrFeed.Poller do
 
   - Every `:interval_ms` (config `TalesForge.PrFeed`, default 60 s), plus once
     right after start. `:poll` false (tests) starts the table but never polls.
-  - Per resource it keeps the last `ETag` and the parsed answer, so an
-    unchanged answer (304) is reused and costs no rate limit.
+  - Per resource (and per page) it keeps the last `ETag` and the parsed
+    answer, so an unchanged answer (304) is reused and costs no rate limit.
+  - The pull requests and main's commits are read in full, page by page
+    (at most `:max_pages` pages each, config `TalesForge.PrFeed`, default
+    30), and counted into the snapshot's `:pace` (`TalesForge.PrFeed.Pace`).
+    If either list is cut short (a page fails, or there are more pages), the
+    snapshot gets no `:pace` and the pages fall back to `data.json`.
   - No token: nothing is fetched, the snapshot is `:not_configured`.
   - The pull requests can't be fetched: `:unavailable`. CI or main's commits
     missing only blank out the CI badges or the deploy status.
@@ -25,9 +30,13 @@ defmodule TalesForge.PrFeed.Poller do
   alias TalesForge.PrFeed.Versions
 
   @default_interval_ms 60_000
+  @default_max_pages 30
 
-  @typedoc "The last ETag and parsed answer per resource."
-  @type cache :: %{optional(GitHub.resource()) => {String.t() | nil, term()}}
+  @typedoc "The last ETag and parsed answer per resource, or per page of a paged one."
+  @type cache :: %{
+          optional(GitHub.resource() | {GitHub.resource(), pos_integer()}) =>
+            {String.t() | nil, term()}
+        }
 
   @doc "Starts the poller (named `#{inspect(__MODULE__)}`)."
   @spec start_link(keyword()) :: GenServer.on_start()
@@ -63,17 +72,66 @@ defmodule TalesForge.PrFeed.Poller do
   end
 
   defp fetch_all(cache, now) do
-    case fetch(:pulls, cache, &Parse.pulls/1) do
-      {:ok, pulls, cache} ->
+    case fetch_pages(:pulls, cache, &Parse.pulls/1) do
+      {:ok, pulls, pulls_complete?, cache} ->
         {ci, cache} = optional(:ci, cache, &Parse.ci_runs/1)
-        {main, cache} = optional(:main, cache, &Parse.commit_shas/1)
-        inputs = %{pulls: pulls, ci: ci, main: main, running: Versions.running()}
+        {commits, commits_complete?, cache} = optional_pages(:main, cache, &Parse.commits/1)
+
+        inputs = %{
+          pulls: pulls,
+          ci: ci,
+          main: commits && Enum.map(commits, & &1.sha),
+          commits: if(pulls_complete? and commits_complete?, do: commits),
+          running: Versions.running()
+        }
+
         {PrFeed.build(inputs, now), cache}
 
       {:error, reason} ->
         Logger.warning("PR feed: GitHub pull requests unavailable (#{inspect(reason)})")
         {PrFeed.empty(:unavailable, now), cache}
     end
+  end
+
+  defp optional_pages(resource, cache, parse) do
+    case fetch_pages(resource, cache, parse) do
+      {:ok, items, complete?, cache} -> {items, complete?, cache}
+      {:error, _reason} -> {nil, false, drop_pages(cache, resource)}
+    end
+  end
+
+  # Pages 1, 2, ... of a list until a page isn't full. `{:ok, items,
+  # complete?, cache}` once page 1 is in; complete? is false when a later page
+  # failed or `:max_pages` was reached with more to come.
+  defp fetch_pages(resource, cache, parse) do
+    case fetch({resource, 1}, cache, parse) do
+      {:ok, items, cache} -> more_pages(resource, 1, items, items, cache, parse)
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp more_pages(resource, page, last, acc, cache, parse) do
+    cond do
+      length(last) < GitHub.per_page() ->
+        {:ok, acc, true, drop_pages(cache, resource, page + 1)}
+
+      page >= PrFeed.config(:max_pages, @default_max_pages) ->
+        {:ok, acc, false, cache}
+
+      true ->
+        case fetch({resource, page + 1}, cache, parse) do
+          {:ok, items, cache} -> more_pages(resource, page + 1, items, acc ++ items, cache, parse)
+          {:error, _reason} -> {:ok, acc, false, drop_pages(cache, resource, page + 1)}
+        end
+    end
+  end
+
+  # Forgets the cached pages of `resource` from page `from` on.
+  defp drop_pages(cache, resource, from \\ 1) do
+    Map.reject(cache, fn
+      {{^resource, page}, _value} -> page >= from
+      _other -> false
+    end)
   end
 
   defp optional(resource, cache, parse) do
@@ -83,13 +141,14 @@ defmodule TalesForge.PrFeed.Poller do
     end
   end
 
-  defp fetch(resource, cache, parse) do
-    {etag, kept} = Map.get(cache, resource, {nil, nil})
+  defp fetch(key, cache, parse) do
+    {etag, kept} = Map.get(cache, key, {nil, nil})
+    {resource, page} = resource_page(key)
 
-    case GitHub.fetch(resource, etag) do
+    case GitHub.fetch(resource, etag, page) do
       {:ok, body, new_etag} ->
         value = parse.(body)
-        {:ok, value, Map.put(cache, resource, {new_etag, value})}
+        {:ok, value, Map.put(cache, key, {new_etag, value})}
 
       :not_modified when kept != nil ->
         {:ok, kept, cache}
@@ -101,4 +160,7 @@ defmodule TalesForge.PrFeed.Poller do
         {:error, reason}
     end
   end
+
+  defp resource_page({resource, page}), do: {resource, page}
+  defp resource_page(resource), do: {resource, 1}
 end

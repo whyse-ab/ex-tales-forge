@@ -17,6 +17,7 @@ defmodule TalesForge.PrFeedTest do
   doctest TalesForge.PrFeed.Deploys
   doctest TalesForge.PrFeed.GitHub
   doctest TalesForge.PrFeed.Versions
+  doctest TalesForge.PrFeed.Pace
 
   @now ~U[2026-10-09 12:00:00Z]
 
@@ -104,7 +105,8 @@ defmodule TalesForge.PrFeedTest do
       assert snapshot.status == :ok
       assert [%{number: 5, ci: nil}, %{number: 4, deployed: deployed}] = snapshot.items
       assert deployed == %{playtest: :unknown, production: :unknown}
-      assert Map.keys(cache) == [:pulls]
+      assert Map.keys(cache) == [{:pulls, 1}]
+      assert snapshot.pace == nil
     end
   end
 
@@ -159,6 +161,107 @@ defmodule TalesForge.PrFeedTest do
       assert two.ci == nil
     end
 
+    test "counts every pull request and commit, page by page, into the pace" do
+      test_pid = self()
+      # 100 on page 1 (so page 2 is asked for) and 5 on page 2; 3 of them open.
+      page1 = for n <- 105..6//-1, do: pull(n, state: :merged, at: "2026-10-09T09:00:00Z")
+
+      page2 =
+        for n <- 5..1//-1,
+            do:
+              pull(n,
+                state: if(n <= 3, do: :open, else: :closed),
+                created: "2026-10-07T09:00:00Z",
+                at: "2026-10-07T09:00:00Z"
+              )
+
+      main1 = for n <- 1..100, do: "c#{n}"
+
+      Req.Test.stub(GitHub, fn conn ->
+        conn = Plug.Conn.fetch_query_params(conn)
+        page = conn.query_params["page"] || "1"
+        send(test_pid, {:page, conn.request_path, page})
+
+        case {Path.basename(conn.request_path), page} do
+          {"pulls", "1"} -> Req.Test.json(conn, page1)
+          {"pulls", "2"} -> Req.Test.json(conn, page2)
+          {"commits", "1"} -> Req.Test.json(conn, commits(main1, "2026-10-08T10:00:00Z"))
+          {"commits", "2"} -> Req.Test.json(conn, commits(~w(d1 d2), "2026-07-02T10:00:00Z"))
+          {"runs", _} -> Req.Test.json(conn, runs([]))
+        end
+      end)
+
+      Req.Test.stub(Versions, &Plug.Conn.send_resp(&1, 404, ""))
+
+      {snapshot, cache} = Poller.poll(%{}, @now)
+
+      assert_received {:page, "/repos/whyse-ab/ex-tales-forge/pulls", "2"}
+      assert_received {:page, "/repos/whyse-ab/ex-tales-forge/commits", "2"}
+      refute_received {:page, _path, "3"}
+      assert Map.has_key?(cache, {:pulls, 2}) and Map.has_key?(cache, {:main, 2})
+
+      pace = snapshot.pace
+
+      assert {pace.prs_total, pace.prs_merged, pace.prs_open, pace.prs_closed_unmerged} ==
+               {105, 100, 3, 2}
+
+      assert {pace.commits, pace.first_commit, pace.as_of} == {102, "2026-07-02", "2026-10-09"}
+
+      assert pace.prs_by_day == [
+               %{"date" => "2026-10-07", "created" => 5, "merged" => 0},
+               %{"date" => "2026-10-09", "created" => 100, "merged" => 100}
+             ]
+
+      assert pace.commits_by_day == [
+               %{"date" => "2026-07-02", "count" => 2},
+               %{"date" => "2026-10-08", "count" => 100}
+             ]
+
+      # The feed itself still lists only the newest 15.
+      assert length(snapshot.items) == 15
+    end
+
+    test "a list cut short (a later page fails, or too many pages) gives no pace" do
+      full = for n <- 100..1//-1, do: pull(n, state: :merged)
+
+      Req.Test.stub(GitHub, fn conn ->
+        conn = Plug.Conn.fetch_query_params(conn)
+
+        case {Path.basename(conn.request_path), conn.query_params["page"]} do
+          {"pulls", nil} -> Req.Test.json(conn, full)
+          {"pulls", "2"} -> Plug.Conn.send_resp(conn, 502, "")
+          {"commits", _} -> Req.Test.json(conn, commits(~w(c1)))
+          {"runs", _} -> Req.Test.json(conn, runs([]))
+        end
+      end)
+
+      Req.Test.stub(Versions, &Plug.Conn.send_resp(&1, 404, ""))
+
+      {snapshot, cache} = Poller.poll(%{}, @now)
+      assert snapshot.status == :ok
+      assert length(snapshot.items) == 15
+      assert snapshot.pace == nil
+      refute Map.has_key?(cache, {:pulls, 2})
+
+      config = Application.get_env(:ex_tales_forge, PrFeed, [])
+      Application.put_env(:ex_tales_forge, PrFeed, Keyword.put(config, :max_pages, 1))
+      on_exit(fn -> Application.put_env(:ex_tales_forge, PrFeed, config) end)
+
+      assert {%{status: :ok, pace: nil}, _cache} = Poller.poll(%{}, @now)
+    end
+
+    test "main's commits failing gives no pace, the feed still works" do
+      stub_github(%{
+        pulls: json([pull(5, state: :open)]),
+        ci: json(runs([])),
+        main: &Plug.Conn.send_resp(&1, 500, "")
+      })
+
+      Req.Test.stub(Versions, &Plug.Conn.send_resp(&1, 404, ""))
+
+      assert {%{status: :ok, items: [%{number: 5}], pace: nil}, _cache} = Poller.poll(%{}, @now)
+    end
+
     test "sends the ETag back and reuses the parsed copy on 304" do
       test_pid = self()
 
@@ -179,7 +282,7 @@ defmodule TalesForge.PrFeedTest do
       {first, cache} = Poller.poll(%{}, @now)
       assert [%{number: 9}] = first.items
       assert_received {:if_none_match, "/repos/whyse-ab/ex-tales-forge/pulls", []}
-      assert {~s(W/"v1"), [_pr]} = cache[:pulls]
+      assert {~s(W/"v1"), [_pr]} = cache[{:pulls, 1}]
 
       {second, _cache} = Poller.poll(cache, @now)
       assert second.items == first.items
@@ -188,7 +291,7 @@ defmodule TalesForge.PrFeedTest do
 
     test "a 304 without a kept copy counts as unavailable" do
       Req.Test.stub(GitHub, &Plug.Conn.send_resp(&1, 304, ""))
-      assert {%{status: :unavailable}, _} = Poller.poll(%{pulls: {"etag", nil}}, @now)
+      assert {%{status: :unavailable}, _} = Poller.poll(%{{:pulls, 1} => {"etag", nil}}, @now)
     end
   end
 
