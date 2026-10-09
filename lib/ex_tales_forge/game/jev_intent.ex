@@ -63,8 +63,17 @@ defmodule TalesForge.Game.JevIntent do
 
   # Skills the game can roll, plus "no check". Literal atoms: the keys of
   # Mechanics.skill_stat_map/0 (a test pins the two lists equal).
+  #
+  # Plain talk doesn't roll (decisions 2026-10-07 and 2026-10-09): the social
+  # skills are only for changing the mind of someone who resists, against
+  # their interest. The `none`, social and etiquette labels and the skill
+  # question say so, because Jev read flowery questions and thanks as
+  # persuasion (Paul rolled persuasion on 51 of 62 turns in the 2026-10-09
+  # full batch).
   @skill_labels %{
-    none: "No skill check; the action just happens.",
+    none:
+      "No skill check; the action just happens. Plain talk is always none: asking, ordering, " <>
+        "greeting, thanking, chatting, flattering or sharing news, however flowery.",
     melee_combat: "Fighting in reach with a weapon.",
     ranged_combat: "Shooting or throwing at a distance.",
     unarmed_combat: "Fighting with fists, grapples or kicks.",
@@ -73,11 +82,16 @@ defmodule TalesForge.Game.JevIntent do
     stealth: "Moving or acting unseen.",
     lockpicking: "Picking a lock.",
     climbing: "Climbing or scaling something.",
-    persuasion: "Convincing someone by reason or charm.",
-    deception: "Lying, bluffing or disguising intent.",
-    intimidation: "Threatening or menacing someone.",
+    persuasion:
+      "Winning over someone who resists, against their interest: haggling a price down, " <>
+        "talking a guard into letting you pass, talking down a fight. Not a request they would grant anyway.",
+    deception:
+      "Lying or bluffing to get something or to make someone believe something false: " <>
+        "a false identity, a made-up claim or order.",
+    intimidation: "Threatening or menacing someone to make them back down, talk or comply.",
     insight: "Reading a person or searching for meaning.",
-    etiquette: "Navigating manners and station.",
+    etiquette:
+      "Navigating manners and station where a misstep costs something. Not ordinary politeness.",
     survival: "Weathering the wild.",
     tracking: "Following tracks or trails.",
     history: "Recalling lore of the past.",
@@ -262,7 +276,11 @@ defmodule TalesForge.Game.JevIntent do
   def questions(candidates) do
     base = [
       action: {"What is the player character's main action this turn?", @action_labels},
-      skill: {"Which skill, if any, does the main action roll?", @skill_labels},
+      skill:
+        {"Which skill, if any, does the main action roll? Most actions roll none. " <>
+           "A social skill only when the character tries to change someone's mind or behaviour " <>
+           "against their interest (a haggle, a lie, a threat); plain talk rolls none.",
+         @skill_labels},
       later:
         {"Is a second, distinct action deferred to a later turn (a plan for later, not now)?",
          @later_labels},
