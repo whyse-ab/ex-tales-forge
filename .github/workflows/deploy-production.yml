@@ -1,0 +1,104 @@
+# Deploy one commit of main to PRODUCTION (Fly app tales-forge). Manual only.
+#
+# A merge to main deploys to playtest first (.github/workflows/playtest.yml).
+# Once Gentry (the QA bot) and the playtest batch have checked that build and
+# Fredrik has OK'd it, start this workflow with the commit that was checked:
+#
+#   gh workflow run deploy-production.yml -R whyse-ab/ex-tales-forge -f sha=<full sha>
+#
+# or Actions -> "Deploy to production" -> Run workflow. (tales-forge-docs decision
+# 2026-10-09 "Deploy order: playtest first, then production",
+# docs/environments.md.)
+#
+# The "Verify commit" job refuses a sha that is not a full 40-character sha,
+# not on main, or whose Test and Dialyzer checks did not pass. It warns (does
+# not fail) when no successful playtest deploy of the sha is found.
+#
+# The deploy job runs in the GitHub environment `production`. With a required
+# reviewer on that environment (repo Settings -> Environments -> production),
+# the job waits for that approval before it starts.
+#
+# Needs the repo secret FLY_API_TOKEN: a deploy token scoped to tales-forge.
+name: Deploy to production
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Full 40-character commit sha on main to deploy (the build checked on playtest)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  checks: read
+  actions: read
+
+jobs:
+  verify:
+    name: Verify commit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # Full history of main, to check that the sha is on it.
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: The sha is on main and CI passed for it
+        env:
+          SHA: ${{ inputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::sha must be a full 40-character lowercase commit sha, got '$SHA'."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$SHA" origin/main; then
+            echo "::error::$SHA is not on main."
+            exit 1
+          fi
+          for check in Test Dialyzer; do
+            conclusion="$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/check-runs?check_name=$check&filter=latest" \
+              --jq '.check_runs[0].conclusion // "missing"')"
+            if [ "$conclusion" != "success" ]; then
+              echo "::error::Required check '$check' for $SHA is '$conclusion', not success."
+              exit 1
+            fi
+          done
+          playtest="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/playtest.yml/runs?head_sha=$SHA&status=success" \
+            --jq '.total_count')"
+          if [ "$playtest" = "0" ]; then
+            echo "::warning::No successful 'Deploy to playtest' run found for $SHA. Was this build checked on playtest?"
+          fi
+          echo "Deploying $SHA (on main; Test and Dialyzer passed; playtest deploys found: $playtest)." >> "$GITHUB_STEP_SUMMARY"
+
+  deploy:
+    name: Deploy to production
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    # One prod deploy at a time; a running deploy is never cancelled.
+    concurrency:
+      group: deploy-prod
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
+
+      - uses: superfly/flyctl-actions/setup-flyctl@1.5
+
+      # --depot=false: use Fly's classic remote builder. Every release so far was
+      # built that way because Depot builds hung at "Waiting for depot builder"
+      # for this org. Set the repo variable FLY_USE_DEPOT=true to try Depot again.
+      - name: flyctl deploy
+        # GIT_SHA: the commit goes into the image (Dockerfile), so the app knows it.
+        run: flyctl deploy --remote-only -a tales-forge --ha=false --depot="${FLY_USE_DEPOT:-false}" --build-arg GIT_SHA="$SHA"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          FLY_USE_DEPOT: ${{ vars.FLY_USE_DEPOT }}
+          SHA: ${{ inputs.sha }}

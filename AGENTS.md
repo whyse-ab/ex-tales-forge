@@ -38,7 +38,7 @@ Sources: tales-forge-docs `docs/decisions.md` ("Docs go straight to main",
 ### Code (this repo)
 
 1. **Every code change goes through a branch and a pull request.** Never commit to `main` directly.
-2. **Merging or deploying needs Fredrik's explicit OK.** A merge to `main` deploys: CI's "Deploy to production" job runs after Test and Dialyzer pass, and playtest follows automatically. Bots never merge, never run `fly deploy`, and never change Fly apps, databases, tokens, secrets or anything that adds cost without that OK (`docs/environments.md`, "What needs Fredrik's OK").
+2. **Merging or deploying needs Fredrik's explicit OK.** A merge to `main` deploys to **playtest** automatically once Test and Dialyzer pass (`.github/workflows/playtest.yml`). Production is a separate, manual step: after Gentry and the playtest batch have checked the build and Fredrik has OK'd it, the "Deploy to production" workflow is started for that commit (`gh workflow run deploy-production.yml -f sha=<full sha>`; `.github/workflows/deploy-production.yml`, GitHub environment `production`). A bot starts it only on Fredrik's explicit OK for that sha. Bots never merge, never run `fly deploy`, and never change Fly apps, databases, tokens, secrets or anything that adds cost without that OK (`docs/environments.md`, "What needs Fredrik's OK").
 3. **CI must be green.** The Test and Dialyzer jobs are required checks on `main`.
 4. Before you finish, rebase on `origin/main`; other agents merge in parallel.
 
@@ -141,7 +141,7 @@ Sources: `test/ex_tales_forge/game/prompt_prefix_test.exs`, `test/ex_tales_forge
 
 Sources: tales-forge-docs `docs/environments.md`, `docs/infrastructure.md`, decision 2026-10-06 "tales-forge.ai stays on Netlify for now".
 
-- Production: Fly app `tales-forge` ([tales-forge.fly.dev](https://tales-forge.fly.dev)). Playtest: `tales-forge-playtest` ([tales-forge-playtest.fly.dev](https://tales-forge-playtest.fly.dev)), deployed right after production. Region `arn`. Each app has its own secrets and its own xAI key.
+- Production: Fly app `tales-forge` ([tales-forge.fly.dev](https://tales-forge.fly.dev)). Playtest: `tales-forge-playtest` ([tales-forge-playtest.fly.dev](https://tales-forge-playtest.fly.dev)), deployed automatically from `main` first; production follows by hand after the build is checked on playtest (decision 2026-10-09 "Deploy order: playtest first, then production"). Region `arn`. Each app has its own secrets and its own xAI key.
 - **`tales-forge.ai` stays on Netlify** until the Fly app replaces it. No environment gets Fly certificates or DNS changes; **deploys are verified on the `fly.dev` apps**.
 - The code docs (this site) are built in the Docker builder stage and served at `/admin/code-docs` on both apps, behind the sign-in.
 - Manual `fly deploy` (`docs/DEPLOY-FLY.md`) is only a fallback when Actions is down, and needs Fredrik's OK like any deploy.
