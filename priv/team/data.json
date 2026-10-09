@@ -1,0 +1,863 @@
+{
+  "_about": {
+    "what": "Numbers for the /team founders' page (content in content.md). Every block has a source and an as_of date. All money in USD. No secret values.",
+    "as_of": "2026-10-09",
+    "generated_at": "2026-10-09 ~11:00 CEST; updated 2026-10-09 ~12:00 CEST (Gentry hostile play, intent comparison, Jev intent on, full batch placeholder)",
+    "timezone": "Europe/Stockholm",
+    "gaps_marker": "null values and entries in 'gaps' mean the number was not found; do not invent."
+  },
+  "team": {
+    "as_of": "2026-10-09",
+    "source": "Brief for this page (roles, revised 2026-10-09 for a shared, crew framing); Gentry findings from ex-tales-forge PR #89 body",
+    "members": [
+      {
+        "id": "founders",
+        "name": "The founders",
+        "kind": "humans",
+        "role": "The people Tales Forge is built by and for",
+        "does": [
+          "Shape what we build: ideas, surveys, playtesting",
+          "Make the decisions, written down in one shared log",
+          "Approve merges and deploys (today Fredrik holds the approval key; soon every founder)"
+        ],
+        "schedule": null,
+        "approval_key": {
+          "holder_today": "Fredrik",
+          "later": "every founder",
+          "note": "A current-setup detail, not a hierarchy."
+        }
+      },
+      {
+        "id": "case",
+        "name": "Case",
+        "kind": "bot",
+        "role": "Point of contact and architect",
+        "does": [
+          "Plans work",
+          "Architecture review on every merge (Pragmatic Programmer spirit)",
+          "Hourly status",
+          "Daily branch cleanup",
+          "Research and analyses"
+        ],
+        "schedule": "hourly status; daily branch cleanup"
+      },
+      {
+        "id": "bobby",
+        "name": "Bobby",
+        "kind": "bot",
+        "role": "Elixir developer and devops",
+        "does": [
+          "Writes code as pull requests",
+          "Runs playtests and evals",
+          "Deploys on Fly only with a founder's OK (today Fredrik's)",
+          "Hourly Fly log check"
+        ],
+        "schedule": "hourly Fly log check"
+      },
+      {
+        "id": "gentry",
+        "name": "Gentry",
+        "kind": "bot",
+        "role": "Picky adversarial QA (playtest only)",
+        "does": [
+          "Hostile play: prompt injections, fake GM notes, false claims",
+          "Link, speed, phone-layout and accessibility checks",
+          "Feeds attacks into the intent eval set"
+        ],
+        "schedule": "weekdays 07:13 CEST and after each playtest deploy"
+      }
+    ],
+    "other_bots_note": "There are also separate helper bots for company admin (bookkeeping, invoices, mail). They don't work on the game. Names/roles not confirmed for this page.",
+    "founders_github_team_members": {
+      "value": 3,
+      "source": "gh api orgs/whyse-ab/teams/tales-forge/members (count only)"
+    },
+    "framing": "Current setup, a starting point. Founders and bots are one crew. Later every founder can approve merges and deploys, steer the bots and make decisions; today Fredrik holds the approval key."
+  },
+  "change_flow": {
+    "as_of": "2026-10-09",
+    "source": "Founders' current process; deploy order decided by Fredrik 2026-10-09 (playtest first); docs/environments.md (CI checks Test + Dialyzer)",
+    "steps": [
+      {
+        "id": "idea",
+        "label": "Idea",
+        "who": "any founder"
+      },
+      {
+        "id": "case",
+        "label": "Case plans it",
+        "who": "case"
+      },
+      {
+        "id": "pr",
+        "label": "Bobby opens a PR",
+        "who": "bobby"
+      },
+      {
+        "id": "ci",
+        "label": "CI: Test + Dialyzer",
+        "who": "GitHub Actions"
+      },
+      {
+        "id": "ok_merge",
+        "label": "A founder's OK to merge",
+        "who": "a founder (today Fredrik)",
+        "approval": true
+      },
+      {
+        "id": "merge",
+        "label": "Merge to main",
+        "who": "bobby"
+      },
+      {
+        "id": "review",
+        "label": "Architecture review",
+        "who": "case"
+      },
+      {
+        "id": "playtest",
+        "label": "Deploy to playtest",
+        "who": "bobby"
+      },
+      {
+        "id": "check",
+        "label": "Gentry + persona playtest batch",
+        "who": "gentry, bobby"
+      },
+      {
+        "id": "ok_prod",
+        "label": "A founder's OK to ship",
+        "who": "a founder (today Fredrik)",
+        "approval": true
+      },
+      {
+        "id": "prod",
+        "label": "Production",
+        "who": "bobby"
+      }
+    ],
+    "note": "Approval steps are held by Fredrik today; later any founder can give them. Deploy order playtest-first decided 2026-10-09; docs/environments.md (2026-10-08) still describes prod-first and needs updating."
+  },
+  "decisions": {
+    "as_of": "2026-10-09",
+    "source": "whyse-ab/tales-forge-docs docs/decisions.md at bbd1a65: count of '## YYYY-MM-DD' entries",
+    "total": 83,
+    "by_date": [
+      {
+        "date": "2026-10-05",
+        "count": 4
+      },
+      {
+        "date": "2026-10-06",
+        "count": 8
+      },
+      {
+        "date": "2026-10-07",
+        "count": 40
+      },
+      {
+        "date": "2026-10-08",
+        "count": 24
+      },
+      {
+        "date": "2026-10-09",
+        "count": 7
+      }
+    ],
+    "queue": {
+      "total": 12,
+      "open": 11,
+      "decided": 1,
+      "source": "tales-forge-docs decisions/d-001..d-012 front matter 'status'"
+    },
+    "future_ideas": {
+      "count": 2,
+      "items": [
+        "Speculative intent while typing",
+        "Memory consolidation and attitude drift"
+      ],
+      "source": "docs/future-ideas.md '## ' headings"
+    }
+  },
+  "call_types": {
+    "as_of": "2026-10-09",
+    "source": "docs/call-types.md",
+    "rows": [
+      {
+        "input": "structured",
+        "output": "structured",
+        "type": "Elixir function",
+        "cost": "exact, free, instant",
+        "examples": [
+          "dice and skill checks",
+          "damage and wounds",
+          "inventory",
+          "coins and prices"
+        ]
+      },
+      {
+        "input": "unstructured",
+        "output": "structured",
+        "type": "Jev (TypeSafe)",
+        "cost": "fast, cheap (~$0.0001 per call)",
+        "examples": [
+          "player intent + safety label",
+          "persona-affect scoring",
+          "NPC gut reaction"
+        ]
+      },
+      {
+        "input": "any",
+        "output": "prose",
+        "type": "LLM (xAI Grok)",
+        "cost": "slowest, most expensive",
+        "examples": [
+          "GM narration",
+          "NPC dialogue",
+          "opening scene"
+        ]
+      }
+    ]
+  },
+  "code_standards": {
+    "as_of": "2026-10-09",
+    "source": "docs/coding-standards.md; CI Test job log for main 2f27ff1 (run 37880006051, 2026-10-09 05:37 CEST)",
+    "rules": [
+      "@moduledoc on every module",
+      "@doc + doctests on public functions",
+      "@spec on every public function, checked by Dialyzer",
+      "Credo strict",
+      "mix format",
+      "Tests for every change; coverage threshold",
+      "CI enforces all of it (Test + Dialyzer required on main)"
+    ],
+    "dialyzer_warnings": 0,
+    "coverage_pct": 85.76,
+    "coverage_pct_2026_10_07": 73.3
+  },
+  "infrastructure": {
+    "as_of": "2026-10-09",
+    "source": "docs/infrastructure.md, docs/environments.md, ex-tales-forge mix.exs, decisions.md",
+    "stack": {
+      "language": "Elixir ~> 1.18",
+      "web": "Phoenix ~> 1.8.8, LiveView ~> 1.2",
+      "db": "Ecto + Postgres (Fly Postgres)",
+      "jobs": "Oban ~> 2.23",
+      "jev": "TypeSafe Jev (hex jev ~> 0.2), model jev-1.13.0",
+      "gm_model": "xAI grok-4.20-0309-non-reasoning (GM and today's LLM intent)"
+    },
+    "apps": [
+      {
+        "name": "tales-forge",
+        "role": "production",
+        "release": "v85",
+        "region": "arn (Stockholm)",
+        "machine": "shared-cpu-1x 1 GB"
+      },
+      {
+        "name": "tales-forge-playtest",
+        "role": "playtest (persona bots, Gentry)",
+        "release": "v76",
+        "region": "arn",
+        "machine": "shared-cpu-1x 512 MB + swap"
+      }
+    ],
+    "release_source": "decisions.md 2026-10-09 'Jev intent on for playtest and production' (playtest v76, prod v85)",
+    "login": "GitHub team sign-in only (whyse-ab/tales-forge team), every page, prod and playtest",
+    "keys": "Separate AI keys per environment (prod and playtest), stored as Fly secrets. Values never shown.",
+    "costs_pages": "/admin/costs on each app; prod shows all costs plus a live Playtest section (PR #90, live since 2026-10-09)",
+    "hosting_usd_per_month": [
+      {
+        "item": "Production app + DB (Fly)",
+        "usd": 14.0,
+        "approx": true,
+        "source": "docs/environments.md cost table"
+      },
+      {
+        "item": "Playtest app (Fly)",
+        "usd": 3.84,
+        "source": "docs/environments.md"
+      },
+      {
+        "item": "Playtest DB (Fly)",
+        "usd": 3.99,
+        "source": "docs/environments.md"
+      },
+      {
+        "item": "Domain tales-forge.ai (SEK 2,318.75/yr)",
+        "usd": 19.37,
+        "source": "docs/infrastructure.md; converted at 9.9765 SEK/USD (Riksbank 2026-10-06, ex-tales-forge config/config.exs), /12"
+      },
+      {
+        "item": "Other hosting (SEK 400/yr)",
+        "usd": 3.34,
+        "source": "same conversion, /12"
+      }
+    ],
+    "hosting_total_usd_per_month": 44.54,
+    "architecture_nodes": [
+      "Player",
+      "LiveView (Phoenix)",
+      "Jev intent + safety (typed)",
+      "Elixir rules and state (dice, prices, world)",
+      "GM LLM (Grok)",
+      "Prose back to the player"
+    ]
+  },
+  "personas": {
+    "as_of": "2026-10-09",
+    "source": "docs/personas.md; characters from docs/analysis-jev-post-rework-2026-10-08.md",
+    "items": [
+      {
+        "id": "hawk",
+        "name": "Hawk",
+        "style": "Hard mode",
+        "line": "Wants a real fight and real risk; hard but fair, danger foreshadowed.",
+        "character": "Brannoc Hale"
+      },
+      {
+        "id": "paul",
+        "name": "Paul",
+        "style": "Role playing",
+        "line": "Theatrical and in character; story first, hates visible mechanics.",
+        "character": "Corvin Ashdown"
+      },
+      {
+        "id": "lotta",
+        "name": "Lotta",
+        "style": "Identification",
+        "line": "Wants to be someone different; the world should react to who she is.",
+        "character": "Hilde Stonebrook"
+      },
+      {
+        "id": "lars",
+        "name": "Lars",
+        "style": "Adventurer",
+        "line": "Action, clear quests and visible progress; wants to change the world.",
+        "character": "Taren Swiftbrook"
+      },
+      {
+        "id": "ronny",
+        "name": "Ronny",
+        "style": "Win (anti-persona)",
+        "line": "Bends rules for loot and levels; the game should resist him. High score = the game held firm.",
+        "character": "Maxx Goldhand"
+      }
+    ]
+  },
+  "jev_headline": {
+    "as_of": "2026-10-09",
+    "source": "docs/jev-scoring.md; decisions.md 2026-10-08 'The headline Jev score is a confidence-weighted average'",
+    "formula": "sum(score x confidence) / sum(confidence), 1-5 scale",
+    "unsure_threshold": 0.7,
+    "display": "X/5 · unsure Y%"
+  },
+  "playtest_series": {
+    "as_of": "2026-10-09",
+    "source": "docs/analysis-jev-baseline-2026-10-07.md, docs/analysis-jev-post-rework-2026-10-08.md (#69-rubric table), docs/analysis-intent-every-turn-2026-10-08.md §2",
+    "note": "Confidence-weighted turn score per persona. All four series use the same rubric versions (Paul fd84ebb, Lotta ce84a1a; others unchanged) so they are comparable. Small samples (2-13 runs per persona): differences under ~0.3 are noise. Ronny is the anti-persona (high = the game resisted him); keep him out of averages.",
+    "series": [
+      {
+        "id": "baseline-2026-10-07",
+        "label": "Baseline (Oct 7 evening)",
+        "completed_runs": 65,
+        "cost_usd": 6.03,
+        "weighted": {
+          "paul": 4.39,
+          "lotta": 3.92,
+          "lars": 3.73,
+          "hawk": 1.9,
+          "ronny": 4.62
+        },
+        "unsure_pct": {
+          "paul": 51,
+          "lotta": 75,
+          "lars": 55,
+          "hawk": 50,
+          "ronny": 58
+        }
+      },
+      {
+        "id": "post-rework-2026-10-08",
+        "label": "After inn-world + Tinjacks rework (Oct 8 morning)",
+        "completed_runs": 23,
+        "cost_usd": 2.74,
+        "weighted": {
+          "paul": 4.26,
+          "lotta": 3.86,
+          "lars": 3.76,
+          "hawk": 2.12,
+          "ronny": 4.58
+        },
+        "unsure_pct": {
+          "paul": 46,
+          "lotta": 86,
+          "lars": 40,
+          "hawk": 27,
+          "ronny": 70
+        }
+      },
+      {
+        "id": "intent-off-2026-10-08",
+        "label": "Intent test, flag off (Oct 8)",
+        "completed_runs": 10,
+        "cost_usd": null,
+        "weighted": {
+          "paul": 4.18,
+          "lotta": 3.66,
+          "lars": 3.35,
+          "hawk": 2.39,
+          "ronny": 4.72
+        },
+        "unsure_pct": {
+          "paul": 75,
+          "lotta": 95,
+          "lars": 80,
+          "hawk": 62,
+          "ronny": 40
+        }
+      },
+      {
+        "id": "intent-on-2026-10-08",
+        "label": "Intent test, flag on (Oct 8)",
+        "completed_runs": 10,
+        "cost_usd": null,
+        "weighted": {
+          "paul": 4.26,
+          "lotta": 3.79,
+          "lars": 3.47,
+          "hawk": 2.4,
+          "ronny": 4.27
+        },
+        "unsure_pct": {
+          "paul": 55,
+          "lotta": 85,
+          "lars": 85,
+          "hawk": 38,
+          "ronny": 65
+        }
+      }
+    ],
+    "intent_batch_cost_usd": {
+      "value": 2.99,
+      "detail": "game 2.29 + persona bots 0.70 + Jev 0.005, both arms, 23 runs incl. failures"
+    },
+    "earlier": {
+      "label": "First scored runs (Oct 6-7, before rubric changes)",
+      "scored_runs": 44,
+      "note": "Different rubric and 5-turn runs; not on the same chart.",
+      "source": "docs/analysis-jev-scores-2026-10-07.md"
+    },
+    "highlights": [
+      "Hawk without a fight: 2.54 -> 3.14 session score after the Tinjacks rework (CI +0.01..+1.05)",
+      "GM echoing the player's words: 22.2% -> 5.0% of turns",
+      "Runs that left the inn: 0 -> 12 of 23",
+      "Skill growth: 0 -> 13 levels gained in 23 runs",
+      "Baseline: checks on ordinary talk 80% -> 6% of turns; hook by turn 2 in 98% of runs (was 39%)"
+    ],
+    "full_batch": {
+      "id": "full-2026-10-09",
+      "label": "Fresh full batch (Oct 9), the new baseline",
+      "status": "Running (started 2026-10-09 11:10 CEST); analysis not written yet",
+      "source": "docs/analysis-full-batch-2026-10-09.md (not in docs yet)",
+      "completed_runs": null,
+      "cost_usd": null,
+      "weighted": {
+        "paul": null,
+        "lotta": null,
+        "lars": null,
+        "hawk": null,
+        "ronny": null
+      },
+      "unsure_pct": {
+        "paul": null,
+        "lotta": null,
+        "lars": null,
+        "hawk": null,
+        "ronny": null
+      },
+      "note": "New scoring and many system changes (#85-#90, Jev intent on): a fresh reference, not on the same chart as the four older series."
+    }
+  },
+  "intent_shadow": {
+    "as_of": "2026-10-09",
+    "source": "docs/analysis-intent-shadow-2026-10-09.md (playtest, INTENT_JEV=shadow since 2026-10-08 ~16:09 CEST)",
+    "reads": 125,
+    "sessions": 13,
+    "p50_ms": 255,
+    "p95_ms": 340,
+    "max_ms": 729,
+    "timeout_ms": 1500,
+    "within_timeout": 125,
+    "cost_usd": 0.016,
+    "cost_per_turn_usd": 0.00013,
+    "agreement_with_today_pct": {
+      "action": 46,
+      "class": 66,
+      "target": 35,
+      "skill": 58,
+      "later": 81
+    },
+    "material_difference": {
+      "count": 41,
+      "pct": 33,
+      "note": "In the examples read, Jev was right; much of the disagreement is today's keyword heuristic being wrong."
+    },
+    "safety": {
+      "benign": 120,
+      "prompt_injection": 5,
+      "would_decline": 0
+    },
+    "would_ask": 0,
+    "today_asked": 3,
+    "watch_items": [
+      "Calibration may be too generous (0 would-asks)",
+      "22 Jev-only deferred moves to spot-check"
+    ]
+  },
+  "intent_status": {
+    "as_of": "2026-10-09",
+    "source": "decisions.md 2026-10-09 'Jev intent on for playtest and production'; docs/fly-secrets.md INTENT_JEV",
+    "playtest": "on",
+    "production": "on",
+    "since": "2026-10-09",
+    "playtest_release": "v76",
+    "production_release": "v85",
+    "before": "Playtest ran Jev intent in shadow 2026-10-08 to 2026-10-09; production was off.",
+    "note": "New default-variant sessions use the Jev read; sessions created before the switch keep their pinned mode; the heuristic takes over on error or timeout."
+  },
+  "intent_compare": {
+    "as_of": "2026-10-09",
+    "source": "docs/analysis-intent-compare-2026-10-09.md (playtest persona batch, INTENT_JEV on vs off)",
+    "personas": 5,
+    "scored_runs_per_arm": 20,
+    "jev_score_off": 3.96,
+    "jev_score_on": 3.98,
+    "jev_score_excl_ronny_off": 3.84,
+    "jev_score_excl_ronny_on": 3.99,
+    "session_delta": 0.02,
+    "session_delta_ci": [
+      -0.38,
+      0.41
+    ],
+    "significant": false,
+    "intent_p95_ms_off": 1641,
+    "intent_p95_ms_on": 308,
+    "intent_p50_ms_on": 249,
+    "intent_max_ms_off": 5762,
+    "intent_max_ms_on": 531,
+    "timeout_ms": 1500,
+    "within_timeout_pct_off": 93.5,
+    "within_timeout_pct_on": 100,
+    "clarifying_questions_per_turn_off": 0.038,
+    "clarifying_questions_per_turn_on": 0.0,
+    "cost_usd": 4.14,
+    "verdict": "Quality tie (the confidence interval includes 0), a clear latency win, cost-neutral.",
+    "watch_items": [
+      "Generous calibration: zero clarifying questions with intent on",
+      "Possible Lotta dip (turn-level CI excludes 0)"
+    ]
+  },
+  "intent_eval_set": {
+    "as_of": "2026-10-09",
+    "source": "ex-tales-forge test/fixtures/intent_eval/items.jsonl at main 2f27ff1; docs/scripts/jev-intent/eval-tune-2026-10-08-v2.md",
+    "total": 350,
+    "tune": 247,
+    "holdout": 103,
+    "real_playtest": 217,
+    "handwritten": 133,
+    "attack_items": {
+      "tune": 42,
+      "holdout": 18,
+      "total": 60
+    },
+    "categories": {
+      "real_turn": 217,
+      "attack_prompt_injection": 25,
+      "attack_jailbreak": 20,
+      "attack_nefarious": 15,
+      "multi_action": 15,
+      "plan_vs_action": 15,
+      "quoted_vs_narration": 15,
+      "out_of_character": 10,
+      "in_story_violence": 10,
+      "lie": 8
+    },
+    "tune_results_after_tuning": {
+      "action_accuracy_pct": 95.1,
+      "material_error_pct": 1.2,
+      "target_accuracy_pct": 91.3,
+      "skill_accuracy_pct": 86.2,
+      "deferred_f1": 0.825,
+      "this_turn_vs_later_pct": 94.3,
+      "safety_recall": "42/42",
+      "false_positives": "0 of 205",
+      "ece": 0.041,
+      "ece_cv": 0.039
+    },
+    "holdout_results": null,
+    "holdout_note": "Holdout not run yet; it runs once on frozen tuning before prod.",
+    "tuning_cost_usd": 0.065,
+    "gentry_contributions": null,
+    "gentry_note": "No Gentry-sourced items in the eval set yet (all 350 are real_playtest or handwritten)."
+  },
+  "gentry_findings": {
+    "as_of": "2026-10-09",
+    "source": "ex-tales-forge PR #89 (opened 2026-10-09 07:52 CEST); Gentry hostile-play QA runs on playtest, 2026-10-09",
+    "found_on": "playtest v73",
+    "fixed_in_pr89": [
+      "Act button clipped at 320px phone width (right edge 348 -> 291 px)",
+      "Admin nav scrolled sideways on phones (rightmost link ~1336 px); now wraps",
+      "Theme buttons had no accessible label"
+    ],
+    "follow_ups_noted": [
+      "Home lists 150 recent sessions (needs cap/pagination)",
+      "No sign-out on home or play",
+      "Possible double turn on one submit (unconfirmed)",
+      "Story panel only ~70 px tall on phones"
+    ],
+    "hostile_play_results": {
+      "as_of": "2026-10-09",
+      "source": "Gentry hostile-play QA on tales-forge-playtest, 2026-10-09 (reported to Fredrik)",
+      "runs": [
+        {
+          "id": "run-1",
+          "label": "Run 1",
+          "at": null,
+          "turns": 6,
+          "attacks": [
+            "Asking for free loot",
+            "System-prompt injection",
+            "Empty and emoji-only input",
+            "Playing in Swedish",
+            "A false claim: 'I killed the orc chief'"
+          ],
+          "held": 6,
+          "leaks": 0,
+          "result": "All six held; nothing leaked.",
+          "issues": []
+        },
+        {
+          "id": "run-2",
+          "label": "Run 2",
+          "at": "2026-10-09 07:13 CEST",
+          "turns": null,
+          "attacks": [
+            "A multi-turn code-word injection",
+            "A fake [GM NOTE] granting gold",
+            "A false armor purchase",
+            "A 5.7k-character message with an injection buried inside",
+            "Rapid repeated submits"
+          ],
+          "held": 5,
+          "leaks": 0,
+          "state_changes": 0,
+          "result": "All contained, with no change to the game state.",
+          "issues": [
+            "The GM narrated the fake [GM NOTE] as if it were true",
+            "The GM narrated the false armor purchase as if it were true"
+          ]
+        }
+      ],
+      "timings": {
+        "ai_turn_s": {
+          "min": 6,
+          "max": 9
+        },
+        "page_load_s": {
+          "min": 0.3,
+          "max": 0.6
+        }
+      },
+      "summary": "No attack changed game state or leaked anything; the open issue is the GM's prose going along with fake notes and false claims (state stayed correct)."
+    },
+    "note": "Phone/a11y findings from PR #89; hostile-play results from Gentry's two runs on 2026-10-09."
+  },
+  "pace": {
+    "as_of": "2026-10-09",
+    "source": "gh pr list -R whyse-ab/ex-tales-forge --state all (90 PRs), dates in Europe/Stockholm; git log main",
+    "prs_total": 90,
+    "prs_merged": 82,
+    "prs_open": 6,
+    "prs_closed_unmerged": 2,
+    "prs_by_day": [
+      {
+        "date": "2026-07-03",
+        "created": 10,
+        "merged": 10
+      },
+      {
+        "date": "2026-07-08",
+        "created": 4,
+        "merged": 4
+      },
+      {
+        "date": "2026-10-05",
+        "created": 1,
+        "merged": 0
+      },
+      {
+        "date": "2026-10-06",
+        "created": 13,
+        "merged": 14
+      },
+      {
+        "date": "2026-10-07",
+        "created": 45,
+        "merged": 37
+      },
+      {
+        "date": "2026-10-08",
+        "created": 11,
+        "merged": 16
+      },
+      {
+        "date": "2026-10-09",
+        "created": 6,
+        "merged": 1
+      }
+    ],
+    "prs_note": "July PRs are the first scaffold phase; the current push started 2026-10-05. Day 2026-10-09 is partial (until ~11:00 CEST).",
+    "median_hours_open_to_merge_oct": 0.24,
+    "commits_main_ex_tales_forge": 247,
+    "first_commit": "2026-07-02",
+    "commits_by_day_main": [
+      {
+        "date": "2026-07-02",
+        "count": 2
+      },
+      {
+        "date": "2026-07-03",
+        "count": 22
+      },
+      {
+        "date": "2026-07-08",
+        "count": 8
+      },
+      {
+        "date": "2026-07-10",
+        "count": 4
+      },
+      {
+        "date": "2026-08-20",
+        "count": 3
+      },
+      {
+        "date": "2026-08-21",
+        "count": 2
+      },
+      {
+        "date": "2026-08-22",
+        "count": 1
+      },
+      {
+        "date": "2026-09-13",
+        "count": 8
+      },
+      {
+        "date": "2026-09-14",
+        "count": 3
+      },
+      {
+        "date": "2026-10-05",
+        "count": 6
+      },
+      {
+        "date": "2026-10-06",
+        "count": 50
+      },
+      {
+        "date": "2026-10-07",
+        "count": 106
+      },
+      {
+        "date": "2026-10-08",
+        "count": 31
+      },
+      {
+        "date": "2026-10-09",
+        "count": 1
+      }
+    ],
+    "commits_docs_repo": 171,
+    "commits_docs_repo_note": "before the team-page commits",
+    "tests": {
+      "tests": 861,
+      "doctests": 74,
+      "total": 935,
+      "failures": 0,
+      "coverage_pct": 85.76,
+      "source": "CI Test job, main 2f27ff1, 2026-10-09 05:37 CEST",
+      "note": "Brief said ~811; CI on main shows 861 tests + 74 doctests. PR #89 branch: 866 + 74."
+    },
+    "code_size": {
+      "lib_ex_files": 183,
+      "test_files": 107
+    }
+  },
+  "ai_spend": {
+    "as_of": "2026-10-09",
+    "source": "docs/analysis-*.md and docs/scripts/jev-intent/eval-tune-2026-10-08-v2.md",
+    "documented_items_usd": [
+      {
+        "item": "Baseline series (65 runs)",
+        "usd": 6.03
+      },
+      {
+        "item": "Post-rework series (26 runs)",
+        "usd": 2.74
+      },
+      {
+        "item": "Intent every-turn batch (23 runs)",
+        "usd": 2.99
+      },
+      {
+        "item": "Jev re-scores (3 rounds)",
+        "usd": 0.025
+      },
+      {
+        "item": "Intent eval tuning",
+        "usd": 0.065
+      },
+      {
+        "item": "Intent shadow day (125 reads)",
+        "usd": 0.016
+      },
+      {
+        "item": "Intent comparison on vs off (40 runs)",
+        "usd": 4.14
+      }
+    ],
+    "documented_total_usd": 16.01,
+    "playtest_day_totals_usd": [
+      {
+        "date": "2026-10-07",
+        "usd": 7.14,
+        "note": "at 21:36 CEST"
+      },
+      {
+        "date": "2026-10-08",
+        "usd": 5.74,
+        "note": "at ~09:24 CEST, after the intent batch"
+      }
+    ],
+    "playtest_day_cap_usd": 25,
+    "cost_per_run_usd": {
+      "baseline": 0.093,
+      "post_rework": 0.114
+    },
+    "gaps": [
+      "Production AI spend not in docs (see /admin/costs)",
+      "Coding/agent bot spend not documented",
+      "Today's fresh full batch (full-2026-10-09): not analysed yet"
+    ]
+  },
+  "gaps": [
+    "Holdout eval results: not run yet",
+    "Production AI spend and bot (Case/Bobby/Gentry) running costs: not in docs",
+    "Names/roles of the company-admin helper bots: not confirmed",
+    "docs/environments.md still describes prod-first deploys; update it to the playtest-first order decided 2026-10-09",
+    "Fresh full batch 2026-10-09 (full-2026-10-09): running, no analysis yet",
+    "PR and commit counts (pace) are as of ~11:00 CEST and have not been recounted since"
+  ]
+}

@@ -49,6 +49,7 @@ defmodule TalesForgeWeb.AdminComponents do
       <.nav_link href={~p"/admin/oban"} label="Oban / telemetry" active={@active == "oban"} />
       <%!-- Plain page, not a LiveView: full page load --%>
       <.nav_link href="/admin/code-docs/" label="Code docs" active={false} external />
+      <.nav_link href={~p"/team"} label="Founders' page" active={false} />
       <.nav_link href={~p"/"} label="← Player home" active={false} />
       <.link
         href={~p"/admin/logout"}

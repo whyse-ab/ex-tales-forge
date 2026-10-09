@@ -36,6 +36,7 @@ defmodule TalesForgeWeb.AccessControlTest do
             "/",
             "/new/tin_valley",
             "/play/#{@id}",
+            "/team",
             "/admin",
             "/admin/costs",
             "/admin/playtest",
@@ -72,7 +73,7 @@ defmodule TalesForgeWeb.AccessControlTest do
     end
 
     test "LiveViews (game, character play, admin) can't be mounted" do
-      for path <- ["/", "/new/tin_valley", "/play/#{@id}", "/admin", "/admin/costs"] do
+      for path <- ["/", "/new/tin_valley", "/play/#{@id}", "/team", "/admin", "/admin/costs"] do
         assert {:error, {:redirect, %{to: "/admin/login"}}} = live(build_conn(), path)
       end
     end
