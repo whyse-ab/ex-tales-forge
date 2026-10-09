@@ -95,13 +95,20 @@ Environment variables read through `TalesForge.Config`. Flags marked "new sessio
 | `WORLD_ANTAGONIST` | The Tinjacks antagonist for new Tin Valley sessions; needs `INN_WORLD` | off | off | `on` (`fly.playtest.toml`, [#73](https://github.com/whyse-ab/ex-tales-forge/pull/73)) |
 | `NPC_REACTIONS` | Jev NPC reaction before each GM call (`TalesForge.Game.NpcReactions`; needs `TYPESAFE_API_KEY`) | off | off | `on` (Fly secret) |
 | `WORLD_AGENTS` | World-agents prototype: persons and locations hold facts for the GM; also turns on NPC reactions | off | off | off |
-| `PLAYTEST_RUNNER_ENABLED` | Persona bot runner; only `true` enables it | off | **never set** | `true` |
+| `PLAYTEST_RUNNER_ENABLED` | Persona bot runner; only `true` enables it, and never on production (`TalesForge.AppRole`) | off | **never set** (refused anyway) | `true` |
 | `INTENT_JEV` | New sessions: player intent as one Jev call (`TalesForge.IntentJev`). `off` = today's path; `shadow` = today's path plays, the Jev read is only logged (`ai_calls` purpose `turn.intent_shadow`); `on` = Jev drives the turn, heuristic on error or timeout. Needs `TYPESAFE_INTENT_API_KEY` (secret). Baseline sessions are always off; the playtest runner can pick per run (`intent_jev`). Raises at boot on any other value | `off` | not set | not set (plan: `shadow` first) |
 | `INTENT_ACT_MIN_CONFIDENCE` / `INTENT_ASK_BELOW_CONFIDENCE` | `INTENT_JEV=on` bands on the calibrated confidence: act at or above, ask below (only when the top two readings play out differently), best guess between | 0.70 / 0.45 | not set | not set |
 | `INTENT_JEV_TIMEOUT_MS` | `INTENT_JEV=on`: hard deadline of the Jev call on the player's clock before the heuristic takes over | 1500 | not set | not set |
 | `PLAYER_QUOTE_MIN_BENIGN_CONFIDENCE` | `INTENT_JEV=on`: the GM gets the player's own words only for `benign` at or above this; otherwise a typed summary | 0.90 | not set | not set |
 
 The baseline variant gets no world features. The GM has one reply mode, the strict structured JSON schema (`TalesForge.LLM`); there is no reply-mode flag.
+
+## Each thing lives in one place
+
+Source: decision 2026-10-08 "Each thing lives in one place", `TalesForge.AppRole`.
+
+- Founder surveys live only on production; playtest runs only on playtest. On the other app, `/admin/survey`, `/admin/surveys/*` and `/admin/playtest/*` redirect to the same path on the owning app (`TalesForgeWeb.Plugs.HomeApp`), the admin nav links there, and the data is refused (`Surveys.save_section/4` returns `{:error, :wrong_app}`; `Playtest.Runner.enabled?/0` is false on production).
+- The role comes from `FLY_APP_NAME` (a name with "playtest" = playtest, no name = local, where both live); the apps' base URLs are `config :ex_tales_forge, TalesForge.AppRole` in `config/config.exs`. Don't hardcode hostnames elsewhere.
 
 ## Money and AI spend
 

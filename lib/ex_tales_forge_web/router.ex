@@ -15,6 +15,7 @@ defmodule TalesForgeWeb.Router do
   use TalesForgeWeb, :router
 
   alias TalesForgeWeb.AdminLive.Hooks
+  alias TalesForgeWeb.Plugs.HomeApp
   alias TalesForgeWeb.Plugs.RequireTeamMember
 
   # HTML basics, no sign-in required. Only for the login and OAuth routes below.
@@ -27,12 +28,14 @@ defmodule TalesForgeWeb.Router do
     plug :put_secure_browser_headers
   end
 
-  # The default for every page: a signed-in GitHub team member, otherwise a
-  # redirect to /admin/login. LiveViews are also checked on mount (the
+  # The default for every page: pages that live on the other app (surveys on
+  # production, playtest runs on playtest; TalesForge.AppRole) redirect there,
+  # then a signed-in GitHub team member, otherwise a redirect to /admin/login. LiveViews are also checked on mount (the
   # live_sessions below plus `TalesForgeWeb.LiveAuth` in every `:live_view`), so
   # a websocket connect can't skip this plug.
   pipeline :browser do
     plug :public_browser
+    plug HomeApp
     plug RequireTeamMember
   end
 
@@ -75,8 +78,6 @@ defmodule TalesForgeWeb.Router do
       live "/sessions/:id/npcs", NpcLive.Index, :index
       live "/sessions/:id/npcs/:npc_id", NpcLive.Show, :show
       live "/sessions/:id/turns", TurnLive.Index, :index
-      live "/playtest", PlaytestLive.Index, :index
-      live "/playtest/:id", PlaytestLive.Show, :show
       live "/npc-definitions", NpcDefinitionLive.Index, :index
       live "/npc-definitions/:id", NpcDefinitionLive.Show, :show
       live "/decisions", DecisionLive.Index, :index
@@ -84,6 +85,18 @@ defmodule TalesForgeWeb.Router do
       live "/docs", DocLive.Index, :index
       live "/docs/*path", DocLive.Index, :show
       live "/costs", CostsLive, :index
+    end
+
+    # Pages that live on one app only (TalesForge.AppRole): playtest runs on
+    # playtest, surveys on production. Their own live_sessions, so navigating to
+    # them is a full page load through the :browser pipeline, where HomeApp
+    # sends them to the other app when they don't live here.
+    live_session :admin_playtest, on_mount: [{Hooks, :require_team_member}] do
+      live "/playtest", PlaytestLive.Index, :index
+      live "/playtest/:id", PlaytestLive.Show, :show
+    end
+
+    live_session :admin_surveys, on_mount: [{Hooks, :require_team_member}] do
       live "/survey", SurveyLive.Show, :current
       live "/surveys", SurveyLive.Index, :index
       live "/surveys/:id", SurveyLive.Show, :show
