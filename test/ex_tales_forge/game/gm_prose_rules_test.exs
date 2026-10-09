@@ -2,8 +2,9 @@ defmodule TalesForge.Game.GmProseRulesTest do
   @moduledoc """
   The GM's prose rules after the Jev baseline (decision 2026-10-07, "How the
   GM plays Brenna"): no default echo of the player's line, a rare deliberate
-  echo as the one exception, no "on the house" by default and a list of banned
-  stock phrases. The default variant only; the baseline prompts and the
+  echo as the one exception, and no "on the house" by default. Stock gestures
+  are no longer banned phrase by phrase: the gestures of recent turns are
+  listed as spent (`TalesForge.Game.Gestures`). The default variant only; the baseline prompts and the
   pre-rework Brenna stay as they were.
   """
   use ExUnit.Case, async: true
@@ -27,11 +28,19 @@ defmodule TalesForge.Game.GmProseRulesTest do
     refute gm =~ "Do not repeat the player's words back"
   end
 
-  test "the default GM prompt bans the new stock phrases and default generosity" do
+  test "the default GM prompt rules out default generosity" do
+    assert Prompts.gm_system() =~ ~s(nothing is "on the house" by default)
+  end
+
+  # Decision 2026-10-08 "GM tics: track recent gestures as off-limits; drop
+  # phrase-by-phrase bans" (TalesForge.Game.Gestures).
+  test "the default GM prompt spends recent gestures instead of banning phrases" do
     gm = Prompts.gm_system()
 
-    assert gm =~ ~s(nothing is "on the house" by default)
-    for phrase <- @banned, do: assert(gm =~ ~s("#{phrase}"))
+    refute gm =~ "Banned stock phrases"
+    for phrase <- @banned -- ["on the house"], do: refute(gm =~ ~s("#{phrase}"))
+    assert gm =~ ~s|Sometimes the per-turn state has "Gestures already used (recent turns)"|
+    assert gm =~ "nor the same motion with the same body part or prop"
   end
 
   test "the baseline GM prompt is unchanged by this rule" do

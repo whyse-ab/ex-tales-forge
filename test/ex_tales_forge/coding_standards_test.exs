@@ -19,6 +19,8 @@ defmodule TalesForge.CodingStandardsTest do
     TalesForge.Game.Movement,
     TalesForge.Game.Prompts,
     TalesForge.Game.NpcReactions,
+    TalesForge.Game.Gestures,
+    TalesForge.Game.Gestures.Forms,
     TalesForge.Game.Mechanics,
     TalesForge.Game.Progression,
     TalesForge.Game.Progression.Tiered,

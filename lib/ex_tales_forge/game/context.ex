@@ -6,7 +6,8 @@ defmodule TalesForge.Game.Context do
     player's action against (location, exits, present NPCs, their stock,
     the character, valid skills).
   - `build_gm_context/1`: the GM/scene context (rules, intent context, world
-    state, opening scene). The turn adds `:npc_reactions`, `:world_facts`
+    state, opening scene, and in the default variant the gestures of recent
+    turns, `TalesForge.Game.Gestures`). The turn adds `:npc_reactions`, `:world_facts`
     and `:price_lines` before `TalesForge.Game.Prompts` turns it into messages.
   - `session_stable_section/1` and `per_turn_section/1`: the two user
     messages. Only the per-turn section may change between turns; see the
@@ -16,6 +17,7 @@ defmodule TalesForge.Game.Context do
   # NON-NEGOTIABLE: Core runtime. Pure Ecto + game logic only.
   # Rules come from Prompts (which may be pack-aware), but state is Ecto.
 
+  alias TalesForge.Game.Gestures
   alias TalesForge.Game.Mechanics
   alias TalesForge.Game.Movement
   alias TalesForge.Game.Perception
@@ -141,8 +143,33 @@ defmodule TalesForge.Game.Context do
       intent_context: intent,
       formatted_intent: format_intent_context(intent),
       world_state: world,
-      opening_scene: GameSessions.opening_scene(session.id)
+      opening_scene: GameSessions.opening_scene(session.id),
+      recent_gestures: recent_gestures(session)
     }
+  end
+
+  @doc """
+  Gestures and stock lines in the GM narration of the session's last
+  `TalesForge.Game.Gestures.recent_turns/0` turns, newest first, which the
+  per-turn prompt lists as spent. Always `[]` for the baseline variant, whose
+  prompts stay as they were.
+  """
+  @spec recent_gestures(GameSession.t()) :: [Gestures.t()]
+  def recent_gestures(%GameSession{} = session) do
+    if Variant.baseline?(session.world_state || %{}) do
+      []
+    else
+      import Ecto.Query
+
+      Turn
+      |> where([t], t.game_session_id == ^session.id)
+      |> order_by([t], desc: t.turn_number)
+      |> limit(^Gestures.recent_turns())
+      |> select([t], t.narrative)
+      |> Repo.all()
+      |> Enum.reverse()
+      |> Gestures.recent()
+    end
   end
 
   @doc """
@@ -189,6 +216,7 @@ defmodule TalesForge.Game.Context do
       TalesForge.World.prompt_section(Map.get(context, :world_facts)),
       TalesForge.World.Prices.prompt_section(Map.get(context, :price_lines)),
       TalesForge.Game.NpcReactions.prompt_section(Map.get(context, :npc_reactions)),
+      Gestures.prompt_section(Map.get(context, :recent_gestures)),
       scene_now_section(context),
       player_request_section(context)
     ]
