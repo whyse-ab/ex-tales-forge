@@ -4,6 +4,10 @@ defmodule TalesForge.CodingStandardsTest do
   function of the backfilled modules has a `@doc` (or `@doc false` when it is
   internal). Add a module here once it is backfilled; Credo's
   `Readability.Specs` check covers the same files for `@spec` (`.credo.exs`).
+
+  Admin modules (the `[admin]` list in `.github/deploy-lanes.txt`: surveys,
+  costs, playtest admin, `/team`) are not listed: they get lighter gates, format
+  and tests only (decision 2026-10-09 "A fast deploy lane for admin work").
   """
   use ExUnit.Case, async: true
 
@@ -32,26 +36,10 @@ defmodule TalesForge.CodingStandardsTest do
     TalesForge.World.Prices,
     TalesForge.Game.Features,
     TalesForgeWeb.TimeAgo,
-    TalesForge.Surveys,
-    TalesForge.Survey.Answers,
-    TalesForge.Survey.Cache,
-    TalesForge.Survey.Definition,
-    TalesForge.Survey.Question,
-    TalesForge.Survey.Response,
-    TalesForge.Survey.Results,
-    TalesForge.Survey.Source,
-    TalesForgeWeb.SurveyComponents,
-    TalesForgeWeb.SurveyExportController,
-    TalesForge.Playtest.CharacterChanges,
-    TalesForge.Playtest.CharacterChanges.Field,
-    TalesForge.Playtest.CharacterChanges.Memory,
-    TalesForge.Playtest.CharacterChanges.Character,
-    TalesForge.Playtest.CharacterChanges.Change,
-    TalesForge.Playtest.CharacterChanges.TurnEntry,
-    TalesForge.Playtest.CharacterChanges.RunMetrics,
-    TalesForge.Playtest.CharacterChanges.Summary,
-    TalesForgeWeb.CharacterChangesComponents,
-    TalesForge.Playtest.Summary
+    TalesForge.AppRole,
+    TalesForge.DeployLanes,
+    TalesForge.DeployLanes.CLI,
+    Mix.Tasks.Deploy.CheckBoundaries
   ]
 
   for module <- @documented do

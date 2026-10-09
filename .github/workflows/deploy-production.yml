@@ -1,22 +1,37 @@
-# Deploy one commit of main to PRODUCTION (Fly app tales-forge). Manual only.
+# Deploy one commit of main to PRODUCTION (Fly app tales-forge).
 #
-# A merge to main deploys to playtest first (.github/workflows/playtest.yml).
-# Once Gentry (the QA bot) and the playtest batch have checked that build and
-# Fredrik has OK'd it, start this workflow with the commit that was checked:
+# Two ways in (tales-forge-docs decisions 2026-10-09 "Deploy order: playtest
+# first, then production" and "A fast deploy lane for admin work",
+# docs/environments.md):
 #
-#   gh workflow run deploy-production.yml -R whyse-ab/ex-tales-forge -f sha=<full sha>
+# 1. Normal lane, by hand. A merge to main deploys to playtest first
+#    (.github/workflows/playtest.yml). Once Gentry (the QA bot) and the playtest
+#    batch have checked that build and Fredrik has OK'd it, start this workflow
+#    with the commit that was checked:
 #
-# or Actions -> "Deploy to production" -> Run workflow. (tales-forge-docs decision
-# 2026-10-09 "Deploy order: playtest first, then production",
-# docs/environments.md.)
+#      gh workflow run deploy-production.yml -R whyse-ab/ex-tales-forge -f sha=<full sha>
+#
+#    or Actions -> "Deploy to production" -> Run workflow.
+#
+# 2. Admin lane, automatically. playtest.yml calls this workflow (workflow_call,
+#    lane=admin) right after its playtest deploy when every file changed since
+#    the commit production runs is on the [admin] list in
+#    .github/deploy-lanes.txt. No Gentry/batch gate and no prod OK; the same
+#    "Verify commit" job runs, and the deploy job deploys only while the sha is
+#    still the tip of main and production still runs the commit the lane was
+#    picked against (production_base). Otherwise it skips with a notice.
 #
 # The "Verify commit" job refuses a sha that is not a full 40-character sha,
-# not on main, or whose Test and Dialyzer checks did not pass. It warns (does
-# not fail) when no successful playtest deploy of the sha is found.
+# not on main, or whose Test and Dialyzer checks did not pass. By hand it warns
+# (does not fail) when no successful playtest deploy of the sha is found.
+#
+# After a successful deploy the tag `deployed/production` is moved to the sha:
+# the admin lane diffs against it, so an admin merge never carries a game
+# change that is still waiting for Fredrik's OK.
 #
 # The deploy job runs in the GitHub environment `production`. With a required
 # reviewer on that environment (repo Settings -> Environments -> production),
-# the job waits for that approval before it starts.
+# every deploy, the admin lane's too, waits for that approval.
 #
 # Needs the repo secret FLY_API_TOKEN: a deploy token scoped to tales-forge.
 name: Deploy to production
@@ -28,6 +43,23 @@ on:
         description: "Full 40-character commit sha on main to deploy (the build checked on playtest)"
         required: true
         type: string
+  workflow_call:
+    inputs:
+      sha:
+        description: "Full 40-character commit sha on main to deploy"
+        required: true
+        type: string
+      lane:
+        description: "admin: the automatic admin lane from playtest.yml"
+        required: true
+        type: string
+      production_base:
+        description: "The commit production ran when the lane was picked (deployed/production)"
+        required: true
+        type: string
+    secrets:
+      FLY_API_TOKEN:
+        required: true
 
 permissions:
   contents: read
@@ -49,6 +81,7 @@ jobs:
       - name: The sha is on main and CI passed for it
         env:
           SHA: ${{ inputs.sha }}
+          LANE: ${{ inputs.lane || 'manual' }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -68,6 +101,11 @@ jobs:
               exit 1
             fi
           done
+          if [ "$LANE" = "admin" ]; then
+            # Called from playtest.yml right after it deployed this sha to playtest.
+            echo "Admin lane: deploying $SHA (on main; Test and Dialyzer passed; deployed to playtest in this run)." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           playtest="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/playtest.yml/runs?head_sha=$SHA&status=success" \
             --jq '.total_count')"
           if [ "$playtest" = "0" ]; then
@@ -81,6 +119,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: production
+    # Moves the deployed/production tag after the deploy.
+    permissions:
+      contents: write
     # One prod deploy at a time; a running deploy is never cancelled.
     concurrency:
       group: deploy-prod
@@ -90,15 +131,68 @@ jobs:
         with:
           ref: ${{ inputs.sha }}
 
+      # Admin lane only, checked inside the concurrency group so the answers are
+      # current: deploy only the tip of main (same guard as playtest.yml), and
+      # only if production still runs the commit the lane was picked against (a
+      # deploy in between, by hand or a rollback, makes the lane stale).
+      - name: Admin lane guard (tip of main, production unchanged)
+        id: guard
+        env:
+          SHA: ${{ inputs.sha }}
+          LANE: ${{ inputs.lane || 'manual' }}
+          BASE: ${{ inputs.production_base }}
+        run: |
+          set -euo pipefail
+          if [ "$LANE" != "admin" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git fetch --no-tags --depth=1 origin main
+          main_sha="$(git rev-parse FETCH_HEAD)"
+          current="$(git ls-remote origin refs/tags/deployed/production | cut -f1)"
+          reason=""
+          if [ "$SHA" != "$main_sha" ]; then
+            reason="$SHA is not the tip of main (main is at $main_sha); production is not moved backwards. The tip gets its own lane when its CI passes."
+          elif [ "$current" != "$BASE" ]; then
+            reason="production moved from ${BASE:-unknown} to ${current:-unknown} since the lane was picked; deploy by hand if this build should go out."
+          fi
+          if [ -n "$reason" ]; then
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Production deploy skipped (admin lane)::$reason"
+            {
+              echo "Admin lane: production deploy skipped. $reason"
+              echo
+              echo "To deploy it anyway (needs Fredrik's OK):"
+              echo
+              echo "    gh workflow run deploy-production.yml -f sha=$SHA"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            echo "$SHA is the tip of main and production runs $BASE; deploying."
+          fi
+
       - uses: superfly/flyctl-actions/setup-flyctl@1.5
+        if: steps.guard.outputs.deploy == 'true'
 
       # --depot=false: use Fly's classic remote builder. Every release so far was
       # built that way because Depot builds hung at "Waiting for depot builder"
       # for this org. Set the repo variable FLY_USE_DEPOT=true to try Depot again.
       - name: flyctl deploy
+        if: steps.guard.outputs.deploy == 'true'
         # GIT_SHA: the commit goes into the image (Dockerfile), so the app knows it.
         run: flyctl deploy --remote-only -a tales-forge --ha=false --depot="${FLY_USE_DEPOT:-false}" --build-arg GIT_SHA="$SHA"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
           FLY_USE_DEPOT: ${{ vars.FLY_USE_DEPOT }}
           SHA: ${{ inputs.sha }}
+
+      # The admin lane diffs against this tag (playtest.yml).
+      - name: Record the deployed commit (tag deployed/production)
+        if: steps.guard.outputs.deploy == 'true'
+        env:
+          SHA: ${{ inputs.sha }}
+          LANE: ${{ inputs.lane || 'manual' }}
+        run: |
+          set -euo pipefail
+          git push --force origin "$SHA:refs/tags/deployed/production"
+          echo "Deployed \`$SHA\` to production (tales-forge), lane: $LANE. Tag \`deployed/production\` moved to it." >> "$GITHUB_STEP_SUMMARY"
