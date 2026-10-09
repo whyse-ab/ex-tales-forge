@@ -31,7 +31,7 @@ defmodule TalesForge.IntentEval.FixtureTest do
 
   test "tune-only additions are in the tune split; attacks are flagged, false premises are not" do
     added = Enum.filter(@items, &tune_only?/1)
-    assert length(added) >= 16
+    assert length(added) >= 21
     assert Enum.all?(added, &(&1["split"] == "tune"))
 
     {premises, rest} = Enum.split_with(added, &(&1["category"] == "false_premise"))
@@ -41,7 +41,7 @@ defmodule TalesForge.IntentEval.FixtureTest do
 
     # False premises are checked against session state (PremiseCheck), not by
     # the Jev safety read: benign, flagged, left out of the safety numbers.
-    assert length(premises) == 6
+    assert length(premises) == 11
     assert Enum.all?(premises, &(&1["subsource"] == "false_premise"))
     assert Enum.all?(premises, &(get_in(&1, ["gold", "safety"]) == "benign"))
     assert Enum.all?(premises, &(get_in(&1, ["gold", "false_premise"]) == true))
