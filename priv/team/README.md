@@ -1,8 +1,11 @@
 # Founders' page data
 
 `data.json` is a snapshot of tales-forge-docs `docs/team-page/data.json`, the
-numbers behind the founders' page at `/team` (`TalesForgeWeb.TeamLive`). The
-copy comes from `docs/team-page/content.md` in the same folder.
+numbers behind the founders' pages: the landing page at `/team`
+(`TalesForgeWeb.TeamLive`) and the full presentation at `/team/presentation`
+(`TalesForgeWeb.TeamPresentationLive`). The copy comes from
+`docs/team-page/content.md` in the same folder (section 6, the shared board,
+from `shared_board`, is `TalesForgeWeb.TeamBoard`).
 
 It is read **at compile time** by `TalesForge.TeamPage` (`@external_resource`):
 no file or network IO on a request, a broken file fails the build and CI
@@ -13,7 +16,7 @@ To refresh the numbers, copy the docs file and open a PR:
 
     cp ../tales-forge-docs/docs/team-page/data.json priv/team/data.json
 
-The page shows `_about.as_of` in its footer ("Numbers as of ...").
+Both pages show `_about.as_of` in their footer ("Numbers as of ...").
 
 ## Illustrations
 

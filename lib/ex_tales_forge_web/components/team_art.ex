@@ -1,6 +1,7 @@
 defmodule TalesForgeWeb.TeamArt do
   @moduledoc """
-  Hand-drawn inline SVG illustrations for the founders' page (`/team`): the
+  Hand-drawn inline SVG illustrations for the founders' pages (`/team` and
+  `/team/presentation`): the
   crew avatars, the persona tokens, the founders' wax seal and the d20 token of
   the change-flow animation, plus the painted illustrations.
 
@@ -345,8 +346,8 @@ defmodule TalesForgeWeb.TeamArt do
       width: 1280,
       height: 720,
       alt:
-        "The four founders, Fredrik, Thobias, Håkan and Jeanette, and Max the apprentice, " <>
-          "as stylised Nordic adventurers " <>
+        "The five founders, Fredrik, Thobias, Håkan, Jeanette and Max, " <>
+          "our vibe-coding founder and RPG apprentice, as stylised Nordic adventurers " <>
           "with the three bots, Case, Bobby and Gentry the owl, around one round tavern table, " <>
           "leaning over a painted map of Tin Valley, with empty chairs left open"
     },

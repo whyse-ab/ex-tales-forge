@@ -76,6 +76,75 @@ defmodule TalesForge.Game.PremiseCheckTest do
     end
   end
 
+  describe "Gentry's v85/v86 retest: a kill claimed as a reminder" do
+    @orc_chief "Player claims to have killed the orc chief; they have won no fight this session " <>
+                 "and Orc nest in the cut is still active. Don't narrate it as true."
+
+    test "\"As I said\" is the player reminding the table, not speech to a character" do
+      assert corrections("As I said, I killed the orc chief yesterday") == [@orc_chief]
+      assert corrections("As I said, I killed the orc chief yesterday.") == [@orc_chief]
+      assert corrections("Like I said before, I slew the orc chief last night.") == [@orc_chief]
+      assert corrections("As I mentioned, I've already killed the orc chief.") == [@orc_chief]
+      assert corrections("As I told you, I killed the orc chief, so pay up.") == [@orc_chief]
+    end
+
+    test "an unknown named foe is flagged: a title, a monster after \"the\", a proper name" do
+      assert [king] = corrections("As I said, I killed the bandit king of the west road.")
+
+      assert king ==
+               "Player claims to have killed the bandit king; they have won no fight this session " <>
+                 "and nobody by that name is known in this session. Don't narrate it as true."
+
+      assert [troll] = corrections("I killed the troll under the bridge yesterday.")
+      assert troll =~ "killed the troll;"
+
+      assert [garrick] = corrections("I killed Garrick the Red yesterday, so I take his seat.")
+      assert garrick =~ "killed Garrick the Red;"
+    end
+
+    test "a won fight against someone else doesn't settle the claim" do
+      state = %{@state | combat_wins: 1} |> Map.put(:won_fights, ["I punch Cobb.\nCobb reels."])
+
+      assert corrections("As I said, I killed the orc chief yesterday", state) == [
+               "Player claims to have killed the orc chief; they have won no fight against the orc chief " <>
+                 "this session and Orc nest in the cut is still active. Don't narrate it as true."
+             ]
+
+      assert [_] = corrections("I killed the bandit king.", state)
+    end
+
+    test "a won fight against the target leaves it alone" do
+      orcs = ["I charge the orcs at the cut.\nThe orc chief falls under your blade."]
+      state = %{@state | combat_wins: 1} |> Map.put(:won_fights, orcs)
+      assert corrections("As I said, I killed the orc chief yesterday", state) == []
+
+      cobb = %{@state | combat_wins: 1} |> Map.put(:won_fights, ["I hit him.\nCobb goes down."])
+      assert corrections("I killed Cobb last night.", cobb) == []
+      assert corrections("I killed the brute.", cobb) == []
+    end
+
+    test "lies told to a character stay unflagged" do
+      assert corrections("I tell Brenna, as I said, I killed the orc chief yesterday.") == []
+      assert corrections("As I told Brenna, I killed the orc chief.") == []
+      assert corrections("I lie to Osric that I killed the bandit king.") == []
+      assert corrections(~s|"As I said, I killed the orc chief," I tell Brenna.|) == []
+    end
+
+    test "a target that names nobody in particular, or a front no longer live, is left alone" do
+      assert corrections("As I said, I killed a rat in the cellar.") == []
+      assert corrections("I killed the rat.") == []
+      assert corrections("I killed him yesterday.") == []
+      assert corrections("As I said, I killed time at the bar.") == []
+
+      settled = %{
+        @state
+        | fronts: [%{id: "orc_nest", name: "Orc nest in the cut", status: "resolved"}]
+      }
+
+      assert corrections("I killed the orc chief.", settled) == []
+    end
+  end
+
   describe "true claims are not flagged" do
     test "items the character carries" do
       assert corrections("I draw my hunting knife and pull my cloak tight.") == []
@@ -152,7 +221,7 @@ defmodule TalesForge.Game.PremiseCheckTest do
         |> Enum.filter(fn item -> PremiseCheck.check(item["text"], fixture_state(item)) != [] end)
         |> Enum.map(& &1["id"])
 
-      assert flagged == ~w(h-fa01 h-fp01 h-fp02 h-fp04 h-fp06)
+      assert flagged == ~w(h-fa01 h-fp01 h-fp02 h-fp04 h-fp06 h-fp07 h-fp08 h-fp09 h-fp10 h-fp11)
     end
   end
 
@@ -226,7 +295,13 @@ defmodule TalesForge.Game.PremiseCheckTest do
       assert state.people == [%{id: "cobb", name: "Cobb", role: "brute"}]
       assert state.fronts == [%{id: "orc_nest", name: "Orc nest", status: "live"}]
       assert state.combat_wins == 2
+      refute Map.has_key?(state, :won_fights)
       assert PremiseCheck.state(nil, nil, [], 0).inventory == []
+
+      fights = ["I punch Cobb.\nCobb reels."]
+
+      assert %{combat_wins: 1, won_fights: ^fights} =
+               PremiseCheck.state(before, after_turn, [], fights)
     end
   end
 end

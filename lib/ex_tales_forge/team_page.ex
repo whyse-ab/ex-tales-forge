@@ -1,7 +1,9 @@
 defmodule TalesForge.TeamPage do
   @moduledoc """
-  The numbers behind the founders' presentation page (`/team`,
-  `TalesForgeWeb.TeamLive`), and the small helpers that turn them into text.
+  The numbers behind the founders' pages (the landing page at `/team`,
+  `TalesForgeWeb.TeamLive`, and the full presentation at `/team/presentation`,
+  `TalesForgeWeb.TeamPresentationLive`), and the small helpers that turn them
+  into text.
 
   The numbers live in tales-forge-docs `docs/team-page/data.json`. A snapshot
   of that file is kept in `priv/team/data.json` and read **at compile time**
@@ -224,6 +226,71 @@ defmodule TalesForge.TeamPage do
       :error -> @not_measured
     end
   end
+
+  @doc """
+  Words joined the way the page writes a list: commas, then "and" before the
+  last one.
+
+      iex> TalesForge.TeamPage.and_list(["a", "b", "c"])
+      "a, b and c"
+      iex> TalesForge.TeamPage.and_list(["a", "b"])
+      "a and b"
+      iex> TalesForge.TeamPage.and_list(["a"])
+      "a"
+  """
+  @spec and_list([String.t()]) :: String.t()
+  def and_list([]), do: ""
+  def and_list([one]), do: one
+
+  def and_list(items) do
+    {init, [last]} = Enum.split(items, -1)
+    Enum.join(init, ", ") <> " and " <> last
+  end
+
+  @doc """
+  The crew (`team.members`): the founders first, then the bots. An empty list
+  when the data has none.
+
+      iex> TalesForge.TeamPage.members(%{"team" => %{"members" => [%{"id" => "case"}]}})
+      [%{"id" => "case"}]
+      iex> TalesForge.TeamPage.members(%{})
+      []
+  """
+  @spec members(map()) :: [map()]
+  def members(data) do
+    case get(data, ["team", "members"]) do
+      list when is_list(list) -> list
+      _missing -> []
+    end
+  end
+
+  @doc """
+  How many of the crew are bots, or `nil` when the crew isn't in the data (so
+  `count_word/1` says "not measured yet").
+
+      iex> TalesForge.TeamPage.bot_count(%{"team" => %{"members" => [%{"kind" => "humans"}, %{"kind" => "bot"}]}})
+      1
+      iex> TalesForge.TeamPage.bot_count(%{})
+      nil
+  """
+  @spec bot_count(map()) :: non_neg_integer() | nil
+  def bot_count(data) do
+    case members(data) do
+      [] -> nil
+      list -> Enum.count(list, &(&1["kind"] == "bot"))
+    end
+  end
+
+  @doc """
+  Who holds the approval key today (`team.members[0].approval_key.holder_today`),
+  "one founder" when the data doesn't say.
+
+      iex> TalesForge.TeamPage.approval_holder(%{})
+      "one founder"
+  """
+  @spec approval_holder(map()) :: String.t()
+  def approval_holder(data),
+    do: get(data, ["team", "members", 0, "approval_key", "holder_today"]) || "one founder"
 
   @doc """
   `value` as a share of `max` in percent, clamped to 0..100, for bar widths

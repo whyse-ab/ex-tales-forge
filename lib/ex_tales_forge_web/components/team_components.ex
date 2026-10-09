@@ -1,7 +1,8 @@
 defmodule TalesForgeWeb.TeamComponents do
   @moduledoc """
-  Building blocks of the founders' page (`/team`, `TalesForgeWeb.TeamLive`):
-  stat tiles, section headings, inline term explanations and the charts.
+  Building blocks of the founders' presentation (`/team/presentation`,
+  `TalesForgeWeb.TeamPresentationLive`): stat tiles, section headings, inline
+  term explanations and the charts.
 
   The charts are plain HTML and CSS (bars are `div`s sized in percent), drawn
   on the server from `TalesForge.TeamPage` data: no chart library, nothing
@@ -61,6 +62,37 @@ defmodule TalesForgeWeb.TeamComponents do
         {render_slot(@inner_block)}
       </p>
     </header>
+    """
+  end
+
+  @doc """
+  Who the founders are, from `team.members[0].people`: "We're five: Fredrik,
+  ..., Jeanette and Max.", and a warm word for Max, our vibe-coding founder and
+  RPG apprentice, when he is among them. Nothing when the data has no names;
+  a missing count reads "not measured yet".
+  """
+  attr :id, :string, required: true
+  attr :d, :map, required: true
+
+  @spec founders_people(map()) :: Phoenix.LiveView.Rendered.t()
+  def founders_people(assigns) do
+    people = TeamPage.get(assigns.d, ["team", "members", 0, "people"]) || %{}
+    names = Enum.filter(List.wrap(people["names"]), &is_binary/1)
+
+    assigns =
+      assign(assigns,
+        names: names,
+        count: TeamPage.count_word(people["count"]),
+        max?: "Max" in names
+      )
+
+    ~H"""
+    <span :if={@names != []} id={@id} class="team-founders-people block space-y-1">
+      <span class="block">We're {@count}: {TeamPage.and_list(@names)}.</span>
+      <span :if={@max?} class="block">
+        Max, our vibe-coding founder and RPG apprentice, has never played a tabletop RPG. Welcome to the table, Max!
+      </span>
+    </span>
     """
   end
 

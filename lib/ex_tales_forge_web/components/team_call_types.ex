@@ -1,7 +1,8 @@
 defmodule TalesForgeWeb.TeamCallTypes do
   @moduledoc """
   "The call-type rule: one turn, three call types", the walkthrough under rule
-  3 in "How we work" on the founders' page (`/team`, `TalesForgeWeb.TeamLive`).
+  3 in "How we work" on the founders' presentation (`/team/presentation`,
+  `TalesForgeWeb.TeamPresentationLive`).
 
   It follows one Tin Valley turn (talking Brenna down on the price of the
   room) through the three call types: Jev reads the player's words into a
@@ -9,7 +10,7 @@ defmodule TalesForgeWeb.TeamCallTypes do
   Then examples per type, from what the code actually does, and the
   "one turn, three lanes" animation.
 
-  Copy follows tales-forge-docs `docs/team-page/content.md` (commit 404e421).
+  Copy follows tales-forge-docs `docs/team-page/content.md` (commit 404e421; unchanged since, through d118917).
   The turn's numbers (the typed intent, the roll, the price) come from
   `call_types.walkthrough` in `data.json`, the read latency and cost from
   `intent_shadow`; a missing or `null` value reads "not measured yet".

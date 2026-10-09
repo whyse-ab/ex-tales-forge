@@ -5,7 +5,9 @@ defmodule TalesForge.Game.MechanicsTest do
   alias TalesForge.Game.Progression.Tiered
   alias TalesForge.Game.Schemas.{HandlerResult, MechanicalResolution, PlayerAction, SingleAction}
 
-  doctest Mechanics, only: [lp_stat_bonus: 1, normalize_skill_name: 1, resolve_check_skill: 3]
+  doctest Mechanics,
+    only: [growth_lp: 1, lp_stat_bonus: 1, normalize_skill_name: 1, resolve_check_skill: 3]
+
   # The #64 rule, kept for the baseline variant only.
   doctest Tiered
 
@@ -56,49 +58,111 @@ defmodule TalesForge.Game.MechanicsTest do
     end
   end
 
-  test "perform_and_apply awards LP and returns resolution" do
+  test "perform_and_apply returns a resolution and banks LP only on a miss" do
     {updated, resolution} = Mechanics.perform_and_apply(@character, "insight")
 
     assert resolution.skill == "insight"
     assert resolution.roll in 1..20
     assert resolution.outcome in ["success", "partial_success", "failure"]
-    assert Map.get(updated["learning_points"], "insight", 0) > 0
+
+    expected = if resolution.outcome == "success", do: 0, else: 1.0
+    assert Map.get(updated["learning_points"], "insight", 0) == expected
   end
 
-  test "injected 20 on raw below 15 is failure with LP 2 and a failure count" do
-    {updated, resolution} = Mechanics.perform_and_apply(@character, "insight", 20)
+  describe "default variant: learn only from failure, only in that skill" do
+    test "a failure banks one chance (natural 20 too), counted as a failure" do
+      {updated, resolution} = Mechanics.perform_and_apply(@character, "insight", 20)
 
-    assert resolution.outcome == "failure"
-    assert resolution.lp_awarded == 2.0
-    assert Map.get(updated["learning_points"], "insight") == 2.0
-    assert Map.get(updated["learning_failures"], "insight") == 1
+      assert resolution.outcome == "failure"
+      assert resolution.lp_awarded == 1.0
+      assert updated["learning_points"] == %{"insight" => 1.0}
+      assert Map.get(updated["learning_failures"], "insight") == 1
+      assert resolution.notes =~ "banked improvement chance"
+    end
+
+    test "a partial success banks one chance" do
+      {updated, resolution} = Mechanics.perform_and_apply(@character, "insight", 5)
+
+      assert resolution.outcome == "partial_success"
+      assert resolution.lp_awarded == 1.0
+      assert updated["learning_points"] == %{"insight" => 1.0}
+    end
+
+    test "a success earns nothing, natural 1 included, and leaves the sheet alone" do
+      for roll <- [1, 2] do
+        {updated, resolution} = Mechanics.perform_and_apply(@character, "insight", roll)
+
+        assert resolution.outcome == "success"
+        assert resolution.lp_awarded == 0.0
+        assert updated["learning_points"] == %{}
+        assert updated["learning_failures"] == %{}
+      end
+    end
+
+    test "the linked stat adds no LP" do
+      # persuasion is CHA 14, which gave +1 LP per roll before 2026-10-09
+      {updated, resolution} = Mechanics.perform_and_apply(@character, "persuasion", 20)
+
+      assert resolution.lp_awarded == 1.0
+      assert updated["learning_points"]["persuasion"] == 1.0
+    end
+
+    test "a failed check through apply_server_mechanics banks for that skill only" do
+      character = put_in(@character, ["learning_points", "melee_combat"], 0.5)
+
+      {updated, resolution} =
+        Mechanics.apply_server_mechanics(
+          character,
+          %PlayerAction{
+            overall_intent: "climb",
+            action: %SingleAction{action_type: :interact, parameters: %{"skill" => "climbing"}}
+          },
+          %HandlerResult{handler: "skill_check", skill: "climbing"},
+          "default"
+        )
+
+      expected = if resolution.outcome == "success", do: nil, else: 1.0
+      assert updated["learning_points"]["climbing"] == expected
+      assert updated["learning_points"]["melee_combat"] == 0.5
+    end
   end
 
-  test "injected 20 on raw 15+ is partial_success and still counts a failure" do
-    character = put_in(@character, ["skills", "insight"], 15)
-    {updated, resolution} = Mechanics.perform_and_apply(character, "insight", 20)
+  describe "baseline variant: the #64 LP table" do
+    test "injected 20 on raw below 15 is failure with LP 2 and a failure count" do
+      {updated, resolution} = Mechanics.perform_and_apply(@character, "insight", 20, "baseline")
 
-    assert resolution.outcome == "partial_success"
-    assert resolution.lp_awarded == 2.0
-    assert Map.get(updated["learning_failures"], "insight") == 1
-  end
+      assert resolution.outcome == "failure"
+      assert resolution.lp_awarded == 2.0
+      assert Map.get(updated["learning_points"], "insight") == 2.0
+      assert Map.get(updated["learning_failures"], "insight") == 1
+    end
 
-  test "injected success awards 0.5 LP and does not increment failures" do
-    {updated, resolution} = Mechanics.perform_and_apply(@character, "insight", 2)
+    test "injected 20 on raw 15+ is partial_success and still counts a failure" do
+      character = put_in(@character, ["skills", "insight"], 15)
+      {updated, resolution} = Mechanics.perform_and_apply(character, "insight", 20, "baseline")
 
-    assert resolution.outcome == "success"
-    assert resolution.lp_awarded == 0.5
-    assert Map.get(updated["learning_points"], "insight") == 0.5
-    assert Map.get(updated["learning_failures"] || %{}, "insight", 0) == 0
-  end
+      assert resolution.outcome == "partial_success"
+      assert resolution.lp_awarded == 2.0
+      assert Map.get(updated["learning_failures"], "insight") == 1
+    end
 
-  test "injected partial (not 20) awards 1.0 LP and does not increment failures" do
-    {updated, resolution} = Mechanics.perform_and_apply(@character, "insight", 5)
+    test "injected success awards 0.5 LP and does not increment failures" do
+      {updated, resolution} = Mechanics.perform_and_apply(@character, "insight", 2, "baseline")
 
-    assert resolution.outcome == "partial_success"
-    assert resolution.lp_awarded == 1.0
-    assert Map.get(updated["learning_points"], "insight") == 1.0
-    assert Map.get(updated["learning_failures"] || %{}, "insight", 0) == 0
+      assert resolution.outcome == "success"
+      assert resolution.lp_awarded == 0.5
+      assert Map.get(updated["learning_points"], "insight") == 0.5
+      assert Map.get(updated["learning_failures"] || %{}, "insight", 0) == 0
+    end
+
+    test "injected partial (not 20) awards 1.0 LP and does not increment failures" do
+      {updated, resolution} = Mechanics.perform_and_apply(@character, "insight", 5, "baseline")
+
+      assert resolution.outcome == "partial_success"
+      assert resolution.lp_awarded == 1.0
+      assert Map.get(updated["learning_points"], "insight") == 1.0
+      assert Map.get(updated["learning_failures"] || %{}, "insight", 0) == 0
+    end
   end
 
   test "move wait inventory train skip a check even when parameters carry a skill" do
@@ -138,7 +202,7 @@ defmodule TalesForge.Game.MechanicsTest do
 
     assert resolution.skill == "climbing"
     assert resolution.outcome == "failure"
-    assert Map.get(updated["learning_points"], "climbing") == 2.0
+    assert Map.get(updated["learning_points"], "climbing") == 1.0
     assert Map.get(updated["learning_failures"], "climbing") == 1
     assert Map.get(updated["learning_points"], "melee_combat") == 1.5
     assert Map.get(updated["learning_failures"], "melee_combat") == 2
@@ -317,13 +381,13 @@ defmodule TalesForge.Game.MechanicsTest do
 
     test "each roll's LP gets the linked stat's bonus" do
       # persuasion is CHA 14: (14 - 10) div 4 = +1 on top of 0.5 for a success
-      {updated, resolution} = Mechanics.perform_and_apply(@character, "persuasion", 2)
+      {updated, resolution} = Mechanics.perform_and_apply(@character, "persuasion", 2, "baseline")
 
       assert resolution.lp_awarded == 1.5
       assert updated["learning_points"]["persuasion"] == 1.5
 
       # insight is WIS 12: no bonus
-      {_c, plain} = Mechanics.perform_and_apply(@character, "insight", 2)
+      {_c, plain} = Mechanics.perform_and_apply(@character, "insight", 2, "baseline")
       assert plain.lp_awarded == 0.5
     end
   end

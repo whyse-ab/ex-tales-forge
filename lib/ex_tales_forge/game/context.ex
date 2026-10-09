@@ -220,10 +220,107 @@ defmodule TalesForge.Game.Context do
       Gestures.prompt_section(Map.get(context, :recent_gestures)),
       scene_now_section(context),
       premise_section(context),
+      rest_growth_section(context),
       player_request_section(context)
     ]
     |> join_sections()
   end
+
+  @doc """
+  Default variant: what the character's sleep made of the
+  failures they banked (`context[:rest_growth]`, set by
+  `TalesForge.Game.TurnProcessor`: `attempts`, the improvement rolls the rest
+  resolved, and `needs_reflection`, skills at the reflection level that were
+  not reflected on). Skills that improved are named so the GM can let the
+  character wake surer of them; skills that need reflection get a short line
+  saying so. Never any numbers. nil when there is nothing to say, when the turn
+  was not a long rest, and always for the baseline variant.
+
+      iex> section = TalesForge.Game.Context.rest_growth_section(%{world_state: %{}, rest_growth: %{
+      ...>   attempts: [
+      ...>     %{"skill" => "melee_combat", "improved" => true},
+      ...>     %{"skill" => "persuasion", "improved" => false}
+      ...>   ],
+      ...>   needs_reflection: ["stealth"]
+      ...> }})
+      iex> section =~ "They wake a little surer at: melee combat."
+      true
+      iex> section =~ "Their stealth has outgrown simple practice; they need to reflect on it"
+      true
+      iex> section =~ "persuasion"
+      false
+      iex> TalesForge.Game.Context.rest_growth_section(%{world_state: %{}, rest_growth: %{attempts: [], needs_reflection: []}})
+      nil
+
+  A physical skill that improved right away (`now: true`, any turn):
+
+      iex> now = TalesForge.Game.Context.rest_growth_section(%{world_state: %{}, rest_growth: %{
+      ...>   attempts: [%{"skill" => "climbing", "improved" => true}], now: true}})
+      iex> now =~ "They are a little surer at: climbing."
+      true
+      iex> now =~ "slept"
+      false
+  """
+  @growth_hint "If it fits, show it in a line (a steadier grip, a surer word); " <>
+                 "never say \"you learned\" or name levels, points or numbers.\n"
+
+  @spec rest_growth_section(map()) :: String.t() | nil
+  def rest_growth_section(context) do
+    growth = Map.get(context, :rest_growth) || %{}
+
+    improved =
+      growth
+      |> Map.get(:attempts, [])
+      |> Enum.filter(&(&1["improved"] == true))
+      |> Enum.map(&skill_words(&1["skill"]))
+      |> Enum.uniq()
+
+    pending = growth |> Map.get(:needs_reflection, []) |> Enum.map(&skill_words/1)
+
+    if growth[:now] do
+      growth_now_section(improved, context)
+    else
+      rest_lines(improved, pending, context)
+    end
+  end
+
+  # A physical skill that improved at the end of this turn (decision
+  # 2026-10-09: physical skills improve right away).
+  defp growth_now_section([], _context), do: nil
+
+  defp growth_now_section(improved, context) do
+    if Variant.baseline?(Map.get(context, :world_state) || %{}) do
+      nil
+    else
+      "## Growth: what that failure taught\n" <>
+        "That failure taught their body something. They are a little surer at: " <>
+        Enum.join(improved, ", ") <>
+        ".\n" <> @growth_hint
+    end
+  end
+
+  defp rest_lines(improved, pending, context) do
+    lines =
+      [
+        improved != [] &&
+          "While the character slept, past failures sank in. They wake a little surer at: " <>
+            Enum.join(improved, ", ") <> ".",
+        pending != [] &&
+          Enum.map_join(pending, "\n", fn skill ->
+            "Their #{skill} has outgrown simple practice; they need to reflect on it " <>
+              "(think it over, practise or study it deliberately, or train with someone better)."
+          end)
+      ]
+      |> Enum.filter(&is_binary/1)
+
+    if lines == [] or Variant.baseline?(Map.get(context, :world_state) || %{}) do
+      nil
+    else
+      "## Rest: what sank in\n" <> Enum.join(lines, "\n") <> "\n" <> @growth_hint
+    end
+  end
+
+  defp skill_words(skill), do: String.replace(to_string(skill), "_", " ")
 
   @doc """
   Default variant: the claims in the player's words that the session state

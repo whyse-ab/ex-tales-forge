@@ -26,14 +26,14 @@ defmodule TalesForge.CharactersSyncTest do
 
   defp wait_turn(session, rolls) do
     {bundle, _} =
-      Intent.resolve_bundle("I rest for an hour", %{"exits" => [], "present_npcs" => []})
+      Intent.resolve_bundle("I sleep", %{"exits" => [], "present_npcs" => []})
 
     action = Intent.validate_player_action(bundle, %{})
 
     {:ok, _} =
       TurnProcessor.simulate!(
         session,
-        "I rest for an hour",
+        "I sleep",
         action,
         ActionHandler.resolve(action),
         %MechanicalResolution{outcome: "none"},
@@ -61,7 +61,7 @@ defmodule TalesForge.CharactersSyncTest do
       NPC.record_memory(session.id, "innkeep", "The stranger paid in silver", 30)
       NPC.bump_relationship(session.id, "innkeep", 0.4)
 
-      session = wait_turn(session, %{"climbing" => 4})
+      session = wait_turn(session, %{"climbing" => 11})
       assert get_in(session.world_state, ["character", "skills", "climbing"]) == 4
 
       elara = Characters.get_by_slug(session.id, "elara_voss")

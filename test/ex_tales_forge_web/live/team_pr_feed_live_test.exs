@@ -35,8 +35,8 @@ defmodule TalesForgeWeb.TeamPrFeedLiveTest do
     assert has_element?(view, "#live-title", "Live: what we're shipping")
     assert has_element?(child, "#pr-feed-unavailable", "Live feed unavailable")
     assert render(child) =~ "no GitHub token"
-    assert has_element?(view, "#together")
-    assert has_element?(view, "#stat-prs-merged")
+    assert has_element?(view, "#crew")
+    assert has_element?(view, "#presentation-cta")
   end
 
   test "token set but no poll yet: loading", %{conn: conn} do
@@ -50,7 +50,7 @@ defmodule TalesForgeWeb.TeamPrFeedLiveTest do
     {view, child} = feed(conn)
     assert has_element?(child, "#pr-feed-unavailable", "Live feed unavailable")
     assert render(child) =~ "GitHub didn&#39;t answer"
-    assert has_element?(view, "#pace")
+    assert has_element?(view, "#board-soon")
   end
 
   test "renders the stored snapshot: counters, states, CI and deployments", %{conn: conn} do
