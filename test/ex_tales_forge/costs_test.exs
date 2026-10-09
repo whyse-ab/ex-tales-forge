@@ -4,6 +4,7 @@ defmodule TalesForge.CostsTest do
   alias TalesForge.AICalls
   alias TalesForge.Costs
   alias TalesForge.Costs.Peer
+  alias TalesForge.Costs.PlaytestRuns
   alias TalesForge.GameSessions
   alias TalesForge.Schemas.AICall
 
@@ -116,31 +117,6 @@ defmodule TalesForge.CostsTest do
     end
   end
 
-  describe "peer summary JSON" do
-    test "round-trips through JSON and drops unknown keys" do
-      insert!("gm", 42, ~U[2026-10-15 09:00:00Z])
-      summary = Costs.ai_summary(@now)
-
-      decoded =
-        summary
-        |> Map.put("extra", "dropped")
-        |> put_in(["month", "buckets", "game", "prompt"], "dropped")
-        |> Jason.encode!()
-        |> Jason.decode!()
-
-      assert {:ok, ^summary} = Costs.normalize_summary(decoded)
-    end
-
-    test "rejects malformed bodies" do
-      assert Costs.normalize_summary(%{}) == :error
-      assert Costs.normalize_summary(%{"today" => %{}, "month" => %{}}) == :error
-      assert Costs.normalize_summary("nope") == :error
-
-      bad = put_in(Costs.ai_summary(@now), ["month", "buckets", "game", "calls"], -1)
-      assert Costs.normalize_summary(bad) == :error
-    end
-  end
-
   describe "report" do
     @fixed [
       %{name: "App", env: :production, amount: {:usd_per_month, 6.95}, source: "a"},
@@ -149,47 +125,51 @@ defmodule TalesForge.CostsTest do
       %{name: "Domain", env: :shared, amount: :unknown, source: "d"}
     ]
 
-    test "unknown items are listed and left out of the totals" do
+    test "playtest unavailable: the grand total is production's alone" do
       local = summary("tales-forge", 1_000_000, 15, 30)
-      report = Costs.report(local, {:error, :not_configured}, @fixed)
+
+      for playtest <- [{:error, :not_configured}, {:error, :unreachable}, {:error, :loading}] do
+        report = Costs.report(local, playtest, @fixed)
+
+        refute report.playtest_included
+        assert report.production_month_micro_usd == 1_000_000
+        assert report.grand_month_micro_usd == 1_000_000
+        assert report.grand_projected_micro_usd == 2_000_000
+        assert report.playtest_runs_month_micro_usd == nil
+        assert report.playtest.status == :unavailable
+      end
+    end
+
+    test "unknown fixed items are listed; fixed costs stay out of the grand total" do
+      report =
+        Costs.report(summary("tales-forge", 1_000_000, 15, 30), {:error, :unreachable}, @fixed)
 
       assert report.unknown == ["Domain"]
       assert report.fixed_known_micro_usd == 14_780_000
-      assert report.ai_month_micro_usd == 1_000_000
-      assert report.total_so_far_micro_usd == 15_780_000
-      assert report.ai_projected_micro_usd == 2_000_000
-      assert report.total_projected_micro_usd == 16_780_000
-      refute report.peer_included
-      assert report.playtest.status == :unavailable
+      assert report.grand_month_micro_usd == 1_000_000
     end
 
-    test "both environments add up; playtest fixed + projected AI against the threshold" do
+    test "grand total: production + playtest runs + playtest outside runs" do
       local = summary("tales-forge", 1_000_000, 15, 30)
-      peer = summary("tales-forge-playtest", 4_000_000, 15, 30)
+      playtest = playtest_summary(game: 2_500_000, persona: 1_000_000, outside: 500_000)
 
-      report = Costs.report(local, {:ok, peer}, @fixed)
-      assert report.peer_included
-      assert report.ai_month_micro_usd == 5_000_000
-      assert report.ai_projected_micro_usd == 10_000_000
+      report = Costs.report(local, {:ok, playtest}, @fixed)
+      assert report.playtest_included
+      assert report.playtest_game_month_micro_usd == 2_500_000
+      assert report.playtest_bots_month_micro_usd == 1_000_000
+      assert report.playtest_runs_month_micro_usd == 3_500_000
+      assert report.playtest_outside_month_micro_usd == 500_000
+      assert report.grand_month_micro_usd == 5_000_000
+      # 15 of 30 days: production 2.00 + playtest 8.00
+      assert report.playtest_projected_micro_usd == 8_000_000
+      assert report.grand_projected_micro_usd == 10_000_000
 
       # 3.84 + 3.99 + 8.00 projected = 15.83 > 15
       assert %{status: :over, total_micro_usd: 15_830_000, fixed_micro_usd: 7_830_000} =
                report.playtest
 
-      under =
-        Costs.report(local, {:ok, summary("tales-forge-playtest", 3_000_000, 15, 30)}, @fixed)
-
+      under = Costs.report(local, {:ok, playtest_summary(game: 3_000_000)}, @fixed)
       assert %{status: :ok, total_micro_usd: 13_830_000} = under.playtest
-    end
-
-    test "on the playtest app, its own numbers drive the warning" do
-      Application.put_env(:ex_tales_forge, :app_name, "tales-forge-playtest")
-      insert!("gm", 4_000_000, ~U[2026-10-02 10:00:00Z])
-
-      local = Costs.ai_summary(@now)
-      assert local["app"] == "tales-forge-playtest"
-      assert Costs.peer_label() == "production"
-      assert Costs.report(local, {:error, :unreachable}, @fixed).playtest.status == :over
     end
 
     test "configured fixed costs: SEK yearly items convert; threshold 15 USD" do
@@ -245,17 +225,24 @@ defmodule TalesForge.CostsTest do
   end
 
   describe "Peer.fetch/0" do
-    test "not configured without both URL and token" do
+    test "not configured without the shared token" do
       assert Peer.fetch() == {:error, :not_configured}
-      Application.put_env(:ex_tales_forge, :costs_peer, url: "http://peer.test", token: " ")
+      refute Peer.configured?()
+      Application.put_env(:ex_tales_forge, :costs_peer, token: " ")
       assert Peer.fetch() == {:error, :not_configured}
     end
 
+    test "playtest's URL comes from the one place, config TalesForge.AppRole" do
+      assert Peer.url() == "https://tales-forge-playtest.fly.dev/internal/costs"
+      assert Peer.timeout_ms() == 2_000
+    end
+
     test "sends the bearer token and returns the validated summary" do
-      Application.put_env(:ex_tales_forge, :costs_peer, url: "http://peer.test/", token: "t0ken")
-      body = summary("tales-forge-playtest", 10, 1, 31)
+      Application.put_env(:ex_tales_forge, :costs_peer, token: "t0ken")
+      body = playtest_summary(game: 10)
 
       Req.Test.stub(Peer, fn conn ->
+        assert conn.host == "tales-forge-playtest.fly.dev"
         assert conn.request_path == "/internal/costs"
         assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer t0ken"]
         Req.Test.json(conn, body)
@@ -265,7 +252,7 @@ defmodule TalesForge.CostsTest do
     end
 
     test "errors: HTTP status, bad body, unreachable" do
-      Application.put_env(:ex_tales_forge, :costs_peer, url: "http://peer.test", token: "t0ken")
+      Application.put_env(:ex_tales_forge, :costs_peer, token: "t0ken")
 
       Req.Test.stub(Peer, &Plug.Conn.send_resp(&1, 401, "Unauthorized"))
       assert Peer.fetch() == {:error, {:http_status, 401}}
@@ -278,24 +265,48 @@ defmodule TalesForge.CostsTest do
     end
   end
 
-  # A summary as served by a peer, with all month spend in the game bucket.
-  def summary(app, month_micro_usd, day, days) do
+  # A playtest-run summary as served by playtest (15 of 30 days into the month).
+  def playtest_summary(opts) do
     zero = %{"calls" => 0, "cost_micro_usd" => 0, "capped" => 0, "errors" => 0}
-    buckets = %{"game" => zero, "persona" => zero, "scorer" => zero}
+    line = fn micro -> %{zero | "calls" => 1, "cost_micro_usd" => micro} end
+    lines = Map.new(PlaytestRuns.lines(), &{&1, zero})
 
-    month_buckets =
-      put_in(buckets, ["game"], %{zero | "calls" => 3, "cost_micro_usd" => month_micro_usd})
+    month_lines =
+      lines
+      |> Map.put("gm", line.(Keyword.get(opts, :game, 0)))
+      |> Map.put("persona", line.(Keyword.get(opts, :persona, 0)))
 
     {:ok, summary} =
-      Costs.normalize_summary(%{
-        "app" => app,
-        "day_of_month" => day,
-        "days_in_month" => days,
-        "today" => %{"buckets" => buckets},
-        "month" => %{"buckets" => month_buckets, "game_sessions" => 1}
+      PlaytestRuns.normalize(%{
+        "app" => "tales-forge-playtest",
+        "day_of_month" => 15,
+        "days_in_month" => 30,
+        "today" => %{"lines" => lines, "outside_runs" => zero},
+        "month" => %{
+          "lines" => month_lines,
+          "outside_runs" => line.(Keyword.get(opts, :outside, 0)),
+          "runs" => 2
+        }
       })
 
     summary
+  end
+
+  # Production's own summary (Costs.ai_summary shape), all month spend in game.
+  # A summary as served by a peer, with all month spend in the game bucket.
+  def summary(app, month_micro_usd, day, days) do
+    zero = %{"calls" => 0, "cost_micro_usd" => 0, "capped" => 0, "errors" => 0}
+
+    %{
+      "app" => app,
+      "day_of_month" => day,
+      "days_in_month" => days,
+      "today" => %{"buckets" => %{"game" => zero, "persona" => zero, "scorer" => zero}},
+      "month" => %{
+        "total_micro_usd" => month_micro_usd,
+        "projected_micro_usd" => Costs.project(month_micro_usd, day, days)
+      }
+    }
   end
 
   defp insert!(purpose, micro_usd, inserted_at, opts \\ []) do

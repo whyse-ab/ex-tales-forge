@@ -1,35 +1,55 @@
 defmodule TalesForge.Costs.Peer do
   @moduledoc """
-  The other environment's AI spend for the admin costs page, fetched from its
-  `GET /internal/costs` with the shared bearer token.
+  Playtest's AI spend for production's admin costs page, read live from the
+  playtest app's `GET /internal/costs` (`TalesForgeWeb.CostsPeerController`)
+  with the shared bearer token. Nothing is copied or stored on production.
 
-  Configured in `config/runtime.exs` from `COSTS_PEER_URL` (the peer's base URL)
-  and `COSTS_PEER_TOKEN` (also guards this app's own endpoint). Both apps run
-  the same code, so whichever side has both set fetches the other.
+  - URL: playtest's base URL from `TalesForge.AppRole.base_url/1` (config
+    `TalesForge.AppRole` in `config/config.exs`, the one place for both URLs).
+  - Token: the Fly secret `COSTS_PEER_TOKEN`, the same value on both apps
+    (config `:costs_peer`, `config/runtime.exs`). Unset: the Playtest section
+    says "not configured" and nothing is fetched.
+  - Short timeout (2 s), no retries and no redirects: if playtest is
+    down, production's page still renders and says "playtest unavailable".
   """
 
-  alias TalesForge.Costs
+  alias TalesForge.AppRole
+  alias TalesForge.Costs.PlaytestRuns
 
   @path "/internal/costs"
-  @timeout_ms 3_000
+  @timeout_ms 2_000
+
+  @typedoc "Why playtest's numbers are not on the page."
+  @type error ::
+          :not_configured | :unreachable | :bad_response | {:http_status, non_neg_integer()}
 
   @doc "The shared token, or nil when unset or blank (then the endpoint is off)."
-  def token, do: blank_to_nil(config()[:token])
+  @spec token() :: String.t() | nil
+  def token, do: blank_to_nil(Application.get_env(:ex_tales_forge, :costs_peer, [])[:token])
 
-  @doc "The peer's base URL, or nil when unset or blank."
-  def url, do: blank_to_nil(config()[:url])
+  @doc "True when production can ask playtest (the shared token is set)."
+  @spec configured?() :: boolean()
+  def configured?, do: token() != nil
+
+  @doc "The URL production fetches: playtest's base URL plus `#{@path}`."
+  @spec url() :: String.t()
+  def url, do: String.trim_trailing(AppRole.base_url(:playtest), "/") <> @path
+
+  @doc "The fetch timeout in milliseconds."
+  @spec timeout_ms() :: pos_integer()
+  def timeout_ms, do: @timeout_ms
 
   @doc """
-  Fetches and validates the peer's summary. Returns `{:ok, summary}`,
-  `{:error, :not_configured}` (URL or token missing), or `{:error, reason}` with
-  reason `{:http_status, status}`, `:bad_response` or `:unreachable`. Never raises.
+  Fetches and validates playtest's summary (`TalesForge.Costs.PlaytestRuns`).
+  Returns `{:ok, summary}`, `{:error, :not_configured}` (no token), or
+  `{:error, reason}` with reason `{:http_status, status}`, `:bad_response` or
+  `:unreachable`. Never raises.
   """
+  @spec fetch() :: {:ok, PlaytestRuns.summary()} | {:error, error()}
   def fetch do
-    with {:url, base} when is_binary(base) <- {:url, url()},
-         {:token, token} when is_binary(token) <- {:token, token()} do
-      request(String.trim_trailing(base, "/") <> @path, token)
-    else
-      _ -> {:error, :not_configured}
+    case token() do
+      nil -> {:error, :not_configured}
+      token -> request(url(), token)
     end
   end
 
@@ -45,7 +65,7 @@ defmodule TalesForge.Costs.Peer do
            ] ++ req_options()
          ) do
       {:ok, %Req.Response{status: 200, body: %{} = body}} ->
-        case Costs.normalize_summary(body) do
+        case PlaytestRuns.normalize(body) do
           {:ok, summary} -> {:ok, summary}
           :error -> {:error, :bad_response}
         end
@@ -62,8 +82,6 @@ defmodule TalesForge.Costs.Peer do
   rescue
     _ -> {:error, :unreachable}
   end
-
-  defp config, do: Application.get_env(:ex_tales_forge, :costs_peer, [])
 
   # Test hook: config :ex_tales_forge, :costs_peer_req_options, plug: {Req.Test, ...}
   defp req_options, do: Application.get_env(:ex_tales_forge, :costs_peer_req_options, [])

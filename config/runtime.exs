@@ -240,17 +240,15 @@ if config_env() != :test do
     ]
 end
 
-# Admin costs page peer (/admin/costs). Both apps run the same code: whichever
-# side has both values set fetches the other side's aggregated AI spend.
-# COSTS_PEER_TOKEN (secret, same value on both apps) also turns on this app's
-# GET /internal/costs endpoint; unset = the endpoint answers 404.
-# COSTS_PEER_URL (config, not a secret): the other app's base URL, e.g.
-# https://tales-forge-playtest.fly.dev on production.
-# FLY_APP_NAME is set by Fly and names this app on the page.
+# Admin costs page (/admin/costs). Production's page reads playtest's
+# playtest-run AI spend live from playtest's GET /internal/costs; the URL is
+# playtest's base URL in config :ex_tales_forge, TalesForge.AppRole (config.exs).
+# COSTS_PEER_TOKEN (secret, same value on both apps) is the bearer token: it turns
+# on the endpoint on playtest and lets production call it. Unset = the endpoint
+# answers 404 and production's Playtest section says "not configured".
+# FLY_APP_NAME is set by Fly: it names this app and decides its role (AppRole).
 if config_env() != :test do
-  config :ex_tales_forge, :costs_peer,
-    url: System.get_env("COSTS_PEER_URL"),
-    token: System.get_env("COSTS_PEER_TOKEN")
+  config :ex_tales_forge, :costs_peer, token: System.get_env("COSTS_PEER_TOKEN")
 
   config :ex_tales_forge, :app_name, System.get_env("FLY_APP_NAME")
 end

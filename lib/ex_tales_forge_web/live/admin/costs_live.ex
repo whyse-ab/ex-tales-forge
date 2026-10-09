@@ -1,8 +1,20 @@
 defmodule TalesForgeWeb.AdminLive.CostsLive do
   @moduledoc """
-  Admin costs page: AI spend for this app and its peer (production and
-  playtest), fixed monthly costs from config, USD with SEK alongside, the month
-  total with an AI projection, and the playtest threshold warning. Read-only.
+  Admin costs page (`/admin/costs`), read-only, USD with SEK alongside at the
+  configured rate. Scope: AI calls only (xAI/Grok, TypeSafe Jev). What it shows
+  depends on the app's role (`TalesForge.AppRole`):
+
+  - **Playtest:** only playtest-run spend (`TalesForge.Costs.PlaytestRuns`):
+    GM, Jev intent and other game calls, then the persona bot and Jev scoring
+    apart from game cost. Other calls on playtest (manual play) are one
+    separate line, not in the runs' total.
+  - **Production (and local):** all AI spend. One grand total on top
+    (production + playtest runs + playtest's other calls), production's own
+    buckets and call metrics, and a Playtest section read live from playtest
+    (`TalesForge.Costs.Peer`, 2 s timeout, after the page has rendered). If
+    playtest is down the section says "playtest unavailable" and the grand total
+    is production's alone; without `COSTS_PEER_TOKEN` it says "not configured".
+    Fixed monthly costs are listed below, outside the grand total.
   """
 
   use TalesForgeWeb, :live_view
@@ -12,100 +24,149 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
 
   alias TalesForge.AICalls
   alias TalesForge.AICalls.Metrics
+  alias TalesForge.AppRole
   alias TalesForge.Costs
   alias TalesForge.Costs.Peer
+  alias TalesForge.Costs.PlaytestRuns
+
+  @line_labels %{
+    "gm" => "GM",
+    "jev_intent" => "Jev intent",
+    "other_game" => "Other game calls",
+    "persona" => "Persona bot",
+    "jev_scoring" => "Jev scoring"
+  }
 
   @impl true
+  @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) :: {:ok, Phoenix.LiveView.Socket.t()}
   def mount(_params, _session, socket) do
-    now = DateTime.utc_now()
-    local = Costs.ai_summary(now)
-    configured? = Peer.url() != nil and Peer.token() != nil
+    socket =
+      socket
+      |> assign(:page_title, "Costs")
+      |> assign(:rate, Costs.usd_sek())
 
-    peer = if configured?, do: :loading, else: {:error, :not_configured}
+    {:ok, mount_role(socket, AppRole.role(), DateTime.utc_now())}
+  end
+
+  defp mount_role(socket, :playtest, now) do
+    socket
+    |> assign(:role, :playtest)
+    |> assign(:runs, PlaytestRuns.summary(now))
+  end
+
+  defp mount_role(socket, role, now) do
+    local = Costs.ai_summary(now)
+    configured? = Peer.configured?()
+    playtest = if configured?, do: :loading, else: {:error, :not_configured}
 
     socket =
       if configured? and connected?(socket),
-        do: start_async(socket, :peer, fn -> Peer.fetch() end),
+        do: start_async(socket, :playtest, fn -> Peer.fetch() end),
         else: socket
 
-    {:ok,
-     socket
-     |> assign(:page_title, "Costs")
-     |> assign(:local, local)
-     |> assign(:peer_label, Costs.peer_label(local["app"]))
-     |> assign(:rate, Costs.usd_sek())
-     |> assign(:metrics, Metrics.period(AICalls.month_start(now), now))
-     |> assign_peer(peer)}
+    socket
+    |> assign(:role, role)
+    |> assign(:local, local)
+    |> assign(:metrics, Metrics.period(AICalls.month_start(now), now))
+    |> assign_playtest(playtest)
   end
 
   @impl true
-  def handle_async(:peer, {:ok, result}, socket), do: {:noreply, assign_peer(socket, result)}
+  @spec handle_async(atom(), {:ok, term()} | {:exit, term()}, Phoenix.LiveView.Socket.t()) ::
+          {:noreply, Phoenix.LiveView.Socket.t()}
+  def handle_async(:playtest, {:ok, result}, socket),
+    do: {:noreply, assign_playtest(socket, result)}
 
-  def handle_async(:peer, {:exit, _reason}, socket),
-    do: {:noreply, assign_peer(socket, {:error, :unreachable})}
+  def handle_async(:playtest, {:exit, _reason}, socket),
+    do: {:noreply, assign_playtest(socket, {:error, :unreachable})}
 
-  defp assign_peer(socket, peer) do
-    report_peer = if peer == :loading, do: {:error, :loading}, else: peer
+  defp assign_playtest(socket, playtest) do
+    report_playtest = if playtest == :loading, do: {:error, :loading}, else: playtest
 
     socket
-    |> assign(:peer, peer)
-    |> assign(:report, Costs.report(socket.assigns.local, report_peer))
+    |> assign(:playtest, playtest)
+    |> assign(:report, Costs.report(socket.assigns.local, report_playtest))
   end
 
   @impl true
+  @spec render(map()) :: Phoenix.LiveView.Rendered.t()
+  def render(%{role: :playtest} = assigns) do
+    ~H"""
+    <Layouts.admin flash={@flash} active="costs">
+      <.page_header rate={@rate}>
+        This is the playtest app: only the AI spend of playtest runs (persona bot sessions) is
+        counted here. Production's page shows all costs, this app's included.
+      </.page_header>
+
+      <.runs_section
+        id="costs-runs"
+        title={"Playtest runs (#{@runs["app"]})"}
+        summary={@runs}
+        rate={@rate}
+      />
+    </Layouts.admin>
+    """
+  end
+
   def render(assigns) do
     ~H"""
     <Layouts.admin flash={@flash} active="costs">
-      <header class="space-y-1">
-        <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Costs</h2>
-        <p class="text-[var(--paper-muted)]">
-          Read-only. AI spend from each environment's <code>ai_calls</code>; fixed costs from config.
-          Days and months run on Europe/Stockholm time, like the AI day cap.
-        </p>
-        <p id="costs-rate" class="text-sm text-[var(--paper-muted)]">
-          1 USD = {format_rate(@rate.rate)} SEK (rate as of {Date.to_iso8601(@rate.as_of)}; {@rate.source})
-        </p>
-      </header>
+      <.page_header rate={@rate}>
+        All AI spend: this app's own calls and, read live from the playtest app, its playtest
+        runs and other calls. Nothing is copied between the apps.
+      </.page_header>
 
-      <.section_card title="This month" id="costs-total">
+      <.section_card title="All costs · this month" id="costs-total">
         <dl class="divide-y divide-[var(--paper-rule)] text-sm">
           <.money_row
-            label="Fixed costs (known items)"
-            micro={@report.fixed_known_micro_usd}
+            id="costs-total-production"
+            label={"#{Costs.env_label(@local["app"])}: AI"}
+            micro={@report.production_month_micro_usd}
             rate={@rate}
           />
+          <%= if @report.playtest_included do %>
+            <.money_row
+              id="costs-total-playtest-runs"
+              label={"Playtest runs: AI (game #{usd(@report.playtest_game_month_micro_usd)}, bots #{usd(@report.playtest_bots_month_micro_usd)})"}
+              micro={@report.playtest_runs_month_micro_usd}
+              rate={@rate}
+            />
+            <.money_row
+              id="costs-total-playtest-outside"
+              label="Playtest, outside runs (manual play etc.): AI"
+              micro={@report.playtest_outside_month_micro_usd}
+              rate={@rate}
+            />
+          <% else %>
+            <div id="costs-total-playtest-missing" class="flex justify-between gap-x-4 py-2">
+              <dt class="text-[var(--paper-ink)]">Playtest: AI</dt>
+              <dd class="text-[var(--paper-muted)]">{playtest_short(@playtest)}</dd>
+            </div>
+          <% end %>
           <.money_row
-            label={"AI spend so far (#{ai_scope(@report, @peer_label)})"}
-            micro={@report.ai_month_micro_usd}
-            rate={@rate}
-          />
-          <.money_row label="Total so far" micro={@report.total_so_far_micro_usd} rate={@rate} strong />
-          <.money_row
-            label="AI projected to month end"
-            micro={@report.ai_projected_micro_usd}
-            rate={@rate}
-          />
-          <.money_row
-            label="Projected month total"
-            micro={@report.total_projected_micro_usd}
+            id="costs-grand-total"
+            label={"Grand total so far (#{scope(@report)})"}
+            micro={@report.grand_month_micro_usd}
             rate={@rate}
             strong
           />
+          <.money_row
+            id="costs-grand-projected"
+            label="Projected to month end"
+            micro={@report.grand_projected_micro_usd}
+            rate={@rate}
+          />
         </dl>
         <p class="text-xs text-[var(--paper-muted)]">
-          Projection: AI spend this month / days elapsed ({@local["day_of_month"]}) * days in month ({@local[
-            "days_in_month"
-          ]}). Fixed costs are monthly list prices.
-        </p>
-        <p :if={@report.unknown != []} id="costs-unknown-note" class="text-sm text-[var(--paper-ink)]">
-          Unknown items are excluded from these totals: {Enum.join(@report.unknown, ", ")}.
+          AI calls only (xAI and TypeSafe Jev); fixed hosting costs are listed below and not in this total.
+          Projection: each app's spend this month / days elapsed * days in the month.
         </p>
         <p
-          :if={!@report.peer_included}
+          :if={!@report.playtest_included}
           id="costs-peer-excluded"
           class="text-sm text-[var(--paper-muted)]"
         >
-          {String.capitalize(@peer_label)} AI spend is not included ({peer_short(@peer)}).
+          Playtest AI spend is not included ({playtest_short(@playtest)}).
         </p>
         <.playtest_line check={@report.playtest} rate={@rate} />
       </.section_card>
@@ -214,21 +275,21 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
         </div>
       </.section_card>
 
-      <%= case @peer do %>
+      <%= case @playtest do %>
         <% {:ok, summary} -> %>
-          <.env_section
+          <.runs_section
             id="costs-env-peer"
+            title={"Playtest (#{summary["app"]})"}
             summary={summary}
             rate={@rate}
-            title={Costs.env_label(summary["app"])}
           />
         <% other -> %>
-          <.section_card title={String.capitalize(@peer_label)} id="costs-env-peer">
-            <p class="text-sm text-[var(--paper-ink)]">{peer_message(other, @peer_label)}</p>
+          <.section_card title="Playtest" id="costs-env-peer">
+            <p class="text-sm text-[var(--paper-ink)]">{playtest_message(other)}</p>
           </.section_card>
       <% end %>
 
-      <.section_card title="Fixed monthly costs" id="costs-fixed">
+      <.section_card title="Fixed monthly costs (not in the grand total)" id="costs-fixed">
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead class="text-left text-[var(--paper-muted)]">
@@ -277,6 +338,7 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
     """
   end
 
+  attr :id, :string, default: nil
   attr :label, :string, required: true
   attr :micro, :integer, required: true
   attr :rate, :map, required: true
@@ -284,10 +346,13 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
 
   defp money_row(assigns) do
     ~H"""
-    <div class={[
-      "flex flex-wrap items-baseline justify-between gap-x-4 py-2",
-      @strong && "font-semibold"
-    ]}>
+    <div
+      id={@id}
+      class={[
+        "flex flex-wrap items-baseline justify-between gap-x-4 py-2",
+        @strong && "font-semibold"
+      ]}
+    >
       <dt class="min-w-0 text-[var(--paper-ink)]">{@label}</dt>
       <dd class="ml-auto whitespace-nowrap tabular-nums text-[var(--paper-ink)]">
         {usd(@micro)} <span class="text-[var(--paper-muted)]">· {sek(@micro, @rate)}</span>
@@ -341,6 +406,167 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
     <p id="costs-playtest-unchecked" class="text-sm text-[var(--paper-muted)]">
       Playtest threshold ({usd(@check.threshold_micro_usd)}/month) not checked: no playtest AI numbers on this page.
     </p>
+    """
+  end
+
+  attr :rate, :map, required: true
+  slot :inner_block, required: true
+
+  defp page_header(assigns) do
+    ~H"""
+    <header class="space-y-1">
+      <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Costs</h2>
+      <p class="text-[var(--paper-muted)]">
+        {render_slot(@inner_block)} Days and months run on Europe/Stockholm time, like the AI day cap.
+      </p>
+      <p id="costs-rate" class="text-sm text-[var(--paper-muted)]">
+        1 USD = {format_rate(@rate.rate)} SEK (rate as of {Date.to_iso8601(@rate.as_of)}; {@rate.source})
+      </p>
+    </header>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :title, :string, required: true
+  attr :summary, :map, required: true, doc: "a TalesForge.Costs.PlaytestRuns summary"
+  attr :rate, :map, required: true
+
+  defp runs_section(assigns) do
+    ~H"""
+    <.section_card title={@title} id={@id}>
+      <div class="grid gap-4 xl:grid-cols-2">
+        <.runs_table id={"#{@id}-today"} caption="Today" window={@summary["today"]} rate={@rate} />
+        <.runs_table
+          id={"#{@id}-month"}
+          caption={"This month · runs started: #{@summary["month"]["runs"]}"}
+          window={@summary["month"]}
+          rate={@rate}
+        />
+      </div>
+      <dl class="text-sm">
+        <.money_row
+          id={"#{@id}-outside"}
+          label="Not a playtest run (manual play etc.), this month: not in the runs' total"
+          micro={@summary["month"]["outside_runs"]["cost_micro_usd"]}
+          rate={@rate}
+        />
+      </dl>
+      <p class="text-xs text-[var(--paper-muted)]">
+        A call counts for a run when it is on the run's session. Game = GM, Jev intent (TypeSafe)
+        and other game calls (scene, NPC reactions, LLM intent, ...). The persona bot and Jev
+        scoring are the playtest bots and are never added to game cost.
+        <span :if={@summary["generated_at"]}>
+          As of {stockholm_time(@summary["generated_at"])} (Stockholm).
+        </span>
+      </p>
+    </.section_card>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :caption, :string, required: true
+  attr :window, :map, required: true
+  attr :rate, :map, required: true
+
+  defp runs_table(assigns) do
+    assigns =
+      assign(assigns,
+        game: PlaytestRuns.game_lines(),
+        bots: PlaytestRuns.bot_lines(),
+        labels: @line_labels
+      )
+
+    ~H"""
+    <div class="min-w-0 overflow-x-auto">
+      <table class="w-full text-sm">
+        <caption class="play-label pb-1 text-left text-[var(--paper-muted)]">{@caption}</caption>
+        <thead class="text-left text-[var(--paper-muted)]">
+          <tr>
+            <th class="py-1 pr-2 font-medium">Line</th>
+            <th class="py-1 pr-2 text-right font-medium">Calls</th>
+            <th class="py-1 pr-2 text-right font-medium">USD</th>
+            <th class="py-1 pr-2 text-right font-medium">SEK</th>
+            <th class="py-1 text-right font-medium" title="capped / errors">Cap/err</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-[var(--paper-rule)]">
+          <.runs_row
+            :for={name <- @game}
+            id={"#{@id}-#{name}"}
+            label={@labels[name]}
+            counts={@window["lines"][name]}
+            rate={@rate}
+          />
+          <.subtotal_row
+            id={"#{@id}-game"}
+            label="Game"
+            micro={@window["game_micro_usd"]}
+            rate={@rate}
+          />
+          <.runs_row
+            :for={name <- @bots}
+            id={"#{@id}-#{name}"}
+            label={@labels[name]}
+            counts={@window["lines"][name]}
+            rate={@rate}
+          />
+          <.subtotal_row
+            id={"#{@id}-bots"}
+            label="Bots"
+            micro={@window["bots_micro_usd"]}
+            rate={@rate}
+          />
+        </tbody>
+        <tfoot>
+          <.subtotal_row
+            id={"#{@id}-total"}
+            label="Runs total"
+            micro={@window["runs_total_micro_usd"]}
+            rate={@rate}
+          />
+        </tfoot>
+      </table>
+    </div>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :label, :string, required: true
+  attr :counts, :map, required: true
+  attr :rate, :map, required: true
+
+  defp runs_row(assigns) do
+    ~H"""
+    <tr id={@id}>
+      <td class="py-1 pr-2">{@label}</td>
+      <td class="py-1 pr-2 text-right tabular-nums">{@counts["calls"]}</td>
+      <td class="whitespace-nowrap py-1 pr-2 text-right tabular-nums">
+        {usd(@counts["cost_micro_usd"])}
+      </td>
+      <td class="whitespace-nowrap py-1 pr-2 text-right tabular-nums">
+        {sek(@counts["cost_micro_usd"], @rate)}
+      </td>
+      <td class="whitespace-nowrap py-1 text-right tabular-nums">
+        {@counts["capped"]} / {@counts["errors"]}
+      </td>
+    </tr>
+    """
+  end
+
+  attr :id, :string, required: true
+  attr :label, :string, required: true
+  attr :micro, :integer, required: true
+  attr :rate, :map, required: true
+
+  defp subtotal_row(assigns) do
+    ~H"""
+    <tr id={@id} class="border-t border-[var(--paper-rule)] font-semibold">
+      <td class="py-1 pr-2">{@label}</td>
+      <td class="py-1 pr-2"></td>
+      <td class="whitespace-nowrap py-1 pr-2 text-right tabular-nums">{usd(@micro)}</td>
+      <td class="whitespace-nowrap py-1 pr-2 text-right tabular-nums">{sek(@micro, @rate)}</td>
+      <td class="py-1"></td>
+    </tr>
     """
   end
 
@@ -487,27 +713,32 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
 
   defp avg_line(_month, _rate), do: "— (no game sessions yet)"
 
-  defp ai_scope(%{peer_included: true}, _peer_label), do: "both environments"
-  defp ai_scope(_report, _peer_label), do: "this app only"
+  defp scope(%{playtest_included: true}), do: "production and playtest"
+  defp scope(_report), do: "production only"
 
-  defp peer_short(:loading), do: "loading"
-  defp peer_short({:error, :not_configured}), do: "not configured"
-  defp peer_short(_error), do: "unavailable"
+  defp playtest_short(:loading), do: "loading"
+  defp playtest_short({:error, :not_configured}), do: "not configured"
+  defp playtest_short(_error), do: "playtest unavailable"
 
-  defp peer_message(:loading, label), do: "Loading #{label} numbers…"
+  defp playtest_message(:loading), do: "Loading playtest numbers…"
 
-  defp peer_message({:error, :not_configured}, label) do
-    "#{String.capitalize(label)}: not configured. Set COSTS_PEER_URL and COSTS_PEER_TOKEN on this app " <>
-      "and the same COSTS_PEER_TOKEN on #{label}."
+  defp playtest_message({:error, :not_configured}) do
+    "Playtest: not configured. Set the Fly secret COSTS_PEER_TOKEN to the same value " <>
+      "on both apps (tales-forge and tales-forge-playtest)."
   end
 
-  defp peer_message({:error, reason}, label),
-    do: "#{String.capitalize(label)} unavailable: #{reason_text(reason)}."
+  defp playtest_message({:error, reason}),
+    do: "Playtest unavailable: #{reason_text(reason)}. Production's numbers above are complete."
 
-  defp reason_text(:unreachable), do: "no answer within 3 s, or the connection failed"
-  defp reason_text(:bad_response), do: "unexpected response"
+  defp reason_text(:unreachable),
+    do: "no answer within #{div(Peer.timeout_ms(), 1000)} s, or the connection failed"
+
+  defp reason_text(:bad_response), do: "unexpected response (is playtest on the same version?)"
   defp reason_text({:http_status, 401}), do: "HTTP 401, token rejected"
-  defp reason_text({:http_status, 404}), do: "HTTP 404, endpoint off there (no COSTS_PEER_TOKEN)"
+
+  defp reason_text({:http_status, 404}),
+    do: "HTTP 404, endpoint off there (no COSTS_PEER_TOKEN on playtest)"
+
   defp reason_text({:http_status, status}), do: "HTTP #{status}"
   defp reason_text(_reason), do: "error"
 

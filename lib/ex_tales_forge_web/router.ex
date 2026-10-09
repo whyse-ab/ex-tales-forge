@@ -130,9 +130,10 @@ defmodule TalesForgeWeb.Router do
     get "/surveys/:id/results.md", SurveyExportController, :markdown
   end
 
-  # Machine-to-machine: the peer app's costs page reads this app's aggregated AI
-  # spend. Off (404) unless COSTS_PEER_TOKEN is set, and then needs it as a
-  # bearer token; see CostsPeerController. Never calls an LLM.
+  # Machine-to-machine: production's costs page reads playtest's aggregated
+  # playtest-run AI spend. Answers on the playtest app only, and only while
+  # COSTS_PEER_TOKEN is set (404 otherwise); needs it as a bearer token (401);
+  # see CostsPeerController. Never calls an LLM.
   scope "/internal", TalesForgeWeb do
     pipe_through :api
 
