@@ -171,12 +171,14 @@
       "source": "tales-forge-docs decisions/d-001..d-012 front matter 'status'"
     },
     "future_ideas": {
-      "count": 2,
+      "count": 3,
       "items": [
         "Speculative intent while typing",
-        "Memory consolidation and attitude drift"
+        "Memory consolidation and attitude drift",
+        "Founder kanban on /team"
       ],
-      "source": "docs/future-ideas.md '## ' headings"
+      "source": "docs/future-ideas.md '## ' headings",
+      "as_of": "2026-10-09"
     }
   },
   "call_types": {
@@ -950,5 +952,58 @@
     "docs/environments.md still describes prod-first deploys; update it to the playtest-first order decided 2026-10-09",
     "Fresh full batch 2026-10-09 (full-2026-10-09): running, no analysis yet",
     "PR and commit counts (pace) are as of ~11:00 CEST and have not been recounted since"
-  ]
+  ],
+  "shared_board": {
+    "as_of": "2026-10-09",
+    "status": "coming soon, not built",
+    "source": "Fredrik's idea 2026-10-09; docs/future-ideas.md 'Founder kanban on /team'; builds on Collab decision queue (ex-tales-forge lib/ex_tales_forge/collab.ex, /admin/decisions)",
+    "columns": [
+      {
+        "id": "ideas",
+        "label": "Ideas",
+        "owner": "any founder",
+        "on_enter": null
+      },
+      {
+        "id": "refining",
+        "label": "Refining (Case)",
+        "owner": "case",
+        "on_enter": "ping Case: add details, questions, rough cost"
+      },
+      {
+        "id": "founder_check",
+        "label": "Founder check",
+        "owner": "founders",
+        "on_enter": "notify founders to review and comment"
+      },
+      {
+        "id": "building",
+        "label": "Building (Bobby)",
+        "owner": "bobby",
+        "on_enter": "founder OK recorded; decisions.md entry written; ping Bobby",
+        "approval": true
+      },
+      {
+        "id": "done",
+        "label": "Done",
+        "owner": "crew",
+        "on_enter": null
+      }
+    ],
+    "card_fields": [
+      "title",
+      "description",
+      "details",
+      "open questions",
+      "rough cost",
+      "comments",
+      "PR link",
+      "playtest link",
+      "decision link"
+    ],
+    "sample_card": {
+      "title": "Brenna remembers regulars",
+      "note": "Illustrative card for the animation only"
+    }
+  }
 }

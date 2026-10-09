@@ -1,6 +1,7 @@
 defmodule TalesForgeWeb.TeamArt do
   @moduledoc """
-  Hand-drawn inline SVG illustrations for the founders' page (`/team`): the
+  Hand-drawn inline SVG illustrations for the founders' pages (`/team` and
+  `/team/presentation`): the
   crew avatars, the persona tokens, the founders' wax seal and the d20 token of
   the change-flow animation, plus the painted illustrations.
 
