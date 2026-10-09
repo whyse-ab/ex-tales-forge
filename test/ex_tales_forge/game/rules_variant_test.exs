@@ -16,10 +16,10 @@ defmodule TalesForge.Game.RulesVariantTest do
       baseline = Prompts.load_rules(unquote(adventure), "baseline")
 
       assert default =~ "you learn only from failure, only in the skill you failed"
-      assert default =~ "Banked LP are spent on a long rest"
+      assert default =~ "Banked LP are resolved on a long rest"
       refute default =~ "Master 16+: 15"
       assert baseline =~ "Master 16+: 15"
-      refute baseline =~ "Banked LP are spent on a long rest"
+      refute baseline =~ "Banked LP are resolved on a long rest"
     end
   end
 

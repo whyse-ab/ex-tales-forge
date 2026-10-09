@@ -10,11 +10,14 @@ defmodule TalesForge.Game.RestGrowthTest do
   import TalesForge.PlaytestHelpers, only: [stub_llm: 1]
 
   alias TalesForge.Game.Context
+  alias TalesForge.Game.Mechanics
+  alias TalesForge.Game.Reflection
   alias TalesForge.GameSessions
   alias TalesForge.Jido
   alias TalesForge.Schemas.GameSession
 
   doctest Context, only: [rest_growth_section: 1]
+  doctest Reflection
 
   @heading "## Rest: what sank in"
 
@@ -49,7 +52,7 @@ defmodule TalesForge.Game.RestGrowthTest do
 
   # Twenty banked chances on an untrained skill: each attempt is a coin flip,
   # so at least one improves (all twenty failing is about 1 in a million).
-  defp play(variant, text) do
+  defp play(variant, text, level \\ 0) do
     {:ok, session} =
       GameSessions.create_session(%{adventure_id: "tin_valley", variant: variant})
 
@@ -59,7 +62,7 @@ defmodule TalesForge.Game.RestGrowthTest do
     world =
       Map.update!(session.world_state, "character", fn character ->
         character
-        |> Map.update("skills", %{"stealth" => 0}, &Map.put(&1, "stealth", 0))
+        |> Map.update("skills", %{"stealth" => level}, &Map.put(&1, "stealth", level))
         |> Map.put("learning_points", %{"stealth" => 20.0})
         |> Map.put("learning_failures", %{"stealth" => 20})
       end)
@@ -87,6 +90,26 @@ defmodule TalesForge.Game.RestGrowthTest do
 
     refute user =~ @heading
     assert get_in(session.world_state, ["character", "learning_points", "stealth"]) == 20.0
+  end
+
+  test "default: from level 10 an unreflected skill keeps its LP and the GM hears why" do
+    {user, session} = play("default", "I go to sleep", 10)
+
+    assert user =~ "Their stealth has outgrown simple practice; they need to reflect on it"
+    refute user =~ "They wake a little surer"
+    assert get_in(session.world_state, ["character", "learning_points", "stealth"]) == 20.0
+  end
+
+  test "default: reflecting on the skill at the rest lets it grow" do
+    {user, session} =
+      play("default", "I go to sleep after going over my sneaking past the guards", 10)
+
+    refute user =~ "outgrown simple practice"
+    assert get_in(session.world_state, ["character", "learning_points", "stealth"]) == 0.0
+  end
+
+  test "the reflection words cover every skill the game rolls" do
+    assert Reflection.covered_skills() == Mechanics.skill_stat_map() |> Map.keys() |> Enum.sort()
   end
 
   test "baseline: the prompt never gets the note" do

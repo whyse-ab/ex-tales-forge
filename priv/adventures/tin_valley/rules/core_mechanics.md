@@ -18,9 +18,11 @@ This is a skill-based fantasy RPG system where character progress is measured by
   - Success (natural 1 included): no LP.
   - The linked stat adds no LP: talent helps you succeed, not learn faster.
 - **Skill Improvement** — it sinks in while you sleep:
-  - Banked LP are spent on a long rest (sleep, or six hours or more of rest), one attempt per LP. Ordinary turns spend nothing.
-  - Roll 1d20 ≥ 11 and ≥ raw skill: skill +1. Chance (21 - max(skill, 11))/20: 50% up to 11, 45% at 12, 25% at 16, 5% at 20. No attempt is a sure thing, not even at level 0.
-  - Each attempt costs 1 LP, hit or miss. No tier modifiers.
+  - Banked LP are resolved on a long rest (sleep, or six hours or more of rest). Ordinary turns resolve nothing.
+  - Higher levels need more failures: one improvement roll costs ceil(skill / 3) banked LP (1 LP up to 3, 2 up to 6, 3 up to 9, 4 up to 12, 5 up to 15).
+  - Roll 1d20 ≥ 11 and ≥ raw skill: skill +1. Chance (21 - max(skill, 11))/20: 50% up to 11, 45% at 12, 25% at 16, 5% at 20. No roll is a sure thing, not even at level 0.
+  - At most +1 per skill per night: the rolls stop at the first success. Then all of that skill's banked LP are gone, and they are gone too if every roll failed or there were too few for a roll. Nothing carries over to the next night.
+  - From skill 10, practice alone is not enough: the LP are only resolved on a rest when the character reflected on the skill, practised or studied it deliberately, or trained it with a trainer since the last long rest. Until then they stay banked.
   - No skill cap, but past 20 only a trainer's bonus can reach the target.
 - **Death Exception**: No LP from fatal failures, and the dead learn nothing.
 - **Skill List Categories** (Examples):
