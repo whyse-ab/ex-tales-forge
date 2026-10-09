@@ -4,10 +4,17 @@
 # production").
 #
 # Runs automatically after a successful CI run (Test and Dialyzer) for a push to
-# main and deploys exactly the commit CI tested. It can also be started by hand
-# from the Actions tab or with
-#   gh workflow run playtest.yml -f sha=<commit on main>
-# (no sha = the tip of main).
+# main and deploys exactly the commit CI tested, but only if that commit is still
+# the tip of main. CI runs can finish out of order when several PRs merge close
+# together; without this check an older commit could be deployed on top of a
+# newer one (2026-10-09: e69790e (#93) went out after b873ad1 (#94)). A commit
+# that is no longer the tip is skipped with a notice (the run still succeeds);
+# the newer commit gets its own deploy when its CI passes.
+#
+# It can also be started by hand from the Actions tab or with
+#   gh workflow run playtest.yml                                   # tip of main
+#   gh workflow run playtest.yml -f sha=<sha>                      # must be main's tip
+#   gh workflow run playtest.yml -f sha=<older sha> -f force=true  # roll back on purpose
 #
 # Production is NOT deployed from here or from CI: once Gentry and the playtest
 # batch have checked the build on playtest and Fredrik has OK'd it, the separate
@@ -27,6 +34,11 @@ on:
         required: false
         type: string
         default: ""
+      force:
+        description: "Deploy the sha even if it is not the tip of main (deliberate rollback)"
+        required: false
+        type: boolean
+        default: false
   workflow_run:
     workflows: [CI]
     types: [completed]
@@ -45,7 +57,9 @@ jobs:
        github.event.workflow_run.event == 'push')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    # One playtest deploy at a time; a running deploy is never cancelled.
+    # One playtest deploy at a time; a running deploy is never cancelled
+    # (cancelling mid-migration is riskier than letting it finish). The tip
+    # check below already keeps an older build from landing after a newer one.
     concurrency:
       group: deploy-playtest
       cancel-in-progress: false
@@ -55,11 +69,45 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || inputs.sha || 'main' }}
 
+      # Deploy only the current tip of main, checked right before deploying
+      # (inside the concurrency group, so the answer is current). By hand,
+      # force=true deploys an older sha anyway.
+      - name: Still the tip of main?
+        id: tip
+        env:
+          FORCE: ${{ github.event_name == 'workflow_dispatch' && inputs.force }}
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse HEAD)"
+          git fetch --no-tags --depth=1 origin main
+          main_sha="$(git rev-parse FETCH_HEAD)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          if [ "$sha" = "$main_sha" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            echo "$sha is the tip of main; deploying."
+          elif [ "$FORCE" = "true" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::force=true: deploying $sha although the tip of main is $main_sha."
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            msg="Skipped: $sha is not the tip of main (main is at $main_sha); playtest is not moved backwards."
+            echo "::notice title=Playtest deploy skipped::$msg To deploy it anyway, run by hand with -f sha=$sha -f force=true."
+            {
+              echo "$msg"
+              echo
+              echo "The tip of main is deployed by its own run once its CI passes. To deploy this commit anyway:"
+              echo
+              echo "    gh workflow run playtest.yml -f sha=$sha -f force=true"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - uses: superfly/flyctl-actions/setup-flyctl@1.5
+        if: steps.tip.outputs.deploy == 'true'
 
       # --depot=false: Fly's classic remote builder (Depot builds hung at
       # "Waiting for depot builder" for this org); same as deploy-production.yml.
       - name: flyctl deploy
+        if: steps.tip.outputs.deploy == 'true'
         run: |
           if [ -z "$FLY_API_TOKEN" ]; then
             echo "::error::Repo secret FLY_API_TOKEN_PLAYTEST is not set (app-scoped deploy token for tales-forge-playtest)."
@@ -73,6 +121,7 @@ jobs:
           FLY_USE_DEPOT: ${{ vars.FLY_USE_DEPOT }}
 
       - name: Summary
+        if: steps.tip.outputs.deploy == 'true'
         run: |
           sha="$(git rev-parse HEAD)"
           {
