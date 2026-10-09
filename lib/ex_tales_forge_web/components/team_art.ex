@@ -345,8 +345,9 @@ defmodule TalesForgeWeb.TeamArt do
       width: 1280,
       height: 720,
       alt:
-        "The founders and the three bots, Case, Bobby and Gentry the owl, around one round tavern table, " <>
-          "leaning over a painted map of Tin Valley, with two empty chairs left open"
+        "The four founders, Fredrik, Thobias, Håkan and Jeanette, as stylised Nordic adventurers " <>
+          "with the three bots, Case, Bobby and Gentry the owl, around one round tavern table, " <>
+          "leaning over a painted map of Tin Valley, with empty chairs left open"
     },
     "case" => %{
       widths: [320, 640, 960],
