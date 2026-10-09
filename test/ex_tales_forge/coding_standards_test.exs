@@ -25,6 +25,7 @@ defmodule TalesForge.CodingStandardsTest do
     TalesForge.Game.Progression,
     TalesForge.Game.Progression.Tiered,
     TalesForge.Game.Train,
+    TalesForge.Game.PremiseCheck,
     TalesForge.World,
     TalesForge.World.Agent,
     TalesForge.World.Extract,

@@ -178,6 +178,7 @@ defmodule TalesForge.AICallsTest do
 
     assert steps == [
              {"turn.rules", 1, "ok", 0, "crossroads_ledger"},
+             {"turn.premise_check", 1, "ok", 0, "crossroads_ledger"},
              {"turn.prompt", 1, "ok", 0, "crossroads_ledger"},
              {"turn.gm", 1, "ok", 0, "crossroads_ledger"},
              {"turn.persist", 1, "ok", 0, "crossroads_ledger"}
@@ -200,7 +201,12 @@ defmodule TalesForge.AICallsTest do
           select: {c.purpose, c.status}
       )
 
-    assert steps == [{"turn.rules", "ok"}, {"turn.prompt", "ok"}, {"turn.gm", "error"}]
+    assert steps == [
+             {"turn.rules", "ok"},
+             {"turn.premise_check", "ok"},
+             {"turn.prompt", "ok"},
+             {"turn.gm", "error"}
+           ]
   end
 
   test "a failed ai_call insert does not break the turn" do

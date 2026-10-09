@@ -4,7 +4,9 @@ defmodule TalesForge.Game.TurnProcessor do
 
   PlayerAction → handler → server mechanics → inventory → clock+move →
   events → WorldSim → Perception → vitality → LP spent on improvement attempts
-  (`TalesForge.Game.Progression`) → table GM (tone only) → allow-listed
+  (`TalesForge.Game.Progression`) → premise check (default variant: the
+  player's claims about items, coins, purchases and kills checked against the
+  session, `TalesForge.Game.PremiseCheck`) → table GM (tone only) → allow-listed
   patches → Multi → NPC updates → characters mirror → sync/signals → turn_completed.
 
   Core runtime is 100% Ecto.
@@ -23,6 +25,7 @@ defmodule TalesForge.Game.TurnProcessor do
   alias TalesForge.Game.Mechanics
   alias TalesForge.Game.NpcReactions
   alias TalesForge.Game.Perception
+  alias TalesForge.Game.PremiseCheck
   alias TalesForge.Game.Progression
   alias TalesForge.Game.Progression.Tiered
   alias TalesForge.Game.Prompts
@@ -103,6 +106,7 @@ defmodule TalesForge.Game.TurnProcessor do
     agents = world_agents(session, ruled)
     {price_lines, priced} = world_prices(agents, session, ruled, raw_action, player_action)
     {reactions, board} = npc_reactions(session, priced, turn_number, raw_action, mechanical)
+    premises = premise_findings(session, board, raw_action, turn_number)
 
     {gm_context, messages} =
       Steps.time(:prompt, fn ->
@@ -113,6 +117,7 @@ defmodule TalesForge.Game.TurnProcessor do
           |> Map.put(:world_facts, agents)
           |> Map.put(:price_lines, price_lines)
           |> Map.put(:moved_from, moved_from(session.world_state, board.world))
+          |> Map.put(:premise_findings, premises)
           |> put_player_request(gm_opts[:gm_note])
 
         {gm_context,
@@ -144,7 +149,7 @@ defmodule TalesForge.Game.TurnProcessor do
           handler: handler,
           mechanical: mechanical,
           gm_result: gm_result,
-          events: board.events,
+          events: board.events ++ premise_events(premises, board.world),
           sim: board.sim
         })
       end)
@@ -172,6 +177,55 @@ defmodule TalesForge.Game.TurnProcessor do
   defp moved_from(before, after_board) do
     from = Map.get(before || %{}, "location_id")
     if from != Map.get(after_board, "location_id"), do: from
+  end
+
+  # Default variant: the claims in the player's words that the session state
+  # contradicts (TalesForge.Game.PremiseCheck). They go to the per-turn GM
+  # prompt and are recorded on the turn as a `player.false_premise` event. The
+  # baseline variant never runs the check, so its prompts stay as they were.
+  defp premise_findings(session, board, raw_action, turn_number) do
+    if Variant.baseline?(session.world_state || %{}) do
+      []
+    else
+      Steps.time(:premise_check, fn ->
+        state =
+          PremiseCheck.state(
+            session.world_state,
+            board.world,
+            Map.get(board.sim, :fronts, []),
+            combat_wins(session.id)
+          )
+
+        raw_action
+        |> PremiseCheck.check(state)
+        |> tap(&log_premises(&1, session.id, turn_number))
+      end)
+    end
+  end
+
+  defp log_premises([], _session_id, _turn_number), do: :ok
+
+  defp log_premises(findings, session_id, turn_number) do
+    Logger.info(
+      "premise check session=#{session_id} turn=#{turn_number} " <>
+        "false_claims=#{inspect(Enum.map(findings, & &1.claim))}"
+    )
+  end
+
+  defp premise_events(findings, world) do
+    findings
+    |> PremiseCheck.event(world["world_tick"], world["location_id"])
+    |> List.wrap()
+  end
+
+  defp combat_wins(session_id) do
+    import Ecto.Query
+
+    Turn
+    |> where([t], t.game_session_id == ^session_id)
+    |> select([t], t.mechanical_resolution)
+    |> Repo.all()
+    |> Enum.count(&PremiseCheck.combat_win?/1)
   end
 
   defp world_agents(session, board) do

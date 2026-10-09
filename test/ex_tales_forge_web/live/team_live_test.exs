@@ -3,6 +3,8 @@ defmodule TalesForgeWeb.TeamLiveTest do
 
   import Phoenix.LiveViewTest
 
+  doctest TalesForgeWeb.TeamArt
+
   alias TalesForge.TeamPage
   alias TalesForgeWeb.TeamLive
 
@@ -179,13 +181,86 @@ defmodule TalesForgeWeb.TeamLiveTest do
       # Animations only apply under data-motion="full", which the hook sets only
       # when reduced motion is off.
       rules = ~r/^[^\n{]*\{[^}]*animation: team-[^}]*\}/m |> Regex.scan(css) |> List.flatten()
-      assert length(rules) >= 4
+      # The seal stamp and the two growing bars (the hero's candle flicker went
+      # with the SVG hero).
+      assert length(rules) >= 3
 
       for rule <- rules, do: assert(rule =~ ~s([data-motion="full"]), rule)
 
       js = File.read!("assets/js/team_hooks.js")
       assert js =~ ~s{matchMedia("(prefers-reduced-motion: reduce)")}
       assert js =~ ~s{this.el.dataset.motion = reduce ? "reduce" : "full"}
+    end
+  end
+
+  describe "illustrations" do
+    setup %{conn: conn}, do: {:ok, conn: log_in_admin(conn)}
+
+    test "the hero is the painted round table: WebP and JPEG, sized, loaded first", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/team")
+
+      assert has_element?(
+               view,
+               ~s(#hero picture source[type="image/webp"][srcset*="/images/team/hero-1280.webp 1280w"])
+             )
+
+      assert has_element?(
+               view,
+               ~s(#hero-art[src="/images/team/hero-960.jpg"][width="1280"][height="720"][loading="eager"][fetchpriority="high"])
+             )
+
+      assert has_element?(view, ~s(#hero-art[alt*="round tavern table"]))
+      refute has_element?(view, "#hero svg.team-hero-art")
+    end
+
+    test "the bots' cards show their portraits, lazily; the founders keep their avatar",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/team")
+
+      for bot <- ~w(case bobby gentry) do
+        assert has_element?(
+                 view,
+                 ~s(#member-#{bot} img#portrait-#{bot}[loading="lazy"][width="960"][height="720"][srcset*="#{bot}-320.jpg 320w"])
+               )
+
+        assert has_element?(
+                 view,
+                 ~s(#member-#{bot} source[type="image/webp"][srcset*="#{bot}-960.webp 960w"])
+               )
+
+        refute has_element?(view, "#member-#{bot} svg.team-avatar")
+      end
+
+      assert has_element?(view, ~s(#portrait-gentry[alt*="owl"]))
+      refute has_element?(view, "#member-founders img")
+      assert has_element?(view, "#member-founders svg.team-avatar")
+    end
+
+    test "the founder's OK steps of the flow stamp the painted seal", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/team")
+
+      seal =
+        ~s([data-approval="true"] img.team-seal[src="/images/team/founders-seal-192.jpg"][srcset*="founders-seal-96.jpg 96w"])
+
+      assert has_element?(view, ~s(#flow-step-ok_merge#{seal}[loading="lazy"][width="192"]))
+      assert has_element?(view, "#flow-step-ok_prod#{seal}")
+      refute has_element?(view, "#team-flow [data-approval] svg.team-seal")
+    end
+
+    test "every file in a srcset is committed, in both formats" do
+      html = render_with(TalesForge.TeamPage.data())
+      files = ~r{/images/team/[a-z-]+-\d+\.(?:webp|jpg)} |> Regex.scan(html) |> List.flatten()
+
+      for name <- TalesForgeWeb.TeamArt.pictures(),
+          do: assert(Enum.any?(files, &String.contains?(&1, "/#{name}-")), name)
+
+      for file <- Enum.uniq(files) do
+        assert File.exists?(Path.join("priv/static", file)), file
+      end
+
+      for file <- Path.wildcard("priv/static/images/team/*.jpg") do
+        assert File.exists?(String.replace_suffix(file, ".jpg", ".webp")), file
+      end
     end
   end
 

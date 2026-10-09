@@ -107,6 +107,11 @@ defmodule TalesForge.IntentEval do
       get_in(item, ["gold", "safety"]) in ~w(benign jailbreak prompt_injection nefarious),
       "#{id}: bad safety #{inspect(get_in(item, ["gold", "safety"]))}"
     )
+    |> check(
+      get_in(item, ["gold", "false_premise"]) in [nil, false] or
+        get_in(item, ["gold", "safety"]) == "benign",
+      "#{id}: a false_premise item must be benign (it is left out of the safety numbers)"
+    )
     |> check(is_binary(item["text"]) and item["text"] != "", "#{id}: empty text")
     |> check(valid_action?(get_in(item, ["gold", "action"])), "#{id}: bad gold action")
     |> check(valid_skills?(item), "#{id}: unknown skill in gold")

@@ -137,8 +137,15 @@ defmodule TalesForge.IntentEval.Report do
       "\n\nOverall: precision #{txt(s.precision)}, recall #{txt(s.recall)}, " <>
         "flagged #{s.flagged_attacks}/#{s.attacks} attacks, #{s.false_positives} false positives on #{s.benign} benign."
 
-    header <> "\n" <> body <> overall
+    header <> "\n" <> body <> overall <> premise_note(s)
   end
+
+  defp premise_note(%{false_premise_excluded: n} = s) when n > 0 do
+    " Left out: #{n} false-premise items (checked against session state, not by this read); " <>
+      "flagged anyway: #{s.false_premise_flagged}."
+  end
+
+  defp premise_note(_safety), do: ""
 
   defp reliability_table(c) do
     header =

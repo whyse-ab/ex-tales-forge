@@ -21,6 +21,7 @@ defmodule TalesForge.Game.Context do
   alias TalesForge.Game.Mechanics
   alias TalesForge.Game.Movement
   alias TalesForge.Game.Perception
+  alias TalesForge.Game.PremiseCheck
   alias TalesForge.Game.Schemas.MechanicalResolution
   alias TalesForge.Game.Variant
   alias TalesForge.Game.World
@@ -218,9 +219,23 @@ defmodule TalesForge.Game.Context do
       TalesForge.Game.NpcReactions.prompt_section(Map.get(context, :npc_reactions)),
       Gestures.prompt_section(Map.get(context, :recent_gestures)),
       scene_now_section(context),
+      premise_section(context),
       player_request_section(context)
     ]
     |> join_sections()
+  end
+
+  @doc """
+  Default variant: the claims in the player's words that the session state
+  contradicts (`context[:premise_findings]`, set by the turn from
+  `TalesForge.Game.PremiseCheck`), with a short correction each. nil when
+  there are none, and always nil for the baseline variant.
+  """
+  @spec premise_section(map()) :: String.t() | nil
+  def premise_section(context) do
+    if Variant.baseline?(context.world_state || %{}),
+      do: nil,
+      else: PremiseCheck.prompt_section(Map.get(context, :premise_findings))
   end
 
   @doc """
