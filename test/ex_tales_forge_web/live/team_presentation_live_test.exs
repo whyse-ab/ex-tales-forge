@@ -7,6 +7,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
   doctest TalesForgeWeb.TeamCallTypes
   doctest TalesForgeWeb.TeamPresentationLive
   doctest TalesForgeWeb.TeamBoard
+  doctest TalesForgeWeb.TeamPeek
 
   alias TalesForge.PrFeed
   alias TalesForge.TeamPage
@@ -50,6 +51,116 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
                view |> element("#team-nav-overview") |> render_click() |> follow_redirect(conn)
 
       assert landing_html =~ "The full presentation"
+    end
+  end
+
+  describe "peeks: hover cards on the call-type pills" do
+    setup %{conn: conn} do
+      {:ok, view, html} = live(log_in_admin(conn), ~p"/team/presentation")
+      {:ok, view: view, doc: LazyHTML.from_document(html)}
+    end
+
+    test "each pill has an accessible button and a closed card", %{view: view, doc: doc} do
+      for kind <- ~w(elixir jev llm) do
+        assert has_element?(view, "#pill-#{kind} #peek-#{kind}[data-peek]")
+
+        button = LazyHTML.query(doc, "#peek-#{kind}-button")
+        assert LazyHTML.attribute(button, "type") == ["button"]
+        assert LazyHTML.attribute(button, "aria-expanded") == ["false"]
+        assert LazyHTML.attribute(button, "aria-controls") == ["peek-#{kind}-card"]
+        assert LazyHTML.attribute(button, "aria-describedby") == ["peek-#{kind}-gist"]
+        assert has_element?(view, "#peek-#{kind}-card #peek-#{kind}-gist")
+        assert has_element?(view, "#peek-#{kind}-card[aria-labelledby='peek-#{kind}-title']")
+
+        # Closed until the hook opens it; the fade only with motion allowed.
+        [class] = doc |> LazyHTML.query("#peek-#{kind}-card") |> LazyHTML.attribute("class")
+        assert class =~ "invisible"
+        assert class =~ "group-data-[open]/peek:visible"
+        assert class =~ "max-w-[calc(100vw-2rem)]"
+        refute class =~ ~r/(^|\s)transition/
+        assert class =~ "motion-safe:transition"
+      end
+    end
+
+    test "Elixir: a short, highlighted roll-under check", %{view: view, doc: doc} do
+      code = doc |> LazyHTML.query("#peek-elixir-code") |> LazyHTML.text()
+      lines = String.split(code, "\n", trim: true)
+      assert length(lines) in 8..12
+      assert Enum.all?(lines, &(String.length(&1) <= 40)), "fits a 390 px phone"
+
+      for part <- ["@spec roll", "effective_level(char, skill)", ":rand.uniform(20)"] do
+        assert code =~ part
+      end
+
+      for outcome <- ~w(:success :partial_success :failure), do: assert(code =~ outcome)
+      assert has_element?(view, "#peek-elixir-code span", "@spec")
+      assert has_element?(view, "#peek-elixir-code span", ":partial_success")
+      assert has_element?(view, "#peek-elixir-card", "Game.Mechanics")
+    end
+
+    test "Jev: the player's words and context in, the typed intent out", %{view: view, doc: doc} do
+      assert has_element?(
+               view,
+               "#peek-jev-words",
+               @data["call_types"]["walkthrough"]["player_text"]
+             )
+
+      assert has_element?(view, "#peek-jev-card", "valley_inn")
+      assert has_element?(view, "#peek-jev-card", "Brenna")
+
+      json = doc |> LazyHTML.query("#peek-jev-output") |> LazyHTML.text() |> Jason.decode!()
+
+      assert json == %{
+               "action" => "speak",
+               "target" => "brenna",
+               "skill" => "persuasion",
+               "timing" => "now",
+               "confidence" => 0.92,
+               "safety" => "benign"
+             }
+    end
+
+    test "GM: the typed result in, prose out", %{view: view, doc: doc} do
+      json = doc |> LazyHTML.query("#peek-llm-input") |> LazyHTML.text() |> Jason.decode!()
+      elixir = Enum.find(@data["call_types"]["walkthrough"]["steps"], &(&1["lane"] == "elixir"))
+      assert json["outcome"] == elixir["detail"]["outcome"]
+      assert json["roll"] == elixir["detail"]["die"]
+      assert {json["skill"], json["target"]} == {"persuasion", "brenna"}
+      assert has_element?(view, "#peek-llm-prose", "Brenna laughs")
+    end
+
+    test "every replay button is always shown, labelled and reachable by keyboard", %{doc: doc} do
+      buttons =
+        LazyHTML.query(doc, "[data-flow-replay], [data-lanes-replay], [data-board-replay]")
+
+      assert Enum.count(buttons) == 3
+
+      for button <- buttons do
+        [label] = LazyHTML.attribute(button, "aria-label")
+        assert label =~ ~r/^Replay the animation of /
+        assert LazyHTML.attribute(button, "type") == ["button"]
+        [class] = LazyHTML.attribute(button, "class")
+        # app.css hides `.team-replay` until motion is on (and with reduced
+        # motion); these buttons don't carry it, so they always show.
+        refute class =~ ~r/(^|\s)team-replay(\s|$)/
+        refute class =~ ~r/(^|\s)(hidden|invisible|sr-only|opacity-0)(\s|$)/
+        assert LazyHTML.attribute(button, "tabindex") in [[], ["0"]]
+      end
+    end
+
+    test "the hook handles hover, focus, tap and Esc" do
+      js = File.read!("assets/js/team_hooks.js")
+
+      for part <-
+            ~w(setupPeeks pointerover focusin focusout Escape aria-expanded data-peek-trigger) do
+        assert js =~ part
+      end
+    end
+
+    test "without call-type data the cards still render, nothing crashes" do
+      html = render_with(Map.delete(@data, "call_types"))
+      assert html =~ ~s(id="peek-jev-output")
+      assert html =~ "not measured yet"
     end
   end
 
@@ -411,7 +522,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       elixir = walkthrough_detail(@data, "elixir")
 
       assert has_element?(view, ~s(#team-lanes[phx-hook="TeamLanes"][data-lanes="static"]))
-      assert has_element?(view, "#team-lanes [data-lanes-replay].team-replay")
+      assert has_element?(view, "#team-lanes [data-lanes-replay].team-replay-btn")
 
       for svg <- ~w(team-lanes-wide team-lanes-tall) do
         lanes =
@@ -795,7 +906,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       {:ok, view, _html} = live(conn, ~p"/team/presentation")
 
       assert has_element?(view, ~s(#team-board[phx-hook="TeamBoard"][data-board="static"]))
-      assert has_element?(view, "#team-board [data-board-replay].team-replay")
+      assert has_element?(view, "#team-board [data-board-replay].team-replay-btn")
       refute has_element?(view, "#team-board [data-shown]")
       refute has_element?(view, "#team-board [data-gone]")
       refute has_element?(view, "#team-board [draggable]")

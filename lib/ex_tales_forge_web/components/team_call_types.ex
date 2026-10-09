@@ -8,7 +8,9 @@ defmodule TalesForgeWeb.TeamCallTypes do
   room) through the three call types: Jev reads the player's words into a
   typed intent, Elixir applies the rules, and the GM (an LLM) writes the prose.
   Then examples per type, from what the code actually does, and the
-  "one turn, three lanes" animation.
+  "one turn, three lanes" animation. Each pill has a hover card
+  (`TalesForgeWeb.TeamPeek`) showing what that call type looks like: code,
+  data in and out, or result in and prose out.
 
   Copy follows tales-forge-docs `docs/team-page/content.md` (commit 404e421; unchanged since, through d118917).
   The turn's numbers (the typed intent, the roll, the price) come from
@@ -30,6 +32,7 @@ defmodule TalesForgeWeb.TeamCallTypes do
   import TalesForge.TeamPage, only: [get: 2, number: 1, ms: 1, usd: 1, date_label: 1]
 
   alias TalesForge.TeamPage
+  alias TalesForgeWeb.TeamPeek
 
   @anchor "the-call-type-rule-one-turn-three-call-types"
   @lanes ~w(jev elixir llm)
@@ -193,6 +196,7 @@ defmodule TalesForgeWeb.TeamCallTypes do
           <p class="text-[var(--paper-muted)]">
             <em>Why: exact, free and testable. The same input gives the same answer every time, and a test can prove it.</em>
           </p>
+          <TeamPeek.elixir d={@d} />
         </li>
         <li
           id="pill-jev"
@@ -210,6 +214,7 @@ defmodule TalesForgeWeb.TeamCallTypes do
               (median {ms(@p50)} in the shadow test), for about {usd(@cost_per_turn)} a turn.
             </em>
           </p>
+          <TeamPeek.jev d={@d} />
         </li>
         <li
           id="pill-llm"
@@ -226,6 +231,7 @@ defmodule TalesForgeWeb.TeamCallTypes do
               Why: it's the only one of the three that writes good prose. It's also the slowest and most expensive, so we never ask it for data.
             </em>
           </p>
+          <TeamPeek.llm d={@d} prose={prose()} />
         </li>
       </ul>
 
@@ -906,7 +912,9 @@ defmodule TalesForgeWeb.TeamCallTypes do
 
       <button
         type="button"
-        class="team-replay inline-flex items-center gap-1.5 rounded-full border border-[var(--paper-rule)] px-3 py-1 text-sm hover:bg-[var(--paper-bg)]"
+        id="replay-lanes"
+        aria-label="Replay the animation of the three lanes"
+        class="team-replay-btn min-h-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--paper-accent)] inline-flex items-center gap-1.5 rounded-full border border-[var(--paper-rule)] px-3 py-1 text-sm hover:bg-[var(--paper-bg)]"
         data-lanes-replay
       >
         <span aria-hidden="true">↻</span> Replay

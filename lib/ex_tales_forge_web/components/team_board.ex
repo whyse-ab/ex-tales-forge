@@ -263,7 +263,9 @@ defmodule TalesForgeWeb.TeamBoard do
           </span>
           <button
             type="button"
-            class="team-replay inline-flex items-center gap-1.5 rounded-full border border-[var(--paper-rule)] px-3 py-1 text-sm hover:bg-[var(--paper-bg)]"
+            id="replay-board"
+            aria-label="Replay the animation of the shared board"
+            class="team-replay-btn min-h-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--paper-accent)] inline-flex items-center gap-1.5 rounded-full border border-[var(--paper-rule)] px-3 py-1 text-sm hover:bg-[var(--paper-bg)]"
             data-board-replay
           >
             <.icon name="hero-arrow-path-micro" class="size-4" /> Replay

@@ -13,13 +13,15 @@
 
 const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)")
 
-// Root hook: sets data-motion and reveals [data-reveal] sections in view.
+// Root hook: sets data-motion, reveals [data-reveal] sections in view, and
+// runs the peeks (hover cards, see setupPeeks below).
 export const TeamPage = {
   mounted() {
     this.mq = reducedMotion()
     this.onChange = () => this.apply()
     this.mq.addEventListener("change", this.onChange)
     this.apply()
+    this.peeksCleanup = setupPeeks(this.el)
   },
 
   apply() {
@@ -47,7 +49,116 @@ export const TeamPage = {
   destroyed() {
     this.observer?.disconnect()
     this.mq?.removeEventListener("change", this.onChange)
+    this.peeksCleanup?.()
   },
+}
+
+// Peeks: the hover cards on the call-type pills (TalesForgeWeb.TeamPeek).
+// A [data-peek] wrapper holds a [data-peek-trigger] button and its card; the
+// card shows while the wrapper has data-open (Tailwind classes in the
+// component), and the button's aria-expanded follows it.
+//   - Mouse: opens on hover, closes on leaving (unless pinned).
+//   - Keyboard: opens when the button gets focus, closes when focus leaves
+//     the peek (unless pinned). Enter/Space pins it like a click.
+//   - Tap or click on the button: pins it open, or closes it if pinned.
+//   - Esc closes every peek and puts focus back on its button; a tap or click
+//     outside closes pinned ones. One peek is open at a time.
+// Motion (the fade) is CSS with motion-safe:, so reduced motion just snaps.
+export const setupPeeks = root => {
+  const all = () => root.querySelectorAll("[data-peek]")
+  const peekOf = node => node instanceof Element ? node.closest("[data-peek]") : null
+  const triggerOf = peek => peek.querySelector("[data-peek-trigger]")
+
+  const open = (peek, pinned = false) => {
+    all().forEach(other => other !== peek && close(other))
+    peek.dataset.open = ""
+    if (pinned) peek.dataset.pinned = ""
+    triggerOf(peek)?.setAttribute("aria-expanded", "true")
+  }
+
+  const close = peek => {
+    delete peek.dataset.open
+    delete peek.dataset.pinned
+    triggerOf(peek)?.setAttribute("aria-expanded", "false")
+  }
+
+  const isOpen = peek => "open" in peek.dataset
+  const isPinned = peek => "pinned" in peek.dataset
+
+  const onPointerOver = e => {
+    const peek = peekOf(e.target)
+    if (e.pointerType !== "mouse" || !peek || isOpen(peek) || "dismissed" in peek.dataset) return
+    open(peek)
+  }
+
+  const onPointerOut = e => {
+    const peek = peekOf(e.target)
+    if (e.pointerType !== "mouse" || !peek || peek.contains(e.relatedTarget)) return
+    delete peek.dataset.dismissed
+    if (!isPinned(peek)) close(peek)
+  }
+
+  const onFocusIn = e => {
+    const peek = peekOf(e.target)
+    if (!peek || isOpen(peek) || !e.target.matches("[data-peek-trigger]:focus-visible")) return
+    open(peek)
+  }
+
+  const onFocusOut = e => {
+    const peek = peekOf(e.target)
+    if (!peek || peek.contains(e.relatedTarget) || isPinned(peek)) return
+    close(peek)
+  }
+
+  const onClick = e => {
+    const trigger = e.target instanceof Element ? e.target.closest("[data-peek-trigger]") : null
+
+    if (trigger) {
+      const peek = peekOf(trigger)
+      if (!peek) return
+
+      if (isPinned(peek)) {
+        close(peek)
+        if (peek.matches(":hover")) peek.dataset.dismissed = ""
+      } else {
+        open(peek, true)
+      }
+
+      return
+    }
+
+    const inside = peekOf(e.target)
+    all().forEach(peek => peek !== inside && isPinned(peek) && close(peek))
+  }
+
+  const onKeyDown = e => {
+    if (e.key !== "Escape") return
+    const focused = peekOf(document.activeElement)
+
+    all().forEach(peek => {
+      if (!isOpen(peek)) return
+      close(peek)
+      if (peek.matches(":hover")) peek.dataset.dismissed = ""
+    })
+
+    if (focused) triggerOf(focused)?.focus()
+  }
+
+  root.addEventListener("pointerover", onPointerOver)
+  root.addEventListener("pointerout", onPointerOut)
+  root.addEventListener("focusin", onFocusIn)
+  root.addEventListener("focusout", onFocusOut)
+  document.addEventListener("click", onClick)
+  document.addEventListener("keydown", onKeyDown)
+
+  return () => {
+    root.removeEventListener("pointerover", onPointerOver)
+    root.removeEventListener("pointerout", onPointerOut)
+    root.removeEventListener("focusin", onFocusIn)
+    root.removeEventListener("focusout", onFocusOut)
+    document.removeEventListener("click", onClick)
+    document.removeEventListener("keydown", onKeyDown)
+  }
 }
 
 // The change flow: the d20 visits each step; approval steps hold longer and
