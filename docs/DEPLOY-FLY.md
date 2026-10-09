@@ -82,10 +82,38 @@ Optional: `TALES_FORGE_DOCS_PATH` is for local/dev sync only; production should 
 ## 4. Deploy
 
 Normally you don't run `fly deploy` by hand. A push to `main` that passes CI deploys to
-**playtest** first (see [Playtest environment](#playtest-environment)). Production is a
-separate, manual GitHub Actions workflow, `.github/workflows/deploy-production.yml`
-("Deploy to production"), started once the build has been checked on playtest and Fredrik
-has OK'd it:
+**playtest** first (see [Playtest environment](#playtest-environment)). Whether production
+follows automatically depends on the merge's **deploy lane** (tales-forge-docs decision
+2026-10-09 "A fast deploy lane for admin work"):
+
+| Lane | When | Playtest | Production |
+|------|------|----------|------------|
+| **admin** | Every file the merge changed, and every file changed since the commit production runs, is on the `[admin]` list in `.github/deploy-lanes.txt` (surveys, costs, playtest admin pages, `/team`) | Automatic | Automatic, right after playtest: no Gentry/batch gate, no prod OK |
+| **normal** | Anything else: game engine code, shared code (sign-in, Repo and migrations, config, AICalls, `mix.exs`/deps, the router, CI), docs, a mixed merge, unknown files, or an unknown production commit | Automatic | Manual, after Gentry, the playtest batch and Fredrik's OK |
+
+`.github/workflows/playtest.yml` picks the lane after its playtest deploy
+(`elixir .github/scripts/deploy_lane.exs`, logic in `TalesForge.DeployLanes`) and writes it,
+with the files that decided it, to the run summary. "Since production" is measured against the
+tag `deployed/production`, which every successful production deploy moves to its sha; without
+that tag (before the first production deploy through the workflow) every merge is normal. So an
+admin merge never carries an earlier game merge that is still waiting for Fredrik's OK. To see
+which lane a set of files would take:
+
+```bash
+elixir .github/scripts/deploy_lane.exs --files priv/team/data.json lib/ex_tales_forge_web/router.ex
+elixir .github/scripts/deploy_lane.exs --sha <merge sha> --production <sha production runs>
+```
+
+The admin lane's production deploy is `.github/workflows/deploy-production.yml` called from
+playtest.yml: the same "Verify commit" job, and inside the `deploy-prod` concurrency group it
+deploys only if the sha is still the tip of main (the playtest tip guard) and production still
+runs the commit the lane was picked against; otherwise it skips with a notice. CI's
+"Admin boundary" step (`mix deploy.check_boundaries`) fails when game or shared code depends
+on an `[admin]` file.
+
+Normal lane: production is the manual GitHub Actions workflow
+`.github/workflows/deploy-production.yml` ("Deploy to production"), started once the build has
+been checked on playtest and Fredrik has OK'd it:
 
 ```bash
 gh workflow run deploy-production.yml -R whyse-ab/ex-tales-forge -f sha=<full 40-character sha on main>
@@ -94,9 +122,10 @@ gh workflow run deploy-production.yml -R whyse-ab/ex-tales-forge -f sha=<full 40
 It first checks that the sha is on `main` and that its `Test` and `Dialyzer` checks passed
 (and warns if no successful playtest deploy of it is found), then deploys exactly that commit
 in the GitHub environment `production` (a required reviewer there makes the job wait for
-approval). It uses the Actions secret `FLY_API_TOKEN` (a deploy token scoped to `tales-forge`,
-created with `fly tokens create deploy -a tales-forge`). Deploys run one at a time and are
-never cancelled mid-way.
+approval, in both lanes). It uses the Actions secret `FLY_API_TOKEN` (a deploy token scoped to
+`tales-forge`, created with `fly tokens create deploy -a tales-forge`). Deploys run one at a time
+and are never cancelled mid-way. After a successful deploy it moves the tag
+`deployed/production` to the sha.
 
 Manual deploy, the fallback when Actions is down (same command the workflow runs):
 
@@ -127,7 +156,8 @@ apart from app name, `PHX_HOST`, memory and `swap_size_mb = 512`: at 512MB witho
 is OOM-killed during boot).
 
 Deploys: `.github/workflows/playtest.yml` deploys main to playtest after every green CI run on
-main (playtest is the first stop; production follows by hand, see [Deploy](#4-deploy)) and on
+main (playtest is the first stop; production follows automatically for an admin-lane merge and
+by hand otherwise, see [Deploy](#4-deploy)) and on
 demand (Actions → "Deploy to playtest" → Run workflow, or
 `gh workflow run playtest.yml -f sha=<sha>`; no sha = the tip of main).
 Right before deploying, the workflow fetches `origin/main` and deploys only if the commit is
@@ -135,7 +165,8 @@ still the tip of main; otherwise it skips with a notice and the run still succee
 finish out of order when PRs merge close together, and this keeps playtest from going backwards
 (the tip gets its own deploy when its CI passes; if the tip's CI fails, playtest stays where it
 was). To deploy an older commit on purpose, run it by hand with
-`gh workflow run playtest.yml -f sha=<sha> -f force=true`. Playtest deploys run one at a time
+`gh workflow run playtest.yml -f sha=<sha> -f force=true` (a run started by hand always takes
+the normal lane). Playtest deploys run one at a time
 and are never cancelled mid-way.
 It uses the Actions secret `FLY_API_TOKEN_PLAYTEST`, a deploy token scoped to the playtest app
 (`fly tokens create deploy -a tales-forge-playtest`). It is a separate workflow, so a failed

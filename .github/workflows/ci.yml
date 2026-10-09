@@ -1,10 +1,19 @@
 # CI for Tales Forge: format, Credo, tests with coverage, docs and Dialyzer on
 # every PR and on every push to main (tales-forge-docs docs/coding-standards.md).
+# Test and Dialyzer are the required checks on main.
+#
+# Admin files (the [admin] list in .github/deploy-lanes.txt) get lighter gates:
+# format and tests; .credo.exs leaves them out of Credo, so no @moduledoc/@spec
+# demands. Game and shared code keep the full checks. Dialyzer still runs on the
+# whole app. "Admin boundary" fails when game or shared code depends on an admin
+# file (decision 2026-10-09 "A fast deploy lane for admin work").
+#
 # A push to main that passes Test and Dialyzer is deployed to PLAYTEST first
-# (.github/workflows/playtest.yml). Production is a separate, manual step
-# (.github/workflows/deploy-production.yml) once the build has been checked on
-# playtest and Fredrik has OK'd it (tales-forge-docs decision 2026-10-09
-# "Deploy order: playtest first, then production").
+# (.github/workflows/playtest.yml), which also picks the merge's deploy lane: an
+# admin-only merge goes on to production automatically; anything else waits for
+# the manual .github/workflows/deploy-production.yml after the build has been
+# checked on playtest and Fredrik has OK'd it (tales-forge-docs decision
+# 2026-10-09 "Deploy order: playtest first, then production").
 name: CI
 
 on:
@@ -77,6 +86,12 @@ jobs:
 
       - name: Check formatting
         run: mix format --check-formatted
+
+      # Game and shared code must never depend on admin code: admin-only merges
+      # reach production without Gentry or the playtest batch. Reads the lists in
+      # .github/deploy-lanes.txt and the `mix xref graph` dependencies.
+      - name: Admin boundary (game code never depends on admin code)
+        run: mix deploy.check_boundaries
 
       - name: Credo
         run: mix credo --strict

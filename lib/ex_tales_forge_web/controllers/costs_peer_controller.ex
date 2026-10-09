@@ -14,7 +14,6 @@ defmodule TalesForgeWeb.CostsPeerController do
   use TalesForgeWeb, :controller
 
   alias TalesForge.AppRole
-  alias TalesForge.Costs.Peer
   alias TalesForge.Costs.PlaytestRuns
   alias TalesForgeWeb.PeerToken
 
@@ -22,7 +21,7 @@ defmodule TalesForgeWeb.CostsPeerController do
   @spec show(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def show(conn, _params) do
     with :playtest <- AppRole.role(),
-         expected when is_binary(expected) <- Peer.token() do
+         expected when is_binary(expected) <- AppRole.peer_token() do
       if PeerToken.authorized?(conn, expected) do
         conn
         |> put_resp_header("cache-control", "no-store")

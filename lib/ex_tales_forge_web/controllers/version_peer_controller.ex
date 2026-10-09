@@ -13,14 +13,13 @@ defmodule TalesForgeWeb.VersionPeerController do
   use TalesForgeWeb, :controller
 
   alias TalesForge.AppRole
-  alias TalesForge.Costs.Peer
   alias TalesForge.Playtest.RunMeta
   alias TalesForgeWeb.PeerToken
 
   @doc "This app's role and running commit for a caller with the shared token."
   @spec show(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def show(conn, _params) do
-    case Peer.token() do
+    case AppRole.peer_token() do
       nil ->
         PeerToken.not_found(conn)
 

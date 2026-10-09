@@ -23,9 +23,9 @@ defmodule TalesForge.Costs.Peer do
   @type error ::
           :not_configured | :unreachable | :bad_response | {:http_status, non_neg_integer()}
 
-  @doc "The shared token, or nil when unset or blank (then the endpoint is off)."
+  @doc "The shared token, or nil when unset or blank (`TalesForge.AppRole.peer_token/0`)."
   @spec token() :: String.t() | nil
-  def token, do: blank_to_nil(Application.get_env(:ex_tales_forge, :costs_peer, [])[:token])
+  defdelegate token, to: AppRole, as: :peer_token
 
   @doc "True when production can ask playtest (the shared token is set)."
   @spec configured?() :: boolean()
@@ -85,13 +85,4 @@ defmodule TalesForge.Costs.Peer do
 
   # Test hook: config :ex_tales_forge, :costs_peer_req_options, plug: {Req.Test, ...}
   defp req_options, do: Application.get_env(:ex_tales_forge, :costs_peer_req_options, [])
-
-  defp blank_to_nil(value) when is_binary(value) do
-    case String.trim(value) do
-      "" -> nil
-      trimmed -> trimmed
-    end
-  end
-
-  defp blank_to_nil(_value), do: nil
 end

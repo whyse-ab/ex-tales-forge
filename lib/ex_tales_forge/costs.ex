@@ -90,19 +90,16 @@ defmodule TalesForge.Costs do
   # ---------------------------------------------------------------------------
   # Environments
 
-  @doc "This app's name (Fly's FLY_APP_NAME), or \"local\" off Fly."
-  @spec app_name() :: String.t()
-  def app_name do
-    case Application.get_env(:ex_tales_forge, :app_name) do
-      name when is_binary(name) and name != "" -> name
-      _ -> "local"
-    end
-  end
+  # The app name lives in TalesForge.AppRole (shared), so AppRole never
+  # depends on this admin module (`mix deploy.check_boundaries`).
 
-  @doc "True for the playtest app (its name contains \"playtest\")."
+  @doc "This app's name (Fly's FLY_APP_NAME), or \"local\" off Fly (`TalesForge.AppRole.app_name/0`)."
+  @spec app_name() :: String.t()
+  defdelegate app_name, to: TalesForge.AppRole
+
+  @doc "True for the playtest app (`TalesForge.AppRole.playtest?/1`)."
   @spec playtest?(term()) :: boolean()
-  def playtest?(app) when is_binary(app), do: String.contains?(app, "playtest")
-  def playtest?(_app), do: false
+  defdelegate playtest?(app), to: TalesForge.AppRole
 
   @doc "Display name of an environment from its app name."
   @spec env_label(String.t()) :: String.t()
