@@ -15,12 +15,19 @@ defmodule TalesForge.PrFeed do
   - When GitHub can't be reached the status is `:unavailable`; the page says
     "Live feed unavailable" and renders the rest as usual.
 
+  The snapshot also carries the repo's pace (`:pace`, `TalesForge.PrFeed.Pace`):
+  how many pull requests there are, merged and open, per day, and the commits
+  on main, counted from GitHub's full lists. It is nil until those lists have
+  been read in full; the pages read it through `TalesForge.TeamPace.current/0`,
+  never directly.
+
   Where a merged pull request is deployed comes from `TalesForge.PrFeed.Deploys`
   (its merge commit against the commit each app runs,
   `TalesForge.PrFeed.Versions`).
   """
 
   alias TalesForge.PrFeed.Deploys
+  alias TalesForge.PrFeed.Pace
 
   @topic "pr_feed"
   @table TalesForge.PrFeed.Poller
@@ -71,7 +78,8 @@ defmodule TalesForge.PrFeed do
           items: [item()],
           merged_today: non_neg_integer(),
           merged_week: non_neg_integer(),
-          fetched_at: DateTime.t() | nil
+          fetched_at: DateTime.t() | nil,
+          pace: Pace.t() | nil
         }
 
   @typedoc "Everything `build/2` needs, as fetched and parsed by the poller."
@@ -79,6 +87,7 @@ defmodule TalesForge.PrFeed do
           required(:pulls) => [pr()],
           optional(:ci) => %{optional(String.t()) => ci()} | nil,
           optional(:main) => [String.t()] | nil,
+          optional(:commits) => [Pace.commit()] | nil,
           optional(:running) => %{
             optional(:playtest) => String.t() | nil,
             optional(:production) => String.t() | nil
@@ -149,7 +158,14 @@ defmodule TalesForge.PrFeed do
   @doc "A snapshot without pull requests, with `status`."
   @spec empty(status(), DateTime.t() | nil) :: snapshot()
   def empty(status, fetched_at \\ nil) do
-    %{status: status, items: [], merged_today: 0, merged_week: 0, fetched_at: fetched_at}
+    %{
+      status: status,
+      items: [],
+      merged_today: 0,
+      merged_week: 0,
+      fetched_at: fetched_at,
+      pace: nil
+    }
   end
 
   defp initial_status, do: if(configured?(), do: :loading, else: :not_configured)
@@ -162,6 +178,10 @@ defmodule TalesForge.PrFeed do
   newest first, at most #{@shown}. The counters count every given pull request
   merged since midnight and since Monday 00:00, Europe/Stockholm time.
 
+  `:pace` is counted (`TalesForge.PrFeed.Pace.build/3`) only when `inputs`
+  has `:commits`, which the poller gives only when both the pull requests and
+  the commits of main were read in full; otherwise it is nil.
+
       iex> pr = %{number: 7, title: "Add the inn", author: "bobby", url: nil, state: :merged,
       ...>   draft: false, head_sha: "h7", merge_sha: "m7", created_at: ~U[2026-10-08 08:00:00Z],
       ...>   merged_at: ~U[2026-10-09 09:00:00Z], closed_at: ~U[2026-10-09 09:00:00Z],
@@ -173,6 +193,8 @@ defmodule TalesForge.PrFeed do
       iex> [item] = snap.items
       iex> item.deployed
       %{playtest: :deployed, production: :pending}
+      iex> snap.pace
+      nil
   """
   @spec build(inputs(), DateTime.t()) :: snapshot()
   def build(%{pulls: pulls} = inputs, %DateTime{} = now) do
@@ -194,9 +216,13 @@ defmodule TalesForge.PrFeed do
       items: items,
       merged_today: Enum.count(merged, &(DateTime.compare(&1.merged_at, today) != :lt)),
       merged_week: Enum.count(merged, &(DateTime.compare(&1.merged_at, week) != :lt)),
-      fetched_at: now
+      fetched_at: now,
+      pace: pace(pulls, Map.get(inputs, :commits), now)
     }
   end
+
+  defp pace(pulls, commits, now) when is_list(commits), do: Pace.build(pulls, commits, now)
+  defp pace(_pulls, _commits, _now), do: nil
 
   defp item(pr, ci, main, running) do
     %{

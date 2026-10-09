@@ -7,6 +7,8 @@ defmodule TalesForge.PrFeed.Parse do
   - `ci_runs/1`: `GET /repos/:repo/actions/workflows/ci.yml/runs` into the CI
     status per head commit (the newest run of each commit wins).
   - `commit_shas/1`: `GET /repos/:repo/commits?sha=main` into shas, newest first.
+  - `commits/1`: the same answer into shas with their commit time, for the
+    pace counts (`TalesForge.PrFeed.Pace`).
   """
 
   alias TalesForge.PrFeed
@@ -103,6 +105,34 @@ defmodule TalesForge.PrFeed.Parse do
   end
 
   def commit_shas(_other), do: []
+
+  @doc """
+  Commits (lowercase sha and the committer's time, when it landed on main)
+  from a commits list, in the order given (newest first). Entries without a
+  sha are skipped; a missing or bad time is nil.
+
+      iex> TalesForge.PrFeed.Parse.commits([
+      ...>   %{"sha" => "ABC", "commit" => %{"committer" => %{"date" => "2026-10-09T09:00:00Z"}}},
+      ...>   %{"nope" => 1},
+      ...>   %{"sha" => "def"}])
+      [%{sha: "abc", at: ~U[2026-10-09 09:00:00Z]}, %{sha: "def", at: nil}]
+      iex> TalesForge.PrFeed.Parse.commits(%{"message" => "Not Found"})
+      []
+  """
+  @spec commits(term()) :: [TalesForge.PrFeed.Pace.commit()]
+  def commits(list) when is_list(list) do
+    for %{"sha" => sha} = commit when is_binary(sha) <- list do
+      at =
+        case commit["commit"] do
+          %{} = inner -> inner |> nested("committer", "date") |> time()
+          _ -> nil
+        end
+
+      %{sha: String.downcase(sha), at: at}
+    end
+  end
+
+  def commits(_other), do: []
 
   defp nested(map, outer, inner) do
     case map[outer] do

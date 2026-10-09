@@ -4,6 +4,7 @@ defmodule TalesForge.TeamPageTest do
   alias TalesForge.TeamPage
 
   doctest TalesForge.TeamPage
+  doctest TalesForge.TeamPace
 
   test "the bundled data is priv/team/data.json, decoded" do
     assert TeamPage.data() == TeamPage.data_path() |> File.read!() |> Jason.decode!()

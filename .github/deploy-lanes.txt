@@ -67,6 +67,7 @@ test/ex_tales_forge_web/admin/playtest_live_test.exs
 # are in the router and the signed-out GET /internal/version is a controller,
 # both shared)
 lib/ex_tales_forge/team_page.ex
+lib/ex_tales_forge/team_pace.ex
 lib/ex_tales_forge/pr_feed.ex
 lib/ex_tales_forge/pr_feed/
 lib/ex_tales_forge_web/live/team_live.ex

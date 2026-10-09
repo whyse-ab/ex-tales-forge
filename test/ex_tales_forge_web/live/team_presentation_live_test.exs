@@ -8,6 +8,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
   doctest TalesForgeWeb.TeamPresentationLive
   doctest TalesForgeWeb.TeamBoard
 
+  alias TalesForge.PrFeed
   alias TalesForge.TeamPage
   alias TalesForgeWeb.TeamBoard
   alias TalesForgeWeb.TeamCallTypes
@@ -49,6 +50,85 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
                view |> element("#team-nav-overview") |> render_click() |> follow_redirect(conn)
 
       assert landing_html =~ "The full presentation"
+    end
+  end
+
+  describe "one source for the pace numbers (TalesForge.TeamPace)" do
+    import TalesForge.PrFeedFixtures
+
+    setup %{conn: conn} do
+      on_exit(fn -> :ets.delete(PrFeed.Poller, :snapshot) end)
+      {:ok, conn: log_in_admin(conn)}
+    end
+
+    # The pace numbers as rendered in the headline stats and in section 5.
+    defp pace_numbers(html) do
+      doc = LazyHTML.from_document(html)
+      text = &(doc |> LazyHTML.query(&1) |> LazyHTML.text() |> String.trim())
+
+      %{
+        headline: %{
+          merged: text.("#stat-prs-merged > span:first-child"),
+          source: text.("#stat-source")
+        },
+        section: %{merged: text.("#pace-prs-merged"), source: text.("#pace-source")},
+        total: text.("#pace-prs > span:first-child"),
+        open: text.("#pace-prs-open"),
+        commits: text.("#pace-commits > span:first-child")
+      }
+    end
+
+    test "live: the headline and section 5 show the same live numbers, and follow the feed",
+         %{conn: conn} do
+      PrFeed.publish(snapshot([], pace: pace()))
+      {:ok, view, html} = live(conn, ~p"/team/presentation")
+
+      n = pace_numbers(html)
+      assert n.headline == n.section
+      assert n.headline.merged == "1,111"
+      assert n.headline.source == "Pull request and commit numbers: live from GitHub."
+      assert {n.total, n.open, n.commits} == {"1,234", "77", "4,321"}
+      assert has_element?(view, "#stat-source[data-source=live]")
+      assert has_element?(view, "#pace-source[data-source=live]")
+      # PRs per day come from the same live count: the earlier month is one chip.
+      assert has_element?(view, "#prs-earlier-chip", "+5 PRs in September")
+
+      # A new feed broadcast updates both places at once.
+      send(view.pid, {:pr_feed, snapshot([], pace: pace(%{prs_merged: 1200, commits: 4400}))})
+      n = view |> render() |> pace_numbers()
+      assert n.headline == n.section
+      assert {n.headline.merged, n.commits} == {"1,200", "4,400"}
+    end
+
+    test "fallback: no live count, both show data.json, labelled 'as of <date>'", %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/team/presentation")
+
+      as_of =
+        "Pull request and commit numbers: as of #{TeamPage.date_label(@data["pace"]["as_of"])}."
+
+      n = pace_numbers(html)
+      assert n.headline == n.section
+      assert n.headline.merged == TeamPage.number(@data["pace"]["prs_merged"])
+      assert n.headline.source == as_of
+      assert n.total == TeamPage.number(@data["pace"]["prs_total"])
+      assert n.commits == TeamPage.number(@data["pace"]["commits_main_ex_tales_forge"])
+      assert has_element?(view, "#stat-source[data-source=fallback]")
+      assert has_element?(view, "#pace-source[data-source=fallback]")
+
+      # The feed going down after a live count drops both back together.
+      send(view.pid, {:pr_feed, snapshot([], pace: pace())})
+      assert view |> render() |> pace_numbers() |> get_in([:section, :merged]) == "1,111"
+      send(view.pid, {:pr_feed, PrFeed.empty(:unavailable, DateTime.utc_now())})
+      n = view |> render() |> pace_numbers()
+      assert n.headline == n.section
+      assert n.headline.source == as_of
+    end
+
+    test "rendered without a mount, the numbers fall back to the data it is given" do
+      data = put_in(@data, ["pace", "prs_merged"], 4242)
+      n = data |> render_with() |> pace_numbers()
+      assert n.headline == n.section
+      assert n.headline.merged == "4,242"
     end
   end
 
