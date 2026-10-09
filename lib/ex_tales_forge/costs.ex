@@ -1,11 +1,16 @@
 defmodule TalesForge.Costs do
   @moduledoc """
-  Numbers for the admin costs page (`/admin/costs`).
+  Numbers for the admin costs page (`/admin/costs`). Scope: AI calls only
+  (xAI/Grok, TypeSafe Jev); hosting is not in the totals yet.
 
-  - AI spend comes from `ai_calls` through `TalesForge.AICalls` (buckets, the
-    Europe/Stockholm day and month). `ai_summary/1` is this app's aggregate; the
-    same shape is served to the peer app by `GET /internal/costs` and fetched
-    from it by `TalesForge.Costs.Peer`.
+  - **Playtest app:** only playtest-run spend (`TalesForge.Costs.PlaytestRuns`):
+    the GM, Jev intent and other game calls, and apart from them the persona bot
+    and Jev scoring. Other calls on playtest (manual play) are one separate line.
+  - **Production (and local):** all AI spend. Its own calls (`ai_summary/1`,
+    buckets from `TalesForge.AICalls`), plus a Playtest section read live from
+    playtest's `GET /internal/costs` by `TalesForge.Costs.Peer` (nothing is
+    copied; each thing lives in one place), and one grand total on top
+    (`report/3`).
   - Fixed monthly costs, the USD->SEK rate and the playtest warning threshold
     live in one config block: `config :ex_tales_forge, TalesForge.Costs` in
     `config/config.exs`. Each fixed item's `amount` is `{:usd_per_month, n}`,
@@ -18,8 +23,9 @@ defmodule TalesForge.Costs do
 
   alias TalesForge.AICalls
 
+  alias TalesForge.Costs.PlaytestRuns
+
   @micro 1_000_000
-  @count_keys ~w(calls cost_micro_usd capped errors)
 
   # ---------------------------------------------------------------------------
   # AI spend (this app)
@@ -31,6 +37,7 @@ defmodule TalesForge.Costs do
   is identical locally and after a JSON round trip. Aggregates only: no rows,
   prompts or player data.
   """
+  @spec ai_summary(DateTime.t()) :: map()
   def ai_summary(now \\ DateTime.utc_now()) do
     day_from = AICalls.day_start(now)
     month_from = AICalls.month_start(now)
@@ -63,66 +70,16 @@ defmodule TalesForge.Costs do
   end
 
   @doc "Month-end projection: spend so far / days elapsed * days in the month."
+  @spec project(number(), pos_integer(), pos_integer()) :: integer()
   def project(spent_micro_usd, day_of_month, days_in_month) when day_of_month > 0 do
     round(spent_micro_usd / day_of_month * days_in_month)
   end
 
   @doc "Sum of `cost_micro_usd` over a summary's buckets (string keys)."
+  @spec bucket_total(map()) :: non_neg_integer()
   def bucket_total(buckets) do
     buckets |> Map.values() |> Enum.map(& &1["cost_micro_usd"]) |> Enum.sum()
   end
-
-  @doc """
-  Validates a summary received from the peer and keeps only the known keys.
-  Returns `{:ok, summary}` or `:error`.
-  """
-  def normalize_summary(%{"today" => today, "month" => month} = body) do
-    with {:ok, today_buckets} <- normalize_buckets(today),
-         {:ok, month_buckets} <- normalize_buckets(month),
-         day when is_integer(day) and day > 0 <- body["day_of_month"],
-         days when is_integer(days) and days >= day <- body["days_in_month"] do
-      month_total = bucket_total(month_buckets)
-      sessions = int_or(month["game_sessions"], 0)
-
-      {:ok,
-       %{
-         "app" => string_or(body["app"], "peer"),
-         "generated_at" => string_or(body["generated_at"], nil),
-         "date" => string_or(body["date"], nil),
-         "day_of_month" => day,
-         "days_in_month" => days,
-         "today" => %{"since" => string_or(today["since"], nil), "buckets" => today_buckets},
-         "month" => %{
-           "since" => string_or(month["since"], nil),
-           "buckets" => month_buckets,
-           "total_micro_usd" => month_total,
-           "game_sessions" => sessions,
-           "avg_game_micro_usd_per_session" =>
-             if(sessions > 0, do: div(month_buckets["game"]["cost_micro_usd"], sessions)),
-           "projected_micro_usd" => project(month_total, day, days)
-         }
-       }}
-    else
-      _ -> :error
-    end
-  end
-
-  def normalize_summary(_body), do: :error
-
-  defp normalize_buckets(%{"buckets" => %{} = buckets}) do
-    normalized = Map.new(AICalls.buckets(), &{&1, normalize_counts(buckets[&1])})
-    if Enum.any?(Map.values(normalized), &(&1 == :error)), do: :error, else: {:ok, normalized}
-  end
-
-  defp normalize_buckets(_), do: :error
-
-  defp normalize_counts(%{} = counts) do
-    if Enum.all?(@count_keys, &(is_integer(counts[&1]) and counts[&1] >= 0)),
-      do: Map.take(counts, @count_keys),
-      else: :error
-  end
-
-  defp normalize_counts(_), do: :error
 
   defp stringify(buckets) do
     Map.new(buckets, fn {name, counts} ->
@@ -130,16 +87,11 @@ defmodule TalesForge.Costs do
     end)
   end
 
-  defp int_or(value, _default) when is_integer(value) and value >= 0, do: value
-  defp int_or(_value, default), do: default
-
-  defp string_or(value, _default) when is_binary(value), do: value
-  defp string_or(_value, default), do: default
-
   # ---------------------------------------------------------------------------
   # Environments
 
   @doc "This app's name (Fly's FLY_APP_NAME), or \"local\" off Fly."
+  @spec app_name() :: String.t()
   def app_name do
     case Application.get_env(:ex_tales_forge, :app_name) do
       name when is_binary(name) and name != "" -> name
@@ -148,10 +100,12 @@ defmodule TalesForge.Costs do
   end
 
   @doc "True for the playtest app (its name contains \"playtest\")."
+  @spec playtest?(term()) :: boolean()
   def playtest?(app) when is_binary(app), do: String.contains?(app, "playtest")
   def playtest?(_app), do: false
 
   @doc "Display name of an environment from its app name."
+  @spec env_label(String.t()) :: String.t()
   def env_label(app) do
     cond do
       playtest?(app) -> "Playtest (#{app})"
@@ -159,9 +113,6 @@ defmodule TalesForge.Costs do
       true -> "Production (#{app})"
     end
   end
-
-  @doc "What the peer is called on this app's page: playtest from production, and vice versa."
-  def peer_label(app \\ app_name()), do: if(playtest?(app), do: "production", else: "playtest")
 
   # ---------------------------------------------------------------------------
   # Fixed costs, currency, threshold
@@ -172,12 +123,15 @@ defmodule TalesForge.Costs do
   Fixed costs from config: maps with `name`, `env`, `amount` and `source`.
   `amount` is `{:usd_per_month, n}`, `{:sek_per_year, n}` or `:unknown`.
   """
+  @spec fixed_costs() :: [map()]
   def fixed_costs, do: Keyword.get(config(), :fixed_monthly, [])
 
   @doc "USD->SEK rate from config: %{rate: float, as_of: Date, source: string}."
+  @spec usd_sek() :: %{rate: number(), as_of: Date.t(), source: String.t()}
   def usd_sek, do: Keyword.fetch!(config(), :usd_sek)
 
   @doc "Playtest warning threshold in USD per month."
+  @spec playtest_warn_usd() :: number()
   def playtest_warn_usd, do: Keyword.get(config(), :playtest_warn_usd, 15.0)
 
   @doc """
@@ -186,6 +140,7 @@ defmodule TalesForge.Costs do
   `{:usd_per_month, n}` is `n` dollars. `{:sek_per_year, n}` is converted with
   the configured USD->SEK rate, then divided by 12.
   """
+  @spec fixed_micro_usd(map(), number()) :: integer() | :unknown
   def fixed_micro_usd(item, rate \\ usd_sek().rate)
   def fixed_micro_usd(%{amount: :unknown}, _rate), do: :unknown
 
@@ -197,75 +152,96 @@ defmodule TalesForge.Costs do
       do: round(sek / rate / 12 * @micro)
 
   @doc "True when the item is billed in SEK per year (show yearly + monthly share)."
+  @spec sek_per_year?(map()) :: boolean()
   def sek_per_year?(%{amount: {:sek_per_year, _}}), do: true
   def sek_per_year?(_item), do: false
 
   @doc "The SEK/year figure for a `{:sek_per_year, n}` item, or nil."
+  @spec sek_per_year(map()) :: number() | nil
   def sek_per_year(%{amount: {:sek_per_year, sek}}) when is_number(sek), do: sek
   def sek_per_year(_item), do: nil
 
   @doc "Micro-USD to SEK at the configured rate (float)."
+  @spec to_sek(integer(), number()) :: float()
   def to_sek(micro_usd, rate \\ usd_sek().rate), do: micro_usd / @micro * rate
 
   # ---------------------------------------------------------------------------
-  # Page report
+  # Page report (production)
 
   @doc """
-  Everything the page shows besides the per-environment tables: fixed costs,
-  totals for both environments, the AI projection and the playtest check.
+  The top of production's page: one grand total of AI spend this month across
+  both apps (production's own calls, playtest's run calls and playtest's other
+  calls, each its own line) plus a month-end projection, the fixed costs (shown
+  apart, not in the grand total: the scope is AI calls for now) and the playtest
+  threshold check.
 
-  `peer` is `{:ok, summary}`, `{:error, :not_configured}` or `{:error, reason}`.
-  Unknown fixed costs are listed in `:unknown` and excluded from every total.
+  `playtest` is `{:ok, summary}` (a `TalesForge.Costs.PlaytestRuns` summary),
+  `{:error, :not_configured}`, `{:error, :loading}` or `{:error, reason}`. Without
+  playtest numbers the grand total is production's alone and
+  `playtest_included` is false. Unknown fixed costs are listed in `:unknown`.
   """
-  def report(local, peer, fixed \\ fixed_costs()) do
-    summaries = [local | peer_summaries(peer)]
+  @spec report(map(), {:ok, PlaytestRuns.summary()} | {:error, term()}, [map()]) :: map()
+  def report(production, playtest, fixed \\ fixed_costs()) do
     known = Enum.reject(fixed, &(fixed_micro_usd(&1) == :unknown))
-    fixed_known = known |> Enum.map(&fixed_micro_usd/1) |> Enum.sum()
-    ai_month = summaries |> Enum.map(& &1["month"]["total_micro_usd"]) |> Enum.sum()
-    ai_projected = summaries |> Enum.map(& &1["month"]["projected_micro_usd"]) |> Enum.sum()
+    prod_month = production["month"]["total_micro_usd"]
+    prod_projected = production["month"]["projected_micro_usd"]
+    pt = playtest_parts(playtest)
 
     %{
+      production_month_micro_usd: prod_month,
+      production_projected_micro_usd: prod_projected,
+      playtest_included: pt != nil,
+      playtest_runs_month_micro_usd: pt && pt.runs,
+      playtest_game_month_micro_usd: pt && pt.game,
+      playtest_bots_month_micro_usd: pt && pt.bots,
+      playtest_outside_month_micro_usd: pt && pt.outside,
+      playtest_projected_micro_usd: pt && pt.projected,
+      grand_month_micro_usd: prod_month + ((pt && pt.runs + pt.outside) || 0),
+      grand_projected_micro_usd: prod_projected + ((pt && pt.projected) || 0),
       fixed: fixed,
-      fixed_known_micro_usd: fixed_known,
+      fixed_known_micro_usd: known |> Enum.map(&fixed_micro_usd/1) |> Enum.sum(),
       unknown: fixed |> Enum.filter(&(fixed_micro_usd(&1) == :unknown)) |> Enum.map(& &1.name),
-      ai_month_micro_usd: ai_month,
-      ai_projected_micro_usd: ai_projected,
-      total_so_far_micro_usd: fixed_known + ai_month,
-      total_projected_micro_usd: fixed_known + ai_projected,
-      peer_included: match?({:ok, _}, peer),
-      playtest: playtest_check(summaries, known)
+      playtest: playtest_check(pt, known)
     }
   end
 
-  defp peer_summaries({:ok, summary}), do: [summary]
-  defp peer_summaries(_peer), do: []
+  defp playtest_parts({:ok, %{"month" => month} = summary}) do
+    all = PlaytestRuns.month_all_micro_usd(summary)
+
+    %{
+      runs: month["runs_total_micro_usd"],
+      game: month["game_micro_usd"],
+      bots: month["bots_micro_usd"],
+      outside: month["outside_runs"]["cost_micro_usd"],
+      projected: project(all, summary["day_of_month"], summary["days_in_month"])
+    }
+  end
+
+  defp playtest_parts(_playtest), do: nil
 
   # Playtest fixed costs (known items tagged :playtest) plus playtest's projected
-  # AI spend, against the threshold. :unavailable when playtest's AI numbers
-  # aren't on this page (peer down or not configured).
-  defp playtest_check(summaries, known_fixed) do
-    threshold = round(playtest_warn_usd() * @micro)
+  # AI spend (runs and other calls), against the threshold. :unavailable when
+  # playtest's numbers aren't on the page.
+  defp playtest_check(nil, _known_fixed),
+    do: %{status: :unavailable, threshold_micro_usd: threshold()}
 
-    case Enum.find(summaries, &playtest?(&1["app"])) do
-      nil ->
-        %{status: :unavailable, threshold_micro_usd: threshold}
+  defp playtest_check(pt, known_fixed) do
+    fixed =
+      known_fixed
+      |> Enum.filter(&(&1.env == :playtest))
+      |> Enum.map(&fixed_micro_usd/1)
+      |> Enum.sum()
 
-      summary ->
-        fixed =
-          known_fixed
-          |> Enum.filter(&(&1.env == :playtest))
-          |> Enum.map(&fixed_micro_usd/1)
-          |> Enum.sum()
+    total = fixed + pt.projected
 
-        total = fixed + summary["month"]["projected_micro_usd"]
-
-        %{
-          status: if(total > threshold, do: :over, else: :ok),
-          fixed_micro_usd: fixed,
-          projected_ai_micro_usd: summary["month"]["projected_micro_usd"],
-          total_micro_usd: total,
-          threshold_micro_usd: threshold
-        }
-    end
+    %{
+      status: if(total > threshold(), do: :over, else: :ok),
+      fixed_micro_usd: fixed,
+      projected_ai_micro_usd: pt.projected,
+      total_micro_usd: total,
+      threshold_micro_usd: threshold()
+    }
   end
+
+  defp threshold, do: round(playtest_warn_usd() * @micro)
 end

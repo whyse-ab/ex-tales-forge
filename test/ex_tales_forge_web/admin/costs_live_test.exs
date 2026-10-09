@@ -5,8 +5,11 @@ defmodule TalesForgeWeb.AdminLive.CostsLiveTest do
 
   alias TalesForge.Costs
   alias TalesForge.Costs.Peer
+  alias TalesForge.Costs.PlaytestRuns
+  alias TalesForge.GameSessions
   alias TalesForge.Repo
   alias TalesForge.Schemas.AICall
+  alias TalesForge.Schemas.PlaytestRun
 
   setup %{conn: conn} do
     on_exit(fn ->
@@ -17,12 +20,7 @@ defmodule TalesForgeWeb.AdminLive.CostsLiveTest do
     {:ok, conn: log_in_admin(conn)}
   end
 
-  defp configure_peer,
-    do:
-      Application.put_env(:ex_tales_forge, :costs_peer,
-        url: "http://playtest.test",
-        token: "t0ken"
-      )
+  defp configure_peer, do: Application.put_env(:ex_tales_forge, :costs_peer, token: "t0ken")
 
   test "admin only" do
     for conn <- [build_conn(), log_in_non_member(build_conn())] do
@@ -65,62 +63,150 @@ defmodule TalesForgeWeb.AdminLive.CostsLiveTest do
     refute has_element?(view, "#costs-unknown-note")
   end
 
-  test "peer not configured: page renders and says so", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/admin/costs")
+  describe "production: playtest read live" do
+    test "not configured (no COSTS_PEER_TOKEN): production renders, playtest says so",
+         %{conn: conn} do
+      insert!("gm", 1_000_000)
+      {:ok, view, _html} = live(conn, ~p"/admin/costs")
 
-    assert has_element?(view, "#costs-env-peer", "Playtest: not configured")
-    assert has_element?(view, "#costs-peer-excluded", "not configured")
-    assert has_element?(view, "#costs-playtest-unchecked")
-    assert has_element?(view, "#costs-total", "this app only")
+      assert has_element?(view, "#costs-env-peer", "Playtest: not configured")
+      assert has_element?(view, "#costs-env-peer", "COSTS_PEER_TOKEN")
+      assert has_element?(view, "#costs-total-playtest-missing", "not configured")
+      assert has_element?(view, "#costs-grand-total", "production only")
+      assert has_element?(view, "#costs-grand-total", "$1.00")
+      assert has_element?(view, "#costs-playtest-unchecked")
+    end
+
+    test "playtest down: production numbers render, playtest unavailable", %{conn: conn} do
+      configure_peer()
+      insert!("gm", 1_000_000)
+      Req.Test.stub(Peer, &Req.Test.transport_error(&1, :econnrefused))
+
+      {:ok, view, _html} = live(conn, ~p"/admin/costs")
+      render_async(view)
+
+      assert has_element?(view, "#costs-env-peer", "Playtest unavailable")
+      assert has_element?(view, "#costs-env-peer", "within 2 s")
+      assert has_element?(view, "#costs-total-playtest-missing", "playtest unavailable")
+      assert has_element?(view, "#costs-peer-excluded", "playtest unavailable")
+      assert has_element?(view, "#costs-env-local-month-game", "$1.00")
+      assert has_element?(view, "#costs-grand-total", "production only")
+      assert has_element?(view, "#costs-grand-total", "$1.00")
+    end
+
+    test "playtest rejects the token: unavailable with the reason", %{conn: conn} do
+      configure_peer()
+      Req.Test.stub(Peer, &Plug.Conn.send_resp(&1, 401, "Unauthorized"))
+
+      {:ok, view, _html} = live(conn, ~p"/admin/costs")
+      render_async(view)
+
+      assert has_element?(view, "#costs-env-peer", "HTTP 401, token rejected")
+      assert has_element?(view, "#costs-grand-total", "production only")
+    end
+
+    test "playtest up: its section, one grand total and the playtest warning", %{conn: conn} do
+      configure_peer()
+      insert!("gm", 1_000_000)
+
+      playtest_body =
+        playtest_body(%{"gm" => 60_000_000, "persona" => 30_000_000}, 10_000_000)
+
+      Req.Test.stub(Peer, fn conn ->
+        assert conn.host == "tales-forge-playtest.fly.dev"
+        assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer t0ken"]
+        Req.Test.json(conn, playtest_body)
+      end)
+
+      {:ok, view, _html} = live(conn, ~p"/admin/costs")
+      render_async(view)
+
+      assert has_element?(view, "#costs-env-peer h2", "Playtest (tales-forge-playtest)")
+      assert has_element?(view, "#costs-env-peer-month-gm", "$60.00")
+      assert has_element?(view, "#costs-env-peer-month-game", "$60.00")
+      assert has_element?(view, "#costs-env-peer-month-persona", "$30.00")
+      assert has_element?(view, "#costs-env-peer-month-bots", "$30.00")
+      assert has_element?(view, "#costs-env-peer-month-total", "$90.00")
+      assert has_element?(view, "#costs-env-peer-outside", "$10.00")
+
+      assert has_element?(view, "#costs-total-production", "$1.00")
+      assert has_element?(view, "#costs-total-playtest-runs", "$90.00")
+      assert has_element?(view, "#costs-total-playtest-runs", "game $60.00, bots $30.00")
+      assert has_element?(view, "#costs-total-playtest-outside", "$10.00")
+      assert has_element?(view, "#costs-grand-total", "production and playtest")
+      assert has_element?(view, "#costs-grand-total", "$101.00")
+      sek = :erlang.float_to_binary(101 * Costs.usd_sek().rate, decimals: 2) <> " kr"
+      assert has_element?(view, "#costs-grand-total", sek)
+      assert has_element?(view, "#costs-playtest-warning", "over the $15.00 threshold")
+      refute has_element?(view, "#costs-peer-excluded")
+    end
+
+    test "playtest under the threshold: no warning", %{conn: conn} do
+      configure_peer()
+      Req.Test.stub(Peer, &Req.Test.json(&1, playtest_body(%{}, 0)))
+
+      {:ok, view, _html} = live(conn, ~p"/admin/costs")
+      render_async(view)
+
+      assert has_element?(view, "#costs-playtest-ok", "under the $15.00 threshold")
+      refute has_element?(view, "#costs-playtest-warning")
+    end
   end
 
-  test "peer down: page still renders, playtest unavailable", %{conn: conn} do
-    configure_peer()
-    Req.Test.stub(Peer, &Req.Test.transport_error(&1, :econnrefused))
+  describe "playtest app" do
+    setup do
+      Application.put_env(:ex_tales_forge, :app_name, "tales-forge-playtest")
+      :ok
+    end
 
-    {:ok, view, _html} = live(conn, ~p"/admin/costs")
-    render_async(view)
+    test "only playtest-run costs, persona apart from game, manual play on its own line",
+         %{conn: conn} do
+      configure_peer()
+      Req.Test.stub(Peer, fn _conn -> flunk("playtest's page must not fetch production") end)
 
-    assert has_element?(view, "#costs-env-peer", "Playtest unavailable")
-    assert has_element?(view, "#costs-peer-excluded", "unavailable")
-    assert has_element?(view, "#costs-env-local")
-    assert has_element?(view, "#costs-total", "this app only")
-  end
+      {:ok, session} = GameSessions.create_session(%{name: "Persona run"})
 
-  test "peer rejects the token: unavailable with the reason", %{conn: conn} do
-    configure_peer()
-    Req.Test.stub(Peer, &Plug.Conn.send_resp(&1, 401, "Unauthorized"))
+      Repo.insert!(%PlaytestRun{
+        game_session_id: session.id,
+        persona: "careful",
+        module: "tin_valley",
+        turn_limit: 5,
+        status: "finished",
+        started_at: DateTime.utc_now() |> DateTime.truncate(:second)
+      })
 
-    {:ok, view, _html} = live(conn, ~p"/admin/costs")
-    render_async(view)
+      insert!("gm", 2_000_000, "ok", session.id)
+      insert!("intent_shadow", 10_000, "ok", session.id, "jev")
+      insert!("persona", 500_000, "ok", session.id)
+      insert!("scorer", 20_000, "ok", session.id, "jev")
+      # Manual play on playtest: not a run.
+      insert!("gm", 7_000_000)
 
-    assert has_element?(view, "#costs-env-peer", "HTTP 401")
-  end
+      {:ok, view, html} = live(conn, ~p"/admin/costs")
 
-  test "peer up: both environments, totals and the playtest warning", %{conn: conn} do
-    configure_peer()
-    insert!("gm", 1_000_000)
+      assert has_element?(view, "#costs-runs h2", "Playtest runs (tales-forge-playtest)")
+      assert has_element?(view, "#costs-runs-month-gm", "$2.00")
+      assert has_element?(view, "#costs-runs-month-jev_intent", "$0.0100")
+      assert has_element?(view, "#costs-runs-month-game", "$2.01")
+      assert has_element?(view, "#costs-runs-month-persona", "$0.5000")
+      assert has_element?(view, "#costs-runs-month-jev_scoring", "$0.0200")
+      assert has_element?(view, "#costs-runs-month-bots", "$0.5200")
+      assert has_element?(view, "#costs-runs-month-total", "$2.53")
+      assert has_element?(view, "#costs-runs-today-total", "$2.53")
+      assert has_element?(view, "#costs-runs caption", "runs started: 1")
+      sek = :erlang.float_to_binary(2.53 * Costs.usd_sek().rate, decimals: 2) <> " kr"
+      assert has_element?(view, "#costs-runs-month-total", sek)
 
-    peer_body =
-      Costs.ai_summary()
-      |> Map.put("app", "tales-forge-playtest")
-      |> put_in(["month", "buckets", "game", "cost_micro_usd"], 100_000_000)
-      |> put_in(["month", "buckets", "game", "calls"], 7)
+      assert has_element?(view, "#costs-runs-outside", "Not a playtest run")
+      assert has_element?(view, "#costs-runs-outside", "$7.00")
+      refute html =~ "$9.53"
 
-    Req.Test.stub(Peer, fn conn ->
-      assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer t0ken"]
-      Req.Test.json(conn, peer_body)
-    end)
-
-    {:ok, view, _html} = live(conn, ~p"/admin/costs")
-    render_async(view)
-
-    assert has_element?(view, "#costs-env-peer h2", "Playtest (tales-forge-playtest)")
-    assert has_element?(view, "#costs-env-peer-month-game", "$100.00")
-    assert has_element?(view, "#costs-total", "both environments")
-    assert has_element?(view, "#costs-total", "$101.00")
-    assert has_element?(view, "#costs-playtest-warning", "over the $15.00 threshold")
-    refute has_element?(view, "#costs-peer-excluded")
+      # No production section, grand total, fixed costs or call metrics here.
+      refute has_element?(view, "#costs-total")
+      refute has_element?(view, "#costs-env-peer")
+      refute has_element?(view, "#costs-fixed")
+      refute has_element?(view, "#costs-call-types")
+    end
   end
 
   test "calls by type: breakdown with persona apart, cache, idle gap and recent sessions",
@@ -182,26 +268,36 @@ defmodule TalesForgeWeb.AdminLive.CostsLiveTest do
     assert has_element?(view, "#costs-env-local-month-game", "2")
   end
 
-  test "playtest under the threshold: no warning", %{conn: conn} do
-    configure_peer()
+  # A playtest-run summary as playtest serves it: month (and today) lines.
+  defp playtest_body(month_costs, outside_micro_usd) do
+    summary = PlaytestRuns.summary()
+    zero = %{"calls" => 0, "cost_micro_usd" => 0, "capped" => 0, "errors" => 0}
 
-    peer_body = Map.put(Costs.ai_summary(), "app", "tales-forge-playtest")
-    Req.Test.stub(Peer, &Req.Test.json(&1, peer_body))
+    lines =
+      Map.new(PlaytestRuns.lines(), fn name ->
+        cost = Map.get(month_costs, name, 0)
+        {name, %{zero | "calls" => if(cost > 0, do: 1, else: 0), "cost_micro_usd" => cost}}
+      end)
 
-    {:ok, view, _html} = live(conn, ~p"/admin/costs")
-    render_async(view)
-
-    assert has_element?(view, "#costs-playtest-ok", "under the $15.00 threshold")
-    refute has_element?(view, "#costs-playtest-warning")
+    summary
+    |> Map.put("app", "tales-forge-playtest")
+    |> put_in(["month", "lines"], lines)
+    |> put_in(["month", "outside_runs"], %{
+      zero
+      | "calls" => 1,
+        "cost_micro_usd" => outside_micro_usd
+    })
   end
 
-  defp insert!(purpose, micro_usd, status \\ "ok") do
+  defp insert!(purpose, micro_usd, status \\ "ok", session_id \\ nil, call_type \\ "llm") do
     Repo.insert!(%AICall{
       purpose: purpose,
+      call_type: call_type,
       model: "grok-4.3",
       status: status,
       latency_ms: 1,
-      cost_micro_usd: micro_usd
+      cost_micro_usd: micro_usd,
+      game_session_id: session_id
     })
   end
 end

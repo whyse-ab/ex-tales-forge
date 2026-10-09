@@ -104,7 +104,11 @@
                  "lib/ex_tales_forge/playtest/character_changes/",
                  "lib/ex_tales_forge_web/components/character_changes_components.ex",
                  "lib/ex_tales_forge/app_role.ex",
-                 "lib/ex_tales_forge_web/plugs/home_app.ex"
+                 "lib/ex_tales_forge_web/plugs/home_app.ex",
+                 "lib/ex_tales_forge/costs.ex",
+                 "lib/ex_tales_forge/costs/",
+                 "lib/ex_tales_forge_web/controllers/costs_peer_controller.ex",
+                 "lib/ex_tales_forge_web/live/admin/costs_live.ex"
                ]
              }
            ]}
