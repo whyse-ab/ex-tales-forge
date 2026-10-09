@@ -180,7 +180,14 @@ defmodule TalesForgeWeb.TeamLive do
         </aside>
       </div>
       <div class="team-card overflow-hidden p-3">
-        <TeamArt.hero />
+        <TeamArt.picture
+          id="hero-art"
+          name="hero"
+          sizes="(min-width: 1152px) 528px, (min-width: 1024px) calc(50vw - 3rem), calc(100vw - 3.5rem)"
+          loading="eager"
+          fetchpriority="high"
+          class="block aspect-video h-auto w-full rounded-lg object-cover"
+        />
       </div>
       <div class="grid gap-3 sm:grid-cols-3 lg:col-span-2">
         <.stat
@@ -225,8 +232,20 @@ defmodule TalesForgeWeb.TeamLive do
           id={"member-#{member["id"]}"}
           class="team-card flex flex-col gap-3 p-4"
         >
+          <TeamArt.picture
+            :if={TeamArt.portrait?(member["id"])}
+            id={"portrait-#{member["id"]}"}
+            name={member["id"]}
+            sizes="(min-width: 1152px) 240px, (min-width: 1024px) calc(25vw - 3rem), (min-width: 640px) calc(50vw - 4rem), calc(100vw - 4rem)"
+            class="team-portrait block aspect-[4/3] h-auto w-full rounded-lg object-cover"
+          />
           <div class="flex items-center gap-3">
-            <TeamArt.avatar id={member["id"]} class="size-16" label={"#{member["name"]}"} />
+            <TeamArt.avatar
+              :if={!TeamArt.portrait?(member["id"])}
+              id={member["id"]}
+              class="size-16"
+              label={"#{member["name"]}"}
+            />
             <div class="min-w-0">
               <h3 class="font-serif text-lg font-bold leading-tight">{member["name"]}</h3>
               <p class="text-xs text-[var(--paper-muted)]">
@@ -389,7 +408,11 @@ defmodule TalesForgeWeb.TeamLive do
             data-flow-marker
           >
             <%= if step["approval"] do %>
-              <TeamArt.seal class="size-12" />
+              <TeamArt.picture
+                name="founders-seal"
+                sizes="48px"
+                class="team-seal size-12 rounded-full object-cover"
+              />
               <TeamArt.avatar
                 id="founders"
                 class="absolute -bottom-1 -right-1 size-6"

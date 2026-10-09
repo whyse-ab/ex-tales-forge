@@ -550,6 +550,16 @@
   background: var(--paper-accent);
 }
 
+/* The painted illustrations (TeamArt.picture/1): a thin frame in the page's
+   rule colour, and a touch dimmer in the dark theme so the parchment doesn't
+   glare. The parchment shows while a lazy image loads. */
+.team-photo {
+  background: var(--paper-margin);
+  border: 1px solid var(--paper-rule);
+}
+
+:root[data-theme="dark"] .team-page .team-photo { filter: brightness(0.88) saturate(0.95); }
+
 .team-ok { background: var(--paper-ok-bg); color: var(--paper-ok-ink); }
 .team-warn { background: var(--paper-warn-bg); color: var(--paper-warn-ink); }
 
@@ -620,7 +630,6 @@
 .team-bar-h { transform-origin: left; }
 .team-page[data-motion="full"] [data-reveal].is-visible .team-bar-v { animation: team-grow-y 0.9s 0.15s ease-out both; }
 .team-page[data-motion="full"] [data-reveal].is-visible .team-bar-h { animation: team-grow-x 0.9s 0.15s ease-out both; }
-.team-page[data-motion="full"] .team-flame { animation: team-flicker 2.4s ease-in-out infinite; transform-origin: 50% 100%; transform-box: fill-box; }
 
 @keyframes team-grow-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 @keyframes team-grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
@@ -628,11 +637,6 @@
   0% { transform: scale(1.6) rotate(-12deg); opacity: 0.2; }
   60% { transform: scale(0.92) rotate(3deg); opacity: 1; }
   100% { transform: scale(1) rotate(0); }
-}
-@keyframes team-flicker {
-  0%, 100% { transform: scale(1, 1); opacity: 1; }
-  30% { transform: scale(0.92, 1.08); opacity: 0.9; }
-  60% { transform: scale(1.05, 0.95); opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
