@@ -1,7 +1,8 @@
 defmodule TalesForgeWeb.TeamComponents do
   @moduledoc """
-  Building blocks of the founders' page (`/team`, `TalesForgeWeb.TeamLive`):
-  stat tiles, section headings, inline term explanations and the charts.
+  Building blocks of the founders' presentation (`/team/presentation`,
+  `TalesForgeWeb.TeamPresentationLive`): stat tiles, section headings, inline
+  term explanations and the charts.
 
   The charts are plain HTML and CSS (bars are `div`s sized in percent), drawn
   on the server from `TalesForge.TeamPage` data: no chart library, nothing

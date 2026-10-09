@@ -2,10 +2,11 @@ defmodule TalesForgeWeb.Router do
   @moduledoc """
   Routes. Everything requires a signed-in member of the ADMIN_GITHUB_TEAM GitHub
   team (`TalesForge.AdminAuth`): the play pages (home, the character creation
-  screen at /new/:adventure, a game), the founders' page at /team, the admin area (with
-  LiveDashboard at /admin/oban and the ExDoc code docs at /admin/code-docs) and
-  anything added later under the `:browser` pipeline. Any team member gets the
-  admin pages; there is no separate admin login.
+  screen at /new/:adventure, a game), the founders' page at /team and its full
+  presentation at /team/presentation, the admin area (with LiveDashboard at
+  /admin/oban and the ExDoc code docs at /admin/code-docs) and anything added
+  later under the `:browser` pipeline. Any team member gets the admin pages;
+  there is no separate admin login.
 
   The only public routes are the login page, the GitHub OAuth request/callback,
   logout, the Fly health check (`/health`) and the token-guarded machine-to-machine
@@ -65,8 +66,10 @@ defmodule TalesForgeWeb.Router do
       live "/", HomeLive, :index
       live "/new/:adventure", CreateCharacterLive, :new
       live "/play/:id", PlayLive, :show
-      # The founders' presentation page (TeamLive).
+      # The founders' page: a light landing page (TeamLive) and the full
+      # presentation (TeamPresentationLive), same team sign-in.
       live "/team", TeamLive, :index
+      live "/team/presentation", TeamPresentationLive, :index
     end
   end
 

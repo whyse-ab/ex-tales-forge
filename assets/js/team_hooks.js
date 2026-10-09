@@ -1,4 +1,7 @@
-// Animations of the founders' page (/team, TalesForgeWeb.TeamLive).
+// The founders' pages: the landing page (/team, TalesForgeWeb.TeamLive) and
+// the full presentation (/team/presentation, TalesForgeWeb.TeamPresentationLive).
+// TeamAnchorRedirect forwards old /team#section links to the presentation;
+// the rest are the animations.
 //
 // Everything here is decoration: the server renders the full, static page
 // (every flow step lit, every bar at its size), and nothing is hidden until
@@ -196,5 +199,106 @@ export const TeamLanes = {
     this.observer?.disconnect()
     this.mq?.removeEventListener("change", this.onChange)
     this.replayButton?.removeEventListener("click", this.onReplay)
+  },
+}
+
+// The shared board's mock (TalesForgeWeb.TeamBoard, presentation section 6):
+// one card is dropped into Ideas, then moves column by column to Done (about
+// 8 s), once when scrolled into view, with a Replay button. The server renders
+// the static board (one card in every column, labelled); only while playing
+// are the steps not yet reached hidden, and a card that has moved on fades
+// out (data-gone), left as a faint trail once the story is done.
+const BOARD_STEPS = [200, 1500, 2900, 4500, 6000, 7200]
+const BOARD_DONE = 8200
+
+export const TeamBoard = {
+  mounted() {
+    this.timers = []
+    this.mq = reducedMotion()
+    this.parts = [...this.el.querySelectorAll("[data-at]")]
+
+    this.onReplay = () => this.play()
+    this.replayButton = this.el.querySelector("[data-board-replay]")
+    this.replayButton?.addEventListener("click", this.onReplay)
+
+    this.onChange = () => this.mq.matches && this.settle()
+    this.mq.addEventListener("change", this.onChange)
+
+    if (this.mq.matches || !("IntersectionObserver" in window)) return this.settle()
+
+    this.observer = new IntersectionObserver(entries => {
+      if (!entries.some(e => e.isIntersecting)) return
+      this.observer.disconnect()
+      this.play()
+    }, {threshold: 0.3})
+    this.observer.observe(this.el)
+  },
+
+  // Static board: one card in each column, everything shown.
+  settle() {
+    this.clear()
+    this.el.dataset.board = "static"
+    this.parts.forEach(p => { delete p.dataset.shown; delete p.dataset.gone })
+  },
+
+  play() {
+    if (this.mq.matches) return this.settle()
+    this.clear()
+    this.parts.forEach(p => { delete p.dataset.shown; delete p.dataset.gone })
+    this.el.dataset.board = "playing"
+
+    BOARD_STEPS.forEach((at, i) => {
+      const step = i + 1
+      this.later(at, () => {
+        this.parts.forEach(p => {
+          if (p.dataset.at === String(step)) p.dataset.shown = "true"
+          if (p.dataset.until && Number(p.dataset.until) < step) p.dataset.gone = "true"
+        })
+      })
+    })
+    this.later(BOARD_DONE, () => { this.el.dataset.board = "done" })
+  },
+
+  later(ms, fun) { this.timers.push(setTimeout(fun, ms)) },
+
+  clear() {
+    this.timers.forEach(clearTimeout)
+    this.timers = []
+  },
+
+  destroyed() {
+    this.clear()
+    this.observer?.disconnect()
+    this.mq?.removeEventListener("change", this.onChange)
+    this.replayButton?.removeEventListener("click", this.onReplay)
+  },
+}
+
+// Old links to the presentation's sections pointed at /team#section. The
+// server never sees the fragment, so on /team this hook checks it: when it
+// is one of the presentation's anchors (data-anchors, from
+// TeamPresentationLive.anchors/0), the URL is replaced with
+// /team/presentation#section, so Back skips the landing page. Anything else
+// (the landing page's own anchors, no fragment) stays put.
+export const presentationTarget = (hash, anchors, target) => {
+  const anchor = decodeURIComponent((hash || "").replace(/^#/, ""))
+  return anchor && anchors.includes(anchor) ? `${target}#${anchor}` : null
+}
+
+export const TeamAnchorRedirect = {
+  mounted() {
+    this.anchors = JSON.parse(this.el.dataset.anchors || "[]")
+    this.onHash = () => this.check()
+    window.addEventListener("hashchange", this.onHash)
+    this.check()
+  },
+
+  check() {
+    const to = presentationTarget(window.location.hash, this.anchors, this.el.dataset.target)
+    if (to) window.location.replace(to)
+  },
+
+  destroyed() {
+    window.removeEventListener("hashchange", this.onHash)
   },
 }
