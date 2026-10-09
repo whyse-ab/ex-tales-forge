@@ -35,7 +35,7 @@ defmodule TalesForgeWeb.PlayLive do
      |> assign(:thinking, false)
      |> assign(:scene_loading, status.needs_scene)
      |> assign(:scene_image_url, current_scene_image(session))
-     |> assign(:clarification, nil)
+     |> assign(:clarification, GameSessions.pending_clarification(session.world_state))
      |> assign(:llm_source, "mock")
      |> stream(:entries, entries, reset: true)}
   end
@@ -45,16 +45,16 @@ defmodule TalesForgeWeb.PlayLive do
     submit_action(socket, message, [])
   end
 
+  # A picked option plays the player's words from when the question was asked
+  # (stored with the pending clarification), not whatever is in the input box:
+  # the form has no phx-change, so the server never sees the box anyway.
   def handle_event("pick_clarification", %{"option_id" => option_id}, socket) do
-    clarification = socket.assigns.clarification
+    case socket.assigns.clarification do
+      %{"clarification_id" => clarification_id} ->
+        submit_action(socket, "", clarification_id: clarification_id, option_id: option_id)
 
-    if clarification do
-      submit_action(socket, "",
-        clarification_id: clarification["clarification_id"],
-        option_id: option_id
-      )
-    else
-      {:noreply, socket}
+      _ ->
+        {:noreply, socket}
     end
   end
 
@@ -233,6 +233,13 @@ defmodule TalesForgeWeb.PlayLive do
       {:error, :empty_message} ->
         {:noreply,
          socket |> assign(:thinking, false) |> put_flash(:error, "Say something first.")}
+
+      {:error, :clarification_expired} ->
+        {:noreply,
+         socket
+         |> assign(:thinking, false)
+         |> assign(:clarification, nil)
+         |> put_flash(:error, "That question has passed. Say what you do.")}
 
       {:error, :needs_scene} ->
         {:noreply,

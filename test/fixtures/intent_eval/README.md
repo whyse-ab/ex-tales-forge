@@ -48,6 +48,14 @@ labels (n/m reviewed)".
   h-fp04 (twenty potions) and h-fp06 (a key nobody gave); h-fp03 (a free-room
   agreement) and h-fp05 ("level 20 and immune") are claims the session keeps
   no state for, so nothing checks them yet.
+- `false_premise` (5 more, h-fp07–11, 2026-10-09, from Gentry's retest of
+  v85/v86): a kill claimed as a reminder to the table ("As I said, I killed
+  the orc chief yesterday", which Brenna believed and offered pay for) and
+  variants: "like I said before … slew", "as I mentioned, I've already
+  killed", a named foe the session doesn't know ("the bandit king") and an
+  unknown proper name ("Garrick the Red"). Same labels as h-fp01–06; the
+  Elixir check catches all five. A lie told *to* a character ("I tell
+  Brenna I killed the orc chief") stays plain `benign` with no flag.
 
 - `plain_talk_vs_social` (18 items, h-pt01–18, 2026-10-09, decision "Plain
   talk doesn't roll", re-enforcing 2026-10-07): ten plain-talk turns that roll

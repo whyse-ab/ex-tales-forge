@@ -199,7 +199,7 @@ defmodule TalesForge.Game.TurnProcessor do
             session.world_state,
             board.world,
             Map.get(board.sim, :fronts, []),
-            combat_wins(session.id)
+            won_fights(session.id)
           )
 
         raw_action
@@ -224,14 +224,21 @@ defmodule TalesForge.Game.TurnProcessor do
     |> List.wrap()
   end
 
-  defp combat_wins(session_id) do
+  # The player text and narration of each fight the character has won this
+  # session, so a kill claim is checked against what was actually fought.
+  defp won_fights(session_id) do
     import Ecto.Query
 
     Turn
     |> where([t], t.game_session_id == ^session_id)
-    |> select([t], t.mechanical_resolution)
+    |> select([t], {t.mechanical_resolution, t.player_action, t.narrative})
     |> Repo.all()
-    |> Enum.count(&PremiseCheck.combat_win?/1)
+    |> Enum.filter(fn {resolution, _action, _narrative} ->
+      PremiseCheck.combat_win?(resolution)
+    end)
+    |> Enum.map(fn {_resolution, action, narrative} ->
+      Enum.join([action || "", narrative || ""], "\n")
+    end)
   end
 
   defp world_agents(session, board) do
