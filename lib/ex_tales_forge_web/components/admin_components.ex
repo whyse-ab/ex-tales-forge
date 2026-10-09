@@ -8,16 +8,20 @@ defmodule TalesForgeWeb.AdminComponents do
 
   attr :active, :string, default: "dashboard"
 
+  @doc """
+  The admin section nav. Below the `lg` breakpoint the links wrap into rows of
+  compact tabs, so every section (Sign out included) is on screen without
+  sideways scrolling, even at 320px; from `lg` up it is the vertical sidebar
+  list. `active` names the current section, marked with `aria-current="page"`.
+  """
+  @spec nav(map()) :: Phoenix.LiveView.Rendered.t()
   def nav(assigns) do
     ~H"""
-    <%!-- Phones: one row that scrolls sideways; the AdminNav hook scrolls the
-         active tab fully into view and fades whichever edge has more tabs.
-         Desktop: a plain vertical list. --%>
+    <%!-- Phones and tablets: wrapping rows of tabs. Desktop: a plain vertical list. --%>
     <nav
       id="admin-nav"
-      phx-hook="AdminNav"
       aria-label="Admin sections"
-      class="admin-nav -mx-0.5 flex gap-1 overflow-x-auto whitespace-nowrap text-sm lg:mx-0 lg:block lg:space-y-1 lg:overflow-visible lg:whitespace-normal"
+      class="admin-nav flex flex-wrap gap-1 text-sm lg:block lg:space-y-1"
     >
       <.nav_link href={~p"/admin"} label="Dashboard" active={@active == "dashboard"} />
       <.nav_link href={~p"/admin/decisions"} label="Decisions" active={@active == "decisions"} />
@@ -49,7 +53,7 @@ defmodule TalesForgeWeb.AdminComponents do
       <.link
         href={~p"/admin/logout"}
         method="delete"
-        class="block shrink-0 rounded px-3 py-2 text-[var(--paper-muted)] hover:bg-[var(--paper-bg)]"
+        class="block shrink-0 rounded px-2.5 py-1.5 text-[var(--paper-muted)] hover:bg-[var(--paper-bg)] lg:px-3 lg:py-2"
       >
         Sign out
       </.link>
@@ -94,7 +98,7 @@ defmodule TalesForgeWeb.AdminComponents do
       href={if @external, do: @href}
       aria-current={@active && "page"}
       class={[
-        "block shrink-0 rounded px-3 py-2",
+        "block shrink-0 rounded px-2.5 py-1.5 lg:px-3 lg:py-2",
         @active && "bg-[var(--paper-accent)] text-[var(--paper-on-accent)]",
         !@active && "text-[var(--paper-ink)] hover:bg-[var(--paper-bg)]"
       ]}

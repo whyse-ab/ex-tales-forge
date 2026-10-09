@@ -216,22 +216,6 @@
   color: var(--paper-muted);
 }
 
-/* Admin nav on phones: one scrolling row (see assets/js/admin_nav_hook.js).
-   No scrollbar; an edge fades out while there are more tabs that way. */
-@media (max-width: 1023.98px) {
-  .admin-nav { scrollbar-width: none; }
-  .admin-nav::-webkit-scrollbar { display: none; }
-  .admin-nav[data-more-end="true"] {
-    mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
-  }
-  .admin-nav[data-more-start="true"] {
-    mask-image: linear-gradient(to left, #000 calc(100% - 2.5rem), transparent);
-  }
-  .admin-nav[data-more-start="true"][data-more-end="true"] {
-    mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent);
-  }
-}
-
 .play-narrative-body {
   font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   line-height: 1.65;

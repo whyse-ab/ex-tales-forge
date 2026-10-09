@@ -55,6 +55,13 @@ defmodule TalesForgeWeb.PlayComponents do
   attr :input_disabled, :boolean, required: true
   attr :session_status, :string, default: "active"
 
+  @doc """
+  The story column of the play page: the narrative log, the GM's "thinking"
+  placeholders, any clarification question, and the action form (text input
+  plus the Act button). On phones the input shrinks to the space left beside
+  Act, so the button stays on screen down to a 320px viewport.
+  """
+  @spec narrative_panel(map()) :: Phoenix.LiveView.Rendered.t()
   def narrative_panel(assigns) do
     ~H"""
     <section class="play-panel flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg">
@@ -110,18 +117,26 @@ defmodule TalesForgeWeb.PlayComponents do
           </div>
         </section>
 
-        <.form for={%{}} phx-submit="send_message" class="flex gap-2">
+        <%!-- min-w-0 lets the input shrink below its intrinsic width (~255px) and
+             shrink-0 keeps Act whole, so both fit a 320px phone. --%>
+        <.form
+          for={%{}}
+          id="action-form"
+          phx-submit="send_message"
+          class="flex w-full min-w-0 items-stretch gap-2"
+        >
           <input
             type="text"
             name="message"
             placeholder={input_placeholder(@scene_loading, @session_status)}
             autocomplete="off"
-            class="flex-1 rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-3 py-2 text-[var(--paper-ink)] placeholder:text-[var(--paper-muted)]"
+            aria-label="Your action"
+            class="min-w-0 flex-1 rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-3 py-2 text-[var(--paper-ink)] placeholder:text-[var(--paper-muted)]"
             disabled={@input_disabled}
           />
           <button
             type="submit"
-            class="rounded bg-[var(--paper-accent)] px-4 py-2 font-medium text-white hover:opacity-90 disabled:opacity-50"
+            class="shrink-0 rounded bg-[var(--paper-accent)] px-4 py-2 font-medium text-white hover:opacity-90 disabled:opacity-50"
             disabled={@input_disabled}
           >
             Act

@@ -10,12 +10,7 @@ defmodule TalesForgeWeb.AdminLive.LayoutTest do
 
     # .admin-shell switches the paper palette with the theme toggle (app.css).
     assert has_element?(view, "div.admin-shell")
-    # The AdminNav hook scrolls the aria-current tab into view on phones.
-    assert has_element?(
-             view,
-             ~s(#admin-nav[phx-hook="AdminNav"] a[aria-current="page"]),
-             "Playtest runs"
-           )
+    assert has_element?(view, ~s(#admin-nav a[aria-current="page"]), "Playtest runs")
 
     refute has_element?(view, ~s(#admin-nav a[aria-current="page"]), "Dashboard")
   end
