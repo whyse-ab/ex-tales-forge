@@ -111,7 +111,8 @@
                  "lib/ex_tales_forge/costs.ex",
                  "lib/ex_tales_forge/costs/",
                  "lib/ex_tales_forge_web/controllers/costs_peer_controller.ex",
-                 "lib/ex_tales_forge_web/live/admin/costs_live.ex"
+                 "lib/ex_tales_forge_web/live/admin/costs_live.ex",
+                 "lib/ex_tales_forge/playtest/summary.ex"
                ]
              }
            ]}
