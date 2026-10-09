@@ -1,3 +1,12 @@
 {
-  "_doc": "INN_WORLD (feature inn_world): places and people around the Valley Inn. Design: tales-forge-docs docs/design-tin-valley-world.md. New places list their exits; the way back from base places is added by TalesForge.Game.Pack."
+  "_doc": "INN_WORLD (feature inn_world): places and people around the Valley Inn. Design: tales-forge-docs docs/design-tin-valley-world.md. New places list their exits; the way back from base places is added by TalesForge.Game.Pack.",
+  "npc_hooks": {
+    "innkeep": [
+      "Anyone carrying steel or asking for work, Brenna sends to Hilde Brask's forge off the Market Square: Hilde puts an honest edge on a blade for 2 copper, pays a strong arm at the bellows, and reads the stamps on any tin or tool.",
+      "The hurt and the curious, Brenna sends to Old Maude's cottage off the Market Square, often with a loaf for Maude: Maude stitches cuts for a few coppers and remembers what the first miners found under the hill."
+    ],
+    "stable_lad": [
+      "Most evenings he runs bread to Maude's cottage and coal to the forge, and for a copper he will walk a stranger to either, gossiping about Hilde's late hammering and Maude's old stories on the way."
+    ]
+  }
 }
