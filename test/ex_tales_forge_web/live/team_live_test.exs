@@ -210,6 +210,12 @@ defmodule TalesForgeWeb.TeamLiveTest do
              )
 
       assert has_element?(view, ~s(#hero-art[alt*="round tavern table"]))
+      assert has_element?(view, ~s(#hero-art[alt*="stylised Nordic adventurers"]))
+
+      for name <- ~w(Fredrik Thobias Håkan Jeanette) do
+        assert has_element?(view, ~s(#hero-art[alt*="#{name}"]))
+      end
+
       refute has_element?(view, "#hero svg.team-hero-art")
     end
 
