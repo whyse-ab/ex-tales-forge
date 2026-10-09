@@ -254,6 +254,15 @@ if config_env() != :test do
   config :ex_tales_forge, :app_name, System.get_env("FLY_APP_NAME")
 end
 
+# Live PR feed on /team (TalesForge.PrFeed): GITHUB_FEED_TOKEN (secret), a
+# fine-grained read-only token for whyse-ab/ex-tales-forge (Pull requests,
+# Contents and Actions: read). Unset = the feed says "Live feed unavailable" and
+# nothing is fetched. The other app's running commit (on playtest / on prod) is
+# read from its GET /internal/version with COSTS_PEER_TOKEN. Not read in test.
+if config_env() != :test do
+  config :ex_tales_forge, :pr_feed_token, System.get_env("GITHUB_FEED_TOKEN")
+end
+
 # AI spending caps in decimal USD (e.g. "2.50"). Unset or empty = that cap is off,
 # except AI_CAP_PERSONA_RUN_USD (persona bot spend per playtest run), which then
 # defaults to 0.50; "0" stops those calls. Read by TalesForge.AICalls.check_spend_caps/3.

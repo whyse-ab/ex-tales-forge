@@ -22,6 +22,7 @@ defmodule TalesForge.Application do
       {Task.Supervisor, name: TalesForge.IntentJev.Supervisor},
       TalesForge.AdminAuth.MembershipCache,
       TalesForge.Survey.Cache,
+      TalesForge.PrFeed.Poller,
       TalesForgeWeb.Endpoint
     ]
 

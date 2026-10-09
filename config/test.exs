@@ -60,6 +60,14 @@ config :ex_tales_forge, :llm_req_options, plug: {Req.Test, TalesForge.LLM}
 # unset unless a test puts them.
 config :ex_tales_forge, :costs_peer_req_options, plug: {Req.Test, TalesForge.Costs.Peer}
 
+# Live PR feed (/team): no polling in tests and no token; GitHub and the
+# other app's /internal/version go to Req.Test stubs. Tests that need a token
+# put :pr_feed_token and call TalesForge.PrFeed.Poller.poll/2 themselves.
+config :ex_tales_forge, TalesForge.PrFeed, poll: false
+config :ex_tales_forge, :pr_feed_token, nil
+config :ex_tales_forge, :pr_feed_req_options, plug: {Req.Test, TalesForge.PrFeed.GitHub}
+config :ex_tales_forge, :version_peer_req_options, plug: {Req.Test, TalesForge.PrFeed.Versions}
+
 # Docs viewer images from GitHub go to Req.Test stubs (TalesForge.Collab.Files).
 config :ex_tales_forge, :docs_req_options, plug: {Req.Test, TalesForge.Collab.Files}
 

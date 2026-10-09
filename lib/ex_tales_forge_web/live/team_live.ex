@@ -21,7 +21,10 @@ defmodule TalesForgeWeb.TeamLive do
 
   Behind the GitHub team sign-in like every page (router `:browser` pipeline
   plus the `:require_team_member` mount hook, the same `:play` live session as
-  the presentation). Read-only: no events, no AI calls, no database. Copy
+  the presentation). Read-only: no events, no AI calls, no database. The one
+  live part, "Live: what we're shipping", is the nested
+  `TalesForgeWeb.TeamPrFeedLive` (the PR feed of `TalesForge.PrFeed`, polled
+  from GitHub on the server and pushed over PubSub). Copy
   follows tales-forge-docs `docs/team-page/content.md`; numbers come from
   `TalesForge.TeamPage`.
   """
@@ -32,14 +35,16 @@ defmodule TalesForgeWeb.TeamLive do
 
   import TalesForgeWeb.TeamComponents, only: [founders_people: 1]
 
+  alias TalesForge.PrFeed
   alias TalesForge.TeamPage
   alias TalesForgeWeb.Layouts
   alias TalesForgeWeb.TeamArt
   alias TalesForgeWeb.TeamBoard
   alias TalesForgeWeb.TeamLayout
   alias TalesForgeWeb.TeamPresentationLive
+  alias TalesForgeWeb.TeamPrFeed
 
-  @nav [{"crew", "The crew"}, {"board-soon", "Shared board"}]
+  @nav [{"crew", "The crew"}, {"live", "Live"}, {"board-soon", "Shared board"}]
 
   # One line per crew member, the first line of their card in the brief.
   @short %{
@@ -61,7 +66,7 @@ defmodule TalesForgeWeb.TeamLive do
   presentation anchor, so the redirect hook leaves them alone.
 
       iex> TalesForgeWeb.TeamLive.anchors()
-      ["crew", "board-soon", "landing-hero", "presentation-cta"]
+      ["crew", "live", "board-soon", "landing-hero", "presentation-cta"]
   """
   @spec anchors() :: [String.t()]
   def anchors, do: Enum.map(@nav, &elem(&1, 0)) ++ ~w(landing-hero presentation-cta)
@@ -99,7 +104,7 @@ defmodule TalesForgeWeb.TeamLive do
       <main class="mx-auto max-w-6xl space-y-16 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
         <.hero d={@d} />
         <.crew d={@d} />
-        <%!-- The live PR feed (#102, on hold) slots in here, as its own <section>. --%>
+        <.live_section socket={assigns[:socket]} />
         <.presentation />
         <.board_soon />
       </main>
@@ -210,6 +215,33 @@ defmodule TalesForgeWeb.TeamLive do
           </.link>
         </li>
       </ul>
+    </section>
+    """
+  end
+
+  # The feed is its own LiveView (TeamPrFeedLive), so its minute-by-minute
+  # updates patch only that part and never the page's animation state. Without
+  # a socket (render/1 called directly in tests) the current snapshot is shown
+  # statically.
+  attr :socket, :any, default: nil
+
+  defp live_section(assigns) do
+    ~H"""
+    <section id="live" class="space-y-5" aria-labelledby="live-title">
+      <header class="max-w-3xl space-y-2">
+        <h2 id="live-title" class="font-serif text-2xl font-bold sm:text-3xl">
+          Live: what we're shipping
+        </h2>
+        <p class="text-base leading-relaxed text-[var(--paper-muted)] sm:text-lg">
+          The latest pull requests in the game's repo, straight from GitHub and updated every minute:
+          what's open, what just merged, and whether it's on playtest or in production yet.
+        </p>
+      </header>
+      <%= if @socket do %>
+        {live_render(@socket, TalesForgeWeb.TeamPrFeedLive, id: "team-pr-feed")}
+      <% else %>
+        <TeamPrFeed.feed feed={PrFeed.snapshot()} now={DateTime.utc_now()} />
+      <% end %>
     </section>
     """
   end

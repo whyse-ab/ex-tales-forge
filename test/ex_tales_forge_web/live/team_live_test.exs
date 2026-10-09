@@ -180,7 +180,7 @@ defmodule TalesForgeWeb.TeamLiveTest do
       refute html =~ "Hostile play"
     end
 
-    test "sections are independent blocks, so a live feed can slot in after the crew" do
+    test "sections are independent blocks, with the live PR feed right after the crew" do
       ids =
         @data
         |> render_with()
@@ -188,10 +188,7 @@ defmodule TalesForgeWeb.TeamLiveTest do
         |> LazyHTML.query("main > section")
         |> Enum.map(&(&1 |> LazyHTML.attribute("id") |> hd()))
 
-      assert ids == ~w(landing-hero crew presentation-cta board-soon)
-
-      assert File.read!("lib/ex_tales_forge_web/live/team_live.ex") =~
-               "The live PR feed (#102, on hold) slots in here"
+      assert ids == ~w(landing-hero crew live presentation-cta board-soon)
     end
 
     test "null and missing numbers still render, never a zero" do

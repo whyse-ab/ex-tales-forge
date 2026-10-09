@@ -81,7 +81,7 @@ Source: decision 2026-10-07 "GitHub team sign-in is the only login on production
 
 - "Sign in with GitHub", checked against the team in `ADMIN_GITHUB_TEAM` (`whyse-ab/tales-forge`), is the only login. Only active members get in (pending invites don't count); membership is rechecked on every request and LiveView mount (cached for 5 minutes). Logins last up to 30 days.
 - **Every page and LiveView needs a signed-in team member**: play, character creation, the founders' page (`/team`), admin, costs, code docs and playtest reports. Any team member gets the admin pages; there is no second admin check.
-- Open signed out: `/health` (the Fly check), the login page, the GitHub OAuth request and callback, logout, the static files the login page needs, and the token-guarded machine-to-machine `GET /internal/costs` (`COSTS_PEER_TOKEN`; 404 while unset).
+- Open signed out: `/health` (the Fly check), the login page, the GitHub OAuth request and callback, logout, the static files the login page needs, and the token-guarded machine-to-machine `GET /internal/costs` and `GET /internal/version` (both `COSTS_PEER_TOKEN`; 404 while unset). `/internal/version` returns only the app's role and running commit, for the other app's live PR feed on `/team`.
 - **No unauthenticated route, LiveView event or endpoint may start an AI call.**
 - `test/ex_tales_forge_web/access_control_test.exs` holds the public route list and fails for any other route reachable signed out. A new public route needs a reason there and a decision.
 - Email magic links are gone (routes, form and sending code). `ADMIN_EMAILS` lets nobody in, and nothing sends mail.
