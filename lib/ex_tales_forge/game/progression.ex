@@ -28,8 +28,15 @@ defmodule TalesForge.Game.Progression do
     rest (`TalesForge.Game.Reflection`). Otherwise its LP **stay banked** (the
     one case where LP carry over) and the skill is reported as needing
     reflection, for the GM's note.
-  - `immediate_skills/0` lists skills resolved at the end of every turn instead
-    of on a rest; it is empty until Fredrik picks any.
+  - **Physical skills improve right away (decision 2026-10-09, ~16:04):** the
+    skills in `immediate_skills/0` (melee, ranged and unarmed combat, dodge,
+    climbing, lockpicking) are resolved at the end of the turn of the failure
+    (`resolve_turn/3`) with the same LP-per-roll cost, roll and reflection
+    gate. They too gain **at most +1 per long-rest cycle**: once one improves,
+    it is listed in the character's `"improved_since_rest"` and any LP it banks
+    are dropped until the next long rest, so it cannot be spammed. LP too few
+    for a roll wait for more failures within the cycle; the long rest then
+    clears them like any other skill's.
   - **Trainers:** a training session is one **free** attempt (no LP) with
     **+5** on the roll (`train/3`), paid for in coin and days
     (`TalesForge.Game.Train`).
@@ -53,9 +60,9 @@ defmodule TalesForge.Game.Progression do
   @trainer_bonus 5
   @defaults [attempt_floor: 11, lp_per_roll_divisor: 3, reflection_level: 10, long_rest_hours: 6]
 
-  # Skills resolved at the end of the turn instead of waiting for sleep.
-  # Empty on purpose: the candidates are listed in the PR for Fredrik to decide.
-  @immediate_skills []
+  # Skills resolved at the end of the turn of the failure instead of waiting
+  # for sleep: the physical ones (decision 2026-10-09, ~16:04).
+  @immediate_skills ~w(climbing dodge lockpicking melee_combat ranged_combat unarmed_combat)
 
   @typedoc "A character sheet map (string keys, as in `world_state[\"character\"]`)."
   @type character :: map()
@@ -164,11 +171,11 @@ defmodule TalesForge.Game.Progression do
     do: ticks >= setting(:long_rest_hours) * WorldClock.ticks_per_hour()
 
   @doc """
-  The skills resolved at the end of every turn instead of on a long rest.
-  Empty: every skill waits for sleep until Fredrik names exceptions.
+  The skills resolved at the end of the turn of the failure instead of on a
+  long rest: the physical ones. Every other skill waits for sleep.
 
       iex> TalesForge.Game.Progression.immediate_skills()
-      []
+      ["climbing", "dodge", "lockpicking", "melee_combat", "ranged_combat", "unarmed_combat"]
   """
   @spec immediate_skills() :: [String.t()]
   def immediate_skills, do: @immediate_skills
@@ -225,6 +232,46 @@ defmodule TalesForge.Game.Progression do
   end
 
   @doc """
+  End of an ordinary turn (not a long rest): resolves the banked LP of the
+  immediate (physical) skills right away. Per skill, in alphabetical order:
+
+  - already improved since the last long rest (`"improved_since_rest"`): its
+    LP are dropped, no roll (at most +1 per skill per long-rest cycle);
+  - at `reflection_level` or above and not in `opts[:reflected]`: nothing
+    happens, its LP stay banked for the rest;
+  - otherwise `div(lp, lp_per_roll(level))` rolls, stopping at the first
+    success. On a success the skill gains +1, all its LP are cleared and it
+    joins `"improved_since_rest"`. If no roll succeeds, the spent LP are gone
+    and the remainder (too few for a roll) stays banked for later this cycle.
+
+      iex> character = %{"skills" => %{"climbing" => 5}, "learning_points" => %{"climbing" => 3.0}}
+      iex> {now, attempts} = TalesForge.Game.Progression.resolve_turn(character, %{"climbing" => [12]})
+      iex> {now["skills"]["climbing"], now["learning_points"]["climbing"], now["improved_since_rest"]}
+      {6, 0.0, ["climbing"]}
+      iex> Enum.map(attempts, &{&1["roll"], &1["improved"], &1["lp_spent"], &1["lp_cleared"]})
+      [{12, true, 2, 1}]
+      iex> {again, []} = TalesForge.Game.Progression.resolve_turn(put_in(now, ["learning_points", "climbing"], 4.0))
+      iex> {again["skills"]["climbing"], again["learning_points"]["climbing"]}
+      {6, 0.0}
+  """
+  @spec resolve_turn(character(), rolls(), keyword()) :: {character(), [attempt()]}
+  def resolve_turn(character, rolls \\ %{}, opts \\ [])
+      when is_map(character) and is_map(rolls) and is_list(opts) do
+    reflected = Keyword.get(opts, :reflected, [])
+
+    character
+    |> Map.get("learning_points", %{})
+    |> Enum.filter(fn {skill, lp} -> skill in @immediate_skills and to_float(lp) > 0.0 end)
+    |> Enum.map(fn {skill, _lp} -> skill end)
+    |> Enum.sort()
+    |> Enum.reduce({character, [], rolls}, fn skill, {char, acc, rolls} ->
+      {char, attempts, rolls} = resolve_now(char, skill, reflected, rolls)
+      {char, acc ++ attempts, rolls}
+    end)
+    |> then(fn {char, attempts, _rolls} -> {char, attempts} end)
+  end
+
+  @doc """
   The banked LP a character holds, per skill (whole LP only).
 
       iex> TalesForge.Game.Progression.banked(%{"learning_points" => %{"stealth" => 2.5, "climbing" => 0.5}})
@@ -267,6 +314,42 @@ defmodule TalesForge.Game.Progression do
       roll_until_success(character, skill, div(lp, cost), cost, rolls)
 
     {put_in(character, ["learning_points", skill], 0.0), mark_cleared(rolled, lp, cost), rolls}
+  end
+
+  # One immediate skill at the end of a turn (resolve_turn/3).
+  defp resolve_now(character, skill, reflected, rolls) do
+    level = character |> get_in(["skills", skill]) |> to_int()
+
+    cond do
+      skill in Map.get(character, "improved_since_rest", []) ->
+        {put_in(character, ["learning_points", skill], 0.0), [], rolls}
+
+      needs_reflection?(level) and skill not in reflected ->
+        {character, [], rolls}
+
+      true ->
+        roll_now(character, skill, level, rolls)
+    end
+  end
+
+  defp roll_now(character, skill, level, rolls) do
+    lp = character |> get_in(["learning_points", skill]) |> to_float()
+    cost = lp_per_roll(level)
+
+    {character, rolled, rolls} =
+      roll_until_success(character, skill, div(trunc(lp), cost), cost, rolls)
+
+    if Enum.any?(rolled, & &1["improved"]) do
+      {character |> put_in(["learning_points", skill], 0.0) |> mark_improved(skill),
+       mark_cleared(rolled, trunc(lp), cost), rolls}
+    else
+      {put_in(character, ["learning_points", skill], lp - cost * length(rolled)), rolled, rolls}
+    end
+  end
+
+  defp mark_improved(character, skill) do
+    already = Map.get(character, "improved_since_rest", [])
+    Map.put(character, "improved_since_rest", Enum.sort(Enum.uniq([skill | already])))
   end
 
   # The last roll of a skill records the LP left over and cleared with it.

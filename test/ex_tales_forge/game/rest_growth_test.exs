@@ -2,8 +2,9 @@ defmodule TalesForge.Game.RestGrowthTest do
   @moduledoc """
   Skill growth from failure, banked until sleep (decision 2026-10-09): on a
   long rest the skills that improved reach the per-turn part of the GM prompt,
-  so the GM can let the character wake surer of them. Ordinary turns and the
-  baseline variant add nothing.
+  so the GM can let the character wake surer of them. Physical skills improve
+  right away and get their note on the turn itself. Other ordinary turns and
+  the baseline variant add nothing.
   """
   use TalesForge.DataCase, async: false
 
@@ -52,7 +53,7 @@ defmodule TalesForge.Game.RestGrowthTest do
 
   # Twenty banked chances on an untrained skill: each attempt is a coin flip,
   # so at least one improves (all twenty failing is about 1 in a million).
-  defp play(variant, text, level \\ 0) do
+  defp play(variant, text, level \\ 0, skill \\ "stealth") do
     {:ok, session} =
       GameSessions.create_session(%{adventure_id: "tin_valley", variant: variant})
 
@@ -62,9 +63,9 @@ defmodule TalesForge.Game.RestGrowthTest do
     world =
       Map.update!(session.world_state, "character", fn character ->
         character
-        |> Map.update("skills", %{"stealth" => level}, &Map.put(&1, "stealth", level))
-        |> Map.put("learning_points", %{"stealth" => 20.0})
-        |> Map.put("learning_failures", %{"stealth" => 20})
+        |> Map.update("skills", %{skill => level}, &Map.put(&1, skill, level))
+        |> Map.put("learning_points", %{skill => 20.0})
+        |> Map.put("learning_failures", %{skill => 20})
       end)
 
     session |> GameSession.changeset(%{world_state: world}) |> Repo.update!()
@@ -106,6 +107,24 @@ defmodule TalesForge.Game.RestGrowthTest do
 
     refute user =~ "outgrown simple practice"
     assert get_in(session.world_state, ["character", "learning_points", "stealth"]) == 0.0
+  end
+
+  test "default: a physical skill improves on the turn and the GM hears it right away" do
+    {user, session} = play("default", "I look around the common room", 0, "climbing")
+
+    assert user =~ "## Growth: what that failure taught"
+    assert user =~ "They are a little surer at: climbing."
+    refute user =~ @heading
+    [stable | _] = String.split(user, "## Perceived facts")
+    refute stable =~ "## Growth"
+    assert get_in(session.world_state, ["character", "skills", "climbing"]) == 1
+    assert get_in(session.world_state, ["character", "learning_points", "climbing"]) == 0.0
+    assert session.world_state["character"]["improved_since_rest"] == ["climbing"]
+  end
+
+  test "baseline: a physical skill gets no immediate note" do
+    {user, _session} = play("baseline", "I look around the common room", 0, "climbing")
+    refute user =~ "## Growth"
   end
 
   test "the reflection words cover every skill the game rolls" do

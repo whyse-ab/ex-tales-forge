@@ -24,21 +24,21 @@ defmodule TalesForge.Game.CompetenceTest do
     %{session: session}
   end
 
-  describe "default variant: banked LP are resolved on a long rest" do
+  describe "default variant: banked LP of a sleep skill are resolved on a long rest" do
     test "sleep rolls until the first success, then the skill's LP are gone", %{
       session: session
     } do
-      session = seed_lp(session, 3.0)
+      session = seed_lp(session, 3.0, "tracking")
 
-      {_session, turn, _payload} = wait_sim(session, "I sleep", %{"climbing" => [3, 11, 20]})
+      {_session, turn, _payload} = wait_sim(session, "I sleep", %{"tracking" => [3, 11, 20]})
 
       session = reload(session.id)
-      assert get_in(session.world_state, ["character", "skills", "climbing"]) == 4
-      assert get_in(session.world_state, ["character", "learning_points", "climbing"]) == 0.0
+      assert get_in(session.world_state, ["character", "skills", "tracking"]) == 4
+      assert get_in(session.world_state, ["character", "learning_points", "tracking"]) == 0.0
 
       assert [
-               %{"skill" => "climbing", "roll" => 3, "raw_skill" => 3, "improved" => false},
-               %{"skill" => "climbing", "roll" => 11, "raw_skill" => 3, "improved" => true}
+               %{"skill" => "tracking", "roll" => 3, "raw_skill" => 3, "improved" => false},
+               %{"skill" => "tracking", "roll" => 11, "raw_skill" => 3, "improved" => true}
              ] = turn.mechanical_resolution["improvements"]
 
       assert Enum.all?(turn.mechanical_resolution["improvements"], &(&1["lp_spent"] == 1))
@@ -46,44 +46,44 @@ defmodule TalesForge.Game.CompetenceTest do
     end
 
     test "a night of failed rolls leaves nothing for the next night", %{session: session} do
-      session = seed_lp(session, 2.0)
-      {_s, _turn, _p} = wait_sim(session, "I sleep", %{"climbing" => [1, 2]})
+      session = seed_lp(session, 2.0, "tracking")
+      {_s, _turn, _p} = wait_sim(session, "I sleep", %{"tracking" => [1, 2]})
 
       session = reload(session.id)
-      assert get_in(session.world_state, ["character", "skills", "climbing"]) == 3
-      assert get_in(session.world_state, ["character", "learning_points", "climbing"]) == 0.0
+      assert get_in(session.world_state, ["character", "skills", "tracking"]) == 3
+      assert get_in(session.world_state, ["character", "learning_points", "tracking"]) == 0.0
 
-      {_s, again, _p} = wait_sim(session, "I sleep", %{"climbing" => 20})
+      {_s, again, _p} = wait_sim(session, "I sleep", %{"tracking" => 20})
       assert again.mechanical_resolution["improvements"] == []
     end
 
     test "an ordinary turn banks the LP and spends nothing", %{session: session} do
-      session = seed_lp(session, 3.0)
-      {_session, turn, _payload} = observe_sim(session, "study the cliff", %{"climbing" => 20})
+      session = seed_lp(session, 3.0, "tracking")
+      {_session, turn, _payload} = observe_sim(session, "look around", %{"tracking" => 20})
 
       session = reload(session.id)
-      assert get_in(session.world_state, ["character", "skills", "climbing"]) == 3
-      assert get_in(session.world_state, ["character", "learning_points", "climbing"]) == 3.0
+      assert get_in(session.world_state, ["character", "skills", "tracking"]) == 3
+      assert get_in(session.world_state, ["character", "learning_points", "tracking"]) == 3.0
       assert turn.mechanical_resolution["improvements"] == []
     end
 
     test "a short rest is not a long rest; six hours is", %{session: session} do
-      session = seed_lp(session, 1.0)
-      {_s, short, _p} = wait_sim(session, "I rest for an hour", %{"climbing" => 20})
+      session = seed_lp(session, 1.0, "tracking")
+      {_s, short, _p} = wait_sim(session, "I rest for an hour", %{"tracking" => 20})
       assert short.mechanical_resolution["improvements"] == []
 
-      {_s, long, _p} = wait_sim(reload(session.id), "I rest for six hours", %{"climbing" => 20})
+      {_s, long, _p} = wait_sim(reload(session.id), "I rest for six hours", %{"tracking" => 20})
       assert [%{"improved" => true}] = long.mechanical_resolution["improvements"]
     end
 
     test "the per-run growth log counts the attempts", %{session: session} do
-      session = seed_lp(session, 2.0)
-      wait_sim(session, "I sleep", %{"climbing" => [3, 11]})
+      session = seed_lp(session, 2.0, "tracking")
+      wait_sim(session, "I sleep", %{"tracking" => [3, 11]})
 
       growth = Growth.for_session(session.id)
       assert growth["attempts"] == 2
       assert growth["improvements"] == 1
-      assert growth["skills"]["climbing"]["attempts"] == 2
+      assert growth["skills"]["tracking"]["attempts"] == 2
     end
 
     test "from level 10 the LP wait for a rest spent reflecting on the skill", %{
@@ -92,24 +92,24 @@ defmodule TalesForge.Game.CompetenceTest do
       session =
         put_character(session, fn character ->
           character
-          |> Map.update("skills", %{"climbing" => 10}, &Map.put(&1, "climbing", 10))
-          |> Map.put("learning_points", %{"climbing" => 4.0})
+          |> Map.update("skills", %{"tracking" => 10}, &Map.put(&1, "tracking", 10))
+          |> Map.put("learning_points", %{"tracking" => 4.0})
         end)
 
-      {_s, plain, _p} = wait_sim(session, "I sleep", %{"climbing" => 20})
+      {_s, plain, _p} = wait_sim(session, "I sleep", %{"tracking" => 20})
       assert plain.mechanical_resolution["improvements"] == []
       session = reload(session.id)
-      assert get_in(session.world_state, ["character", "learning_points", "climbing"]) == 4.0
+      assert get_in(session.world_state, ["character", "learning_points", "tracking"]) == 4.0
 
       # Reflecting the turn before counts, and the rest clears the list.
-      {session, _t, _p} = observe_sim(session, "I think over my climbing on that cliff", %{})
-      assert get_in(session.world_state, ["character", "reflecting"]) == ["climbing"]
+      {session, _t, _p} = observe_sim(session, "I think over my tracking of those prints", %{})
+      assert get_in(session.world_state, ["character", "reflecting"]) == ["tracking"]
 
-      {_s, rest, _p} = wait_sim(session, "I sleep", %{"climbing" => 20})
+      {_s, rest, _p} = wait_sim(session, "I sleep", %{"tracking" => 20})
       assert [%{"improved" => true, "lp_spent" => 4}] = rest.mechanical_resolution["improvements"]
 
       session = reload(session.id)
-      assert get_in(session.world_state, ["character", "skills", "climbing"]) == 11
+      assert get_in(session.world_state, ["character", "skills", "tracking"]) == 11
       refute Map.has_key?(session.world_state["character"], "reflecting")
     end
 
@@ -132,15 +132,87 @@ defmodule TalesForge.Game.CompetenceTest do
     test "the dead learn nothing", %{session: session} do
       session =
         session
-        |> seed_lp(3.0)
+        |> seed_lp(3.0, "tracking")
         |> put_character(&Map.put(&1, "vitality", "dead"))
 
-      {_session, turn, _payload} = wait_sim(session, "I sleep", %{"climbing" => 20})
+      {_session, turn, _payload} = wait_sim(session, "I sleep", %{"tracking" => 20})
 
       session = reload(session.id)
-      assert get_in(session.world_state, ["character", "skills", "climbing"]) == 3
-      assert get_in(session.world_state, ["character", "learning_points", "climbing"]) == 3.0
+      assert get_in(session.world_state, ["character", "skills", "tracking"]) == 3
+      assert get_in(session.world_state, ["character", "learning_points", "tracking"]) == 3.0
       assert turn.mechanical_resolution["improvements"] == []
+    end
+  end
+
+  describe "default variant: physical skills improve right away" do
+    test "the turn of the failure resolves the LP, +1 and the LP are gone", %{session: session} do
+      session = seed_lp(session, 3.0)
+      {_s, turn, _p} = observe_sim(session, "look around", %{"climbing" => [4, 11]})
+
+      session = reload(session.id)
+      character = session.world_state["character"]
+      assert get_in(character, ["skills", "climbing"]) == 4
+      assert get_in(character, ["learning_points", "climbing"]) == 0.0
+      assert character["improved_since_rest"] == ["climbing"]
+
+      assert [%{"improved" => false, "lp_spent" => 1}, %{"improved" => true, "lp_cleared" => 1}] =
+               turn.mechanical_resolution["improvements"]
+    end
+
+    test "at most +1 per long-rest cycle: later LP are dropped until the next rest", %{
+      session: session
+    } do
+      session = seed_lp(session, 1.0)
+      {session, _t, _p} = observe_sim(session, "look around", %{"climbing" => 20})
+      assert get_in(session.world_state, ["character", "skills", "climbing"]) == 4
+
+      session = seed_lp(session, 2.0, "climbing", 4)
+      {session, capped, _p} = observe_sim(session, "look around", %{"climbing" => 20})
+      assert capped.mechanical_resolution["improvements"] == []
+      assert get_in(session.world_state, ["character", "skills", "climbing"]) == 4
+      assert get_in(session.world_state, ["character", "learning_points", "climbing"]) == 0.0
+
+      {session, _rest, _p} = wait_sim(session, "I sleep", %{})
+      refute Map.has_key?(session.world_state["character"], "improved_since_rest")
+
+      session = seed_lp(session, 2.0, "climbing", 4)
+      {session, _t, _p} = observe_sim(session, "look around", %{"climbing" => 20})
+      assert get_in(session.world_state, ["character", "skills", "climbing"]) == 5
+    end
+
+    test "too few LP for a roll wait within the cycle; the long rest clears them", %{
+      session: session
+    } do
+      session = seed_lp(session, 1.0, "climbing", 7)
+      {session, turn, _p} = observe_sim(session, "look around", %{"climbing" => 20})
+      assert turn.mechanical_resolution["improvements"] == []
+      assert get_in(session.world_state, ["character", "learning_points", "climbing"]) == 1.0
+
+      {session, rest, _p} = wait_sim(session, "I sleep", %{"climbing" => 20})
+      assert rest.mechanical_resolution["improvements"] == []
+      assert get_in(session.world_state, ["character", "learning_points", "climbing"]) == 0.0
+    end
+
+    test "a failed roll spends its LP and keeps the remainder", %{session: session} do
+      session = seed_lp(session, 4.0, "climbing", 7)
+      {session, turn, _p} = observe_sim(session, "look around", %{"climbing" => 2})
+
+      assert [%{"improved" => false, "lp_spent" => 3}] =
+               turn.mechanical_resolution["improvements"]
+
+      assert get_in(session.world_state, ["character", "learning_points", "climbing"]) == 1.0
+    end
+
+    test "from level 10 the reflection gate still applies", %{session: session} do
+      session = seed_lp(session, 4.0, "climbing", 10)
+      {session, plain, _p} = observe_sim(session, "look around", %{"climbing" => 20})
+      assert plain.mechanical_resolution["improvements"] == []
+      assert get_in(session.world_state, ["character", "learning_points", "climbing"]) == 4.0
+
+      {session, _t, _p} =
+        observe_sim(session, "I think over my climbing on that cliff", %{"climbing" => 20})
+
+      assert get_in(session.world_state, ["character", "skills", "climbing"]) == 11
     end
   end
 
@@ -283,11 +355,11 @@ defmodule TalesForge.Game.CompetenceTest do
     assert gm =~ "level"
   end
 
-  defp seed_lp(session, lp) do
+  defp seed_lp(session, lp, skill \\ "climbing", level \\ 3) do
     put_character(session, fn character ->
       character
-      |> Map.update("skills", %{"climbing" => 3}, &Map.put(&1, "climbing", 3))
-      |> Map.put("learning_points", %{"climbing" => lp})
+      |> Map.update("skills", %{skill => level}, &Map.put(&1, skill, level))
+      |> Map.put("learning_points", %{skill => lp})
     end)
   end
 

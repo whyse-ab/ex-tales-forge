@@ -141,9 +141,11 @@ High skill levels in a domain grant **contextual stat bonuses** when performing 
 
 ---
 
-## LP Progression: Learn From Failure, Sleep On It
+## LP Progression: Learn From Failure, Sleep On It (Physical Skills: Right Away)
 
 A failed or partial roll banks one Learning Point for the skill rolled; a success banks nothing, and nothing spills to other skills. Banked LP are resolved on the next long rest (sleep, or six hours or more of rest). One improvement roll costs ceil(level / 3) LP; roll 1d20, and at least 11 and at least the current level raises the skill by 1. The rolls stop at the first success, at most +1 per skill per night, and then the skill's LP are gone, success or not. From level 10 the character must also reflect on the skill (think it over, practise or study it deliberately, or train with a trainer) before a rest resolves it; until then its LP stay banked.
+
+Physical skills (melee combat, ranged combat, unarmed combat, dodge, climbing, lockpicking) improve right away instead: at the end of the turn of the failure, with the same LP cost, roll and reflection rule. They also gain at most +1 between two long rests: once one has improved, its LP are dropped until the character has slept. A failed roll spends its LP; LP too few for a roll wait for the next failures, and the long rest clears what is left.
 
 | Level | LP per roll | Chance per roll |
 |-------|-------------|-----------------|
@@ -170,8 +172,8 @@ Skills don't exist in isolation. A master swordsman has developed body awareness
 ### Why Floors Instead of Bonuses?
 Floors represent baseline competence, not enhancement. A master fighter doesn't get +6 to unarmed — they can't be *worse* than level 6 at unarmed. This distinction matters narratively.
 
-### Why Learn Only From Failure, and Only Overnight?
-You learn where you fall short, not where you already succeed, and practice sinks in while you sleep. The 10,000-hour research shows diminishing returns at high levels: a novice improves quickly, a master grinds for marginal gains. Each level needs more failures in a day before a roll is even possible, a night gives at most one level, and from level 10 you must also reflect on what you have learned.
+### Why Learn Only From Failure, and Mostly Overnight?
+You learn where you fall short, not where you already succeed, and practice sinks in while you sleep. The body is the exception: a missed handhold or a parry that came too late teaches on the spot. The 10,000-hour research shows diminishing returns at high levels: a novice improves quickly, a master grinds for marginal gains. Each level needs more failures in a day before a roll is even possible, a night gives at most one level, and from level 10 you must also reflect on what you have learned.
 
 ### Why Trainers?
 Beyond Expert level, self-study plateaus. Real masters seek other masters. A trainer's +5 matters most where attempts mostly fail, and past level 20 nothing else works. This creates natural quest hooks and emphasizes that true mastery is rare.

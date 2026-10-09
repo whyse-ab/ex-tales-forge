@@ -289,17 +289,26 @@ defmodule TalesForge.Game.TurnProcessor do
 
   defp gm_action(player_action, _quote), do: player_action
 
-  # Default variant, long rest only: the improvement attempts the rest
+  # Default variant: on a long rest, the improvement attempts the rest
   # resolved and the skills that need reflection first, for the GM's "you wake
-  # and feel surer" / "needs reflection" note.
+  # and feel surer" / "needs reflection" note; on any other turn, a physical
+  # skill that improved right away, for the "a little surer at" note.
   defp put_rest_growth(gm_context, world_state, handler, mechanical, board) do
-    if not Variant.baseline?(world_state || %{}) and long_rest?(handler) do
-      Map.put(gm_context, :rest_growth, %{
-        attempts: mechanical.improvements || [],
-        needs_reflection: Map.get(board, :needs_reflection, [])
-      })
-    else
-      gm_context
+    cond do
+      Variant.baseline?(world_state || %{}) ->
+        gm_context
+
+      long_rest?(handler) ->
+        Map.put(gm_context, :rest_growth, %{
+          attempts: mechanical.improvements || [],
+          needs_reflection: Map.get(board, :needs_reflection, [])
+        })
+
+      Enum.any?(Map.get(board, :turn_growth, []), & &1["improved"]) ->
+        Map.put(gm_context, :rest_growth, %{attempts: board.turn_growth, now: true})
+
+      true ->
+        gm_context
     end
   end
 
@@ -417,7 +426,8 @@ defmodule TalesForge.Game.TurnProcessor do
       sim: sim,
       improvements: improvements ++ spent,
       training: training,
-      needs_reflection: needs_reflection
+      needs_reflection: needs_reflection,
+      turn_growth: if(long_rest?(handler), do: [], else: spent)
     }
   end
 
@@ -452,8 +462,10 @@ defmodule TalesForge.Game.TurnProcessor do
   # most +1 per skill, and the skill's LP are gone afterwards, except for a
   # skill at the reflection level the character did not reflect on, whose LP
   # stay banked (Progression.resolve_rest/3). The "reflecting" list is cleared
-  # by the rest. The skills in Progression.immediate_skills/0 (none yet) are
-  # resolved at the end of any turn. The dead learn nothing. The baseline
+  # by the rest, and so is "improved_since_rest". The physical skills in
+  # Progression.immediate_skills/0 are resolved at the end of any other turn
+  # (Progression.resolve_turn/3, at most +1 per skill per long-rest cycle).
+  # The dead learn nothing. The baseline
   # variant spends LP only at a rest (maybe_attempt_improvements/3, the #64
   # rule).
   defp maybe_spend_lp(world, handler, opts) do
@@ -464,17 +476,16 @@ defmodule TalesForge.Game.TurnProcessor do
       rolls = opts[:improvement_rolls] || %{}
       reflected = Map.get(character, "reflecting", [])
 
-      {rested, attempts, needs} =
-        if long_rest?(handler),
-          do: Progression.resolve_rest(character, rolls, reflected: reflected),
-          else:
-            Progression.resolve_rest(character, rolls,
-              only: Progression.immediate_skills(),
-              reflected: reflected
-            )
+      if long_rest?(handler) do
+        {rested, attempts, needs} =
+          Progression.resolve_rest(character, rolls, reflected: reflected)
 
-      rested = if long_rest?(handler), do: Map.delete(rested, "reflecting"), else: rested
-      {put_in(world, ["character"], rested), attempts, needs}
+        rested = Map.drop(rested, ["reflecting", "improved_since_rest"])
+        {put_in(world, ["character"], rested), attempts, needs}
+      else
+        {now, attempts} = Progression.resolve_turn(character, rolls, reflected: reflected)
+        {put_in(world, ["character"], now), attempts, []}
+      end
     end
   end
 

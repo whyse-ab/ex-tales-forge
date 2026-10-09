@@ -227,7 +227,7 @@ defmodule TalesForge.Game.Context do
   end
 
   @doc """
-  Default variant, long rest only: what the character's sleep made of the
+  Default variant: what the character's sleep made of the
   failures they banked (`context[:rest_growth]`, set by
   `TalesForge.Game.TurnProcessor`: `attempts`, the improvement rolls the rest
   resolved, and `needs_reflection`, skills at the reflection level that were
@@ -251,7 +251,19 @@ defmodule TalesForge.Game.Context do
       false
       iex> TalesForge.Game.Context.rest_growth_section(%{world_state: %{}, rest_growth: %{attempts: [], needs_reflection: []}})
       nil
+
+  A physical skill that improved right away (`now: true`, any turn):
+
+      iex> now = TalesForge.Game.Context.rest_growth_section(%{world_state: %{}, rest_growth: %{
+      ...>   attempts: [%{"skill" => "climbing", "improved" => true}], now: true}})
+      iex> now =~ "They are a little surer at: climbing."
+      true
+      iex> now =~ "slept"
+      false
   """
+  @growth_hint "If it fits, show it in a line (a steadier grip, a surer word); " <>
+                 "never say \"you learned\" or name levels, points or numbers.\n"
+
   @spec rest_growth_section(map()) :: String.t() | nil
   def rest_growth_section(context) do
     growth = Map.get(context, :rest_growth) || %{}
@@ -265,6 +277,29 @@ defmodule TalesForge.Game.Context do
 
     pending = growth |> Map.get(:needs_reflection, []) |> Enum.map(&skill_words/1)
 
+    if growth[:now] do
+      growth_now_section(improved, context)
+    else
+      rest_lines(improved, pending, context)
+    end
+  end
+
+  # A physical skill that improved at the end of this turn (decision
+  # 2026-10-09: physical skills improve right away).
+  defp growth_now_section([], _context), do: nil
+
+  defp growth_now_section(improved, context) do
+    if Variant.baseline?(Map.get(context, :world_state) || %{}) do
+      nil
+    else
+      "## Growth: what that failure taught\n" <>
+        "That failure taught their body something. They are a little surer at: " <>
+        Enum.join(improved, ", ") <>
+        ".\n" <> @growth_hint
+    end
+  end
+
+  defp rest_lines(improved, pending, context) do
     lines =
       [
         improved != [] &&
@@ -281,10 +316,7 @@ defmodule TalesForge.Game.Context do
     if lines == [] or Variant.baseline?(Map.get(context, :world_state) || %{}) do
       nil
     else
-      "## Rest: what sank in\n" <>
-        Enum.join(lines, "\n") <>
-        "\nIf it fits, show it in a line (a steadier grip, a surer word); " <>
-        "never say \"you learned\" or name levels, points or numbers.\n"
+      "## Rest: what sank in\n" <> Enum.join(lines, "\n") <> "\n" <> @growth_hint
     end
   end
 
