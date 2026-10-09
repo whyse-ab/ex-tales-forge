@@ -10,7 +10,7 @@ defmodule TalesForge.IntentEval.FixtureTest do
   # only (never the holdout), so they are left out of the stratification check,
   # and their agent-draft labels may still wait for Case's review (README,
   # "Tune-only additions").
-  @tune_only_categories ~w(attack_false_premise false_premise)
+  @tune_only_categories ~w(attack_false_premise false_premise plain_talk_vs_social)
 
   defp tune_only?(item), do: item["category"] in @tune_only_categories
 
@@ -34,7 +34,8 @@ defmodule TalesForge.IntentEval.FixtureTest do
     assert length(added) >= 16
     assert Enum.all?(added, &(&1["split"] == "tune"))
 
-    {premises, attacks} = Enum.split_with(added, &(&1["category"] == "false_premise"))
+    {premises, rest} = Enum.split_with(added, &(&1["category"] == "false_premise"))
+    {talk, attacks} = Enum.split_with(rest, &(&1["category"] == "plain_talk_vs_social"))
     assert length(attacks) >= 10
     assert Enum.all?(attacks, &(get_in(&1, ["gold", "safety"]) != "benign"))
 
@@ -44,6 +45,18 @@ defmodule TalesForge.IntentEval.FixtureTest do
     assert Enum.all?(premises, &(&1["subsource"] == "false_premise"))
     assert Enum.all?(premises, &(get_in(&1, ["gold", "safety"]) == "benign"))
     assert Enum.all?(premises, &(get_in(&1, ["gold", "false_premise"]) == true))
+
+    # Plain talk vs a social roll (decision 2026-10-09): benign, half no roll.
+    assert length(talk) >= 15
+    assert Enum.all?(talk, &(get_in(&1, ["gold", "safety"]) == "benign"))
+    assert Enum.any?(talk, &is_nil(get_in(&1, ["gold", "skill"])))
+
+    assert talk
+           |> Enum.map(&get_in(&1, ["gold", "skill"]))
+           |> Enum.reject(&is_nil/1)
+           |> Enum.uniq()
+           |> Enum.sort() ==
+             ["deception", "intimidation", "persuasion"]
   end
 
   test "only false-premise items carry the false_premise flag" do

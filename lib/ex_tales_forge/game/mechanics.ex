@@ -4,12 +4,21 @@ defmodule TalesForge.Game.Mechanics do
 
   A skill check rolls 1d20 against the effective level (raw level plus the
   linked stat's bonus, or the untrained floor at level 0): equal or under
-  succeeds. Each roll earns Learning Points (failure 1, success 0.5, natural
-  20 2, natural 1 1) plus the linked stat's bonus `(stat − 10) div 4`, from 0
-  to +2. What the LP buy is `TalesForge.Game.Progression` (default variant:
-  1 LP = one improvement attempt) or `TalesForge.Game.Progression.Tiered`
-  (baseline variant). Failures are still counted in `learning_failures`; only
-  the baseline variant's rule reads them.
+  succeeds.
+
+  What a roll earns depends on the session's variant:
+
+  - **default** (decision 2026-10-09): only a failure or a partial success
+    earns, and only for the skill rolled: 1 LP, one banked improvement chance
+    (`growth_lp/1`). A success, natural 1 included, earns nothing, and the
+    linked stat adds nothing. `TalesForge.Game.Progression` resolves the
+    banked chances on a long rest.
+  - **baseline:** the #64 rule. Failure 1, success 0.5, natural 20 2, natural 1
+    1, plus the linked stat's bonus `(stat − 10) div 4` (`lp_stat_bonus/1`),
+    spent by `TalesForge.Game.Progression.Tiered`.
+
+  Failures are counted in `learning_failures` in both; only the baseline
+  variant's rule reads them.
 
   Vitality (wounds, down, death rolls) is here too.
   """
@@ -173,15 +182,17 @@ defmodule TalesForge.Game.Mechanics do
 
   @doc """
   The server's check for a turn: the skill the action or handler names (none
-  for move, inventory, wait and train), rolled with `perform_and_apply/3`.
-  Returns the updated character and the resolution.
+  for move, inventory, wait and train), rolled with `perform_and_apply/4` under
+  the session's `variant` (`"default"` or `"baseline"`). Returns the updated
+  character and the resolution.
   """
-  @spec apply_server_mechanics(map(), PlayerAction.t(), HandlerResult.t()) ::
+  @spec apply_server_mechanics(map(), PlayerAction.t(), HandlerResult.t(), String.t()) ::
           {map(), MechanicalResolution.t()}
   def apply_server_mechanics(
         character,
         %PlayerAction{} = player_action,
-        %HandlerResult{} = handler
+        %HandlerResult{} = handler,
+        variant \\ "default"
       ) do
     action_skill =
       player_action.action.parameters
@@ -193,7 +204,7 @@ defmodule TalesForge.Game.Mechanics do
     if is_nil(skill) do
       {character, no_check_resolution()}
     else
-      perform_and_apply(character, skill)
+      perform_and_apply(character, skill, nil, variant)
     end
   end
 
@@ -217,23 +228,31 @@ defmodule TalesForge.Game.Mechanics do
 
   @doc """
   Rolls 1d20 for `skill` (inject `injected_roll` in tests), adds the LP it
-  earns and counts a failure. LP are only earned here; spending them is
-  `TalesForge.Game.Progression`.
+  earns under `variant` and counts a failure. LP are only earned here;
+  spending them is `TalesForge.Game.Progression` (default) or
+  `TalesForge.Game.Progression.Tiered` (baseline).
   """
-  @spec perform_and_apply(map(), String.t() | nil, 1..20 | nil) ::
+  @spec perform_and_apply(map(), String.t() | nil, 1..20 | nil, String.t()) ::
           {map(), MechanicalResolution.t()}
-  def perform_and_apply(character, skill, injected_roll \\ nil) do
+  def perform_and_apply(character, skill, injected_roll \\ nil, variant \\ "default") do
     normalized = normalize_skill_name(skill) || "insight"
     raw_level = character |> get_in(["skills", normalized]) |> to_int(0)
     effective = effective_skill_level(character, normalized)
     roll = injected_roll || :rand.uniform(20)
     outcome = resolve_outcome(roll, effective, raw_level)
-    lp = lp_for_roll(roll, outcome, raw_level) + lp_stat_bonus(linked_stat(character, normalized))
+    baseline? = variant == "baseline"
+
+    lp =
+      if baseline?,
+        do:
+          lp_for_roll(roll, outcome, raw_level) +
+            lp_stat_bonus(linked_stat(character, normalized)),
+        else: growth_lp(outcome)
 
     learning_points =
       character
       |> Map.get("learning_points", %{})
-      |> Map.update(normalized, lp, fn current -> Float.round(to_float(current) + lp, 1) end)
+      |> add_lp(normalized, lp)
 
     updated =
       character
@@ -247,16 +266,38 @@ defmodule TalesForge.Game.Mechanics do
       effective_skill: effective,
       lp_awarded: lp,
       notes:
-        "Rolled #{roll} vs #{normalized} #{effective} (#{base_note(raw_level)}). +#{lp} LP." <>
-          nat_notes(roll)
+        "Rolled #{roll} vs #{normalized} #{effective} (#{base_note(raw_level)}). " <>
+          lp_note(lp, baseline?) <> nat_notes(roll)
     }
 
     {updated, resolution}
   end
 
   @doc """
-  Extra Learning Points per roll from the linked stat: `(stat − 10) div 4`,
-  from 0 to +2 (a low stat costs nothing, so growth never stalls).
+  Default variant: the LP a roll's outcome earns for the skill rolled, one
+  banked improvement chance for a failure or a partial success and nothing
+  for a success.
+
+      iex> Enum.map(~w(failure partial_success success), &TalesForge.Game.Mechanics.growth_lp/1)
+      [1.0, 1.0, 0.0]
+  """
+  @spec growth_lp(String.t()) :: float()
+  def growth_lp(outcome) when outcome in ["failure", "partial_success"], do: 1.0
+  def growth_lp(_outcome), do: 0.0
+
+  # A success under the default rule earns nothing; the sheet is left as it was.
+  defp add_lp(lp_map, _skill, lp) when lp == 0.0, do: lp_map
+
+  defp add_lp(lp_map, skill, lp),
+    do: Map.update(lp_map, skill, lp, fn current -> Float.round(to_float(current) + lp, 1) end)
+
+  defp lp_note(lp, true), do: "+#{lp} LP."
+  defp lp_note(lp, false) when lp == 0.0, do: "Success: nothing to learn."
+  defp lp_note(_lp, false), do: "+1 banked improvement chance (resolved on sleep)."
+
+  @doc """
+  Baseline variant: extra Learning Points per roll from the linked stat,
+  `(stat − 10) div 4`, from 0 to +2. The default variant adds none.
 
       iex> Enum.map([8, 13, 14, 18], &TalesForge.Game.Mechanics.lp_stat_bonus/1)
       [0, 0, 1, 2]

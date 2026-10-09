@@ -11,21 +11,20 @@ This is a skill-based fantasy RPG system where character progress is measured by
 
 - **Skill Rolls**:
   - Roll 1d20: Success if ≤ current skill level.
-  - Natural 1: Exceptional success (narrative benefit, +1 LP, limited to once per skill per session).
-  - Natural 20: Always a failure (+2 LP). For skills ≥15, treated as a "complicated success" (action succeeds with a drawback, still +2 LP).
-- **Learning Points (LP)**:
-  - Failure (non-natural 20): +1 LP.
-  - Success (non-natural 1): +0.5 LP.
-  - Natural 20: +2 LP.
-  - Natural 1: +1 LP (capped once per skill per session).
-  - Spending: 1 LP buys one improvement attempt on that skill. No threshold, no failure and no rest needed.
-  - Linked stat: +(Stat - 10)/4 LP per roll (rounded down, 0 to +2).
-- **Skill Improvement**:
-  - At the end of the turn, every whole LP a skill holds is spent, one attempt per LP (fractions wait for the next roll).
-  - Roll 1d20 ≥ raw skill: skill +1. Chance (21 - skill)/20: 90% at 3, 70% at 7, 45% at 12, 5% at 20.
-  - Each attempt costs 1 LP, hit or miss. No tier modifiers.
+  - Natural 1: Exceptional success (narrative benefit). Earns no LP: nothing to learn from a success.
+  - Natural 20: Always a failure (+1 LP). For skills ≥15, treated as a "complicated success" (action succeeds with a drawback, still +1 LP).
+- **Learning Points (LP)** — you learn only from failure, only in the skill you failed:
+  - Failure or partial success: +1 LP for that skill, a banked improvement chance. Nothing spills to other skills.
+  - Success (natural 1 included): no LP.
+  - The linked stat adds no LP: talent helps you succeed, not learn faster.
+- **Skill Improvement** — it sinks in while you sleep:
+  - Banked LP are resolved on a long rest (sleep, or six hours or more of rest). Ordinary turns resolve nothing.
+  - Higher levels need more failures: one improvement roll costs ceil(skill / 3) banked LP (1 LP up to 3, 2 up to 6, 3 up to 9, 4 up to 12, 5 up to 15).
+  - Roll 1d20 ≥ 11 and ≥ raw skill: skill +1. Chance (21 - max(skill, 11))/20: 50% up to 11, 45% at 12, 25% at 16, 5% at 20. No roll is a sure thing, not even at level 0.
+  - At most +1 per skill per night: the rolls stop at the first success. Then all of that skill's banked LP are gone, and they are gone too if every roll failed or there were too few for a roll. Nothing carries over to the next night.
+  - From skill 10, practice alone is not enough: the LP are only resolved on a rest when the character reflected on the skill, practised or studied it deliberately, or trained it with a trainer since the last long rest. Until then they stay banked.
   - No skill cap, but past 20 only a trainer's bonus can reach the target.
-- **Death Exception**: No LP from fatal failures; near-death grants +1 LP if survived.
+- **Death Exception**: No LP from fatal failures, and the dead learn nothing.
 - **Skill List Categories** (Examples):
   - **Combat**: Melee Combat, Ranged Combat, Unarmed Combat, Tactics, Dodge.
   - **Exploration**: Navigation, Survival, Tracking, Climbing, Stealth.
@@ -35,7 +34,7 @@ This is a skill-based fantasy RPG system where character progress is measured by
 
 ## Trainers and Adventures
 
-- **Trainers**: NPCs with skill level ≥5 above the character's. A training session is one free improvement attempt (no LP) with +5 to the roll (1d20 + 5 ≥ skill).
+- **Trainers**: NPCs with skill level ≥5 above the character's. A training session is one free improvement attempt (no LP) with +5 to the roll (1d20 + 5 ≥ 11 and ≥ skill).
   - Found via quests (e.g., journey to a master thief for Stealth training).
   - One attempt per training session; costs time and the trainer's fee.
   - Can be group quests for party training.
@@ -58,10 +57,9 @@ This is a skill-based fantasy RPG system where character progress is measured by
 - **Base Chance for Unskilled Attempts (Level 0)**:
   - Effective level = Stat / 3 (rounded down) for related tasks.
   - Adjustable by difficulty (/2 easy, /4 hard).
-  - Failures/successes grant LP to start building the skill.
+  - Failures grant LP to start building the skill.
 - **Additional Integrations**:
   - Derived Attributes: HP = 10 + (CON / 2) + other modifiers; damage bonuses from STR, etc.
-  - LP Modifiers: (Stat - 10)/4 added to LP from failures/successes for linked skills (max +2).
   - Role-Playing Hooks: Stats gate equipment/actions (e.g., STR 13+ for greatswords); low stats prompt quests.
 
 ## Character Creation and Starting Allocation
