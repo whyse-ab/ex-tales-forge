@@ -25,9 +25,13 @@
         {
           "at": 6,
           "move": "toll",
+          "present_at": [
+            "valley_inn",
+            "inn_yard"
+          ],
+          "away_move": "toll_taken",
           "unless_player_at": [
-            "old_adit",
-            "west_road"
+            "old_adit"
           ]
         },
         {
@@ -145,6 +149,49 @@
         ]
       }
     },
+    "toll_taken": {
+      "move_people": {
+        "rusk": "@player",
+        "cobb": "@player"
+      },
+      "player_out_of_reach": [
+        "orc_approach",
+        "orc_nest"
+      ],
+      "player_fallback": "valley_inn",
+      "public_facts": [
+        {
+          "id": "tinjacks_toll_taken",
+          "text": "While the stranger was out, Rusk and his brute Cobb came down to the Valley Inn and took a 'road toll' from Brenna's till and from every guest. Tam talked back and got a split lip for it. Rusk asked where the stranger who hasn't paid had gone.",
+          "visibility": [
+            "valley_inn",
+            "inn_yard",
+            "market_square",
+            "smithy",
+            "herb_cottage"
+          ]
+        },
+        {
+          "id": "tinjacks_seek",
+          "text": "Rusk and Cobb have come for the stranger who missed the road toll at the inn. Rusk smiles and wants the stranger's share, coin or blood; Cobb has his club out.",
+          "visibility": [
+            "@player"
+          ]
+        }
+      ],
+      "people_memories": {
+        "innkeep": {
+          "who": "rusk",
+          "what": "took a road toll from my till while the stranger was out, and asked where the stranger had gone",
+          "felt": "afraid"
+        },
+        "stable_lad": {
+          "who": "cobb",
+          "what": "split my lip when I talked back over the road toll",
+          "felt": "angry"
+        }
+      }
+    },
     "burning": {
       "move_people": {
         "rusk": "old_adit",
@@ -163,7 +210,8 @@
         ]
       },
       "retract_facts": [
-        "tinjacks_toll"
+        "tinjacks_toll",
+        "tinjacks_seek"
       ]
     },
     "stand_ready": {
@@ -238,6 +286,7 @@
       },
       "retract_facts": [
         "tinjacks_toll",
+        "tinjacks_seek",
         "tinjacks_ready",
         "tinjacks_rumour"
       ]

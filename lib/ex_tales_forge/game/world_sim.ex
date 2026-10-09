@@ -8,6 +8,19 @@ defmodule TalesForge.Game.WorldSim do
   fires once (`TalesForge.Game.Fronts.Moves`). What a front's moves do to
   people (`move_people`, `people_memories`) is applied to them before they
   tick, and a move's `status` (e.g. `"spent"`) becomes the front's status.
+
+  A stage can depend on where the player character is when it comes due (the
+  `time.passed` event's location):
+
+    * `"unless_player_at"`: the stage waits while the player is at one of
+      these places (it fires on a later tick);
+    * `"away_move"` with `"present_at"`: when the player is not at one of the
+      `present_at` places, the stage fires `away_move` instead of `move`. It
+      still fires once. The Tinjacks use this to take the road toll at the inn
+      while the player is out, then come to the player for their share.
+
+  Moves get the player's place, so `"@player"` in a pack move means "where
+  the player is" (`TalesForge.Game.Fronts.Moves.apply_generic/3`).
   """
 
   alias TalesForge.Game.Fronts.Moves
@@ -118,14 +131,22 @@ defmodule TalesForge.Game.WorldSim do
       fired = List.wrap(runtime(acc)["stages_fired"])
 
       if stage_due?(stage, value, key, fired, player_at) do
-        {:ok, state} = Moves.apply(runtime(acc), stage["move"], definition(acc))
+        move = stage_move(stage, player_at)
+        {:ok, state} = Moves.apply(runtime(acc), move, definition(acc), player_at: player_at)
         state = Map.put(state, "stages_fired", fired ++ [key])
-        {put_runtime(acc, state), moves ++ [%{id: actor_id(acc), move: stage["move"]}]}
+        {put_runtime(acc, state), moves ++ [%{id: actor_id(acc), move: move}]}
       else
         {acc, moves}
       end
     end)
   end
+
+  # The stage's move, or its away_move when the player is not where it happens.
+  defp stage_move(%{"away_move" => away} = stage, player_at) when is_binary(away) do
+    if player_at in List.wrap(stage["present_at"]), do: stage["move"], else: away
+  end
+
+  defp stage_move(stage, _player_at), do: stage["move"]
 
   defp stage_due?(stage, value, key, fired, player_at) do
     is_integer(value) and is_integer(stage["at"]) and value >= stage["at"] and

@@ -3,7 +3,8 @@ defmodule TalesForge.Game.TinjacksTest do
   WORLD_ANTAGONIST: the Tinjacks act on world time (tales-forge-docs
   `docs/design-tin-valley-world.md`): rumour → incident → road toll at the
   inn → burning; fights against them and talking their lookout round feed
-  back into the world.
+  back into the world. The toll is taken even when the player is out, and then
+  Rusk and Cobb come to the player.
   """
   use TalesForge.DataCase, async: false
 
@@ -112,11 +113,76 @@ defmodule TalesForge.Game.TinjacksTest do
     test "the gang does not walk off to the inn while the player is at the adit" do
       {f, p} = tick([front()], people(), [time_passed(6, "old_adit")])
       refute "tinjacks_toll" in fact_ids(f)
+      refute "tinjacks_toll_taken" in fact_ids(f)
       assert location(p, "rusk") == "old_adit"
 
-      {f2, p2} = tick([f], p, [time_passed(1, "market_square")])
+      {f2, p2} = tick([f], p, [time_passed(1, "valley_inn")])
       assert "tinjacks_toll" in fact_ids(f2)
       assert location(p2, "rusk") == "valley_inn"
+    end
+  end
+
+  describe "the toll happens while the player is away" do
+    test "the toll is taken at the inn anyway, and Rusk and Cobb come to the player" do
+      {f, p} = tick([front()], people(), [time_passed(6, "smithy")])
+
+      assert f.runtime_state["stages_fired"] == ["trouble:3", "trouble:6"]
+      refute "tinjacks_toll" in fact_ids(f)
+      assert "tinjacks_toll_taken" in fact_ids(f)
+      assert "tinjacks_seek" in fact_ids(f)
+      assert location(p, "rusk") == "smithy"
+      assert location(p, "cobb") == "smithy"
+
+      seek = Enum.find(f.runtime_state["public_facts"], &(&1["id"] == "tinjacks_seek"))
+      assert seek["visibility"] == ["smithy"]
+
+      taken = Enum.find(f.runtime_state["public_facts"], &(&1["id"] == "tinjacks_toll_taken"))
+      assert "valley_inn" in taken["visibility"] and "herb_cottage" in taken["visibility"]
+    end
+
+    test "the people at the inn remember the toll the player missed" do
+      {_f, p} = tick([front()], people(), [time_passed(6, "market_square")])
+
+      brenna = Enum.find(p, &(&1.npc_id == "innkeep"))
+      assert [%{"who" => "rusk", "felt" => "afraid"}] = brenna.runtime_state["memories"]
+
+      tam = Enum.find(p, &(&1.npc_id == "stable_lad"))
+      assert [%{"who" => "cobb", "felt" => "angry"}] = tam.runtime_state["memories"]
+    end
+
+    test "they come down the west road to a player who is on it" do
+      {f, p} = tick([front()], people(), [time_passed(6, "west_road")])
+      assert "tinjacks_seek" in fact_ids(f)
+      assert location(p, "rusk") == "west_road"
+    end
+
+    test "they do not follow the player into orc country; they wait at the inn" do
+      {f, p} = tick([front()], people(), [time_passed(6, "orc_approach")])
+      assert "tinjacks_toll_taken" in fact_ids(f)
+      assert location(p, "rusk") == "valley_inn"
+
+      seek = Enum.find(f.runtime_state["public_facts"], &(&1["id"] == "tinjacks_seek"))
+      assert seek["visibility"] == ["valley_inn"]
+    end
+
+    test "at the inn or in the yard the toll is the old confrontation" do
+      for here <- ~w(valley_inn inn_yard) do
+        {f, p} = tick([front()], people(), [time_passed(6, here)])
+        assert "tinjacks_toll" in fact_ids(f)
+        refute "tinjacks_toll_taken" in fact_ids(f)
+        refute "tinjacks_seek" in fact_ids(f)
+        assert location(p, "rusk") == "valley_inn"
+      end
+    end
+
+    test "the burning sends them home and ends the hunt for the player" do
+      {f, p} = tick([front()], people(), [time_passed(6, "market_square")])
+      {f2, p2} = tick([f], p, [time_passed(6, "market_square")])
+
+      assert "tinjacks_burning" in fact_ids(f2)
+      refute "tinjacks_seek" in fact_ids(f2)
+      assert "tinjacks_toll_taken" in fact_ids(f2)
+      assert location(p2, "rusk") == "old_adit"
     end
   end
 
@@ -235,6 +301,35 @@ defmodule TalesForge.Game.TinjacksTest do
       assert "rusk" in world["present_npcs"] and "cobb" in world["present_npcs"]
       assert Enum.any?(world["public_facts"], &(&1["id"] == "tinjacks_toll"))
       assert NPC.get_instance(session.id, "rusk").runtime_state["location_id"] == "valley_inn"
+    end
+
+    test "a player who is out when the toll comes due finds Rusk and Cobb at their side" do
+      System.put_env("INN_WORLD", "on")
+      System.put_env("WORLD_ANTAGONIST", "on")
+      {:ok, session} = GameSessions.create_session(%{adventure_id: "tin_valley"})
+
+      session
+      |> Ecto.Changeset.change(
+        world_state:
+          session.world_state
+          |> Map.merge(%{"location_id" => "smithy", "last_scene_location" => "smithy"})
+          |> put_in(["character", "location_id"], "smithy")
+      )
+      |> Repo.update!()
+
+      assert {:ok, _} =
+               GameSessions.submit_message(session.id, "I wait by the forge for two hours.")
+
+      world = Repo.get!(GameSession, session.id).world_state
+      assert world["location_id"] == "smithy"
+      assert "rusk" in world["present_npcs"] and "cobb" in world["present_npcs"]
+
+      ids = Enum.map(world["public_facts"], & &1["id"])
+      assert "tinjacks_seek" in ids and "tinjacks_toll_taken" in ids
+      refute "tinjacks_toll" in ids
+
+      memories = NPC.get_instance(session.id, "innkeep").runtime_state["memories"]
+      assert Enum.any?(memories, &(&1["who"] == "rusk"))
     end
 
     test "WORLD_ANTAGONIST alone does nothing; without flags there is no Tinjacks front" do
