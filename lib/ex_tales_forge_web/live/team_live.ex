@@ -7,7 +7,9 @@ defmodule TalesForgeWeb.TeamLive do
 
   Behind the GitHub team sign-in like every page (router `:browser` pipeline
   plus the `:require_team_member` mount hook). Read-only: no events, no AI
-  calls, no database.
+  calls, no database. The one live part, "Live: what we're shipping", is the
+  nested `TalesForgeWeb.TeamPrFeedLive` (the PR feed of `TalesForge.PrFeed`,
+  polled from GitHub on the server and pushed over PubSub).
 
   Copy follows tales-forge-docs `docs/team-page/content.md` (approved
   2026-10-09). Every number comes from `TalesForge.TeamPage` (the bundled
@@ -39,10 +41,12 @@ defmodule TalesForgeWeb.TeamLive do
   import TalesForgeWeb.TeamComponents
 
   alias TalesForge.AppRole
+  alias TalesForge.PrFeed
   alias TalesForge.TeamPage
   alias TalesForgeWeb.Layouts
   alias TalesForgeWeb.TeamArt
   alias TalesForgeWeb.TeamCallTypes
+  alias TalesForgeWeb.TeamPrFeed
 
   @sections [
     {"team", "Team"},
@@ -50,6 +54,7 @@ defmodule TalesForgeWeb.TeamLive do
     {"infrastructure", "Infrastructure"},
     {"playtests", "Playtests"},
     {"pace", "Pace and cost"},
+    {"live", "Live"},
     {"together", "Together"}
   ]
 
@@ -134,6 +139,7 @@ defmodule TalesForgeWeb.TeamLive do
         <.infra_section d={@d} />
         <.playtests_section d={@d} />
         <.pace_section d={@d} />
+        <.live_section socket={assigns[:socket]} />
         <.together_section d={@d} />
       </main>
 
@@ -1324,6 +1330,30 @@ defmodule TalesForgeWeb.TeamLive do
           Not shown: {Enum.join(get(@d, ["ai_spend", "gaps"]) || [], "; ")}.
         </p>
       </div>
+    </section>
+    """
+  end
+
+  # ── Live: what we're shipping ──────────────────────────────────────────────
+
+  # The feed is its own LiveView (TeamPrFeedLive), so its minute-by-minute
+  # updates patch only that part and never the page's animation state. Without
+  # a socket (render/1 called directly in tests) the current snapshot is shown
+  # statically.
+  attr :socket, :any, default: nil
+
+  defp live_section(assigns) do
+    ~H"""
+    <section id="live" class="team-section space-y-6" aria-labelledby="live-title" data-reveal>
+      <.section_head id="live" title="Live: what we're shipping">
+        The latest pull requests in the game's repo, straight from GitHub and updated every minute:
+        what's open, what just merged, and whether it's on playtest or in production yet.
+      </.section_head>
+      <%= if @socket do %>
+        {live_render(@socket, TalesForgeWeb.TeamPrFeedLive, id: "team-pr-feed")}
+      <% else %>
+        <TeamPrFeed.feed feed={PrFeed.snapshot()} now={DateTime.utc_now()} />
+      <% end %>
     </section>
     """
   end

@@ -9,7 +9,7 @@ defmodule TalesForgeWeb.Router do
 
   The only public routes are the login page, the GitHub OAuth request/callback,
   logout, the Fly health check (`/health`) and the token-guarded machine-to-machine
-  `/internal/costs`. Static assets are served by the endpoint before the router.
+  `/internal/costs` and `/internal/version`. Static assets are served by the endpoint before the router.
   """
 
   use TalesForgeWeb, :router
@@ -135,11 +135,14 @@ defmodule TalesForgeWeb.Router do
   # Machine-to-machine: production's costs page reads playtest's aggregated
   # playtest-run AI spend. Answers on the playtest app only, and only while
   # COSTS_PEER_TOKEN is set (404 otherwise); needs it as a bearer token (401);
-  # see CostsPeerController. Never calls an LLM.
+  # see CostsPeerController. /internal/version (both apps, same token) gives the
+  # running commit to the other app's live PR feed on /team; see
+  # VersionPeerController. Neither calls an LLM.
   scope "/internal", TalesForgeWeb do
     pipe_through :api
 
     get "/costs", CostsPeerController, :show
+    get "/version", VersionPeerController, :show
   end
 
   # Swoosh mailbox preview in development (LiveDashboard lives at /admin/oban)
