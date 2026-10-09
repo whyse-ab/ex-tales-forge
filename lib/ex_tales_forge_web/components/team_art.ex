@@ -1,14 +1,16 @@
 defmodule TalesForgeWeb.TeamArt do
   @moduledoc """
   Hand-drawn inline SVG illustrations for the founders' page (`/team`): the
-  crew avatars, the persona tokens, the round-table hero, the founders' wax
-  seal and the d20 token of the change-flow animation.
+  crew avatars, the persona tokens, the founders' wax seal and the d20 token of
+  the change-flow animation, plus the painted illustrations (`picture/1`).
 
-  They are placeholders for the painterly tavern-style art in the content
-  brief (tales-forge-docs `docs/team-page/content.md`, "Image ideas"): simple
-  flat shapes in the same warm palette, no real likenesses, nobody drawn above
-  anyone else. Inline, so there is nothing to fetch and they need no public
-  static route. Decorative parts are `aria-hidden`; each picture has a label.
+  The painted art (tales-forge-docs `docs/team-page/images/`) is the hero, the
+  bots' portraits on their cards and the wax seal on the "A founder's OK" steps
+  of the flow; it is served as static files from `priv/static/images/team`.
+  The small inline SVGs stay where the art would be too small to read (the
+  avatars on the flow steps, badges and callouts): simple flat shapes in the
+  same warm palette, no real likenesses, nobody drawn above anyone else.
+  Decorative parts are `aria-hidden`; each picture has a label or alt text.
   """
 
   use Phoenix.Component
@@ -330,135 +332,119 @@ defmodule TalesForgeWeb.TeamArt do
     """
   end
 
-  @doc """
-  Hero art: one round table, seen at an angle, with a map of Tin Valley on it.
-  Founders (generic adventurers) and the three bots sit around it at the same
-  height, with two empty chairs left open as an invitation. The candle flame
-  flickers unless reduced motion is on.
-  """
-  attr :class, :string, default: "w-full h-auto"
+  # The painted illustrations (tales-forge-docs docs/team-page/images/, approved
+  # by Fredrik), served from priv/static/images/team as `<name>-<width>.webp` with
+  # a `.jpg` fallback of the same width. Generated once with ImageMagick and
+  # cwebp (commands in priv/team/README.md) and committed; there is no build
+  # step. `width`/`height` are the intrinsic size of the largest file, so the
+  # browser reserves the box before the image loads.
+  @pictures %{
+    "hero" => %{
+      widths: [480, 960, 1280],
+      width: 1280,
+      height: 720,
+      alt:
+        "The founders and the three bots, Case, Bobby and Gentry the owl, around one round tavern table, " <>
+          "leaning over a painted map of Tin Valley, with two empty chairs left open"
+    },
+    "case" => %{
+      widths: [320, 640, 960],
+      width: 960,
+      height: 720,
+      alt:
+        "Case, a brass bot with a glowing lantern for a head and a blue cloak, holding a map and a quill"
+    },
+    "bobby" => %{
+      widths: [320, 640, 960],
+      width: 960,
+      height: 720,
+      alt:
+        "Bobby, a copper bot with a glowing furnace in his chest and tools on his belt, holding up a glowing gear"
+    },
+    "gentry" => %{
+      widths: [320, 640, 960],
+      width: 960,
+      height: 720,
+      alt: "Gentry, a silver owl in armour with a monocle, holding a clipboard and a quill"
+    },
+    "founders-seal" => %{
+      widths: [96, 192],
+      width: 192,
+      height: 192,
+      alt: "The founders' wax seal: a ring of hands reaching for a d20"
+    }
+  }
 
-  @spec hero(map()) :: Phoenix.LiveView.Rendered.t()
-  def hero(assigns) do
+  @doc """
+  The names of the painted illustrations `picture/1` can show.
+
+      iex> TalesForgeWeb.TeamArt.pictures()
+      ["bobby", "case", "founders-seal", "gentry", "hero"]
+  """
+  @spec pictures() :: [String.t()]
+  def pictures, do: @pictures |> Map.keys() |> Enum.sort()
+
+  @doc """
+  Whether `id` (a crew member) has a painted portrait: the three bots do.
+
+      iex> TalesForgeWeb.TeamArt.portrait?("gentry")
+      true
+      iex> TalesForgeWeb.TeamArt.portrait?("founders")
+      false
+  """
+  @spec portrait?(String.t() | nil) :: boolean()
+  def portrait?(id), do: id in ~w(case bobby gentry)
+
+  @doc """
+  One painted illustration as a responsive `<picture>`: WebP with a JPEG
+  fallback, a `srcset` per format, explicit `width`/`height` (no layout shift)
+  and alt text. `sizes` tells the browser how wide it is drawn. Below the fold
+  it loads lazily (the default); pass `loading="eager"` and
+  `fetchpriority="high"` for the hero.
+  """
+  attr :name, :string, required: true, values: Map.keys(@pictures)
+  attr :sizes, :string, required: true
+  attr :class, :any, default: nil
+  attr :loading, :string, default: "lazy", values: ~w(lazy eager)
+  attr :fetchpriority, :string, default: "auto", values: ~w(auto high low)
+  attr :alt, :string, default: nil, doc: "overrides the picture's own alt text"
+  attr :rest, :global
+
+  @spec picture(map()) :: Phoenix.LiveView.Rendered.t()
+  def picture(assigns) do
+    pic = Map.fetch!(@pictures, assigns.name)
+
     assigns =
       assign(assigns,
-        back: [
-          {70, "#3f6e8c", @skins.a, "#5a3a22", nil},
-          {150, "#2f4f6f", @skins.d, "#6b4a2b", :compass},
-          {240, "#8a3f5f", @skins.c, "#1f1a17", nil},
-          {330, "#6b4630", @skins.b, "#2b211a", :goggles},
-          {410, "#4d7a4a", @skins.b, "#b7652b", nil}
-        ],
-        front: [{110, "#3d5a3c", @skins.a, "#3a2a1c", :lens}]
+        pic: pic,
+        webp: srcset(assigns.name, pic.widths, "webp"),
+        jpg: srcset(assigns.name, pic.widths, "jpg"),
+        fallback: file(assigns.name, Enum.at(pic.widths, div(length(pic.widths), 2)), "jpg"),
+        alt_text: assigns.alt || pic.alt
       )
 
     ~H"""
-    <svg
-      viewBox="0 0 480 270"
-      class={["team-hero-art", @class]}
-      role="img"
-      aria-label="Founders and three bots around one round table, leaning over a map of Tin Valley, with two empty chairs left open"
-    >
-      <g aria-hidden="true">
-        <ellipse cx="240" cy="250" rx="230" ry="16" fill="#000" opacity="0.08" />
-        <%= for {x, cloak, skin, hair, prop} <- @back do %>
-          <.seat_figure x={x} y={92} cloak={cloak} skin={skin} hair={hair} prop={prop} />
-        <% end %>
-        <ellipse cx="240" cy="160" rx="210" ry="66" fill="#7b4f2e" />
-        <ellipse cx="240" cy="154" rx="204" ry="61" fill="#9a6a41" />
-        <g transform="translate(150 118) rotate(-4)">
-          <rect width="180" height="72" rx="4" fill="#efe0bd" stroke="#9c7a45" />
-          <path d="M8 58 L26 34 L40 52 L56 26 L74 54" fill="#c8b083" stroke="#8c6d3e" />
-          <path d="M84 6 Q96 30 88 44 T104 70" stroke="#5b8db8" stroke-width="3" fill="none" />
-          <rect x="120" y="22" width="14" height="10" fill="#a3182f" opacity="0.85" />
-          <path d="M140 46 L150 56 M150 46 L140 56" stroke="#a3182f" stroke-width="2.5" />
-          <path d="M60 64 Q100 52 136 36" stroke="#6b4a2b" stroke-dasharray="3 3" fill="none" />
-        </g>
-        <rect x="336" y="126" width="9" height="20" rx="2" fill="#f7efd9" />
-        <path
-          class="team-flame"
-          d="M340.5 108 Q347 118 340.5 126 Q334 118 340.5 108 Z"
-          fill="#f59f00"
-        />
-        <circle cx="134" cy="170" r="10" fill="#a3182f" />
-        <circle cx="134" cy="170" r="4" fill="#e4677d" />
-        <%= for {x, cloak, skin, hair, prop} <- @front do %>
-          <.back_figure x={x} cloak={cloak} skin={skin} hair={hair} prop={prop} />
-        <% end %>
-        <.empty_chair x={250} />
-        <.empty_chair x={370} />
-      </g>
-    </svg>
-    """
-  end
-
-  attr :x, :integer, required: true
-  attr :y, :integer, required: true
-  attr :cloak, :string, required: true
-  attr :skin, :string, required: true
-  attr :hair, :string, required: true
-  attr :prop, :atom, default: nil
-
-  defp seat_figure(assigns) do
-    ~H"""
-    <g transform={"translate(#{@x} #{@y})"}>
-      <path d="M-34 70 Q0 6 34 70 Z" fill={@cloak} />
-      <circle cx="0" cy="0" r="18" fill={@skin} />
-      <path d="M-18 -2 Q0 -28 18 -2 Q8 -12 -18 -2" fill={@hair} />
-      <circle cx="-6" cy="2" r="1.8" fill="#2b211a" />
-      <circle cx="6" cy="2" r="1.8" fill="#2b211a" />
-      <path d="M-5 9 Q0 12 5 9" stroke="#2b211a" stroke-width="1.6" fill="none" />
-      <circle :if={@prop == :compass} cx="26" cy="-14" r="8" fill="#f7efd9" stroke="#9c7a45" />
-      <path :if={@prop == :compass} d="M26 -21 L28 -14 L26 -7 L24 -14 Z" fill="#a3182f" />
-      <rect :if={@prop == :goggles} x="-12" y="-6" width="24" height="7" rx="3.5" fill="#4b5563" />
-      <circle :if={@prop == :goggles} cx="-6" cy="-2.5" r="2.6" fill="#9bd3f0" />
-      <circle :if={@prop == :goggles} cx="6" cy="-2.5" r="2.6" fill="#9bd3f0" />
-    </g>
-    """
-  end
-
-  attr :x, :integer, required: true
-  attr :cloak, :string, required: true
-  attr :skin, :string, required: true
-  attr :hair, :string, required: true
-  attr :prop, :atom, default: nil
-
-  # Seen from behind, on the near side of the table.
-  defp back_figure(assigns) do
-    ~H"""
-    <g transform={"translate(#{@x} 214)"}>
-      <path d="M-40 56 Q0 -6 40 56 Z" fill={@cloak} />
-      <circle cx="0" cy="0" r="19" fill={@hair} />
-      <circle
-        :if={@prop == :lens}
-        cx="30"
-        cy="-18"
-        r="10"
-        fill="#cfe9f7"
-        fill-opacity="0.6"
-        stroke="#8a6a2f"
-        stroke-width="3"
+    <picture class="contents">
+      <source type="image/webp" srcset={@webp} sizes={@sizes} />
+      <img
+        src={@fallback}
+        srcset={@jpg}
+        sizes={@sizes}
+        width={@pic.width}
+        height={@pic.height}
+        alt={@alt_text}
+        loading={@loading}
+        fetchpriority={@fetchpriority}
+        decoding="async"
+        class={["team-photo", @class]}
+        {@rest}
       />
-      <path
-        :if={@prop == :lens}
-        d="M23 -11 L14 -2"
-        stroke="#8a6a2f"
-        stroke-width="4"
-        stroke-linecap="round"
-      />
-    </g>
+    </picture>
     """
   end
 
-  attr :x, :integer, required: true
+  defp srcset(name, widths, ext),
+    do: Enum.map_join(widths, ", ", &"#{file(name, &1, ext)} #{&1}w")
 
-  defp empty_chair(assigns) do
-    ~H"""
-    <g transform={"translate(#{@x} 214)"}>
-      <rect x="-24" y="-14" width="48" height="40" rx="10" fill="#6b4630" />
-      <rect x="-17" y="-8" width="34" height="28" rx="6" fill="#8a5a35" />
-      <rect x="-26" y="26" width="52" height="8" rx="3" fill="#5a3a22" />
-    </g>
-    """
-  end
+  defp file(name, width, ext), do: "/images/team/#{name}-#{width}.#{ext}"
 end
