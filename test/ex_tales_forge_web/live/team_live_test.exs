@@ -216,6 +216,8 @@ defmodule TalesForgeWeb.TeamLiveTest do
         assert has_element?(view, ~s(#hero-art[alt*="#{name}"]))
       end
 
+      assert has_element?(view, ~s(#hero-art[alt*="Max the apprentice"]))
+
       refute has_element?(view, "#hero svg.team-hero-art")
     end
 
