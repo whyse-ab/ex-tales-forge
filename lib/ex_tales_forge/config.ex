@@ -47,6 +47,15 @@ defmodule TalesForge.Config do
   def intent_ask_below_confidence,
     do: Application.get_env(:ex_tales_forge, :intent_ask_below_confidence, 0.45)
 
+  @doc """
+  Jev intent: the raw (uncalibrated) confidence below which the turn may ask the
+  player, when the top two readings play out differently
+  (`INTENT_ASK_BELOW_RAW_CONFIDENCE`, default 0.45; 0 turns the raw check off).
+  """
+  @spec intent_ask_below_raw_confidence() :: float()
+  def intent_ask_below_raw_confidence,
+    do: Application.get_env(:ex_tales_forge, :intent_ask_below_raw_confidence, 0.45)
+
   @doc "Jev intent: the call's receive timeout in ms on the player's clock (`INTENT_JEV_TIMEOUT_MS`, default 1500)."
   @spec intent_jev_timeout_ms() :: pos_integer()
   def intent_jev_timeout_ms,

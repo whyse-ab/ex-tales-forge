@@ -18,9 +18,10 @@ defmodule TalesForge.IntentJev do
       pick, today's reading, and the diff between the two. The job args, the
       `PlayerAction` and the GM prompt are exactly what `:off` produces.
     * `:on` — the Jev read drives the turn (`resolve/4`): act at a calibrated
-      confidence ≥ `INTENT_ACT_MIN_CONFIDENCE`, ask below
-      `INTENT_ASK_BELOW_CONFIDENCE` only when the top two readings would play
-      out differently, best guess in between; at most one templated question
+      confidence ≥ `INTENT_ACT_MIN_CONFIDENCE`, ask when the calibrated
+      confidence is below `INTENT_ASK_BELOW_CONFIDENCE` or the raw one below
+      `INTENT_ASK_BELOW_RAW_CONFIDENCE`, only when the top two readings would
+      play out differently, best guess in between; at most one templated question
       per turn (`TalesForge.Game.IntentClarification`). The safety label sets
       the GM's quote (`TalesForge.Game.PlayerQuote`); `nefarious` is declined
       by the GM in character. On a Jev error, a timeout
@@ -262,7 +263,8 @@ defmodule TalesForge.IntentJev do
 
     * `:never_ask` — true for a free-text answer to a question: the read plays
       its best guess and never asks again (one round per turn);
-    * `:act_min`, `:ask_below`, `:quote_threshold` — override the config.
+    * `:act_min`, `:ask_below`, `:ask_below_raw`, `:quote_threshold` — override
+      the config.
 
   On a Jev error or timeout the heuristic reads the text and the GM gets the
   typed summary. Raises what `TalesForge.Game.Intent.validate_player_action/2`
@@ -294,7 +296,8 @@ defmodule TalesForge.IntentJev do
   def decide(reading, candidates, context, raw_action, latency_ms, opts \\ []) do
     band_opts = [
       act_min: Keyword.get(opts, :act_min, Config.intent_act_min_confidence()),
-      ask_below: Keyword.get(opts, :ask_below, Config.intent_ask_below_confidence())
+      ask_below: Keyword.get(opts, :ask_below, Config.intent_ask_below_confidence()),
+      ask_below_raw: Keyword.get(opts, :ask_below_raw, Config.intent_ask_below_raw_confidence())
     ]
 
     band =
@@ -530,7 +533,8 @@ defmodule TalesForge.IntentJev do
   defp band_opts do
     [
       act_min: Config.intent_act_min_confidence(),
-      ask_below: Config.intent_ask_below_confidence()
+      ask_below: Config.intent_ask_below_confidence(),
+      ask_below_raw: Config.intent_ask_below_raw_confidence()
     ]
   end
 

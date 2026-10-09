@@ -82,7 +82,9 @@ defmodule TalesForge.IntentEval.Report do
       "",
       reliability_table(m.calibration),
       "",
-      clarifying_table(m.clarifying, opts)
+      clarifying_table(m.clarifying, opts),
+      "",
+      bands_table(m)
     ]
     |> Enum.join("\n")
   end
@@ -164,6 +166,25 @@ defmodule TalesForge.IntentEval.Report do
 
     header <> "\n" <> body
   end
+
+  defp bands_table(%{bands: %{n: n} = b}) when n > 0 do
+    opts = Enum.map_join(b.opts, ", ", fn {k, v} -> "#{k} #{fmt(v / 1)}" end)
+
+    header =
+      "### Decision bands (#{opts})\n\n| band | n | share | action accuracy |\n|---|---|---|---|"
+
+    body =
+      Enum.map_join(b.rows, "\n", fn row ->
+        "| #{row.band} | #{row.n} | #{num_text(row.share)} | #{txt(row.accuracy)} |"
+      end)
+
+    header <>
+      "\n" <>
+      body <>
+      "\n\nAction accuracy on the turns that play without a question: #{txt(b.played_accuracy)}."
+  end
+
+  defp bands_table(_m), do: ""
 
   # --- formatting --------------------------------------------------------------
 

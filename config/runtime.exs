@@ -226,6 +226,7 @@ if config_env() != :test do
     intent_jev: intent_jev,
     intent_act_min_confidence: intent_float.("INTENT_ACT_MIN_CONFIDENCE", 0.70),
     intent_ask_below_confidence: intent_float.("INTENT_ASK_BELOW_CONFIDENCE", 0.45),
+    intent_ask_below_raw_confidence: intent_float.("INTENT_ASK_BELOW_RAW_CONFIDENCE", 0.45),
     intent_jev_timeout_ms: intent_timeout,
     player_quote_min_benign_confidence: intent_float.("PLAYER_QUOTE_MIN_BENIGN_CONFIDENCE", 0.90)
 

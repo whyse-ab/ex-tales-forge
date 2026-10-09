@@ -35,6 +35,7 @@ defmodule TalesForge.IntentEval do
     * `:split` — `"tune"`, `"holdout"` or `"all"` (default `"tune"`);
     * `:readers` — list of `:jev | :heuristic | :tier1` (default `[:jev, :heuristic, :tier1]`);
     * `:ask_below` — clarification threshold for the clarifying-rate metric;
+    * `:ask_below_raw` — raw-confidence ask threshold (`0.0` turns it off);
     * `:limit` — cap the number of items (after the split filter);
     * `:concurrency` — how many items are read at once (default 1);
     * `:jev` — options forwarded to the Jev reader (`:api_key`, `:model`,

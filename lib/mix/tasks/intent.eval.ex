@@ -28,7 +28,12 @@ defmodule Mix.Tasks.Intent.Eval do
     * `--split` — `tune` (default), `holdout` or `all`. The holdout is locked:
       pass `--i-mean-it` to run it, so it is not spent by accident.
     * `--readers` — comma list of `jev,heuristic,tier1` (default all three).
-    * `--ask-below` — clarification threshold to include in the clarifying table.
+    * `--ask-below` — clarification threshold to include in the clarifying table
+      (and the calibrated ask threshold of the decision-band table).
+    * `--ask-below-raw` — the raw-confidence ask threshold for both tables
+      (default: each clarifying row's own threshold, and 0.45 for the band
+      table); `0` turns the raw check off, which reproduces the bands before
+      the raw check.
     * `--limit` — only the first N items of the split.
     * `--concurrency` — read N items at once (default 1).
     * `--timeout-ms` — the Jev reader's receive timeout (default 4000).
@@ -57,6 +62,7 @@ defmodule Mix.Tasks.Intent.Eval do
     split: :string,
     readers: :string,
     ask_below: :float,
+    ask_below_raw: :float,
     limit: :integer,
     concurrency: :integer,
     timeout_ms: :integer,
@@ -143,6 +149,7 @@ defmodule Mix.Tasks.Intent.Eval do
       jev: jev_opts(opts, key)
     ]
     |> put_opt(:ask_below, opts[:ask_below])
+    |> put_opt(:ask_below_raw, opts[:ask_below_raw])
     |> put_opt(:limit, opts[:limit])
     |> put_opt(:concurrency, opts[:concurrency])
     |> put_opt(:fixture, opts[:fixture])

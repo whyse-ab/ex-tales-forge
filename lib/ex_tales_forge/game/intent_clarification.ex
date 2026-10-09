@@ -4,8 +4,11 @@ defmodule TalesForge.Game.IntentClarification do
   shown when the game asks.
 
   A turn acts when the read is confident (`>= act_min`), asks only when it is
-  unsure (`< ask_below`) **and** the two most likely readings would play out
-  differently, and otherwise plays its best guess. "Differently" means the top
+  unsure **and** the two most likely readings would play out differently, and
+  otherwise plays its best guess. "Unsure" is the calibrated confidence below
+  `ask_below`, **or** Jev's raw confidence below `ask_below_raw`: calibration
+  lifts low raw reads a long way (raw 0.41 reads 0.82 calibrated), so on the
+  calibrated value alone a raw read that low never asks. "Differently" means the top
   two action types fall in different consequence classes (talk is cheap to get
   wrong; a fight, a move, or spending coin is not), or, for a move or a fight,
   the target read itself is unsure, so the top two targets compete. At most one
@@ -23,6 +26,7 @@ defmodule TalesForge.Game.IntentClarification do
 
   @default_act_min 0.70
   @default_ask_below 0.45
+  @default_ask_below_raw 0.45
   # Two move/fight targets compete when the runner-up is this close to the top.
   @target_margin 0.25
 
@@ -66,6 +70,18 @@ defmodule TalesForge.Game.IntentClarification do
   @typedoc "The turn's decision for a reading: act on it, play a best guess, or ask."
   @type decision :: :act | :best_guess | :ask
 
+  @doc """
+  The default band thresholds: `[act_min: #{@default_act_min}, ask_below:
+  #{@default_ask_below}, ask_below_raw: #{@default_ask_below_raw}]`.
+  """
+  @spec defaults() :: keyword(float())
+  def defaults,
+    do: [
+      act_min: @default_act_min,
+      ask_below: @default_ask_below,
+      ask_below_raw: @default_ask_below_raw
+    ]
+
   @doc "The consequence class of an action type."
   @spec class(atom()) :: atom()
   def class(action), do: Map.get(@classes, action, :talk)
@@ -73,21 +89,42 @@ defmodule TalesForge.Game.IntentClarification do
   @doc """
   The decision for a `t:TalesForge.Game.JevIntent.reading/0`.
 
-  `opts` may set `:act_min` (default #{@default_act_min}) and `:ask_below`
-  (default #{@default_ask_below}).
+  `opts` may set `:act_min` (default #{@default_act_min}), `:ask_below`
+  (default #{@default_ask_below}) and `:ask_below_raw` (default
+  #{@default_ask_below_raw}; `0.0` turns the raw check off).
+
+  The turn asks when the top two readings play out differently and either the
+  calibrated confidence is below `ask_below` or the raw confidence
+  (`reading.raw_confidence`, when present) is below `ask_below_raw`. The ask
+  check comes first, so a low raw read whose calibrated value clears `act_min`
+  still asks. Otherwise it acts at a calibrated confidence `>= act_min` and
+  plays its best guess in between.
   """
-  @spec band(JevIntent.reading(), keyword()) :: decision()
+  @spec band(JevIntent.reading() | map(), keyword()) :: decision()
   def band(reading, opts \\ []) do
     act_min = Keyword.get(opts, :act_min, @default_act_min)
     ask_below = Keyword.get(opts, :ask_below, @default_ask_below)
+    ask_below_raw = Keyword.get(opts, :ask_below_raw, @default_ask_below_raw)
     confidence = reading.confidence || 1.0
 
     cond do
-      confidence >= act_min -> :act
-      confidence < ask_below and split_class?(reading) -> :ask
-      true -> :best_guess
+      unsure?(confidence, raw_confidence(reading), ask_below, ask_below_raw) and
+          split_class?(reading) ->
+        :ask
+
+      confidence >= act_min ->
+        :act
+
+      true ->
+        :best_guess
     end
   end
+
+  defp unsure?(confidence, raw, ask_below, ask_below_raw) do
+    confidence < ask_below or (is_number(raw) and raw < ask_below_raw)
+  end
+
+  defp raw_confidence(reading), do: Map.get(reading, :raw_confidence)
 
   # True when the top two readings would commit the character to different
   # kinds of consequence, or a move or fight whose target is itself unsure (so
