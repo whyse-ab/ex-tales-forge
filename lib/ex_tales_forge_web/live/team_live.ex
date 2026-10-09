@@ -14,7 +14,8 @@ defmodule TalesForgeWeb.TeamLive do
   `data.json`); a missing or empty value reads "not measured yet". Charts are
   `TalesForgeWeb.TeamComponents`, pictures `TalesForgeWeb.TeamArt`. The
   animations (sections fading in, bars growing, the d20 rolling through the
-  change flow) run in `assets/js/team_hooks.js` and are off with
+  change flow, the three call-type lanes of `TalesForgeWeb.TeamCallTypes`) run
+  in `assets/js/team_hooks.js` and are off with
   `prefers-reduced-motion`: the root then carries `data-motion="reduce"` and
   the static diagram is shown. The page follows the header theme toggle
   (`.paper-themed`), so dark mode works.
@@ -41,6 +42,7 @@ defmodule TalesForgeWeb.TeamLive do
   alias TalesForge.TeamPage
   alias TalesForgeWeb.Layouts
   alias TalesForgeWeb.TeamArt
+  alias TalesForgeWeb.TeamCallTypes
 
   @sections [
     {"team", "Team"},
@@ -649,7 +651,16 @@ defmodule TalesForgeWeb.TeamLive do
           (a category plus a confidence), not prose. An <em>LLM</em>
           is a large language model, the kind of AI that writes text.
         </p>
+        <p id="call-types-walkthrough-link" class="text-sm leading-relaxed">
+          <strong>The call-type rule is the heart of the game engine, so it gets its own walkthrough below:</strong>
+          <a
+            href={"#" <> TeamCallTypes.anchor()}
+            class="text-[var(--paper-accent)] underline underline-offset-2"
+          >one turn, three call types</a>.
+        </p>
       </article>
+
+      <TeamCallTypes.walkthrough d={@d} />
     </section>
     """
   end

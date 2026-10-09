@@ -27,6 +27,82 @@ defmodule TalesForge.TeamPageTest do
     end
   end
 
+  describe "the call-type walkthrough's data" do
+    test "the new call_types keys are there" do
+      data = TeamPage.data()
+
+      for kind <- ~w(jev elixir llm), key <- ~w(css_var light dark name) do
+        assert TeamPage.get(data, ["call_types", "colours", kind, key]) != nil,
+               "data.json has no call_types.colours.#{kind}.#{key}"
+      end
+
+      for path <- [
+            ["call_types", "why", "elixir"],
+            ["call_types", "why", "jev"],
+            ["call_types", "why", "llm"],
+            ["call_types", "smell"],
+            ["call_types", "walkthrough", "player_text"],
+            ["call_types", "walkthrough", "steps"],
+            ["call_types", "examples", "elixir"],
+            ["call_types", "examples", "jev"],
+            ["call_types", "examples", "llm"],
+            ["intent_shadow", "cost_per_turn_usd"]
+          ] do
+        assert TeamPage.get(data, path) != nil, "data.json has no #{Enum.join(path, ".")}"
+      end
+    end
+
+    test "one step per lane, Jev then Elixir then the GM, each with a label and detail" do
+      steps = TeamPage.get(TeamPage.data(), ["call_types", "walkthrough", "steps"])
+
+      assert Enum.map(steps, & &1["lane"]) == ["jev", "elixir", "llm"]
+
+      for step <- steps do
+        assert is_binary(step["label"]) and step["label"] != ""
+        assert is_map(step["detail"]) and map_size(step["detail"]) > 0
+      end
+
+      [jev | _] = steps
+      assert TeamPage.get(TeamPage.data(), String.split(jev["latency_ref"], ".")) |> is_number()
+    end
+
+    test "the colours are the page's CSS variables, light and dark, as in app.css" do
+      css = File.read!("assets/css/app.css")
+      [_, light] = Regex.run(~r/\n\.team-page \{([^}]*)\}/, css)
+      [_, dark] = Regex.run(~r/:root\[data-theme="dark"\] \.team-page \{([^}]*)\}/, css)
+
+      for {kind, colour} <- TeamPage.get(TeamPage.data(), ["call_types", "colours"]),
+          kind in ~w(jev elixir llm) do
+        assert colour["css_var"] == "--team-#{kind}"
+        assert light =~ "#{colour["css_var"]}: #{colour["light"]};", "#{kind} light"
+        assert dark =~ "#{colour["css_var"]}: #{colour["dark"]};", "#{kind} dark"
+      end
+    end
+
+    test "the walkthrough's roll is what Game.Mechanics would do" do
+      steps = TeamPage.get(TeamPage.data(), ["call_types", "walkthrough", "steps"])
+      jev = Enum.find(steps, &(&1["lane"] == "jev"))["detail"]
+      elixir = Enum.find(steps, &(&1["lane"] == "elixir"))["detail"]
+      [stat, value] = String.split(elixir["stat"])
+      value = String.to_integer(value)
+
+      assert TalesForge.Game.Mechanics.skill_stat_map()[jev["skill"]] == stat
+      assert elixir["stat_bonus"] == div(value - 10, 2)
+      assert elixir["target"] == elixir["skill_level"] + elixir["stat_bonus"]
+
+      character = %{
+        "skills" => %{jev["skill"] => elixir["skill_level"]},
+        "stats" => %{stat => value}
+      }
+
+      {_character, resolution} =
+        TalesForge.Game.Mechanics.perform_and_apply(character, jev["skill"], elixir["die"])
+
+      assert resolution.effective_skill == elixir["target"]
+      assert resolution.outcome == elixir["outcome"]
+    end
+  end
+
   test "the change flow goes to playtest before production, through two founder approvals" do
     ids = TeamPage.data() |> TeamPage.get(["change_flow", "steps"]) |> Enum.map(& &1["id"])
     index = &Enum.find_index(ids, fn id -> id == &1 end)

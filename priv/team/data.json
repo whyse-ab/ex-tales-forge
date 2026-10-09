@@ -217,7 +217,98 @@
           "opening scene"
         ]
       }
-    ]
+    ],
+    "colours": {
+      "elixir": {
+        "css_var": "--team-elixir",
+        "light": "#6d4aa8",
+        "dark": "#b99cf2",
+        "name": "purple"
+      },
+      "jev": {
+        "css_var": "--team-jev",
+        "light": "#0f766e",
+        "dark": "#4fd1c0",
+        "name": "teal"
+      },
+      "llm": {
+        "css_var": "--team-llm",
+        "light": "#b45309",
+        "dark": "#f4b25f",
+        "name": "amber"
+      },
+      "source": "ex-tales-forge assets/css/app.css (team page palette, main bf1d2b2)"
+    },
+    "why": {
+      "elixir": "Exact, free and testable",
+      "jev": "Turns messy words into data reliably and fast (~0.25 s median per intent read)",
+      "llm": "The only one that writes good prose, but slow and costly, so we never ask it for data"
+    },
+    "smell": "Asking the LLM for structured output is a smell: move that work to Jev or Elixir.",
+    "walkthrough": {
+      "illustrative": true,
+      "note": "Illustrative turn. Mechanics follow ex-tales-forge main (Game.Mechanics: 1d20 roll-under vs skill + (stat-10) div 2) Learning rule per decision 2026-10-09 (Fredrik): learn only from failure, only in the failed skill, improvement after sleeping; being rolled out, so a success earns nothing.. Room price from priv/adventures/tin_valley/world_agents.json. Jev intent is on in playtest and prod since 2026-10-09 (decisions.md); no haggling-discount rule yet; NPC memories still come from GM bookkeeping fields (queued to move).",
+      "player_text": "I lean on the bar and try to talk Brenna down on the price of the room.",
+      "steps": [
+        {
+          "lane": "jev",
+          "label": "Jev reads the intent",
+          "detail": {
+            "action": "speak",
+            "target": "Brenna (innkeep)",
+            "skill": "persuasion",
+            "when": "this turn",
+            "safety": "benign",
+            "confidence": 0.92
+          },
+          "latency_ref": "intent_shadow.p50_ms"
+        },
+        {
+          "lane": "elixir",
+          "label": "Elixir applies the rules",
+          "detail": {
+            "roll": "1d20 roll-under",
+            "skill_level": 5,
+            "stat": "CHA 14",
+            "stat_bonus": 2,
+            "target": 7,
+            "die": 6,
+            "outcome": "success",
+            "room_price": "3 silver (price list)",
+            "learning": "none (successes teach nothing; learn from failure, sinks in after sleep)"
+          }
+        },
+        {
+          "lane": "llm",
+          "label": "GM writes the prose",
+          "detail": {
+            "input": "typed result + short quote of the player's words",
+            "output": "narration (prose only)"
+          }
+        }
+      ]
+    },
+    "examples": {
+      "elixir": [
+        "Dice rolls and learning from failure, improving after sleep (Game.Mechanics, Game.Progression; rolling out)",
+        "Prices and coins (World.Prices, Game.Inventory)",
+        "False-claim check against session state (Game.PremiseCheck)",
+        "World clock and fronts (Game.WorldClock, Tinjacks trouble clock)",
+        "Wounds, movement, GM gesture tracking (Game.Gestures)"
+      ],
+      "jev": [
+        "Player intent + safety label (Game.JevIntent)",
+        "NPC gut reactions (Game.NpcReactions, prototype on playtest)",
+        "Playtest persona scoring (Playtest.JevScorer)",
+        "Planned: description to character settings"
+      ],
+      "llm": [
+        "GM narration",
+        "NPC dialogue in prose",
+        "Opening scene; persona bot player lines in playtests"
+      ],
+      "source": "ex-tales-forge main bf1d2b2 moduledocs; docs/call-types.md; decisions.md (PremiseCheck #95)"
+    }
   },
   "code_standards": {
     "as_of": "2026-10-09",
