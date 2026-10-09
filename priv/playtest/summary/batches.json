@@ -1,0 +1,416 @@
+{
+  "batches": [
+    {
+      "id": "elara",
+      "title": "The Elara runs",
+      "status": "done",
+      "date": "2026-10-07",
+      "commit": null,
+      "commit_note": "several builds during the day, before runs recorded their commit",
+      "series": null,
+      "runs": 44,
+      "analysis": "https://github.com/whyse-ab/tales-forge-docs/blob/main/docs/analysis-jev-scores-2026-10-07.md",
+      "game": "Every bot played the same ready-made character, Elara, for about 5 turns in the Valley Inn. The rules rolled dice even for ordering an ale, and a failed roll made the innkeeper Brenna colder. Brenna was guarded and often brushed the player off. No run got out of the inn.",
+      "changes": "The first batch: the reference point for everything after it.",
+      "notes": "Mostly Paul (29 runs) and Lotta (11). Hawk, Lars and Ronny have only 1 or 2 runs each, so their numbers are anecdotes. 26 of the 44 runs were played on a laptop, not on the playtest server, so only the other 18 can be opened here and the cost is not comparable. Best and worst runs below are the ones on this server.",
+      "overall": {
+        "hook_by_turn_2": 0.386,
+        "brush_off": 0.449,
+        "cost_per_run_usd": null
+      },
+      "personas": {
+        "paul": {
+          "runs": 29,
+          "mean": 4.18,
+          "best": "fc294b8a-dd56-45ed-9076-01bd3686af93",
+          "best_score": 4.73,
+          "worst": "f1a2102f-cd6d-4aa1-bb6a-30194f5888ee",
+          "worst_score": 3.42
+        },
+        "lotta": {
+          "runs": 11,
+          "mean": 3.63,
+          "best": "3d2fe901-78c3-47d7-b454-09906aa0b68d",
+          "best_score": 3.1,
+          "worst": "20c48675-25d1-447f-a8cd-1725bc729039",
+          "worst_score": 2.97
+        },
+        "lars": {
+          "runs": 1,
+          "mean": 3.7,
+          "best": "f5c98df8-6317-445a-a951-71b95a99d13d",
+          "best_score": 3.7,
+          "worst": "f5c98df8-6317-445a-a951-71b95a99d13d",
+          "worst_score": 3.7
+        },
+        "hawk": {
+          "runs": 2,
+          "mean": 2.28,
+          "best": "0a18850a-064d-4caf-b4f3-5bf66246c090",
+          "best_score": 2.37,
+          "worst": "682fdd9e-34a6-48c9-bb1b-279398788f6e",
+          "worst_score": 2.2
+        },
+        "ronny": {
+          "runs": 1,
+          "mean": 4.14,
+          "best": "fe4772e8-86ec-4978-9860-d8de2079b904",
+          "best_score": 4.14,
+          "worst": "fe4772e8-86ec-4978-9860-d8de2079b904",
+          "worst_score": 4.14
+        }
+      }
+    },
+    {
+      "id": "baseline-2026-10-07",
+      "title": "The baseline after the first rework",
+      "status": "done",
+      "date": "2026-10-07",
+      "commit": "2a6589edcfcb2066731d951a7cd6c7fe45bdebd4",
+      "commit_note": null,
+      "series": "baseline-2026-10-07",
+      "variant": "default",
+      "runs": 65,
+      "analysis": "https://github.com/whyse-ab/tales-forge-docs/blob/main/docs/analysis-jev-baseline-2026-10-07.md",
+      "game": "Each persona played a character it made itself (Paul a preacher, Lotta a dwarf druid, Lars an elf ranger, Hawk and Ronny human warriors), 10 turns each (Hawk 12), all in Tin Valley. Brenna was now warm and chatty and offered a lead (a job, a name or a place) within two turns. Dice were rolled only when something was really at stake, and a failed roll no longer turned people against you.",
+      "changes": "No dice on ordinary talk, and failing only means you learn nothing extra. A warm Brenna with ready-made leads and cleaner writing. Each persona plays its own character instead of Elara. Longer runs. Characters have real skills and can grow. Hawk's and Ronny's scales were reworded, so compare those two with care.",
+      "notes": "13 runs per persona, played one after another on the playtest server in one evening (19:29–21:33). Every run finished; the whole batch cost about $6.",
+      "overall": {
+        "hook_by_turn_2": 0.9846,
+        "brush_off": 0.031,
+        "cost_per_run_usd": 0.093
+      },
+      "personas": {
+        "paul": {
+          "runs": 13,
+          "mean": 4.67,
+          "best": "71db55ef-cb17-45d3-85a1-34e26d258b52",
+          "best_score": 4.95,
+          "worst": "761713eb-b3cd-4460-b4d0-34c7ba6f777c",
+          "worst_score": 2.86,
+          "hook_by_turn_2": 1.0,
+          "brush_off": 0.008,
+          "cost_per_run_usd": 0.09
+        },
+        "lotta": {
+          "runs": 13,
+          "mean": 4.4,
+          "best": "3912289c-2029-4d0a-9337-0d1e453adf63",
+          "best_score": 4.52,
+          "worst": "2974fb4e-e6f3-4fc9-a7eb-1f14a6bd23c2",
+          "worst_score": 4.27,
+          "hook_by_turn_2": 1.0,
+          "brush_off": 0.015,
+          "cost_per_run_usd": 0.086
+        },
+        "lars": {
+          "runs": 13,
+          "mean": 4.04,
+          "best": "d7cb8e6c-f95a-4ce7-8cfa-fd7b2b258bcb",
+          "best_score": 4.59,
+          "worst": "e588c587-38ab-4cf3-afc7-91b3c31d310a",
+          "worst_score": 3.15,
+          "hook_by_turn_2": 0.92,
+          "brush_off": 0.038,
+          "cost_per_run_usd": 0.087
+        },
+        "hawk": {
+          "runs": 13,
+          "mean": 3.02,
+          "best": "5dc4bfff-db85-42ad-8eba-5044246a427d",
+          "best_score": 4.86,
+          "worst": "16bdb938-0189-4ec4-9b16-ee88c4cbc1c6",
+          "worst_score": 1.78,
+          "hook_by_turn_2": 1.0,
+          "brush_off": 0.019,
+          "cost_per_run_usd": 0.116
+        },
+        "ronny": {
+          "runs": 13,
+          "mean": 4.37,
+          "best": "e5127175-61d9-4676-81be-99aa0228a5e3",
+          "best_score": 4.74,
+          "worst": "54c401ab-0c8c-49da-8fc1-a8aafada6b8c",
+          "worst_score": 3.58,
+          "hook_by_turn_2": 1.0,
+          "brush_off": 0.077,
+          "cost_per_run_usd": 0.085
+        }
+      }
+    },
+    {
+      "id": "post-rework-2026-10-08",
+      "title": "After the baseline fixes",
+      "status": "done",
+      "date": "2026-10-08",
+      "commit": "9e7d447ca04642379d253da50a90dcefa107a93e",
+      "commit_note": null,
+      "series": "post-rework-2026-10-08",
+      "variant": "default",
+      "runs": 23,
+      "planned_runs": 25,
+      "analysis": "https://github.com/whyse-ab/tales-forge-docs/blob/main/docs/analysis-jev-post-rework-2026-10-08.md",
+      "game": "Same characters and turn counts as the baseline, now with the inn world (places and people around the Valley Inn) and the Tinjacks, a gang that makes trouble on world time. Leaving the inn now works: the game still described the inn after 23% of leave attempts, against 64%. The game master echoes the player's lines much less (5% of turns, against 22%). Brenna's old tics are mostly gone, but new repeated gestures took their place. The Tinjacks act on their own in every run, and Hawk's score rose a little (3.34 against 3.02; 3.14 against 2.54 in runs without a fight), but he rarely fights them. Skills now grow (0.57 levels per run, against 0). Overall scores didn't move measurably with 4–5 runs per persona.",
+      "changes": "The fixes decided after the baseline, code changes #67–#73: leaving the inn records a new scene, a world of places and people around the inn, the Tinjacks gang on world time, more attack phrasings roll the dice, Brenna stops echoing your words and loses her tics, every bit of experience buys a chance to improve a skill, and a stricter judge scale for Paul and Lotta.",
+      "notes": "25 runs were planned, 5 per persona. 26 were played: 23 finished (Paul, Lotta and Hawk 5 each, Lars and Ronny 4 each) and 3 stopped on the turn timeout (Lars twice, Paul once) because of a bug that made turns hang. That bug is fixed now. The 3 stopped runs are left out, and the third stop ended the batch, which is why Lars and Ronny have 4 runs. Paul's and Lotta's scores use the stricter scale, so a lower number for them does not by itself mean a worse game. With 4–5 runs per persona only large differences show.",
+      "overall": {
+        "hook_by_turn_2": null,
+        "brush_off": null,
+        "cost_per_run_usd": 0.114
+      },
+      "personas": {
+        "paul": {
+          "runs": 5,
+          "mean": 4.77,
+          "best": "3f7777a6-710c-4f85-9c6b-ced15e246664",
+          "best_score": 4.94,
+          "worst": "4ac5c7d1-5807-45c8-b8af-a0dfd4c4b2eb",
+          "worst_score": 4.64,
+          "cost_per_run_usd": 0.113
+        },
+        "lotta": {
+          "runs": 5,
+          "mean": 4.21,
+          "best": "d5955e53-a1f2-4f60-9261-75ce0df4c5f1",
+          "best_score": 4.85,
+          "worst": "67dc6268-0841-4290-8485-afa84d5e0dcb",
+          "worst_score": 3.63,
+          "cost_per_run_usd": 0.114
+        },
+        "lars": {
+          "runs": 4,
+          "mean": 4.05,
+          "best": "4dcf1759-a63e-496d-a5fd-068ab06554b8",
+          "best_score": 4.21,
+          "worst": "ef7e5f27-ddb2-4175-956b-de33d926ff58",
+          "worst_score": 3.71,
+          "cost_per_run_usd": 0.107
+        },
+        "hawk": {
+          "runs": 5,
+          "mean": 3.34,
+          "best": "5fbba495-4ef7-44ce-8101-9a2966c8bd86",
+          "best_score": 4.14,
+          "worst": "434c1f95-a165-486b-bc0a-0166040b0016",
+          "worst_score": 3.08,
+          "cost_per_run_usd": 0.126
+        },
+        "ronny": {
+          "runs": 4,
+          "mean": 4.09,
+          "best": "d39708f2-b717-4f97-8282-2bf06b8d50ba",
+          "best_score": 4.72,
+          "worst": "50a3c41a-c733-4496-b599-8d70b9201b9f",
+          "worst_score": 3.44,
+          "cost_per_run_usd": 0.108
+        }
+      }
+    },
+    {
+      "id": "intent-compare-off",
+      "title": "Intent comparison: the old way (off)",
+      "status": "done",
+      "date": "2026-10-09",
+      "commit": "2f27ff1cf62775a4480fa0eeadd87216891eec1e",
+      "commit_note": null,
+      "series": "intent-compare-2026-10-09",
+      "variant": "default",
+      "arm": "off",
+      "runs": 20,
+      "planned_runs": 20,
+      "analysis": "https://github.com/whyse-ab/tales-forge-docs/blob/main/docs/analysis-intent-compare-2026-10-09.md",
+      "game": "Before the game master answers, the game first works out what the player is trying to do. This test played the same game twice, 4 runs per persona each time, 10 turns each (Hawk 12): once with the old way of working that out (the game's own AI model, this card) and once with Jev doing it (the next card). Same characters and the same inn world and Tinjacks as the batch before.",
+      "changes": "Since the batch before, no change to the story itself: the turn-hang bug is fixed, the judge's headline score now weighs how sure it is, and Jev learned to work out what the player means (tested here). This card is the reference for the comparison: the game's own AI model reads the player, as before.",
+      "notes": "20 runs, 4 per persona, and all 20 finished. It asked the player what they meant on 8 of 208 turns. Working out what the player meant took under 1.7 seconds on 95% of turns, and almost 6 seconds at worst.",
+      "overall": {
+        "hook_by_turn_2": null,
+        "brush_off": null,
+        "cost_per_run_usd": 0.104
+      },
+      "personas": {
+        "paul": {
+          "runs": 4,
+          "mean": 4.6,
+          "best": "3154b22d-aaf4-44a9-9e73-ec0948a40d74",
+          "best_score": 4.95,
+          "worst": "a8cb5542-b27a-41a3-967e-dcd33bc78ee8",
+          "worst_score": 4.32,
+          "cost_per_run_usd": 0.109
+        },
+        "lotta": {
+          "runs": 4,
+          "mean": 3.73,
+          "best": "f8e8ea53-3c28-4f21-abb5-1447f5c93cdd",
+          "best_score": 4.38,
+          "worst": "f55af2f2-dc3d-4718-9492-a0030492419b",
+          "worst_score": 3.16,
+          "cost_per_run_usd": 0.099
+        },
+        "lars": {
+          "runs": 4,
+          "mean": 3.89,
+          "best": "a676c501-22cf-40e7-b9c4-61ea6181e9a9",
+          "best_score": 4.32,
+          "worst": "361eecf4-26e9-43fe-beed-bd5269dcdb7d",
+          "worst_score": 3.11,
+          "cost_per_run_usd": 0.107
+        },
+        "hawk": {
+          "runs": 4,
+          "mean": 3.15,
+          "best": "77aa127e-c73b-4834-a0fb-e4af135ce57f",
+          "best_score": 4.42,
+          "worst": "1ac59fbe-2888-47ce-864f-3f5ce17a6391",
+          "worst_score": 2.11,
+          "cost_per_run_usd": 0.109
+        },
+        "ronny": {
+          "runs": 4,
+          "mean": 4.44,
+          "best": "07f04f93-5d09-4649-ba55-420560daa417",
+          "best_score": 4.95,
+          "worst": "2db7e42e-c647-40b7-ac08-fe0c16ec05c7",
+          "worst_score": 3.42,
+          "cost_per_run_usd": 0.097
+        }
+      }
+    },
+    {
+      "id": "intent-compare-on",
+      "title": "Intent comparison: Jev reads the player (on)",
+      "status": "done",
+      "date": "2026-10-09",
+      "commit": "2f27ff1cf62775a4480fa0eeadd87216891eec1e",
+      "commit_note": null,
+      "series": "intent-compare-2026-10-09",
+      "variant": "default",
+      "arm": "on",
+      "runs": 20,
+      "planned_runs": 20,
+      "analysis": "https://github.com/whyse-ab/tales-forge-docs/blob/main/docs/analysis-intent-compare-2026-10-09.md",
+      "game": "Before the game master answers, the game first works out what the player is trying to do. This test played the same game twice, 4 runs per persona each time, 10 turns each (Hawk 12): once with the old way of working that out (the game's own AI model, this card) and once with Jev doing it (the next card). Same characters and the same inn world and Tinjacks as the batch before.",
+      "changes": "Compared with the card before: Jev, not the game's own AI model, works out what the player means on every turn. Everything else is the same.",
+      "notes": "20 runs, 4 per persona. 23 were played: 20 counted (one of them ended with the character dead, which counts as a finished game) and 3 were re-run, so they're left out: one stalled on turn 5 and two failed when the AI service was busy. Scores were a tie with the old way (3.98 against 3.96 on average), Lotta possibly a little lower. Jev was much faster (about 0.3 seconds at worst instead of 1.6) and cost the same. It never asked the player what they meant (0 of 207 turns).",
+      "overall": {
+        "hook_by_turn_2": null,
+        "brush_off": null,
+        "cost_per_run_usd": 0.103
+      },
+      "personas": {
+        "paul": {
+          "runs": 4,
+          "mean": 4.79,
+          "best": "252352ea-c8c0-4131-b16f-59f5a114df11",
+          "best_score": 4.94,
+          "worst": "b317d58b-0300-411c-b45f-9bf1b229e430",
+          "worst_score": 4.45,
+          "cost_per_run_usd": 0.104
+        },
+        "lotta": {
+          "runs": 4,
+          "mean": 3.19,
+          "best": "14aff1b5-a4d5-48d0-ba9e-e5ae75d01e80",
+          "best_score": 3.43,
+          "worst": "a525083c-04f1-4131-8bf1-f9fffe9099d9",
+          "worst_score": 3.03,
+          "cost_per_run_usd": 0.098
+        },
+        "lars": {
+          "runs": 4,
+          "mean": 3.94,
+          "best": "a4fb0839-4a08-47a7-826d-16c009e2c767",
+          "best_score": 4.41,
+          "worst": "b47e2287-9c97-42a8-95aa-818a577b2646",
+          "worst_score": 3.45,
+          "cost_per_run_usd": 0.098
+        },
+        "hawk": {
+          "runs": 4,
+          "mean": 4.04,
+          "best": "1c29f3f9-b4d8-4384-ae62-24f90f67ee84",
+          "best_score": 4.75,
+          "worst": "ed896257-1f16-4379-9120-162658778f8e",
+          "worst_score": 2.26,
+          "cost_per_run_usd": 0.111
+        },
+        "ronny": {
+          "runs": 4,
+          "mean": 3.95,
+          "best": "9a3bf2aa-0df8-425b-b0a9-47807725318b",
+          "best_score": 4.82,
+          "worst": "eccb51b2-f0cf-4c5c-855a-1e5fa5f0b54b",
+          "worst_score": 2.27,
+          "cost_per_run_usd": 0.102
+        }
+      }
+    },
+    {
+      "id": "full-2026-10-09",
+      "title": "Full batch with Jev reading the player",
+      "status": "done",
+      "date": "2026-10-09",
+      "commit": "dd5dc7e4e58e22e2531518ba4e865950d94d7004",
+      "commit_note": null,
+      "series": "full-2026-10-09",
+      "variant": "default",
+      "runs": 25,
+      "planned_runs": 25,
+      "analysis": "https://github.com/whyse-ab/tales-forge-docs/blob/main/docs/analysis-full-batch-2026-10-09.md",
+      "game": "The same five characters in Tin Valley, 10 turns each (Hawk 12), with Jev working out what the player means on every turn. Brenna and the others vary their gestures more, people at the inn now talk about the forge and Maude's cottage, and the Tinjacks come looking for the player. Dice come out far more often (about 5 rolls per game, against fewer than 1), and characters grow much faster (112 skill levels in 25 games, against 13 in 23).",
+      "changes": "Since the batch after the baseline fixes: Jev reads what the player means on every turn; the Tinjacks take their toll while the player is away and then come to the player; the game master is told which gestures it has just used, so it varies them; and rumours and hooks lead to Brask's forge and Maude's cottage.",
+      "notes": "25 runs, 5 per persona. 30 were played: 24 reached the turn limit, 1 Lars run ended with his character dead (it counts), and 5 failed with errors and were re-run (Paul 3, Ronny 1, Hawk 1), so they're left out. Only Paul's gain over the batch before is clearly more than chance (4.96 against 4.86). Hawk is very uneven: two runs near 4.5, three between 2.1 and 2.6.",
+      "overall": {
+        "hook_by_turn_2": null,
+        "brush_off": null,
+        "cost_per_run_usd": 0.12
+      },
+      "personas": {
+        "paul": {
+          "runs": 5,
+          "mean": 4.96,
+          "best": "717e3c35-9ba5-4bae-9de0-278ae42089e1",
+          "best_score": 4.97,
+          "worst": "311119d5-bfaa-4f0d-86b7-f9d9acf2eb69",
+          "worst_score": 4.95,
+          "cost_per_run_usd": 0.115
+        },
+        "lotta": {
+          "runs": 5,
+          "mean": 4.3,
+          "best": "11ff7bfb-8131-4441-9342-50cd22838055",
+          "best_score": 4.66,
+          "worst": "7f31256f-70a8-4b03-89c2-f099db81ce61",
+          "worst_score": 4.03,
+          "cost_per_run_usd": 0.124
+        },
+        "lars": {
+          "runs": 5,
+          "mean": 3.92,
+          "best": "e42d121a-0da1-4d3c-b13e-c17d6af9490c",
+          "best_score": 4.11,
+          "worst": "9beab67f-00ee-496d-8248-a476e3fd3588",
+          "worst_score": 3.79,
+          "cost_per_run_usd": 0.107
+        },
+        "hawk": {
+          "runs": 5,
+          "mean": 3.23,
+          "best": "c8ce53b5-e0a7-4881-9776-9887ec74957b",
+          "best_score": 4.56,
+          "worst": "6b92b2a1-f418-4dbb-9be8-52b4982ee88c",
+          "worst_score": 2.06,
+          "cost_per_run_usd": 0.14
+        },
+        "ronny": {
+          "runs": 5,
+          "mean": 4.3,
+          "best": "e4b4312e-8541-4f99-9543-44c7eb8b9316",
+          "best_score": 4.89,
+          "worst": "934e597c-6690-4275-8fb3-b6b1910e88a5",
+          "worst_score": 3.69,
+          "cost_per_run_usd": 0.111
+        }
+      }
+    }
+  ]
+}

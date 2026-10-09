@@ -45,6 +45,189 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     end
   end
 
+  test "the founder summary sits on top, the run details below, and only behind login",
+       %{conn: conn} do
+    run = seed_run(persona: "hawk")
+
+    for anon <- [build_conn(), log_in_non_member(build_conn())] do
+      conn = get(anon, ~p"/admin/playtest")
+      assert redirected_to(conn) =~ "/admin/login"
+      refute response(conn, 302) =~ "What we test, and how"
+    end
+
+    {:ok, view, html} = live(conn, ~p"/admin/playtest")
+
+    assert has_element?(view, "#summary-intro h2", "What we test, and how")
+    assert has_element?(view, "#summary-intro", "scale from 1 (frustrated) to 5")
+    assert has_element?(view, "#summary-findings", "Hawk almost never meets danger")
+    assert has_element?(view, "#run-details", "All runs, in detail")
+
+    # Summary first, then the detailed runs.
+    [summary_at, details_at, row_at] =
+      for marker <- [~s(id="playtest-summary"), ~s(id="run-details"), ~s(id="run-#{run.id}")] do
+        {at, _len} = :binary.match(html, marker)
+        at
+      end
+
+    assert summary_at < details_at and details_at < row_at
+
+    # Curated batches: date, commit, run count and per-persona numbers with
+    # links to the best and worst runs.
+    assert has_element?(view, "#batch-elara h3", "The Elara runs")
+    assert has_element?(view, "#batch-elara-runs", "44 runs")
+    assert has_element?(view, "#batch-elara-source", "numbers from the written analysis")
+    assert has_element?(view, "#batch-baseline-2026-10-07-commit a", "2a6589e")
+    assert has_element?(view, "#batch-baseline-2026-10-07-runs", "65 runs")
+    assert has_element?(view, "#batch-baseline-2026-10-07-hawk", "3.02")
+    assert has_element?(view, "#batch-baseline-2026-10-07-hawk", "100%")
+    assert has_element?(view, "#batch-baseline-2026-10-07-ronny", "cheater test")
+
+    # The curated runs are not on this server: their links open them on playtest.
+    assert has_element?(
+             view,
+             ~s(#batch-baseline-2026-10-07-hawk a[href="https://tales-forge-playtest.fly.dev/admin/playtest/5dc4bfff-db85-42ad-8eba-5044246a427d"]),
+             "4.86"
+           )
+
+    assert has_element?(view, "#batch-baseline-2026-10-07", "a lead by turn 2 in 98% of games")
+    assert has_element?(view, "#batch-baseline-2026-10-07", "about $0.09 per game")
+
+    # A finished batch that fell short of its plan says both counts, and shows
+    # the curated numbers from its analysis when its runs aren't here.
+    assert has_element?(
+             view,
+             "#batch-post-rework-2026-10-08-runs",
+             "23 of 25 planned runs done"
+           )
+
+    assert has_element?(view, "#batch-post-rework-2026-10-08-hawk", "3.34")
+    refute has_element?(view, "#batch-post-rework-2026-10-08", "No numbers yet")
+
+    # The two arms of the intent comparison and the full batch of 2026-10-09.
+    assert has_element?(view, "#batch-intent-compare-off-runs", "20 runs")
+    assert has_element?(view, "#batch-intent-compare-on-runs", "20 runs")
+    assert has_element?(view, "#batch-intent-compare-on-lotta", "3.19")
+    assert has_element?(view, "#batch-full-2026-10-09-runs", "25 runs")
+    assert has_element?(view, "#batch-full-2026-10-09-commit a", "dd5dc7e")
+    assert has_element?(view, "#batch-full-2026-10-09-paul", "4.96")
+
+    # Findings link to run pages on the playtest server (so they work on
+    # production too), to the turn they talk about where they name one.
+    assert has_element?(
+             view,
+             ~s(#summary-findings a[href="https://tales-forge-playtest.fly.dev/admin/playtest/761713eb-b3cd-4460-b4d0-34c7ba6f777c"])
+           )
+
+    assert has_element?(
+             view,
+             ~s(#summary-findings a[href="https://tales-forge-playtest.fly.dev/admin/playtest/72d7292e-5df7-4ffa-bd02-1277cc9d081c#turn-4"])
+           )
+
+    # The post-rework batch links its written analysis.
+    assert has_element?(
+             view,
+             ~s(#batch-post-rework-2026-10-08 a[href$="analysis-jev-post-rework-2026-10-08.md"])
+           )
+  end
+
+  test "a batch's numbers fill in live from its series runs on this server", %{conn: conn} do
+    sha = "abcdef0123456789abcdef0123456789abcdef01"
+
+    runs =
+      for {persona, score} <- [{"hawk", 4.2}, {"hawk", 1.8}, {"lotta", 3.4}] do
+        run =
+          seed_run(
+            persona: persona,
+            git_sha: sha,
+            notes: "series=post-rework-2026-10-08 variant=default"
+          )
+
+        Repo.insert!(%PlaytestScore{
+          playtest_run_id: run.id,
+          model: "jev-1.13.0",
+          rubric_version: "jev-affect-v1-test",
+          source: "jev",
+          kind: "session_affect",
+          overall: score,
+          confidence: 0.8
+        })
+
+        run
+      end
+
+    {:ok, view, _html} = live(conn, ~p"/admin/playtest")
+
+    batch = "#batch-post-rework-2026-10-08"
+    assert has_element?(view, "#{batch}-runs", "3 of 25 planned runs done")
+    assert has_element?(view, "#{batch}-source", "numbers live from the runs on this server")
+    assert has_element?(view, "#{batch}-commit a", "abcdef0")
+    assert has_element?(view, "#{batch}-hawk", "3.00")
+    assert has_element?(view, "#{batch}-lotta", "3.40")
+    # Paul has no live runs here: his row stays, without the curated numbers.
+    assert has_element?(view, "#{batch}-paul")
+    refute has_element?(view, "#{batch}-paul", "4.77")
+
+    [best, worst | _] = runs
+    assert has_element?(view, ~s(#{batch}-hawk a[href="/admin/playtest/#{best.id}"]), "4.20")
+    assert has_element?(view, ~s(#{batch}-hawk a[href="/admin/playtest/#{worst.id}"]), "1.80")
+  end
+
+  test "a running batch counts up to its plan", %{conn: conn} do
+    dir = Path.join(System.tmp_dir!(), "summary-#{System.unique_integer([:positive])}")
+    File.mkdir_p!(dir)
+    File.write!(Path.join(dir, "summary.md"), "Intro\n<!-- batches -->\nFindings")
+
+    File.write!(
+      Path.join(dir, "batches.json"),
+      Jason.encode!(%{
+        "batches" => [
+          %{
+            "id" => "next",
+            "title" => "Next",
+            "status" => "running",
+            "series" => "next-1",
+            "variant" => "default",
+            "runs" => 25
+          },
+          %{
+            "id" => "later",
+            "title" => "Later",
+            "status" => "running",
+            "series" => "later-1",
+            "runs" => 10
+          }
+        ]
+      })
+    )
+
+    Application.put_env(:ex_tales_forge, :playtest_summary_dir, dir)
+
+    on_exit(fn ->
+      Application.delete_env(:ex_tales_forge, :playtest_summary_dir)
+      File.rm_rf!(dir)
+    end)
+
+    seed_run(persona: "hawk", notes: "series=next-1 variant=default")
+
+    {:ok, view, _html} = live(conn, ~p"/admin/playtest")
+
+    assert has_element?(view, "#batch-next-runs", "1 of 25 runs done so far")
+    assert has_element?(view, "#batch-later-runs", "10 runs planned")
+    assert has_element?(view, "#batch-later", "No numbers yet")
+  end
+
+  test "the run list still shows when the summary files can't be read", %{conn: conn} do
+    Application.put_env(:ex_tales_forge, :playtest_summary_dir, "/nonexistent/summary")
+    on_exit(fn -> Application.delete_env(:ex_tales_forge, :playtest_summary_dir) end)
+    run = seed_run()
+
+    {:ok, view, _html} = live(conn, ~p"/admin/playtest")
+
+    assert has_element?(view, "#playtest-summary-missing")
+    refute has_element?(view, "#playtest-summary")
+    assert has_element?(view, "#run-#{run.id}")
+  end
+
   test "runs list shows game cost, persona cost, game time and score", %{conn: conn} do
     scored = seed_run(persona: "paul", score: true)
     seed_run(persona: "hawk")
