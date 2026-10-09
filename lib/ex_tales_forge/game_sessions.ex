@@ -175,22 +175,83 @@ defmodule TalesForge.GameSessions do
     |> ensure_scene()
   end
 
+  @doc """
+  Submits the player's `text` for the session's next turn: reads the intent,
+  then enqueues the turn job or, when the read is unsure, stores and
+  broadcasts a clarification question (`{:ok, %{status: :clarification}}`).
+
+  `opts` answers a pending clarification: `:clarification_id` with
+  `:option_id` picks one of its options, and `:clarification_id` with text
+  answers it in words. A picked option needs no text: blank `text` plays the
+  player's words from when the question was asked (the play page sends none,
+  so whatever sits in the input box doesn't matter). A clarification that is
+  no longer pending returns `{:error, :clarification_expired}`. Blank text
+  without an option returns `{:error, :empty_message}`.
+  """
+  @spec submit_message(String.t(), String.t(), keyword()) ::
+          {:ok, %{required(:status) => :processing | :clarification, optional(atom()) => term()}}
+          | {:error, term()}
   def submit_message(session_id, text, opts \\ []) when is_binary(text) do
     trimmed = String.trim(text)
 
-    if trimmed == "" do
+    if trimmed == "" and not option_pick?(opts) do
       {:error, :empty_message}
     else
       with %GameSession{} = session <- Repo.get(GameSession, session_id),
            :ok <- reject_if_dead(session),
+           {:ok, action_text} <- action_text(session, trimmed, opts),
            :ok <- ensure_runtime_started(session),
            :ok <- require_scene_ready(session),
-           {:ok, outcome} <- resolve_and_enqueue(session, trimmed, opts) do
+           {:ok, outcome} <- resolve_and_enqueue(session, action_text, opts) do
         {:ok, outcome}
       else
         nil -> {:error, :not_found}
         {:error, _} = err -> err
       end
+    end
+  end
+
+  @doc """
+  The clarification question still waiting for the player's answer in
+  `world_state`, or nil. The play page shows it again after a reload.
+  """
+  @spec pending_clarification(map() | nil) :: map() | nil
+  def pending_clarification(%{"pending_clarification" => %{"clarification_id" => _} = pending}),
+    do: pending
+
+  def pending_clarification(_world_state), do: nil
+
+  defp option_pick?(opts),
+    do:
+      not is_nil(Keyword.get(opts, :option_id)) and
+        not is_nil(Keyword.get(opts, :clarification_id))
+
+  # The text the turn plays. A picked option with no text of its own plays the
+  # player's words from when the question was asked; any other answer to a
+  # clarification needs that clarification to still be pending.
+  defp action_text(session, text, opts) do
+    case Keyword.get(opts, :clarification_id) do
+      nil ->
+        {:ok, text}
+
+      clarification_id ->
+        case pending_clarification(session.world_state) do
+          %{"clarification_id" => ^clarification_id} = pending when text == "" ->
+            pending_text(pending)
+
+          %{"clarification_id" => ^clarification_id} ->
+            {:ok, text}
+
+          _ ->
+            {:error, :clarification_expired}
+        end
+    end
+  end
+
+  defp pending_text(pending) do
+    case String.trim(pending["player_text"] || pending["raw_action"] || "") do
+      "" -> {:error, :empty_message}
+      text -> {:ok, text}
     end
   end
 
@@ -286,7 +347,7 @@ defmodule TalesForge.GameSessions do
       e in [Intent.ClarificationNeeded] ->
         record_intent_step(session, started_at, System.monotonic_time(:millisecond) - started)
         clarification = Intent.build_clarification(e.extraction, raw_action)
-        save_clarification(session, clarification)
+        save_clarification(session, clarification, raw_action)
 
         maybe_shadow(mode, session, context, raw_action, opts, %{
           source: :llm,
@@ -346,7 +407,7 @@ defmodule TalesForge.GameSessions do
 
       {:ask, clarification, meta} ->
         record_intent_step(session, started_at, elapsed, meta)
-        save_clarification(session, clarification)
+        save_clarification(session, clarification, raw_action)
         SessionPubSub.broadcast(session.id, {:clarification_needed, clarification})
         {:ok, %{status: :clarification, clarification: clarification}}
     end
@@ -544,8 +605,11 @@ defmodule TalesForge.GameSessions do
     |> then(fn a -> if gm[:gm_note], do: Map.put(a, :gm_note, gm.gm_note), else: a end)
   end
 
-  defp save_clarification(%GameSession{} = session, clarification) do
-    world_state = Map.put(session.world_state || %{}, "pending_clarification", clarification)
+  # The stored copy also keeps the player's own words (`"player_text"`), which
+  # a picked option plays; the broadcast question is unchanged.
+  defp save_clarification(%GameSession{} = session, clarification, raw_action) do
+    pending = Map.put(clarification, "player_text", raw_action)
+    world_state = Map.put(session.world_state || %{}, "pending_clarification", pending)
 
     session
     |> GameSession.changeset(%{world_state: world_state})

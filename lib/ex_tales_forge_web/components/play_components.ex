@@ -107,7 +107,8 @@ defmodule TalesForgeWeb.PlayComponents do
               type="button"
               phx-click="pick_clarification"
               phx-value-option_id={opt["id"]}
-              class="block w-full rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-3 py-2 text-left text-sm hover:bg-[var(--paper-margin)]"
+              disabled={@input_disabled}
+              class="block w-full rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-3 py-2 text-left text-sm hover:bg-[var(--paper-margin)] disabled:opacity-50"
             >
               <span class="font-medium">{opt["label"]}</span>
               <span :if={opt["description"]} class="block text-[var(--paper-muted)]">
@@ -134,12 +135,17 @@ defmodule TalesForgeWeb.PlayComponents do
             class="min-w-0 flex-1 rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-3 py-2 text-[var(--paper-ink)] placeholder:text-[var(--paper-muted)]"
             disabled={@input_disabled}
           />
+          <%!-- While a turn is in flight Act reads "Thinking…" and is disabled;
+               phx-disable-with covers the moment before the server answers. --%>
           <button
             type="submit"
-            class="shrink-0 rounded bg-[var(--paper-accent)] px-4 py-2 font-medium text-white hover:opacity-90 disabled:opacity-50"
+            id="act-button"
+            class="shrink-0 rounded bg-[var(--paper-accent)] px-4 py-2 font-medium text-white hover:opacity-90 disabled:cursor-wait disabled:opacity-50"
             disabled={@input_disabled}
+            aria-busy={to_string(@thinking)}
+            phx-disable-with="Thinking…"
           >
-            Act
+            {if @thinking, do: "Thinking…", else: "Act"}
           </button>
         </.form>
       </div>

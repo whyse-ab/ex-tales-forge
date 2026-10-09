@@ -106,6 +106,113 @@ defmodule TalesForgeWeb.PlayLiveTest do
     refute html =~ "The GM is thinking…"
   end
 
+  describe "clarification questions" do
+    import TalesForge.PlaytestHelpers
+
+    setup do
+      on_exit(fn ->
+        System.put_env("LLM_PROVIDER", "mock")
+        System.delete_env("XAI_API_KEY")
+        System.delete_env("TIER1_HEURISTIC_THRESHOLD")
+      end)
+
+      {:ok, session} =
+        GameSessions.create_session(%{name: "Which way", adventure_id: "tin_valley"})
+
+      # The intent LLM asks back on every action; the player's words are kept
+      # with the pending question on the session.
+      System.put_env("TIER1_HEURISTIC_THRESHOLD", "1.0")
+      stub_llm(fn kind, _user -> if kind == :intent, do: clarifying_intent(), else: :default end)
+
+      assert {:ok, %{status: :clarification}} =
+               GameSessions.submit_message(session.id, "I go over there.")
+
+      # The GM turn after the pick runs on the offline mock.
+      System.put_env("LLM_PROVIDER", "mock")
+      System.delete_env("XAI_API_KEY")
+
+      {:ok, session: session}
+    end
+
+    test "the question survives a reload, and an option plays the words it asked about",
+         %{conn: conn, session: session} do
+      # A fresh mount is a reload: the question comes back from the session.
+      {:ok, view, html} = live(conn, ~p"/play/#{session.id}")
+      assert html =~ "Which way?"
+      assert has_element?(view, ~s(button[phx-value-option_id="inn"]), "Ask the innkeeper")
+
+      view |> element(~s(button[phx-value-option_id="inn"])) |> render_click()
+
+      html = render(view)
+      refute html =~ "Say something first."
+      refute html =~ "Which way?"
+
+      assert [%Turn{player_action: "I go over there."}] =
+               Turn |> Repo.all() |> Enum.filter(&(&1.game_session_id == session.id))
+
+      refute Map.has_key?(Repo.get!(GameSession, session.id).world_state, "pending_clarification")
+    end
+
+    test "the question also appears live, without a reload", %{conn: conn, session: session} do
+      {:ok, view, _html} = live(conn, ~p"/play/#{session.id}")
+
+      question =
+        GameSessions.pending_clarification(Repo.get!(GameSession, session.id).world_state)
+
+      send(view.pid, {:clarification_needed, Map.put(question, "question", "Left or right?")})
+      assert render(view) =~ "Left or right?"
+    end
+
+    test "an option of a question that has passed asks for a new action",
+         %{conn: conn, session: session} do
+      {:ok, view, _html} = live(conn, ~p"/play/#{session.id}")
+
+      session = Repo.get!(GameSession, session.id)
+      world = Map.delete(session.world_state, "pending_clarification")
+      session |> GameSession.changeset(%{world_state: world}) |> Repo.update!()
+
+      view |> element(~s(button[phx-value-option_id="inn"])) |> render_click()
+
+      html = render(view)
+      assert html =~ "That question has passed."
+      refute html =~ "Which way?"
+      refute html =~ "Say something first."
+    end
+  end
+
+  test "Act reads Thinking… and is disabled while a turn is in flight", %{conn: conn} do
+    {:ok, session} =
+      GameSessions.create_session(%{name: "Busy Tin Valley", adventure_id: "tin_valley"})
+
+    {:ok, view, _html} = live(conn, ~p"/play/#{session.id}")
+    assert has_element?(view, "#act-button:not([disabled])", "Act")
+
+    send(view.pid, {:turn_processing, %{}})
+    assert has_element?(view, ~s(#act-button[disabled][aria-busy="true"]), "Thinking…")
+    assert has_element?(view, "input[name=message][disabled]")
+
+    send(view.pid, {:turn_failed, "boom"})
+    assert has_element?(view, "#act-button:not([disabled])", "Act")
+  end
+
+  defp clarifying_intent do
+    %{
+      "overall_intent" => "go somewhere",
+      "actions" => [
+        %{"action_type" => "speak", "target" => "innkeep", "parameters" => %{}},
+        %{"action_type" => "move", "target" => "market_square", "parameters" => %{}}
+      ],
+      "primary_index" => 0,
+      "confidence" => 0.4,
+      "needs_clarification" => true,
+      "clarification_question" => "Which way?",
+      "clarification_options" => [
+        %{"id" => "inn", "label" => "Ask the innkeeper", "action_index" => 0},
+        %{"id" => "square", "label" => "Walk to the square", "action_index" => 1}
+      ]
+    }
+  end
+
   # Checks rendered text only. Matching raw HTML also hits attributes, and the
   # random data-phx-session / csrf tokens occasionally contain e.g. "XP".
   defp refute_sheet(html) do
