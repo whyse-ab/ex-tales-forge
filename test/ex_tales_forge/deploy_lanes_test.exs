@@ -11,6 +11,34 @@ defmodule TalesForge.DeployLanesTest do
 
   # Files changed by real merges to main (gh pr view <n> --json files).
   @merges %{
+    102 => [
+      "AGENTS.md",
+      "README.md",
+      "assets/css/app.css",
+      "config/config.exs",
+      "config/runtime.exs",
+      "config/test.exs",
+      "lib/ex_tales_forge/application.ex",
+      "lib/ex_tales_forge/pr_feed.ex",
+      "lib/ex_tales_forge/pr_feed/deploys.ex",
+      "lib/ex_tales_forge/pr_feed/github.ex",
+      "lib/ex_tales_forge/pr_feed/parse.ex",
+      "lib/ex_tales_forge/pr_feed/poller.ex",
+      "lib/ex_tales_forge/pr_feed/versions.ex",
+      "lib/ex_tales_forge_web/components/team_pr_feed.ex",
+      "lib/ex_tales_forge_web/controllers/costs_peer_controller.ex",
+      "lib/ex_tales_forge_web/controllers/peer_token.ex",
+      "lib/ex_tales_forge_web/controllers/version_peer_controller.ex",
+      "lib/ex_tales_forge_web/live/team_live.ex",
+      "lib/ex_tales_forge_web/live/team_pr_feed_live.ex",
+      "lib/ex_tales_forge_web/router.ex",
+      "test/ex_tales_forge/pr_feed_test.exs",
+      "test/ex_tales_forge_web/access_control_test.exs",
+      "test/ex_tales_forge_web/controllers/version_peer_controller_test.exs",
+      "test/ex_tales_forge_web/live/team_live_test.exs",
+      "test/ex_tales_forge_web/live/team_pr_feed_live_test.exs",
+      "test/support/pr_feed_fixtures.ex"
+    ],
     106 => [
       "lib/ex_tales_forge_web/components/team_art.ex",
       "lib/ex_tales_forge_web/components/team_components.ex",
@@ -99,6 +127,14 @@ defmodule TalesForge.DeployLanesTest do
                "assets/js/app.js",
                "lib/ex_tales_forge_web/router.ex"
              ]
+    end
+
+    test "#102 (/team PR feed) is normal: it also added routes, config and a signed-out endpoint" do
+      result = DeployLanes.classify(@lanes, @merges[102])
+      assert result.lane == :normal
+      assert "lib/ex_tales_forge_web/router.ex" in result.other
+      assert "lib/ex_tales_forge_web/controllers/version_peer_controller.ex" in result.other
+      assert "lib/ex_tales_forge/pr_feed/poller.ex" in result.admin
     end
 
     test "#97 (CI workflow) is normal" do

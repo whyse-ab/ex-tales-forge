@@ -46,6 +46,24 @@ defmodule TalesForge.AppRole do
   def playtest?(_app), do: false
 
   @doc """
+  The shared bearer token of the machine-to-machine `/internal/*` endpoints
+  between the apps (the Fly secret `COSTS_PEER_TOKEN`, config `:costs_peer`),
+  or nil when unset or blank (then those endpoints are off). Lives here, in
+  shared code, because the signed-out endpoints check it
+  (`TalesForgeWeb.PeerToken`); admin modules only read it.
+  """
+  @spec peer_token() :: String.t() | nil
+  def peer_token do
+    with token when is_binary(token) <-
+           Application.get_env(:ex_tales_forge, :costs_peer, [])[:token],
+         trimmed when trimmed != "" <- String.trim(token) do
+      trimmed
+    else
+      _ -> nil
+    end
+  end
+
+  @doc """
   This app's role, from its app name.
 
       iex> TalesForge.AppRole.role("tales-forge-playtest")

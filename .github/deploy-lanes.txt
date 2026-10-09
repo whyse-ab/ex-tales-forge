@@ -63,11 +63,15 @@ test/ex_tales_forge/playtest/summary_test.exs
 test/ex_tales_forge/playtest/character_changes_test.exs
 test/ex_tales_forge_web/admin/playtest_live_test.exs
 
-# Founders' pages: /team and /team/presentation (the route itself is in the
-# router, which is shared)
+# Founders' pages: /team, /team/presentation and the live PR feed (the routes
+# are in the router and the signed-out GET /internal/version is a controller,
+# both shared)
 lib/ex_tales_forge/team_page.ex
+lib/ex_tales_forge/pr_feed.ex
+lib/ex_tales_forge/pr_feed/
 lib/ex_tales_forge_web/live/team_live.ex
 lib/ex_tales_forge_web/live/team_presentation_live.ex
+lib/ex_tales_forge_web/live/team_pr_feed_live.ex
 lib/ex_tales_forge_web/components/team_*.ex
 assets/js/team_hooks.js
 priv/team/
@@ -75,6 +79,9 @@ priv/static/images/team/
 test/ex_tales_forge/team_page_test.exs
 test/ex_tales_forge_web/live/team_live_test.exs
 test/ex_tales_forge_web/live/team_presentation_live_test.exs
+test/ex_tales_forge/pr_feed_test.exs
+test/ex_tales_forge_web/live/team_pr_feed_live_test.exs
+test/support/pr_feed_fixtures.ex
 
 [game]
 # Game engine code. Used only by `mix deploy.check_boundaries` (game code must
@@ -101,8 +108,9 @@ lib/ex_tales_forge_web/components/play_components.ex
 
 [wiring]
 # Shared files that may name [admin] modules because they mount them: the
-# router (routes), the application (supervised caches) and the
-# GET /internal/costs controller. Every other shared file must not depend on
+# router (routes), the application (supervised caches and the PR feed poller)
+# and the GET /internal/costs controller (it serves costs data; its token check
+# is TalesForge.AppRole.peer_token/0, shared). Every other shared file must not depend on
 # [admin] files either (`mix deploy.check_boundaries`).
 lib/ex_tales_forge_web/router.ex
 lib/ex_tales_forge/application.ex
