@@ -313,6 +313,9 @@ defmodule TalesForgeWeb.TeamPresentationLive do
       Approve merges and deploys.
       <strong>Today {holder(@d)} holds the approval key; soon every founder will.</strong>
     </li>
+    <li :if={get(@d, ["team", "members", 0, "people", "names"]) not in [nil, []]}>
+      <.founders_people id="founders-people" d={@d} />
+    </li>
     """
   end
 

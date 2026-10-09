@@ -30,6 +30,8 @@ defmodule TalesForgeWeb.TeamLive do
 
   import TalesForge.TeamPage, only: [get: 2, count_word: 1]
 
+  import TalesForgeWeb.TeamComponents, only: [founders_people: 1]
+
   alias TalesForge.TeamPage
   alias TalesForgeWeb.Layouts
   alias TalesForgeWeb.TeamArt
@@ -195,7 +197,10 @@ defmodule TalesForgeWeb.TeamLive do
               <p class="text-xs text-[var(--paper-muted)]">{member["role"]}</p>
             </div>
           </div>
-          <p class="flex-1 text-sm leading-snug">{short(member)}</p>
+          <p class="flex-1 space-y-1 text-sm leading-snug">
+            <span class="block">{short(member)}</span>
+            <.founders_people :if={member["id"] == "founders"} id="crew-founders-people" d={@d} />
+          </p>
           <p :if={badge(member, @d)} class="team-badge">{badge(member, @d)}</p>
           <.link
             navigate={"/team/presentation#member-#{member["id"]}"}

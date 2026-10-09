@@ -560,11 +560,13 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       assert has_element?(view, ~s(#hero-art[alt*="round tavern table"]))
       assert has_element?(view, ~s(#hero-art[alt*="stylised Nordic adventurers"]))
 
-      for name <- ~w(Fredrik Thobias Håkan Jeanette) do
+      for name <- ~w(Fredrik Thobias Håkan Jeanette Max) do
         assert has_element?(view, ~s(#hero-art[alt*="#{name}"]))
       end
 
-      assert has_element?(view, ~s(#hero-art[alt*="Max the apprentice"]))
+      assert has_element?(view, ~s(#hero-art[alt*="The five founders"]))
+      assert has_element?(view, ~s(#hero-art[alt*="our vibe-coding founder and RPG apprentice"]))
+      refute has_element?(view, ~s(#hero-art[alt*="Max the apprentice"]))
 
       refute has_element?(view, "#hero svg.team-hero-art")
     end
@@ -831,6 +833,46 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
 
       # No sideways scroll anywhere on the page.
       refute render(view) =~ ~r/class="[^"]*\boverflow-x-(?:auto|scroll)\b/
+    end
+  end
+
+  describe "the founders: five, Max among them" do
+    setup %{conn: conn}, do: {:ok, conn: log_in_admin(conn)}
+
+    test "the founders' card names all five and has a warm word for Max", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/team/presentation")
+      people = hd(@data["team"]["members"])["people"]
+
+      assert people["count"] == 5
+      assert length(people["names"]) == 5
+
+      assert has_element?(
+               view,
+               "#member-founders #founders-people",
+               "We're five: Fredrik, Thobias, Håkan, Jeanette and Max."
+             )
+
+      assert has_element?(
+               view,
+               "#member-founders #founders-people",
+               "Max, our vibe-coding founder and RPG apprentice, has never played a tabletop RPG."
+             )
+
+      refute render(view) =~ ~r/four founders|Max the apprentice/
+    end
+
+    test "a missing count reads 'not measured yet'; no names, no line" do
+      no_count =
+        update_in(@data, ["team", "members", Access.at(0), "people"], &Map.delete(&1, "count"))
+
+      assert render_with(no_count) =~ ~r"We(&#39;|')re not measured yet: Fredrik"
+
+      no_people =
+        update_in(@data, ["team", "members", Access.at(0)], &Map.delete(&1, "people"))
+
+      html = render_with(no_people)
+      refute html =~ "founders-people"
+      refute html =~ "Welcome to the table, Max!"
     end
   end
 

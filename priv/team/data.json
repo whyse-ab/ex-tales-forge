@@ -14,6 +14,12 @@
         "id": "founders",
         "name": "The founders",
         "kind": "humans",
+      "people": {
+        "count": 5,
+        "names": ["Fredrik", "Thobias", "Håkan", "Jeanette", "Max"],
+        "max": "Our vibe-coding founder and RPG apprentice: a founder who has never played a tabletop RPG",
+        "source": "Fredrik 2026-10-09 (decisions.md 'Max is a founder: our vibe-coding founder and RPG apprentice')"
+      },
         "role": "The people Tales Forge is built by and for",
         "does": [
           "Shape what we build: ideas, surveys, playtesting",
@@ -70,7 +76,8 @@
     "other_bots_note": "There are also separate helper bots for company admin (bookkeeping, invoices, mail). They don't work on the game. Names/roles not confirmed for this page.",
     "founders_github_team_members": {
       "value": 3,
-      "source": "gh api orgs/whyse-ab/teams/tales-forge/members (count only)"
+      "source": "gh api orgs/whyse-ab/teams/tales-forge/members (count only)",
+      "note": "Members of the GitHub team, not the number of founders (team.members[0].people.count)"
     },
     "framing": "Current setup, a starting point. Founders and bots are one crew. Later every founder can approve merges and deploys, steer the bots and make decisions; today Fredrik holds the approval key."
   },

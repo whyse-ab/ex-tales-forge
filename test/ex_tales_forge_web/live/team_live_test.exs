@@ -60,7 +60,13 @@ defmodule TalesForgeWeb.TeamLiveTest do
                ~s(#landing-hero-art[src="/images/team/hero-960.jpg"][width="1280"][height="720"][loading="eager"][fetchpriority="high"])
              )
 
-      assert has_element?(view, ~s(#landing-hero-art[alt*="Max the apprentice"]))
+      assert has_element?(view, ~s(#landing-hero-art[alt*="The five founders"]))
+
+      assert has_element?(
+               view,
+               ~s(#landing-hero-art[alt*="Max, our vibe-coding founder and RPG apprentice"])
+             )
+
       assert has_element?(view, ~s(#landing-hero-art[alt*="Case, Bobby and Gentry"]))
 
       assert has_element?(
@@ -109,6 +115,19 @@ defmodule TalesForgeWeb.TeamLiveTest do
              )
 
       assert has_element?(view, "#crew-case .team-badge", "Hourly status · daily cleanup")
+
+      assert has_element?(
+               view,
+               "#crew-founders #crew-founders-people",
+               "We're five: Fredrik, Thobias, Håkan, Jeanette and Max."
+             )
+
+      assert has_element?(
+               view,
+               "#crew-founders",
+               "Max, our vibe-coding founder and RPG apprentice, has never played a tabletop RPG."
+             )
+
       assert has_element?(view, "#crew-gentry", "Plays the game like a troublemaker")
     end
 
