@@ -2,11 +2,12 @@ defmodule TalesForgeWeb.TeamArt do
   @moduledoc """
   Hand-drawn inline SVG illustrations for the founders' page (`/team`): the
   crew avatars, the persona tokens, the founders' wax seal and the d20 token of
-  the change-flow animation, plus the painted illustrations (`picture/1`).
+  the change-flow animation, plus the painted illustrations.
 
-  The painted art (tales-forge-docs `docs/team-page/images/`) is the hero, the
-  bots' portraits on their cards and the wax seal on the "A founder's OK" steps
-  of the flow; it is served as static files from `priv/static/images/team`.
+  The painted art (`picture/1`, from tales-forge-docs `docs/team-page/images/`)
+  is the hero, the bots' portraits on their cards and the wax seal on the
+  "A founder's OK" steps of the flow; it is served as static files from
+  `priv/static/images/team`.
   The small inline SVGs stay where the art would be too small to read (the
   avatars on the flow steps, badges and callouts): simple flat shapes in the
   same warm palette, no real likenesses, nobody drawn above anyone else.
