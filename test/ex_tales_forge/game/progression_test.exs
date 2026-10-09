@@ -11,27 +11,39 @@ defmodule TalesForge.Game.ProgressionTest do
     "learning_failures" => %{}
   }
 
-  describe "spend_lp/2" do
-    test "one attempt per whole LP; a roll equal to the level succeeds" do
+  describe "spend_lp/3" do
+    test "one attempt per whole LP; a roll of 11 or more that reaches the level succeeds" do
       character = put_in(@character, ["learning_points", "stealth"], 3.0)
 
-      {spent, attempts} = Progression.spend_lp(character, %{"stealth" => [7, 8, 1]})
+      {spent, attempts} = Progression.spend_lp(character, %{"stealth" => [11, 12, 1]})
 
       assert Enum.map(attempts, &{&1["roll"], &1["raw_skill"], &1["improved"]}) ==
-               [{7, 7, true}, {8, 8, true}, {1, 9, false}]
+               [{11, 7, true}, {12, 8, true}, {1, 9, false}]
 
       assert spent["skills"]["stealth"] == 9
       assert spent["learning_points"]["stealth"] == 0.0
       assert Enum.all?(attempts, &(&1["lp_spent"] == 1))
     end
 
-    test "a roll below the level fails and still costs the LP" do
+    test "a roll below the floor fails and still costs the LP" do
       character = put_in(@character, ["learning_points", "stealth"], 1.0)
-      {spent, [attempt]} = Progression.spend_lp(character, %{"stealth" => 6})
+      {spent, [attempt]} = Progression.spend_lp(character, %{"stealth" => 10})
 
       assert attempt["improved"] == false
       assert spent["skills"]["stealth"] == 7
       assert spent["learning_points"]["stealth"] == 0.0
+    end
+
+    test "above 11 the roll must also reach the level" do
+      character =
+        @character
+        |> put_in(["skills", "stealth"], 14)
+        |> put_in(["learning_points", "stealth"], 2.0)
+
+      {spent, attempts} = Progression.spend_lp(character, %{"stealth" => [13, 14]})
+
+      assert Enum.map(attempts, & &1["improved"]) == [false, true]
+      assert spent["skills"]["stealth"] == 15
     end
 
     test "fractions stay for later; under 1 LP spends nothing" do
@@ -43,21 +55,37 @@ defmodule TalesForge.Game.ProgressionTest do
     end
 
     test "skills are spent in alphabetical order, each against its own level" do
-      character = put_in(@character, ["learning_points"], %{"stealth" => 1, "climbing" => 1})
-      {spent, attempts} = Progression.spend_lp(character, %{"climbing" => 3, "stealth" => 3})
+      character =
+        @character
+        |> put_in(["skills", "stealth"], 13)
+        |> put_in(["learning_points"], %{"stealth" => 1, "climbing" => 1})
+
+      {spent, attempts} = Progression.spend_lp(character, %{"climbing" => 12, "stealth" => 12})
 
       assert Enum.map(attempts, &{&1["skill"], &1["improved"]}) ==
                [{"climbing", true}, {"stealth", false}]
 
-      assert spent["skills"] == %{"climbing" => 4, "stealth" => 7}
+      assert spent["skills"] == %{"climbing" => 4, "stealth" => 13}
     end
 
-    test "an untrained skill (level 0) always learns its first level" do
-      character = put_in(@character, ["learning_points", "tracking"], 1.0)
-      {spent, [attempt]} = Progression.spend_lp(character, %{"tracking" => 1})
+    test "only: spends just the listed skills; an empty list spends nothing" do
+      character = put_in(@character, ["learning_points"], %{"stealth" => 1, "climbing" => 1})
 
-      assert attempt["raw_skill"] == 0
-      assert spent["skills"]["tracking"] == 1
+      {spent, attempts} =
+        Progression.spend_lp(character, %{"climbing" => 20, "stealth" => 20}, only: ["climbing"])
+
+      assert Enum.map(attempts, & &1["skill"]) == ["climbing"]
+      assert spent["learning_points"]["stealth"] == 1
+
+      assert Progression.spend_lp(character, %{}, only: []) == {character, []}
+    end
+
+    test "an untrained skill (level 0) no longer learns on every attempt" do
+      character = put_in(@character, ["learning_points", "tracking"], 2.0)
+      {spent, attempts} = Progression.spend_lp(character, %{"tracking" => [1, 10]})
+
+      assert Enum.map(attempts, &{&1["raw_skill"], &1["improved"]}) == [{0, false}, {0, false}]
+      assert Map.get(spent["skills"], "tracking") == nil
     end
 
     test "past 20 no roll can succeed without a trainer" do
@@ -105,6 +133,14 @@ defmodule TalesForge.Game.ProgressionTest do
       assert hit_entry["bonus"] == 5
     end
 
+    test "the trainer's +5 counts toward the floor of 11 too" do
+      character = put_in(@character, ["skills", "stealth"], 2)
+      {hit, _} = Progression.train(character, "stealth", %{"stealth" => 6})
+      {miss, _} = Progression.train(character, "stealth", %{"stealth" => 5})
+
+      assert {hit["skills"]["stealth"], miss["skills"]["stealth"]} == {3, 2}
+    end
+
     test "a trainer can take a skill past 20" do
       character = put_in(@character, ["skills", "stealth"], 22)
       {trained, _entry} = Progression.train(character, "stealth", %{"stealth" => 17})
@@ -112,7 +148,13 @@ defmodule TalesForge.Game.ProgressionTest do
     end
   end
 
-  test "success chance is (21 - level) / 20 at the modelled levels" do
-    assert Enum.map([3, 5, 7, 12], &Progression.success_chance/1) == [0.9, 0.8, 0.7, 0.45]
+  test "success chance is (21 - max(level, 11)) / 20: at most a coin flip" do
+    assert Enum.map([0, 3, 11, 12, 16, 20], &Progression.success_chance/1) ==
+             [0.5, 0.5, 0.5, 0.45, 0.25, 0.05]
+  end
+
+  test "a long rest is six hours or more" do
+    assert Progression.long_rest?(24)
+    refute Progression.long_rest?(23)
   end
 end

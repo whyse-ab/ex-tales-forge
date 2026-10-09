@@ -68,7 +68,7 @@ defmodule TalesForge.Game.TrainTest do
     before_tick = session.world_state["world_tick"]
 
     {_session, turn, payload} =
-      train_sim(session, "I train persuasion with Brenna for a day", %{"persuasion" => 1})
+      train_sim(session, "I train persuasion with Brenna for a day", %{"persuasion" => 6})
 
     session = reload(session.id)
     character = session.world_state["character"]
@@ -83,7 +83,7 @@ defmodule TalesForge.Game.TrainTest do
     assert [
              %{
                "skill" => "persuasion",
-               "roll" => 1,
+               "roll" => 6,
                "raw_skill" => 3,
                "improved" => true,
                "bonus" => 5,

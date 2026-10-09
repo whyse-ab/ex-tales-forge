@@ -1,7 +1,8 @@
 defmodule TalesForge.Game.RulesVariantTest do
   @moduledoc """
   The rules text follows the session's behaviour variant: the default variant
-  states the LP-for-attempt growth rule (decision 2026-10-07); the baseline
+  states the learn-from-failure, sleep-on-it growth rule (decision
+  2026-10-09, after the LP-for-attempt rule of 2026-10-07); the baseline
   variant keeps the #64 text it was written against, via
   `<root>/variants/baseline/rules/`.
   """
@@ -14,10 +15,11 @@ defmodule TalesForge.Game.RulesVariantTest do
       default = Prompts.load_rules(unquote(adventure))
       baseline = Prompts.load_rules(unquote(adventure), "baseline")
 
-      assert default =~ "1 LP buys one improvement attempt"
+      assert default =~ "you learn only from failure, only in the skill you failed"
+      assert default =~ "Banked LP are spent on a long rest"
       refute default =~ "Master 16+: 15"
       assert baseline =~ "Master 16+: 15"
-      refute baseline =~ "1 LP buys one improvement attempt"
+      refute baseline =~ "Banked LP are spent on a long rest"
     end
   end
 

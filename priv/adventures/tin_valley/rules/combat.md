@@ -18,17 +18,13 @@ This combat system, adapted from Savage Worlds' wound-based mechanics, is design
   - Natural 20: Fumble (+2 LP; computer DM narrates setback, e.g., slip).
   - Damage Outcomes:
     - < Toughness: No effect.
-    - ≥ Toughness: Shaken (lose next action unless WIS/2 roll succeeds; +1 LP).
+    - ≥ Toughness: Shaken (lose next action unless WIS/2 roll succeeds).
     - ≥ Toughness + 4: 1 wound + Shaken (or +1 wound if Shaken).
     - Mooks die on 1 wound; others take wounds up to max.
 - **Learning Points (LP)**:
-  - Miss/Natural 20: +1/+2 LP.
-  - Shaken: +1 LP.
-  - Wounded: +1 LP per wound.
-  - Success: +0.5 LP.
-  - Natural 1: +1 LP (once per skill per session).
-  - Near-death (saved): +2 LP for related skills.
-  - Each LP buys an improvement attempt at the end of the turn (d20 ≥ skill level: +1).
+  - Miss (Natural 20 included): +1 LP for the skill rolled. A hit earns none.
+  - Nothing spills to other skills.
+  - Banked LP become improvement attempts on the next long rest or sleep (d20 ≥ 11 and ≥ skill level: +1).
 
 ## Additional Features
 - **Multi-Actions**: Multiple actions per round (e.g., attack twice) at -2 skill per extra action, granting LP on failures.

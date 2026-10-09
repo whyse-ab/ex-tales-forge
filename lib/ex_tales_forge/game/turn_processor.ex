@@ -3,11 +3,15 @@ defmodule TalesForge.Game.TurnProcessor do
   Turn pipeline: board first, then one table GM, then one Multi.
 
   PlayerAction → handler → server mechanics → inventory → clock+move →
-  events → WorldSim → Perception → vitality → LP spent on improvement attempts
-  (`TalesForge.Game.Progression`) → premise check (default variant: the
+  events → WorldSim → Perception → vitality → banked LP spent on improvement
+  attempts on a long rest (`TalesForge.Game.Progression`) → premise check (default variant: the
   player's claims about items, coins, purchases and kills checked against the
   session, `TalesForge.Game.PremiseCheck`) → table GM (tone only) → allow-listed
   patches → Multi → NPC updates → characters mirror → sync/signals → turn_completed.
+
+  Default variant: on a long rest the skills that improved overnight go to the
+  per-turn GM prompt (`TalesForge.Game.Context.rest_growth_section/1`) so the
+  GM can narrate the character waking surer of them.
 
   Core runtime is 100% Ecto.
   """
@@ -118,6 +122,7 @@ defmodule TalesForge.Game.TurnProcessor do
           |> Map.put(:price_lines, price_lines)
           |> Map.put(:moved_from, moved_from(session.world_state, board.world))
           |> Map.put(:premise_findings, premises)
+          |> put_rest_growth(session.world_state, handler, mechanical)
           |> put_player_request(gm_opts[:gm_note])
 
         {gm_context,
@@ -276,6 +281,16 @@ defmodule TalesForge.Game.TurnProcessor do
 
   defp gm_action(player_action, _quote), do: player_action
 
+  # Default variant, long rest only: the improvement attempts the rest
+  # resolved, for the GM's "you wake and feel surer" note.
+  defp put_rest_growth(gm_context, world_state, handler, mechanical) do
+    if not Variant.baseline?(world_state || %{}) and long_rest?(handler) do
+      Map.put(gm_context, :rest_growth, mechanical.improvements || [])
+    else
+      gm_context
+    end
+  end
+
   defp put_player_request(gm_context, nil), do: gm_context
 
   defp put_player_request(gm_context, note) when is_binary(note),
@@ -381,7 +396,7 @@ defmodule TalesForge.Game.TurnProcessor do
       |> Perception.scrub_situation_lines(hidden)
       |> Perception.snapshot_public_facts(sim.fronts ++ sim.people)
       |> Mechanics.apply_vitality(mechanical, opts)
-      |> maybe_spend_lp(opts)
+      |> maybe_spend_lp(handler, opts)
 
     %{
       world: world,
@@ -418,19 +433,32 @@ defmodule TalesForge.Game.TurnProcessor do
     {world_improved, improvements, nil}
   end
 
-  # Default variant (decision 2026-10-07): at the end of every turn each whole
-  # LP buys one improvement attempt, so growth no longer waits for a rest that
-  # rarely comes. The dead learn nothing. The baseline variant spends LP only
-  # at a rest (maybe_attempt_improvements/3, the #64 rule).
-  defp maybe_spend_lp(world, opts) do
+  # Default variant (decision 2026-10-09): banked LP (one per failure) are
+  # spent on improvement attempts only on a long rest (sleep, or a wait of six
+  # hours or more). The skills in Progression.immediate_skills/0 (none yet)
+  # improve at the end of any turn. The dead learn nothing. The baseline
+  # variant spends LP only at a rest (maybe_attempt_improvements/3, the #64
+  # rule).
+  defp maybe_spend_lp(world, handler, opts) do
     if Variant.baseline?(world) or Mechanics.dead?(world) do
       {world, []}
     else
       character = Map.get(world, "character", %{})
-      {spent, attempts} = Progression.spend_lp(character, opts[:improvement_rolls] || %{})
+      rolls = opts[:improvement_rolls] || %{}
+
+      {spent, attempts} =
+        if long_rest?(handler),
+          do: Progression.spend_lp(character, rolls),
+          else: Progression.spend_lp(character, rolls, only: Progression.immediate_skills())
+
       {put_in(world, ["character"], spent), attempts}
     end
   end
+
+  defp long_rest?(%{handler: "wait"} = handler),
+    do: handler |> ActionHandler.tick_delta() |> Progression.long_rest?()
+
+  defp long_rest?(_handler), do: false
 
   defp apply_training(world, session, player_action, opts) do
     action = player_action.action
@@ -542,7 +570,7 @@ defmodule TalesForge.Game.TurnProcessor do
 
   defp apply_mechanics(world_state, player_action, handler) do
     character = Map.get(world_state || %{}, "character", %{})
-    Mechanics.apply_server_mechanics(character, player_action, handler)
+    Mechanics.apply_server_mechanics(character, player_action, handler, Variant.of(world_state))
   end
 
   defp apply_allowlisted_patches(world, gm_result) do

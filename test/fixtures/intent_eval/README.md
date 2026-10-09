@@ -49,6 +49,18 @@ labels (n/m reviewed)".
   agreement) and h-fp05 ("level 20 and immune") are claims the session keeps
   no state for, so nothing checks them yet.
 
+- `plain_talk_vs_social` (18 items, h-pt01–18, 2026-10-09, decision "Plain
+  talk doesn't roll", re-enforcing 2026-10-07): ten plain-talk turns that roll
+  nothing (ordering an ale, asking Brenna where Osric is, thanks, compliments,
+  flowery Paul-style questions; h-pt01–10) and eight that do: persuasion
+  (talking the watchman into letting the character pass, haggling, talking
+  down a fight, pressing for pay up front), deception (the mayor's nephew
+  bluff, a made-up rival offer) and intimidation (telling the Tinjacks to back
+  off or else). A social skill is gold only when the character tries to change
+  someone's mind against their interest. The watch-post items use a
+  handwritten `watchman` at `orc_approach` (the checkpoint). Subsources
+  `plain_talk` and `social_check`.
+
 ## Files
 
 - `items.jsonl` — one item per line (see the schema below).

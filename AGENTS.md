@@ -19,6 +19,8 @@ Who we build for is in [PRODUCT.md](PRODUCT.md). Core table: **Hawk** (hard mode
 
 Rules identity (same file, Rules philosophy): prices ≈ human labor; you learn by failing, slowly, with transfer across related skills. Do not invent XP bars or loot-table gold. Fewer non-intuitive rules → easier to stay in the story.
 
+Skill growth (decision 2026-10-09, default variant): a failed or partial roll banks one improvement chance for that exact skill (a success banks nothing, nothing spills to other skills, the linked stat adds nothing), and banked chances are resolved on a long rest or sleep (`TalesForge.Game.Progression`). Plain talk doesn't roll (decisions 2026-10-07 and 2026-10-09): persuasion, deception and intimidation only when the character tries to change someone's mind against their interest.
+
 ## Stack
 
 - **UI:** Phoenix LiveView + Tailwind

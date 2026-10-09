@@ -186,17 +186,13 @@ This combat system, adapted from Savage Worlds' wound-based mechanics, is design
   - Natural 20: Fumble (+2 LP; computer DM narrates setback, e.g., slip).
   - Damage Outcomes:
     - < Toughness: No effect.
-    - ≥ Toughness: Shaken (lose next action unless WIS/2 roll succeeds; +1 LP).
+    - ≥ Toughness: Shaken (lose next action unless WIS/2 roll succeeds).
     - ≥ Toughness + 4: 1 wound + Shaken (or +1 wound if Shaken).
     - Mooks die on 1 wound; others take wounds up to max.
 - **Learning Points (LP)**:
-  - Miss/Natural 20: +1/+2 LP.
-  - Shaken: +1 LP.
-  - Wounded: +1 LP per wound.
-  - Success: +0.5 LP.
-  - Natural 1: +1 LP (once per skill per session).
-  - Near-death (saved): +2 LP for related skills.
-  - Each LP buys an improvement attempt at the end of the turn (d20 ≥ skill level: +1).
+  - Miss (Natural 20 included): +1 LP for the skill rolled. A hit earns none.
+  - Nothing spills to other skills.
+  - Banked LP become improvement attempts on the next long rest or sleep (d20 ≥ 11 and ≥ skill level: +1).
 
 ## Additional Features
 - **Multi-Actions**: Multiple actions per round (e.g., attack twice) at -2 skill per extra action, granting LP on failures.
@@ -232,21 +228,18 @@ This is a skill-based fantasy RPG system where character progress is measured by
 
 - **Skill Rolls**:
   - Roll 1d20: Success if ≤ current skill level.
-  - Natural 1: Exceptional success (narrative benefit, +1 LP, limited to once per skill per session).
-  - Natural 20: Always a failure (+2 LP). For skills ≥15, treated as a "complicated success" (action succeeds with a drawback, still +2 LP).
-- **Learning Points (LP)**:
-  - Failure (non-natural 20): +1 LP.
-  - Success (non-natural 1): +0.5 LP.
-  - Natural 20: +2 LP.
-  - Natural 1: +1 LP (capped once per skill per session).
-  - Spending: 1 LP buys one improvement attempt on that skill. No threshold, no failure and no rest needed.
-  - Linked stat: +(Stat - 10)/4 LP per roll (rounded down, 0 to +2).
-- **Skill Improvement**:
-  - At the end of the turn, every whole LP a skill holds is spent, one attempt per LP (fractions wait for the next roll).
-  - Roll 1d20 ≥ raw skill: skill +1. Chance (21 - skill)/20: 90% at 3, 70% at 7, 45% at 12, 5% at 20.
+  - Natural 1: Exceptional success (narrative benefit). Earns no LP: nothing to learn from a success.
+  - Natural 20: Always a failure (+1 LP). For skills ≥15, treated as a "complicated success" (action succeeds with a drawback, still +1 LP).
+- **Learning Points (LP)** — you learn only from failure, only in the skill you failed:
+  - Failure or partial success: +1 LP for that skill, a banked improvement chance. Nothing spills to other skills.
+  - Success (natural 1 included): no LP.
+  - The linked stat adds no LP: talent helps you succeed, not learn faster.
+- **Skill Improvement** — it sinks in while you sleep:
+  - Banked LP are spent on a long rest (sleep, or six hours or more of rest), one attempt per LP. Ordinary turns spend nothing.
+  - Roll 1d20 ≥ 11 and ≥ raw skill: skill +1. Chance (21 - max(skill, 11))/20: 50% up to 11, 45% at 12, 25% at 16, 5% at 20. No attempt is a sure thing, not even at level 0.
   - Each attempt costs 1 LP, hit or miss. No tier modifiers.
   - No skill cap, but past 20 only a trainer's bonus can reach the target.
-- **Death Exception**: No LP from fatal failures; near-death grants +1 LP if survived.
+- **Death Exception**: No LP from fatal failures, and the dead learn nothing.
 - **Skill List Categories** (Examples):
   - **Combat**: Melee Combat, Ranged Combat, Unarmed Combat, Tactics, Dodge.
   - **Exploration**: Navigation, Survival, Tracking, Climbing, Stealth.
@@ -256,7 +249,7 @@ This is a skill-based fantasy RPG system where character progress is measured by
 
 ## Trainers and Adventures
 
-- **Trainers**: NPCs with skill level ≥5 above the character's. A training session is one free improvement attempt (no LP) with +5 to the roll (1d20 + 5 ≥ skill).
+- **Trainers**: NPCs with skill level ≥5 above the character's. A training session is one free improvement attempt (no LP) with +5 to the roll (1d20 + 5 ≥ 11 and ≥ skill).
   - Found via quests (e.g., journey to a master thief for Stealth training).
   - One attempt per training session; costs time and the trainer's fee.
   - Can be group quests for party training.
@@ -279,10 +272,9 @@ This is a skill-based fantasy RPG system where character progress is measured by
 - **Base Chance for Unskilled Attempts (Level 0)**:
   - Effective level = Stat / 3 (rounded down) for related tasks.
   - Adjustable by difficulty (/2 easy, /4 hard).
-  - Failures/successes grant LP to start building the skill.
+  - Failures grant LP to start building the skill.
 - **Additional Integrations**:
   - Derived Attributes: HP = 10 + (CON / 2) + other modifiers; damage bonuses from STR, etc.
-  - LP Modifiers: (Stat - 10)/4 added to LP from failures/successes for linked skills (max +2).
   - Role-Playing Hooks: Stats gate equipment/actions (e.g., STR 13+ for greatswords); low stats prompt quests.
 
 ## Character Creation and Starting Allocation
@@ -718,7 +710,6 @@ At **Level 18+** in any skill, masters gain the ability to **recognize principle
 ### Mechanical Effects
 - **Narrative Recognition**: GM describes cross-domain insights
 - **First Attempt Bonus**: +2 to initial tries at new "spiritually adjacent" skills
-- **Accelerated Learning**: +1 LP per roll when attempting recognized skills
 
 ### Spiritually Adjacent Skills
 Skills are "spiritually adjacent" when they share underlying principles despite being in different domains:
@@ -747,22 +738,20 @@ High skill levels in a domain grant **contextual stat bonuses** when performing 
 
 ---
 
-## LP Progression: One LP, One Attempt
+## LP Progression: Learn From Failure, Sleep On It
 
-Each Learning Point buys one improvement attempt on its skill, spent at the end of the turn that earned it. Roll 1d20: equal to or higher than the current level raises the skill by 1.
+A failed or partial roll banks one Learning Point for the skill rolled; a success banks nothing, and nothing spills to other skills. The banked LP are spent on the next long rest (sleep, or six hours or more of rest), one improvement attempt each. Roll 1d20: at least 11 and at least the current level raises the skill by 1.
 
 | Level | Chance per attempt | Attempts (LP) per level, on average |
 |-------|-------------------|-------------------------------------|
-| 3 | 90% | 1.1 |
-| 5 | 80% | 1.25 |
-| 7 | 70% | 1.4 |
+| 0-11 | 50% | 2 |
 | 12 | 45% | 2.2 |
 | 16 | 25% | 4 |
 | 20 | 5% | 20 |
 
 ### Trainer Bonuses
 - Trainers must have skill level ≥5 above student
-- A training session is one free attempt (no LP) with +5 to the roll
+- A training session is one free attempt (no LP) with +5 to the roll (the roll + 5 must reach 11 and the level)
 - Past level 20, only a trainer's bonus can reach the target
 
 ---
@@ -775,8 +764,8 @@ Skills don't exist in isolation. A master swordsman has developed body awareness
 ### Why Floors Instead of Bonuses?
 Floors represent baseline competence, not enhancement. A master fighter doesn't get +6 to unarmed — they can't be *worse* than level 6 at unarmed. This distinction matters narratively.
 
-### Why One LP per Attempt?
-The 10,000-hour research shows diminishing returns at high levels. A novice improves rapidly; a master grinds for marginal gains. The roll does this by itself: the higher the skill, the smaller the chance that an attempt pays off, so no thresholds or tier modifiers are needed.
+### Why Learn Only From Failure, and Only Overnight?
+You learn where you fall short, not where you already succeed, and practice sinks in while you sleep. The 10,000-hour research shows diminishing returns at high levels: a novice improves quickly, a master grinds for marginal gains. The roll does this by itself, and the floor of 11 keeps even a first level from being free.
 
 ### Why Trainers?
 Beyond Expert level, self-study plateaus. Real masters seek other masters. A trainer's +5 matters most where attempts mostly fail, and past level 20 nothing else works. This creates natural quest hooks and emphasizes that true mastery is rare.
@@ -974,17 +963,13 @@ This combat system, adapted from Savage Worlds' wound-based mechanics, is design
   - Natural 20: Fumble (+2 LP; computer DM narrates setback, e.g., slip).
   - Damage Outcomes:
     - < Toughness: No effect.
-    - ≥ Toughness: Shaken (lose next action unless WIS/2 roll succeeds; +1 LP).
+    - ≥ Toughness: Shaken (lose next action unless WIS/2 roll succeeds).
     - ≥ Toughness + 4: 1 wound + Shaken (or +1 wound if Shaken).
     - Mooks die on 1 wound; others take wounds up to max.
 - **Learning Points (LP)**:
-  - Miss/Natural 20: +1/+2 LP.
-  - Shaken: +1 LP.
-  - Wounded: +1 LP per wound.
-  - Success: +0.5 LP.
-  - Natural 1: +1 LP (once per skill per session).
-  - Near-death (saved): +2 LP for related skills.
-  - Each LP buys an improvement attempt at the end of the turn (d20 ≥ skill level: +1).
+  - Miss (Natural 20 included): +1 LP for the skill rolled. A hit earns none.
+  - Nothing spills to other skills.
+  - Banked LP become improvement attempts on the next long rest or sleep (d20 ≥ 11 and ≥ skill level: +1).
 
 ## Additional Features
 - **Multi-Actions**: Multiple actions per round (e.g., attack twice) at -2 skill per extra action, granting LP on failures.
@@ -1020,21 +1005,18 @@ This is a skill-based fantasy RPG system where character progress is measured by
 
 - **Skill Rolls**:
   - Roll 1d20: Success if ≤ current skill level.
-  - Natural 1: Exceptional success (narrative benefit, +1 LP, limited to once per skill per session).
-  - Natural 20: Always a failure (+2 LP). For skills ≥15, treated as a "complicated success" (action succeeds with a drawback, still +2 LP).
-- **Learning Points (LP)**:
-  - Failure (non-natural 20): +1 LP.
-  - Success (non-natural 1): +0.5 LP.
-  - Natural 20: +2 LP.
-  - Natural 1: +1 LP (capped once per skill per session).
-  - Spending: 1 LP buys one improvement attempt on that skill. No threshold, no failure and no rest needed.
-  - Linked stat: +(Stat - 10)/4 LP per roll (rounded down, 0 to +2).
-- **Skill Improvement**:
-  - At the end of the turn, every whole LP a skill holds is spent, one attempt per LP (fractions wait for the next roll).
-  - Roll 1d20 ≥ raw skill: skill +1. Chance (21 - skill)/20: 90% at 3, 70% at 7, 45% at 12, 5% at 20.
+  - Natural 1: Exceptional success (narrative benefit). Earns no LP: nothing to learn from a success.
+  - Natural 20: Always a failure (+1 LP). For skills ≥15, treated as a "complicated success" (action succeeds with a drawback, still +1 LP).
+- **Learning Points (LP)** — you learn only from failure, only in the skill you failed:
+  - Failure or partial success: +1 LP for that skill, a banked improvement chance. Nothing spills to other skills.
+  - Success (natural 1 included): no LP.
+  - The linked stat adds no LP: talent helps you succeed, not learn faster.
+- **Skill Improvement** — it sinks in while you sleep:
+  - Banked LP are spent on a long rest (sleep, or six hours or more of rest), one attempt per LP. Ordinary turns spend nothing.
+  - Roll 1d20 ≥ 11 and ≥ raw skill: skill +1. Chance (21 - max(skill, 11))/20: 50% up to 11, 45% at 12, 25% at 16, 5% at 20. No attempt is a sure thing, not even at level 0.
   - Each attempt costs 1 LP, hit or miss. No tier modifiers.
   - No skill cap, but past 20 only a trainer's bonus can reach the target.
-- **Death Exception**: No LP from fatal failures; near-death grants +1 LP if survived.
+- **Death Exception**: No LP from fatal failures, and the dead learn nothing.
 - **Skill List Categories** (Examples):
   - **Combat**: Melee Combat, Ranged Combat, Unarmed Combat, Tactics, Dodge.
   - **Exploration**: Navigation, Survival, Tracking, Climbing, Stealth.
@@ -1044,7 +1026,7 @@ This is a skill-based fantasy RPG system where character progress is measured by
 
 ## Trainers and Adventures
 
-- **Trainers**: NPCs with skill level ≥5 above the character's. A training session is one free improvement attempt (no LP) with +5 to the roll (1d20 + 5 ≥ skill).
+- **Trainers**: NPCs with skill level ≥5 above the character's. A training session is one free improvement attempt (no LP) with +5 to the roll (1d20 + 5 ≥ 11 and ≥ skill).
   - Found via quests (e.g., journey to a master thief for Stealth training).
   - One attempt per training session; costs time and the trainer's fee.
   - Can be group quests for party training.
@@ -1067,10 +1049,9 @@ This is a skill-based fantasy RPG system where character progress is measured by
 - **Base Chance for Unskilled Attempts (Level 0)**:
   - Effective level = Stat / 3 (rounded down) for related tasks.
   - Adjustable by difficulty (/2 easy, /4 hard).
-  - Failures/successes grant LP to start building the skill.
+  - Failures grant LP to start building the skill.
 - **Additional Integrations**:
   - Derived Attributes: HP = 10 + (CON / 2) + other modifiers; damage bonuses from STR, etc.
-  - LP Modifiers: (Stat - 10)/4 added to LP from failures/successes for linked skills (max +2).
   - Role-Playing Hooks: Stats gate equipment/actions (e.g., STR 13+ for greatswords); low stats prompt quests.
 
 ## Character Creation and Starting Allocation
@@ -1506,7 +1487,6 @@ At **Level 18+** in any skill, masters gain the ability to **recognize principle
 ### Mechanical Effects
 - **Narrative Recognition**: GM describes cross-domain insights
 - **First Attempt Bonus**: +2 to initial tries at new "spiritually adjacent" skills
-- **Accelerated Learning**: +1 LP per roll when attempting recognized skills
 
 ### Spiritually Adjacent Skills
 Skills are "spiritually adjacent" when they share underlying principles despite being in different domains:
@@ -1535,22 +1515,20 @@ High skill levels in a domain grant **contextual stat bonuses** when performing 
 
 ---
 
-## LP Progression: One LP, One Attempt
+## LP Progression: Learn From Failure, Sleep On It
 
-Each Learning Point buys one improvement attempt on its skill, spent at the end of the turn that earned it. Roll 1d20: equal to or higher than the current level raises the skill by 1.
+A failed or partial roll banks one Learning Point for the skill rolled; a success banks nothing, and nothing spills to other skills. The banked LP are spent on the next long rest (sleep, or six hours or more of rest), one improvement attempt each. Roll 1d20: at least 11 and at least the current level raises the skill by 1.
 
 | Level | Chance per attempt | Attempts (LP) per level, on average |
 |-------|-------------------|-------------------------------------|
-| 3 | 90% | 1.1 |
-| 5 | 80% | 1.25 |
-| 7 | 70% | 1.4 |
+| 0-11 | 50% | 2 |
 | 12 | 45% | 2.2 |
 | 16 | 25% | 4 |
 | 20 | 5% | 20 |
 
 ### Trainer Bonuses
 - Trainers must have skill level ≥5 above student
-- A training session is one free attempt (no LP) with +5 to the roll
+- A training session is one free attempt (no LP) with +5 to the roll (the roll + 5 must reach 11 and the level)
 - Past level 20, only a trainer's bonus can reach the target
 
 ---
@@ -1563,8 +1541,8 @@ Skills don't exist in isolation. A master swordsman has developed body awareness
 ### Why Floors Instead of Bonuses?
 Floors represent baseline competence, not enhancement. A master fighter doesn't get +6 to unarmed — they can't be *worse* than level 6 at unarmed. This distinction matters narratively.
 
-### Why One LP per Attempt?
-The 10,000-hour research shows diminishing returns at high levels. A novice improves rapidly; a master grinds for marginal gains. The roll does this by itself: the higher the skill, the smaller the chance that an attempt pays off, so no thresholds or tier modifiers are needed.
+### Why Learn Only From Failure, and Only Overnight?
+You learn where you fall short, not where you already succeed, and practice sinks in while you sleep. The 10,000-hour research shows diminishing returns at high levels: a novice improves quickly, a master grinds for marginal gains. The roll does this by itself, and the floor of 11 keeps even a first level from being free.
 
 ### Why Trainers?
 Beyond Expert level, self-study plateaus. Real masters seek other masters. A trainer's +5 matters most where attempts mostly fail, and past level 20 nothing else works. This creates natural quest hooks and emphasizes that true mastery is rare.
@@ -1827,17 +1805,13 @@ This combat system, adapted from Savage Worlds' wound-based mechanics, is design
   - Natural 20: Fumble (+2 LP; computer DM narrates setback, e.g., slip).
   - Damage Outcomes:
     - < Toughness: No effect.
-    - ≥ Toughness: Shaken (lose next action unless WIS/2 roll succeeds; +1 LP).
+    - ≥ Toughness: Shaken (lose next action unless WIS/2 roll succeeds).
     - ≥ Toughness + 4: 1 wound + Shaken (or +1 wound if Shaken).
     - Mooks die on 1 wound; others take wounds up to max.
 - **Learning Points (LP)**:
-  - Miss/Natural 20: +1/+2 LP.
-  - Shaken: +1 LP.
-  - Wounded: +1 LP per wound.
-  - Success: +0.5 LP.
-  - Natural 1: +1 LP (once per skill per session).
-  - Near-death (saved): +2 LP for related skills.
-  - Each LP buys an improvement attempt at the end of the turn (d20 ≥ skill level: +1).
+  - Miss (Natural 20 included): +1 LP for the skill rolled. A hit earns none.
+  - Nothing spills to other skills.
+  - Banked LP become improvement attempts on the next long rest or sleep (d20 ≥ 11 and ≥ skill level: +1).
 
 ## Additional Features
 - **Multi-Actions**: Multiple actions per round (e.g., attack twice) at -2 skill per extra action, granting LP on failures.
@@ -1873,21 +1847,18 @@ This is a skill-based fantasy RPG system where character progress is measured by
 
 - **Skill Rolls**:
   - Roll 1d20: Success if ≤ current skill level.
-  - Natural 1: Exceptional success (narrative benefit, +1 LP, limited to once per skill per session).
-  - Natural 20: Always a failure (+2 LP). For skills ≥15, treated as a "complicated success" (action succeeds with a drawback, still +2 LP).
-- **Learning Points (LP)**:
-  - Failure (non-natural 20): +1 LP.
-  - Success (non-natural 1): +0.5 LP.
-  - Natural 20: +2 LP.
-  - Natural 1: +1 LP (capped once per skill per session).
-  - Spending: 1 LP buys one improvement attempt on that skill. No threshold, no failure and no rest needed.
-  - Linked stat: +(Stat - 10)/4 LP per roll (rounded down, 0 to +2).
-- **Skill Improvement**:
-  - At the end of the turn, every whole LP a skill holds is spent, one attempt per LP (fractions wait for the next roll).
-  - Roll 1d20 ≥ raw skill: skill +1. Chance (21 - skill)/20: 90% at 3, 70% at 7, 45% at 12, 5% at 20.
+  - Natural 1: Exceptional success (narrative benefit). Earns no LP: nothing to learn from a success.
+  - Natural 20: Always a failure (+1 LP). For skills ≥15, treated as a "complicated success" (action succeeds with a drawback, still +1 LP).
+- **Learning Points (LP)** — you learn only from failure, only in the skill you failed:
+  - Failure or partial success: +1 LP for that skill, a banked improvement chance. Nothing spills to other skills.
+  - Success (natural 1 included): no LP.
+  - The linked stat adds no LP: talent helps you succeed, not learn faster.
+- **Skill Improvement** — it sinks in while you sleep:
+  - Banked LP are spent on a long rest (sleep, or six hours or more of rest), one attempt per LP. Ordinary turns spend nothing.
+  - Roll 1d20 ≥ 11 and ≥ raw skill: skill +1. Chance (21 - max(skill, 11))/20: 50% up to 11, 45% at 12, 25% at 16, 5% at 20. No attempt is a sure thing, not even at level 0.
   - Each attempt costs 1 LP, hit or miss. No tier modifiers.
   - No skill cap, but past 20 only a trainer's bonus can reach the target.
-- **Death Exception**: No LP from fatal failures; near-death grants +1 LP if survived.
+- **Death Exception**: No LP from fatal failures, and the dead learn nothing.
 - **Skill List Categories** (Examples):
   - **Combat**: Melee Combat, Ranged Combat, Unarmed Combat, Tactics, Dodge.
   - **Exploration**: Navigation, Survival, Tracking, Climbing, Stealth.
@@ -1897,7 +1868,7 @@ This is a skill-based fantasy RPG system where character progress is measured by
 
 ## Trainers and Adventures
 
-- **Trainers**: NPCs with skill level ≥5 above the character's. A training session is one free improvement attempt (no LP) with +5 to the roll (1d20 + 5 ≥ skill).
+- **Trainers**: NPCs with skill level ≥5 above the character's. A training session is one free improvement attempt (no LP) with +5 to the roll (1d20 + 5 ≥ 11 and ≥ skill).
   - Found via quests (e.g., journey to a master thief for Stealth training).
   - One attempt per training session; costs time and the trainer's fee.
   - Can be group quests for party training.
@@ -1920,10 +1891,9 @@ This is a skill-based fantasy RPG system where character progress is measured by
 - **Base Chance for Unskilled Attempts (Level 0)**:
   - Effective level = Stat / 3 (rounded down) for related tasks.
   - Adjustable by difficulty (/2 easy, /4 hard).
-  - Failures/successes grant LP to start building the skill.
+  - Failures grant LP to start building the skill.
 - **Additional Integrations**:
   - Derived Attributes: HP = 10 + (CON / 2) + other modifiers; damage bonuses from STR, etc.
-  - LP Modifiers: (Stat - 10)/4 added to LP from failures/successes for linked skills (max +2).
   - Role-Playing Hooks: Stats gate equipment/actions (e.g., STR 13+ for greatswords); low stats prompt quests.
 
 ## Character Creation and Starting Allocation
@@ -2359,7 +2329,6 @@ At **Level 18+** in any skill, masters gain the ability to **recognize principle
 ### Mechanical Effects
 - **Narrative Recognition**: GM describes cross-domain insights
 - **First Attempt Bonus**: +2 to initial tries at new "spiritually adjacent" skills
-- **Accelerated Learning**: +1 LP per roll when attempting recognized skills
 
 ### Spiritually Adjacent Skills
 Skills are "spiritually adjacent" when they share underlying principles despite being in different domains:
@@ -2388,22 +2357,20 @@ High skill levels in a domain grant **contextual stat bonuses** when performing 
 
 ---
 
-## LP Progression: One LP, One Attempt
+## LP Progression: Learn From Failure, Sleep On It
 
-Each Learning Point buys one improvement attempt on its skill, spent at the end of the turn that earned it. Roll 1d20: equal to or higher than the current level raises the skill by 1.
+A failed or partial roll banks one Learning Point for the skill rolled; a success banks nothing, and nothing spills to other skills. The banked LP are spent on the next long rest (sleep, or six hours or more of rest), one improvement attempt each. Roll 1d20: at least 11 and at least the current level raises the skill by 1.
 
 | Level | Chance per attempt | Attempts (LP) per level, on average |
 |-------|-------------------|-------------------------------------|
-| 3 | 90% | 1.1 |
-| 5 | 80% | 1.25 |
-| 7 | 70% | 1.4 |
+| 0-11 | 50% | 2 |
 | 12 | 45% | 2.2 |
 | 16 | 25% | 4 |
 | 20 | 5% | 20 |
 
 ### Trainer Bonuses
 - Trainers must have skill level ≥5 above student
-- A training session is one free attempt (no LP) with +5 to the roll
+- A training session is one free attempt (no LP) with +5 to the roll (the roll + 5 must reach 11 and the level)
 - Past level 20, only a trainer's bonus can reach the target
 
 ---
@@ -2416,8 +2383,8 @@ Skills don't exist in isolation. A master swordsman has developed body awareness
 ### Why Floors Instead of Bonuses?
 Floors represent baseline competence, not enhancement. A master fighter doesn't get +6 to unarmed — they can't be *worse* than level 6 at unarmed. This distinction matters narratively.
 
-### Why One LP per Attempt?
-The 10,000-hour research shows diminishing returns at high levels. A novice improves rapidly; a master grinds for marginal gains. The roll does this by itself: the higher the skill, the smaller the chance that an attempt pays off, so no thresholds or tier modifiers are needed.
+### Why Learn Only From Failure, and Only Overnight?
+You learn where you fall short, not where you already succeed, and practice sinks in while you sleep. The 10,000-hour research shows diminishing returns at high levels: a novice improves quickly, a master grinds for marginal gains. The roll does this by itself, and the floor of 11 keeps even a first level from being free.
 
 ### Why Trainers?
 Beyond Expert level, self-study plateaus. Real masters seek other masters. A trainer's +5 matters most where attempts mostly fail, and past level 20 nothing else works. This creates natural quest hooks and emphasizes that true mastery is rare.

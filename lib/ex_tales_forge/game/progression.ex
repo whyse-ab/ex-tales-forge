@@ -1,32 +1,46 @@
 defmodule TalesForge.Game.Progression do
   @moduledoc """
-  Skill growth: Learning Points buy improvement attempts (decision 2026-10-07,
-  tales-forge-docs `docs/decisions.md`, superseding the tiered thresholds of
-  ex-tales-forge #64).
+  Skill growth for the `"default"` variant: you learn from failure, only in the
+  skill you failed, and it sinks in while you sleep (decision 2026-10-09,
+  tales-forge-docs `docs/decisions.md`, superseding the 2026-10-07 "LP spent
+  every turn" rule).
 
-  - **1 LP buys one attempt** on the skill that earned it. Roll 1d20; if the
-    roll is **equal to or higher than the skill's current level**, the skill
-    gains +1. The chance is `(21 − level) / 20`, so growth slows by itself as a
-    skill rises and stops at 20 without a trainer.
-  - **When:** at the end of every turn, every whole LP a skill holds is spent
-    at once (`spend_lp/2`). No rest, no failure count and no threshold is
-    needed. Fractions (a success earns 0.5 LP) wait for the next roll.
+  - **Earning:** a failed or partial roll banks one improvement chance (1 LP)
+    for that exact skill (`TalesForge.Game.Mechanics`). A success banks
+    nothing, and nothing spills to other skills. The linked stat adds no LP:
+    a high stat helps the character succeed, not learn faster.
+  - **When:** banked chances are resolved on a long rest, a wait of
+    6 hours or more such as sleep (`long_rest?/1`), not at the end of each
+    turn (`TalesForge.Game.TurnProcessor`). Every whole LP is then spent at
+    once (`spend_lp/3`); fractions left from older sessions wait.
+    `immediate_skills/0` lists the skills that skip the wait and improve at the
+    end of the turn instead; it is empty until Fredrik picks any.
+  - **The attempt:** roll 1d20; the skill gains +1 when the roll is **at least
+    11 and at least the skill's current level** (`improves?/3`). The chance
+    is `(21 − max(level, 11)) / 20`: at most 50% (an attempt at level 0 or 1 can
+    fail), falling to 5% at 20, and nothing past 20 without a trainer.
   - **Trainers:** a training session is one **free** attempt (no LP) with
     **+5** on the roll (`train/3`), paid for in coin and days
     (`TalesForge.Game.Train`).
-  - **No tier modifiers:** the Expert −3 and Master −5 roll modifiers are gone;
-    the curve already slows growth at high levels.
 
-  This is the `"default"` variant's rule. The `"baseline"` variant keeps the
-  #64 rule in `TalesForge.Game.Progression.Tiered`; `TalesForge.Game.TurnProcessor`
-  picks one per session.
+  The `"baseline"` variant keeps the #64 rule in
+  `TalesForge.Game.Progression.Tiered`; `TalesForge.Game.TurnProcessor` picks
+  one per session.
 
   Every attempt is one entry in the turn's `mechanical_resolution["improvements"]`
   (`skill`, `roll`, `raw_skill`, `improved`, `lp_spent`, plus `bonus` for a
   trainer), which `TalesForge.Playtest.Growth` counts per run.
   """
 
+  alias TalesForge.Game.WorldClock
+
   @trainer_bonus 5
+  @attempt_floor 11
+  @long_rest_hours 6
+
+  # Skills that improve at the end of the turn instead of waiting for sleep.
+  # Empty on purpose: the candidates are listed in the PR for Fredrik to decide.
+  @immediate_skills []
 
   @typedoc "A character sheet map (string keys, as in `world_state[\"character\"]`)."
   @type character :: map()
@@ -41,22 +55,25 @@ defmodule TalesForge.Game.Progression do
   @type rolls :: %{optional(String.t()) => 1..20 | [1..20]}
 
   @doc """
-  The chance that one attempt raises a skill at `level`: `(21 − level) / 20`,
-  between 0 and 1.
+  The chance that one attempt raises a skill at `level`:
+  `(21 − max(level, 11)) / 20`, between 0 and 0.5.
 
-      iex> Enum.map([0, 3, 5, 7, 12, 20, 21], &TalesForge.Game.Progression.success_chance/1)
-      [1.0, 0.9, 0.8, 0.7, 0.45, 0.05, 0.0]
+      iex> Enum.map([0, 1, 7, 11, 12, 20, 21], &TalesForge.Game.Progression.success_chance/1)
+      [0.5, 0.5, 0.5, 0.5, 0.45, 0.05, 0.0]
   """
   @spec success_chance(integer()) :: float()
   def success_chance(level) when is_integer(level),
-    do: ((21 - level) / 20) |> max(0.0) |> min(1.0) |> Float.round(4)
+    do: ((21 - max(level, @attempt_floor)) / 20) |> max(0.0) |> min(1.0) |> Float.round(4)
 
   @doc """
-  Whether an attempt roll raises the skill: `roll + bonus >= level`.
+  Whether an attempt roll raises the skill: `roll + bonus` must reach both the
+  floor of 11 and the skill's level, so no attempt is a sure thing.
 
-      iex> TalesForge.Game.Progression.improves?(7, 7)
+      iex> TalesForge.Game.Progression.improves?(11, 0)
       true
-      iex> TalesForge.Game.Progression.improves?(6, 7)
+      iex> TalesForge.Game.Progression.improves?(10, 0)
+      false
+      iex> TalesForge.Game.Progression.improves?(12, 13)
       false
       iex> TalesForge.Game.Progression.improves?(15, 20, 5)
       true
@@ -64,7 +81,39 @@ defmodule TalesForge.Game.Progression do
   @spec improves?(integer(), integer(), integer()) :: boolean()
   def improves?(roll, level, bonus \\ 0)
       when is_integer(roll) and is_integer(level) and is_integer(bonus),
-      do: roll + bonus >= level
+      do: roll + bonus >= max(level, @attempt_floor)
+
+  @doc """
+  The lowest attempt roll (with any trainer bonus) that can raise a skill.
+
+      iex> TalesForge.Game.Progression.attempt_floor()
+      11
+  """
+  @spec attempt_floor() :: pos_integer()
+  def attempt_floor, do: @attempt_floor
+
+  @doc """
+  Whether a pause of `ticks` world ticks is a long rest (sleep, or a wait of
+  #{@long_rest_hours} hours or more), the moment banked chances are resolved.
+
+      iex> TalesForge.Game.Progression.long_rest?(32)
+      true
+      iex> TalesForge.Game.Progression.long_rest?(4)
+      false
+  """
+  @spec long_rest?(integer()) :: boolean()
+  def long_rest?(ticks) when is_integer(ticks),
+    do: ticks >= @long_rest_hours * WorldClock.ticks_per_hour()
+
+  @doc """
+  The skills that improve at the end of the turn instead of on a long rest.
+  Empty: every skill waits for sleep until Fredrik names exceptions.
+
+      iex> TalesForge.Game.Progression.immediate_skills()
+      []
+  """
+  @spec immediate_skills() :: [String.t()]
+  def immediate_skills, do: @immediate_skills
 
   @doc """
   The bonus a trainer adds to the attempt roll.
@@ -76,23 +125,27 @@ defmodule TalesForge.Game.Progression do
   def trainer_bonus, do: @trainer_bonus
 
   @doc """
-  Spends every whole Learning Point on improvement attempts, one attempt per
-  LP, skill by skill (alphabetical). The level is re-read after each attempt,
-  so a second attempt rolls against the raised level. Fractions stay.
+  Spends every whole Learning Point (banked improvement chance) on improvement
+  attempts, one attempt per LP, skill by skill (alphabetical). The level is
+  re-read after each attempt, so a second attempt rolls against the raised
+  level. Fractions stay. With `only: skills`, just those skills are spent.
 
       iex> character = %{"skills" => %{"climbing" => 3}, "learning_points" => %{"climbing" => 2.5}}
       iex> {after_spend, attempts} =
-      ...>   TalesForge.Game.Progression.spend_lp(character, %{"climbing" => [3, 2]})
+      ...>   TalesForge.Game.Progression.spend_lp(character, %{"climbing" => [11, 2]})
       iex> {after_spend["skills"]["climbing"], after_spend["learning_points"]["climbing"]}
       {4, 0.5}
       iex> Enum.map(attempts, &{&1["roll"], &1["raw_skill"], &1["improved"]})
-      [{3, 3, true}, {2, 4, false}]
+      [{11, 3, true}, {2, 4, false}]
   """
-  @spec spend_lp(character(), rolls()) :: {character(), [attempt()]}
-  def spend_lp(character, rolls \\ %{}) when is_map(character) and is_map(rolls) do
+  @spec spend_lp(character(), rolls(), keyword()) :: {character(), [attempt()]}
+  def spend_lp(character, rolls \\ %{}, opts \\ [])
+      when is_map(character) and is_map(rolls) and is_list(opts) do
+    only = Keyword.get(opts, :only)
+
     character
     |> Map.get("learning_points", %{})
-    |> Enum.filter(fn {_skill, lp} -> to_float(lp) >= 1.0 end)
+    |> Enum.filter(fn {skill, lp} -> to_float(lp) >= 1.0 and (is_nil(only) or skill in only) end)
     |> Enum.map(fn {skill, _lp} -> skill end)
     |> Enum.sort()
     |> Enum.reduce({character, [], rolls}, fn skill, {char, acc, rolls} ->
@@ -100,6 +153,22 @@ defmodule TalesForge.Game.Progression do
       {char, acc ++ attempts, rolls}
     end)
     |> then(fn {char, attempts, _rolls} -> {char, attempts} end)
+  end
+
+  @doc """
+  The banked chances a character holds, per skill (whole LP only), for the
+  GM's note and the character page.
+
+      iex> TalesForge.Game.Progression.banked(%{"learning_points" => %{"stealth" => 2.5, "climbing" => 0.5}})
+      %{"stealth" => 2}
+  """
+  @spec banked(character()) :: %{String.t() => pos_integer()}
+  def banked(character) when is_map(character) do
+    character
+    |> Map.get("learning_points", %{})
+    |> Enum.map(fn {skill, lp} -> {skill, lp |> to_float() |> trunc()} end)
+    |> Enum.filter(fn {_skill, n} -> n > 0 end)
+    |> Map.new()
   end
 
   @doc """

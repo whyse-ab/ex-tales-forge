@@ -220,9 +220,50 @@ defmodule TalesForge.Game.Context do
       Gestures.prompt_section(Map.get(context, :recent_gestures)),
       scene_now_section(context),
       premise_section(context),
+      rest_growth_section(context),
       player_request_section(context)
     ]
     |> join_sections()
+  end
+
+  @doc """
+  Default variant, long rest only: what the character's sleep made of the
+  failures they banked (`context[:rest_growth]`, the improvement attempts the
+  turn resolved, set by `TalesForge.Game.TurnProcessor`). Skills that improved
+  are named so the GM can let the character wake surer of them; the rest are
+  left out. Never any numbers. nil when nothing improved, when the turn was not
+  a long rest, and always for the baseline variant.
+
+      iex> section = TalesForge.Game.Context.rest_growth_section(%{world_state: %{}, rest_growth: [
+      ...>   %{"skill" => "melee_combat", "improved" => true},
+      ...>   %{"skill" => "persuasion", "improved" => false}
+      ...> ]})
+      iex> section =~ "They wake a little surer at: melee combat."
+      true
+      iex> section =~ "persuasion"
+      false
+      iex> TalesForge.Game.Context.rest_growth_section(%{world_state: %{}, rest_growth: []})
+      nil
+  """
+  @spec rest_growth_section(map()) :: String.t() | nil
+  def rest_growth_section(context) do
+    improved =
+      context
+      |> Map.get(:rest_growth)
+      |> List.wrap()
+      |> Enum.filter(&(&1["improved"] == true))
+      |> Enum.map(&String.replace(to_string(&1["skill"]), "_", " "))
+      |> Enum.uniq()
+
+    if improved == [] or Variant.baseline?(Map.get(context, :world_state) || %{}) do
+      nil
+    else
+      "## Rest: what sank in\n" <>
+        "While the character slept, past failures sank in. They wake a little surer at: " <>
+        Enum.join(improved, ", ") <>
+        ".\nIf it fits, show it in a line (a steadier grip, a surer word); " <>
+        "never say \"you learned\" or name levels, points or numbers.\n"
+    end
   end
 
   @doc """
