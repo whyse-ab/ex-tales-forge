@@ -71,6 +71,14 @@ config :ex_tales_forge, TalesForge.AppRole,
   production_url: "https://tales-forge.fly.dev",
   playtest_url: "https://tales-forge-playtest.fly.dev"
 
+# Live PR feed on /team (TalesForge.PrFeed): the repo it follows and how often
+# the server polls GitHub (the browser never does). The token is the secret
+# GITHUB_FEED_TOKEN (config/runtime.exs); without it the feed says unavailable.
+config :ex_tales_forge, TalesForge.PrFeed,
+  repo: "whyse-ab/ex-tales-forge",
+  interval_ms: 60_000,
+  poll: true
+
 # Admin costs page (/admin/costs). Edit cost figures HERE, in one place.
 # fixed_monthly: one entry per fixed cost. amount is a tagged union:
 #   {:usd_per_month, n}  — Fly list prices and other USD monthly items

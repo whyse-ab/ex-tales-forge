@@ -23,7 +23,10 @@ defmodule TalesForgeWeb.AccessControlTest do
     {:get, "/admin/auth/github/callback"},
     {:delete, "/admin/logout"},
     # Machine-to-machine, bearer token (COSTS_PEER_TOKEN); see CostsPeerController.
-    {:get, "/internal/costs"}
+    {:get, "/internal/costs"},
+    # Machine-to-machine, same bearer token: the running commit for the other
+    # app's live PR feed on /team; see VersionPeerController.
+    {:get, "/internal/version"}
   ]
 
   @id Ecto.UUID.generate()

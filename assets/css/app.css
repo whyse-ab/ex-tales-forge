@@ -748,6 +748,77 @@
   75% { transform: translate(-8px, 16px) rotate(-6deg); }
 }
 
+/* Live PR feed (/team section "Live", TalesForgeWeb.TeamPrFeed). State pills
+   and chips use the paper palette plus a status colour each, with dark
+   variants. Rows new since the last update ([data-fresh]) slide in and glow
+   briefly, and the "live" dot pulses, only with data-motion="full"; the
+   prefers-reduced-motion block below switches both off. */
+.team-page {
+  --feed-open: #15803d;
+  --feed-merged: #6d4aa8;
+  --feed-closed: #9f1239;
+  --feed-warn: #b45309;
+  --feed-glow: rgb(180 83 9 / 14%);
+}
+
+:root[data-theme="dark"] .team-page {
+  --feed-open: #4ade80;
+  --feed-merged: #b99cf2;
+  --feed-closed: #fb7185;
+  --feed-warn: #f4b25f;
+  --feed-glow: rgb(244 178 95 / 16%);
+}
+
+.pr-feed-pill,
+.pr-feed-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  border: 1px solid currentColor;
+  padding: 0.05rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.pr-feed-pill { min-width: 4.25rem; justify-content: center; }
+.pr-feed-pill[data-kind="open"] { color: var(--feed-open); }
+.pr-feed-pill[data-kind="draft"] { color: var(--paper-muted); }
+.pr-feed-pill[data-kind="merged"] { color: var(--feed-merged); }
+.pr-feed-pill[data-kind="closed"] { color: var(--feed-closed); }
+
+.pr-feed-chip { color: var(--paper-muted); border-color: var(--paper-rule); font-weight: 500; }
+.pr-feed-chip[data-kind="ci-passed"],
+.pr-feed-chip[data-kind="on-playtest"],
+.pr-feed-chip[data-kind="on-prod"] { color: var(--feed-open); border-color: currentColor; }
+.pr-feed-chip[data-kind="on-prod"] { font-weight: 700; }
+.pr-feed-chip[data-kind="ci-failed"] { color: var(--feed-closed); border-color: currentColor; }
+.pr-feed-chip[data-kind="ci-running"] { color: var(--feed-warn); border-color: currentColor; }
+
+.pr-feed-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: var(--feed-open);
+}
+
+@keyframes team-feed-in {
+  from { opacity: 0; transform: translateY(-6px); background-color: var(--feed-glow); }
+  40% { opacity: 1; transform: none; background-color: var(--feed-glow); }
+  to { opacity: 1; transform: none; background-color: transparent; }
+}
+
+@keyframes team-feed-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.team-page[data-motion="full"] .pr-feed-item[data-fresh] { animation: team-feed-in 2.4s ease-out both; }
+.team-page[data-motion="full"] .pr-feed-dot { animation: team-feed-pulse 2.4s ease-in-out infinite; }
+
+
 /* One shared board (TalesForgeWeb.TeamBoard): a mock, not a working board.
    Static (and with reduced motion): one card in each column. Playing
    (team_hooks.js TeamBoard): the steps not reached yet are hidden, a card

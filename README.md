@@ -99,6 +99,12 @@ GITHUB_DOCS_TOKEN=...
 
 Then open http://localhost:4000/ (you are sent to `/admin/login`). See `docs/DEPLOY-FLY.md`.
 
+The founders' page (`/team`) has a live PR feed ("Live: what we're shipping",
+`TalesForge.PrFeed`), polled from GitHub on the server every minute. It needs
+`GITHUB_FEED_TOKEN`, a fine-grained read-only token for `whyse-ab/ex-tales-forge`
+(Pull requests, Contents and Actions: read). Without it the section says
+"Live feed unavailable" and the rest of the page works as usual.
+
 From the admin UI you can:
 
 - **Decision queue** and **shared docs** (synced from `tales-forge-docs`)
