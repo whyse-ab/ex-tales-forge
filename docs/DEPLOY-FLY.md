@@ -130,6 +130,13 @@ Deploys: `.github/workflows/playtest.yml` deploys main to playtest after every g
 main (playtest is the first stop; production follows by hand, see [Deploy](#4-deploy)) and on
 demand (Actions → "Deploy to playtest" → Run workflow, or
 `gh workflow run playtest.yml -f sha=<sha>`; no sha = the tip of main).
+Right before deploying, the workflow fetches `origin/main` and deploys only if the commit is
+still the tip of main; otherwise it skips with a notice and the run still succeeds. CI runs can
+finish out of order when PRs merge close together, and this keeps playtest from going backwards
+(the tip gets its own deploy when its CI passes; if the tip's CI fails, playtest stays where it
+was). To deploy an older commit on purpose, run it by hand with
+`gh workflow run playtest.yml -f sha=<sha> -f force=true`. Playtest deploys run one at a time,
+and a newer one cancels a deploy still in progress.
 It uses the Actions secret `FLY_API_TOKEN_PLAYTEST`, a deploy token scoped to the playtest app
 (`fly tokens create deploy -a tales-forge-playtest`). It is a separate workflow, so a failed
 playtest deploy never fails the CI run.
