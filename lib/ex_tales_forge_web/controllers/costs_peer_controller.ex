@@ -5,7 +5,7 @@ defmodule TalesForgeWeb.CostsPeerController do
   (`TalesForge.Costs.PlaytestRuns.summary/1`: totals per line and time window
   only, no rows, prompts or player data).
 
-  - On production or local (`TalesForge.AppRole.role/0` is not `:playtest`) it
+  - On production or local (`TalesForge.AppRole.role/1` is not `:playtest`) it
     answers 404: production's numbers are read where they live.
   - Guarded by `COSTS_PEER_TOKEN` as a bearer token, compared in constant time.
     Token unset: 404 (the endpoint is off). Missing or wrong token: 401.
