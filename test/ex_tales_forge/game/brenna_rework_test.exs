@@ -82,7 +82,7 @@ defmodule TalesForge.Game.BrennaReworkTest do
     assert gm =~ "Always second person"
     # Refined 2026-10-07 (no default echo; a rare deliberate echo is the exception).
     assert gm =~ "React, do not restate"
-    assert gm =~ ~s("scarred oak")
+    assert gm =~ "Gestures and stock lines wear out"
 
     scene = Prompts.scene_system()
     assert scene =~ "a host greets a newcomer warmly"

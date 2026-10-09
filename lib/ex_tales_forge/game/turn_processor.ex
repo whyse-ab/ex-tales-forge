@@ -18,6 +18,7 @@ defmodule TalesForge.Game.TurnProcessor do
   alias TalesForge.Game.ActionHandler
   alias TalesForge.Game.Context
   alias TalesForge.Game.Events
+  alias TalesForge.Game.Gestures
   alias TalesForge.Game.Inventory
   alias TalesForge.Game.Mechanics
   alias TalesForge.Game.NpcReactions
@@ -103,7 +104,7 @@ defmodule TalesForge.Game.TurnProcessor do
     {price_lines, priced} = world_prices(agents, session, ruled, raw_action, player_action)
     {reactions, board} = npc_reactions(session, priced, turn_number, raw_action, mechanical)
 
-    messages =
+    {gm_context, messages} =
       Steps.time(:prompt, fn ->
         gm_context =
           %{session | world_state: board.world}
@@ -114,13 +115,14 @@ defmodule TalesForge.Game.TurnProcessor do
           |> Map.put(:moved_from, moved_from(session.world_state, board.world))
           |> put_player_request(gm_opts[:gm_note])
 
-        Prompts.gm_messages(
-          gm_context,
-          mechanical,
-          gm_action(player_action, gm_opts[:gm_quote]),
-          handler,
-          turn_number
-        )
+        {gm_context,
+         Prompts.gm_messages(
+           gm_context,
+           mechanical,
+           gm_action(player_action, gm_opts[:gm_quote]),
+           handler,
+           turn_number
+         )}
       end)
 
     with {:ok, gm_result} <-
@@ -129,6 +131,12 @@ defmodule TalesForge.Game.TurnProcessor do
                session_id: session.id
              )
            end) do
+      # Default variant: log the spent gestures the GM used anyway.
+      Gestures.log_repeats(gm_result.narrative, Map.get(gm_context, :recent_gestures),
+        session: session.id,
+        turn: turn_number
+      )
+
       Steps.time(:persist, fn ->
         world_final = apply_allowlisted_patches(board.world, gm_result)
 
