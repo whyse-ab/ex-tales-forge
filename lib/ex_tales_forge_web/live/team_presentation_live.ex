@@ -6,8 +6,10 @@ defmodule TalesForgeWeb.TeamPresentationLive do
   found, the pace and cost so far, the shared board that is coming (section 6,
   a mock, not a working board) and how to get involved. Fredrik presents from
   it. `/team` (`TalesForgeWeb.TeamLive`) is the light landing page that links
-  here; old `/team#section` links are forwarded here by its anchor hook, using
-  `anchors/0`.
+  here.
+
+  Old `/team#section` links are forwarded here by the landing page's anchor
+  hook, for the anchors in `anchors/0`.
 
   Behind the GitHub team sign-in like every page (router `:browser` pipeline
   plus the `:require_team_member` mount hook, the same `:play` live session as
