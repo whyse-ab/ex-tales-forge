@@ -94,6 +94,7 @@
                  "lib/ex_tales_forge/game/progression.ex",
                  "lib/ex_tales_forge/game/progression/",
                  "lib/ex_tales_forge/game/train.ex",
+                 "lib/ex_tales_forge/game/premise_check.ex",
                  "lib/ex_tales_forge/world.ex",
                  "lib/ex_tales_forge/world/",
                  "lib/ex_tales_forge/game/features.ex",
