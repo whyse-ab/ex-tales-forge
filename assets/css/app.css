@@ -465,3 +465,184 @@
     color: var(--paper-accent);
   }
 }
+
+/* Founders' page (/team, TalesForgeWeb.TeamLive). The page is .paper-themed,
+   so it follows the theme toggle; the call-type colours below get a dark
+   variant too. Motion: assets/js/team_hooks.js sets data-motion on
+   #team-page to "full" or "reduce" ("auto" before it runs). Nothing is hidden
+   or animated unless it is "full", and prefers-reduced-motion switches every
+   animation and transition off regardless. */
+.team-page {
+  --team-elixir: #6d4aa8;
+  --team-jev: #0f766e;
+  --team-llm: #b45309;
+  --team-seal: #a3182f;
+  --team-noise: rgb(154 52 18 / 12%);
+  scroll-padding-top: 6.5rem;
+}
+
+:root:has(.team-page) { scroll-padding-top: 6.5rem; }
+
+:root[data-theme="dark"] .team-page {
+  --team-elixir: #b99cf2;
+  --team-jev: #4fd1c0;
+  --team-llm: #f4b25f;
+  --team-seal: #f28aa3;
+  --team-noise: rgb(240 145 94 / 16%);
+}
+
+.team-page code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85em;
+  background: var(--paper-code-bg);
+  color: var(--paper-code-ink);
+  border-radius: 0.25rem;
+  padding: 0.05em 0.3em;
+  overflow-wrap: anywhere;
+}
+
+.team-card {
+  background: var(--paper-panel);
+  border: 1px solid var(--paper-rule);
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 3px rgb(61 47 36 / 8%);
+}
+
+.team-callout {
+  background: var(--paper-margin);
+  border: 1px solid var(--paper-rule);
+  border-left: 4px solid var(--paper-accent);
+  border-radius: 0.75rem;
+}
+
+.team-explain {
+  color: var(--paper-muted);
+  font-style: italic;
+  font-size: 0.92em;
+}
+
+.team-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  align-self: flex-start;
+  border-radius: 9999px;
+  background: var(--paper-margin);
+  border: 1px solid var(--paper-rule);
+  padding: 0.2rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.team-bullets > li {
+  position: relative;
+  padding-left: 1rem;
+}
+
+.team-bullets > li::before {
+  content: "";
+  position: absolute;
+  left: 0.15rem;
+  top: 0.55em;
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 9999px;
+  background: var(--paper-accent);
+}
+
+.team-ok { background: var(--paper-ok-bg); color: var(--paper-ok-ink); }
+.team-warn { background: var(--paper-warn-bg); color: var(--paper-warn-ink); }
+
+.team-greyed { filter: grayscale(1); opacity: 0.7; }
+.team-anti { opacity: 0.85; }
+
+/* Call-type colours: the table, the architecture nodes and the legend. */
+.team-kind-elixir { --team-kind: var(--team-elixir); }
+.team-kind-jev { --team-kind: var(--team-jev); }
+.team-kind-llm { --team-kind: var(--team-llm); }
+.team-kind-neutral { --team-kind: var(--paper-rule); }
+.team-call-row, .team-arch-node { border-color: var(--team-kind); }
+.team-arch-node { background: color-mix(in srgb, var(--team-kind) 9%, var(--paper-panel)); }
+.team-kind-text { color: var(--team-kind); }
+.team-kind-neutral .team-kind-text { color: var(--paper-muted); }
+.team-swatch {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 0.2rem;
+  background: var(--team-kind);
+}
+.team-cell-label { color: var(--paper-muted); font-size: 0.75rem; }
+@media (min-width: 1024px) { .team-cell-label { display: none; } }
+
+/* Change flow: a line through the markers (vertical on phones). */
+.team-flow-line {
+  position: absolute;
+  left: 23px;
+  top: 1.5rem;
+  bottom: 1.5rem;
+  width: 2px;
+  background: var(--paper-rule);
+}
+
+@media (min-width: 1024px) {
+  .team-flow-line {
+    left: 4.5%;
+    right: 4.5%;
+    top: 23px;
+    bottom: auto;
+    width: auto;
+    height: 2px;
+  }
+}
+
+.team-flow-step { transition: opacity 0.35s ease, filter 0.35s ease; }
+.team-flow-token { opacity: 0; transition: transform 0.45s cubic-bezier(0.34, 1.4, 0.64, 1), opacity 0.3s; }
+.team-page:not([data-motion="full"]) .team-replay { display: none; }
+
+.team-page[data-motion="full"] .team-flow[data-flow="playing"] .team-flow-token,
+.team-page[data-motion="full"] .team-flow[data-flow="done"] .team-flow-token { opacity: 1; }
+
+.team-page[data-motion="full"] .team-flow[data-flow="playing"] [data-flow-step][data-state="idle"] {
+  opacity: 0.35;
+  filter: grayscale(0.7);
+}
+
+.team-page[data-motion="full"] [data-flow-step][data-stamped] .team-seal {
+  animation: team-stamp 0.7s ease-out both;
+}
+
+/* Sections fade up, then their bars grow. */
+.team-page[data-motion="full"] [data-reveal] { transition: opacity 0.7s ease, transform 0.7s ease; }
+.team-page[data-motion="full"] [data-reveal]:not(.is-visible) { opacity: 0; transform: translateY(18px); }
+
+.team-bar-v { transform-origin: bottom; }
+.team-bar-h { transform-origin: left; }
+.team-page[data-motion="full"] [data-reveal].is-visible .team-bar-v { animation: team-grow-y 0.9s 0.15s ease-out both; }
+.team-page[data-motion="full"] [data-reveal].is-visible .team-bar-h { animation: team-grow-x 0.9s 0.15s ease-out both; }
+.team-page[data-motion="full"] .team-flame { animation: team-flicker 2.4s ease-in-out infinite; transform-origin: 50% 100%; transform-box: fill-box; }
+
+@keyframes team-grow-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes team-grow-x { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes team-stamp {
+  0% { transform: scale(1.6) rotate(-12deg); opacity: 0.2; }
+  60% { transform: scale(0.92) rotate(3deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0); }
+}
+@keyframes team-flicker {
+  0%, 100% { transform: scale(1, 1); opacity: 1; }
+  30% { transform: scale(0.92, 1.08); opacity: 0.9; }
+  60% { transform: scale(1.05, 0.95); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .team-page *,
+  .team-page *::before,
+  .team-page *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .team-page [data-reveal] { opacity: 1 !important; transform: none !important; }
+  .team-flow-token, .team-replay { display: none !important; }
+}

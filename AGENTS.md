@@ -78,7 +78,7 @@ Use kebab-case names that describe the work (`feature/two-tier-llm`, `fix/oban-m
 Source: decision 2026-10-07 "GitHub team sign-in is the only login on production and playtest" ([#54](https://github.com/whyse-ab/ex-tales-forge/pull/54)), `TalesForge.AdminAuth`.
 
 - "Sign in with GitHub", checked against the team in `ADMIN_GITHUB_TEAM` (`whyse-ab/tales-forge`), is the only login. Only active members get in (pending invites don't count); membership is rechecked on every request and LiveView mount (cached for 5 minutes). Logins last up to 30 days.
-- **Every page and LiveView needs a signed-in team member**: play, character creation, admin, costs, code docs and playtest reports. Any team member gets the admin pages; there is no second admin check.
+- **Every page and LiveView needs a signed-in team member**: play, character creation, the founders' page (`/team`), admin, costs, code docs and playtest reports. Any team member gets the admin pages; there is no second admin check.
 - Open signed out: `/health` (the Fly check), the login page, the GitHub OAuth request and callback, logout, the static files the login page needs, and the token-guarded machine-to-machine `GET /internal/costs` (`COSTS_PEER_TOKEN`; 404 while unset).
 - **No unauthenticated route, LiveView event or endpoint may start an AI call.**
 - `test/ex_tales_forge_web/access_control_test.exs` holds the public route list and fails for any other route reachable signed out. A new public route needs a reason there and a decision.
