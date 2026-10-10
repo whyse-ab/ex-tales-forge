@@ -30,7 +30,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   use TalesForgeWeb, :live_component
 
   alias TalesForge.Board
-  alias TalesForge.Board.{Idea, Link, Transitions}
+  alias TalesForge.Board.{Idea, Transitions}
 
   @impl true
   def update(%{refresh: true}, socket), do: {:ok, load(socket)}
@@ -55,6 +55,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
 
     assign(socket,
       board: board,
+      prs: prs(),
       open: open
     )
   end
@@ -184,14 +185,6 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   def handle_event("comment", %{"card_id" => id, "body" => body}, socket),
     do: with_idea(socket, id, &Board.add_comment(&1, socket.assigns.founder, body))
 
-  def handle_event("link", %{"card_id" => id} = params, socket),
-    do:
-      with_idea(
-        socket,
-        id,
-        &Board.add_link(&1, socket.assigns.founder, Map.take(params, ~w(kind url label)))
-      )
-
   def handle_event("refine", %{"card_id" => id} = params, socket) do
     attrs = %{
       "details" => params["details"],
@@ -254,6 +247,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
         <.area
           column="ideas"
           size={:thin}
+          prs={@prs}
           board={@board}
           founder={@founder}
           myself={@myself}
@@ -264,6 +258,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
             :for={c <- ~w(refining check building)}
             column={c}
             size={:thin}
+            prs={@prs}
             board={@board}
             founder={@founder}
             myself={@myself}
@@ -272,6 +267,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
         <.area
           column="parked"
           size={:thin}
+          prs={@prs}
           board={@board}
           founder={@founder}
           myself={@myself}
@@ -280,6 +276,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
         <.area
           column="done"
           size={:thin}
+          prs={@prs}
           board={@board}
           founder={@founder}
           myself={@myself}
@@ -318,6 +315,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
             founder={@founder}
             myself={@myself}
             error={@errors[@open.id]}
+            prs={@prs}
             comment_for={@comment_for}
             downvote_for={@downvote_for}
             editing={@editing}
@@ -337,6 +335,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   attr :founder, :string, required: true
   attr :size, :atom, required: true
   attr :board, :map, required: true
+  attr :prs, :map, default: %{}
   attr :myself, :any, required: true
   attr :class, :string, default: nil
 
@@ -413,6 +412,15 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
               >
                 Needs work
               </span>
+              <span
+                :if={n = Board.pr_number_of(idea)}
+                id={"tile-#{idea.id}-pr"}
+                class={["badge badge-xs shrink-0", elem(pr_status(@prs[n]), 1)]}
+                aria-label={"PR #{n}, #{elem(pr_status(@prs[n]), 0)}"}
+                title={"PR #{n}: #{elem(pr_status(@prs[n]), 0)}"}
+              >
+                #{n}
+              </span>
             </button>
             <.tile_votes idea={idea} founder={@founder} myself={@myself} />
           </li>
@@ -487,13 +495,48 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
     """
   end
 
-  defp step_label(%{kind: :back, to: to}), do: "Back to #{Transitions.label(to)}"
-  defp step_label(%{kind: :hold}), do: "On hold"
-  defp step_label(%{kind: :forward, to: to}), do: "Forward to #{Transitions.label(to)}"
-
   defp comment_prompt("check", "building"), do: "Answer or defer the open questions"
   defp comment_prompt(_from, "refining"), do: "What must change? (necessary)"
   defp comment_prompt(_from, _to), do: "Comment for the move log"
+
+  # The PR feed's pull requests by number (TalesForge.PrFeed: title, state,
+  # and whether production runs the merge, from /internal/version).
+  defp prs do
+    Map.new(TalesForge.PrFeed.snapshot().items, &{&1.number, &1})
+  rescue
+    _ -> %{}
+  end
+
+  defp pr_of_link(%{url: url}) do
+    case Regex.run(~r{/pull/(\d+)}, url) do
+      [_, n] -> String.to_integer(n)
+      _ -> nil
+    end
+  end
+
+  @doc """
+  The status of a PR from the PR feed (`nil` when the feed has no such PR),
+  with its badge colour.
+
+      iex> TalesForgeWeb.TeamIdeaBoard.pr_status(%{state: :open})
+      {"open", "badge-info"}
+      iex> TalesForgeWeb.TeamIdeaBoard.pr_status(%{state: :merged, deployed: %{production: :deployed}})
+      {"on prod", "badge-success"}
+      iex> TalesForgeWeb.TeamIdeaBoard.pr_status(%{state: :merged, deployed: %{production: :pending}})
+      {"merged", "badge-primary"}
+      iex> TalesForgeWeb.TeamIdeaBoard.pr_status(%{state: :closed})
+      {"closed", "badge-ghost"}
+      iex> TalesForgeWeb.TeamIdeaBoard.pr_status(nil)
+      {"status unknown", "badge-ghost"}
+  """
+  @spec pr_status(map() | nil) :: {String.t(), String.t()}
+  def pr_status(%{state: :merged, deployed: %{production: :deployed}}),
+    do: {"on prod", "badge-success"}
+
+  def pr_status(%{state: :merged}), do: {"merged", "badge-primary"}
+  def pr_status(%{state: :open}), do: {"open", "badge-info"}
+  def pr_status(%{state: _}), do: {"closed", "badge-ghost"}
+  def pr_status(_), do: {"status unknown", "badge-ghost"}
 
   # How a tile looks and where it may go: faded with no votes (in Ideas), a
   # "needs work" border with a downvote, the reason it cannot take its next
@@ -566,6 +609,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   attr :founder, :string, required: true
   attr :myself, :any, required: true
   attr :error, :string, default: nil
+  attr :prs, :map, default: %{}
   attr :comment_for, :any, default: nil
   attr :downvote_for, :any, default: nil
   attr :editing, :any, default: nil
@@ -735,7 +779,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
                 b.kind == :forward && "team-cta"
               ]}
             >
-              {step_label(b)}
+              {b.label}
             </button>
           </div>
           <p
@@ -744,7 +788,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
             id={"card-#{@idea.id}-#{b.kind}-why"}
             class="text-xs text-[var(--paper-muted)]"
           >
-            {step_label(b)}: {elem(b.answer, 1)}
+            {b.label}: {elem(b.answer, 1)}
           </p>
           <form
             :if={@comment_to}
@@ -955,40 +999,41 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
 
         <section aria-label="Links" class="space-y-1">
           <h5 class="font-semibold">Links</h5>
-          <ul class="space-y-0.5">
-            <li :for={l <- @idea.links}>
-              <span class="text-xs uppercase text-[var(--paper-muted)]">{l.kind}</span>
-              <a
-                href={l.url}
-                class="break-all text-[var(--paper-accent)] underline"
-                rel="noopener noreferrer"
-              >{l.label || l.url}</a>
+          <p :if={@idea.links == []} class="text-xs text-[var(--paper-muted)]">
+            No links yet. Bobby and Gentry add the PR and the playtest run.
+          </p>
+          <ul id={"card-#{@idea.id}-links"} class="space-y-0.5">
+            <li :for={l <- @idea.links} data-kind={l.kind}>
+              <%= case {l.kind, pr_of_link(l)} do %>
+                <% {"pr", n} when is_integer(n) -> %>
+                  <% {status, colour} = pr_status(@prs[n]) %>
+                  <a
+                    href={l.url}
+                    class="text-[var(--paper-accent)] underline"
+                    rel="noopener noreferrer"
+                  >
+                    PR #{n}
+                  </a>
+                  <span>{(@prs[n] && @prs[n].title) || l.label}</span>
+                  <span class={["badge badge-sm", colour]} data-role="pr-status">{status}</span>
+                <% {"playtest", _} -> %>
+                  <a
+                    href={l.url}
+                    class="text-[var(--paper-accent)] underline"
+                    rel="noopener noreferrer"
+                  >
+                    Playtest run{if l.label, do: ": " <> l.label}
+                  </a>
+                <% _ -> %>
+                  <span class="text-xs uppercase text-[var(--paper-muted)]">{l.kind}</span>
+                  <a
+                    href={l.url}
+                    class="break-all text-[var(--paper-accent)] underline"
+                    rel="noopener noreferrer"
+                  >{l.label || l.url}</a>
+              <% end %>
             </li>
           </ul>
-          <form
-            phx-submit="link"
-            phx-target={@myself}
-            class="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-1"
-            id={"card-#{@idea.id}-link"}
-          >
-            <input type="hidden" name="card_id" value={@idea.id} />
-            <select
-              name="kind"
-              aria-label="Link kind"
-              class="min-h-11 rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-1"
-            >
-              <option :for={k <- Link.kinds()} value={k}>{k}</option>
-            </select>
-            <input
-              name="url"
-              type="url"
-              required
-              placeholder="https://…"
-              aria-label="Link URL"
-              class="min-w-0 rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-2"
-            />
-            <button type="submit" class="min-h-11 rounded border px-3">Add</button>
-          </form>
         </section>
 
         <section aria-label="Comments" class="space-y-1">

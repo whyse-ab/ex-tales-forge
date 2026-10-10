@@ -76,9 +76,9 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     {:ok, view, _} = live(conn, "/team")
     open(view, idea)
 
-    assert has_element?(view, "#card-#{idea.id}-hold", "On hold")
+    assert has_element?(view, "#card-#{idea.id}-hold", "Put on hold")
     refute has_element?(view, "#card-#{idea.id}-back")
-    view |> element("#card-#{idea.id}-forward", "Forward to Refining (Case)") |> render_click()
+    view |> element("#card-#{idea.id}-forward", "Send to Refining") |> render_click()
     assert has_element?(view, "#board-col-refining #tile-#{idea.id}")
 
     # Case's refinement: read-only, with an Edit button that opens the form.
@@ -104,7 +104,9 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     refute has_element?(view, "#card-#{idea.id}-edit-refinement")
 
     # Forward needs the open questions answered: it opens a comment box.
-    assert has_element?(view, "#card-#{idea.id}-back", "Back to Refining (Case)")
+    assert has_element?(view, "#card-#{idea.id}-back", "Back to Refining")
+    assert has_element?(view, "#card-#{idea.id}-forward", "Start building")
+    assert has_element?(view, "#card-#{idea.id}-hold", "Put on hold")
     view |> element("#card-#{idea.id}-forward") |> render_click()
     assert has_element?(view, "#card-#{idea.id}-move textarea[required]")
     view |> element("#card-#{idea.id}-move button", "Cancel") |> render_click()
@@ -130,11 +132,69 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     view |> form("#card-#{idea.id}-comment", %{body: "Looks fun"}) |> render_submit()
     assert render(view) =~ "Looks fun"
 
-    view
-    |> form("#card-#{idea.id}-link", %{kind: "doc", url: "https://example.com/d"})
-    |> render_submit()
+    # Links are read-only for founders: bots add them through the API.
+    refute has_element?(view, "#card-#{idea.id}-link")
+    assert has_element?(view, "#board-modal", "No links yet.")
+  end
 
-    assert has_element?(view, ~s(#card-#{idea.id} a[href="https://example.com/d"]))
+  test "links: PR number, title and status from the PR feed, the playtest run, a PR badge on the thin card",
+       %{conn: conn} do
+    {:ok, idea} = Board.create_idea("bo@example.com", %{"title" => "Fishing"})
+    url = "https://github.com/whyse-ab/ex-tales-forge/pull/127"
+    {:ok, idea} = Board.add_link(idea, "bot:bobby", %{"kind" => "pr", "url" => url})
+
+    {:ok, idea} =
+      Board.add_link(idea, "bot:gentry", %{
+        "kind" => "playtest",
+        "url" => "https://tales-forge-playtest.fly.dev/admin/playtest/runs/abc",
+        "label" => "batch 12"
+      })
+
+    assert {:error, "Bots add the links" <> _} =
+             Board.add_link(idea, "bo@example.com", %{"kind" => "doc", "url" => "https://x/y"})
+
+    feed = TalesForge.PrFeed.empty(:ok)
+
+    item =
+      TalesForge.PrFeedFixtures.item(127,
+        title: "Thin cards everywhere",
+        state: :merged,
+        merged_at: DateTime.utc_now(),
+        deployed: %{playtest: :deployed, production: :deployed}
+      )
+
+    TalesForge.PrFeed.publish(%{feed | items: [item]})
+    on_exit(fn -> TalesForge.PrFeed.publish(TalesForge.PrFeed.empty(:not_configured)) end)
+
+    {:ok, view, _} = live(conn, "/team")
+
+    assert has_element?(
+             view,
+             ~s(#tile-#{idea.id}-pr.badge-success[aria-label="PR 127, on prod"]),
+             "#127"
+           )
+
+    open(view, idea)
+
+    assert has_element?(
+             view,
+             ~s(#card-#{idea.id}-links li[data-kind="pr"] a[href="#{url}"]),
+             "PR #127"
+           )
+
+    assert has_element?(
+             view,
+             ~s(#card-#{idea.id}-links li[data-kind="pr"]),
+             "Thin cards everywhere"
+           )
+
+    assert has_element?(view, ~s(#card-#{idea.id}-links [data-role="pr-status"]), "on prod")
+
+    assert has_element?(
+             view,
+             ~s(#card-#{idea.id}-links li[data-kind="playtest"] a),
+             "Playtest run: batch 12"
+           )
   end
 
   describe "card states (design-board-states.md)" do
@@ -159,7 +219,7 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
       assert has_element?(
                view,
                "#card-#{idea.id}-forward-why",
-               "Forward to Refining (Case): Needs an upvote."
+               "Send to Refining: Needs an upvote."
              )
 
       refute has_element?(view, "#card-#{idea.id}-hold[disabled]")
