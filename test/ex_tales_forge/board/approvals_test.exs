@@ -174,7 +174,7 @@ defmodule TalesForge.Board.ApprovalsTest do
       assert payload["pr"]["number"] == 125
     end
 
-    test "permissions: bots can't answer, only while a PR waits, only with a PR; a new sha needs a new Approve",
+    test "permissions: bots can't answer, only while a PR waits, only with a PR; a new sha keeps the Approve",
          %{idea: idea} do
       assert {:error, "Only a founder can answer a PR."} =
                Board.answer_pr(idea, "bot:bobby", :approve, "")
@@ -190,7 +190,8 @@ defmodule TalesForge.Board.ApprovalsTest do
                Board.answer_pr(idea, "ada@example.com", :approve, "")
 
       {:ok, idea} = Board.link_pr(%{@pr | "head_sha" => "beef000"})
-      assert Board.pr_waiting?(idea)
+      refute Board.pr_waiting?(idea)
+      assert Board.facts(idea).pr == :approved
 
       {:ok, plain} = Board.create_idea("ada@example.com", %{"title" => "No PR"})
 
@@ -198,6 +199,74 @@ defmodule TalesForge.Board.ApprovalsTest do
                Board.answer_pr(plain, "ada@example.com", :approve, "")
 
       refute_receive {:hook, _, ["pr.approved" | _]}
+    end
+  end
+
+  describe "approve once: Bobby links the same PR again (decision 2026-10-10)" do
+    setup do
+      {200, card} = Api.handle(:pr, :bobby, @pr)
+      flush_hooks()
+      {:ok, idea: Board.get_idea!(card["id"])}
+    end
+
+    defp flush_hooks do
+      receive do
+        {:hook, _, _} -> flush_hooks()
+      after
+        0 -> :ok
+      end
+    end
+
+    defp relink(sha, extra \\ %{}),
+      do: Api.handle(:pr, :bobby, @pr |> Map.put("head_sha", sha) |> Map.merge(extra))
+
+    defp notes(idea), do: Enum.map(Board.get_idea!(idea.id).transitions, & &1.note)
+
+    test "before any answer: the new sha, one approval request in the history", %{idea: idea} do
+      assert {200, card} = relink("bbb2222ffff")
+      assert card["pr"]["head_sha"] == "bbb2222ffff"
+      assert List.last(card["history"])["note"] == "New commit bbb2222 on PR #125."
+      assert Enum.count(notes(idea), &(&1 =~ "waits for a founder's OK")) == 1
+      assert Board.pr_waiting?(Board.get_idea!(idea.id))
+    end
+
+    test "after Approve: a new sha keeps the approval and wakes Bobby with the newest head",
+         %{idea: idea} do
+      {:ok, _} = Board.answer_pr(idea, "fredrik@whyse.se", :approve, nil)
+      flush_hooks()
+
+      assert {200, card} = relink("ccc3333eeee")
+      idea = Board.get_idea!(idea.id)
+      refute Board.pr_waiting?(idea)
+      assert Board.facts(idea).pr == :approved
+
+      assert List.last(card["history"])["note"] ==
+               "New commit ccc3333 after approval; approval kept."
+
+      assert [_, kept] = Enum.sort_by(idea.approvals, & &1.inserted_at, DateTime)
+
+      assert {kept.decision, kept.founder, kept.head_sha} ==
+               {"approved", "fredrik@whyse.se", "ccc3333eeee"}
+
+      assert_receive {:hook, headers, body}
+      assert header(headers, "x-board-event") == "pr.approved"
+      assert Jason.decode!(body) |> inspect() =~ "ccc3333eeee"
+    end
+
+    test "player_change: true asks the founders again", %{idea: idea} do
+      {:ok, _} = Board.answer_pr(idea, "fredrik@whyse.se", :approve, nil)
+      flush_hooks()
+
+      assert {200, card} = relink("ddd4444", %{"player_change" => true})
+      assert Board.pr_waiting?(Board.get_idea!(idea.id))
+      assert List.last(card["history"])["note"] =~ "PR #125 (ddd4444) waits for a founder's OK"
+      refute_receive {:hook, _, _}
+    end
+
+    test "after Request changes: the next link asks again", %{idea: idea} do
+      {:ok, _} = Board.answer_pr(idea, "fredrik@whyse.se", :request_changes, "Shorter text")
+      assert {200, _} = relink("eee5555")
+      assert Board.pr_waiting?(Board.get_idea!(idea.id))
     end
   end
 end

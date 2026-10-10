@@ -802,8 +802,20 @@ defmodule TalesForge.Board do
   `idea_id` (an existing card) or `title` (a new card, which Bobby makes in
   Building). The card gets the PR fields and a `pr` link and stays in
   Building with "PR waiting for approval" (decision 2026-10-10, 15:08), with a
-  line in the move log. Linking the PR again updates the head sha and note; a
-  new head sha needs a new Approve.
+  line in the move log.
+
+  Linking the same PR again updates the head sha and the note ("approve once",
+  decision 2026-10-10):
+
+  - Before any answer: one line "New commit <sha>" in the history. The card
+    keeps its one approval request.
+  - After an Approve: the approval is kept for the new head sha (a new
+    `TalesForge.Board.Approval` row for the same founder), the history gets
+    "New commit <sha> after approval; approval kept", and Bobby gets
+    `pr.approved` again with the newest head, so the merge uses that head.
+  - With `player_change: true` (the change alters what the PR does for
+    players), or after Request changes: the PR waits for a founder's OK
+    again.
   """
   @spec link_pr(map()) :: {:ok, Idea.t()} | error()
   def link_pr(attrs) do
@@ -884,6 +896,8 @@ defmodule TalesForge.Board do
 
   defp write_pr(idea, number, attrs) do
     note = String.trim(attrs["player_note"])
+    sha = String.trim(attrs["head_sha"])
+    relink = relink(idea, number, sha, attrs["player_change"] in [true, "true"])
 
     Multi.new()
     |> Multi.update(
@@ -891,7 +905,7 @@ defmodule TalesForge.Board do
       Idea.update_changeset(idea, %{
         pr_number: number,
         pr_url: attrs["url"],
-        pr_head_sha: String.trim(attrs["head_sha"]),
+        pr_head_sha: sha,
         player_note: note
       })
     )
@@ -901,9 +915,10 @@ defmodule TalesForge.Board do
         from: idea.column,
         to: idea.column,
         actor: "bot:bobby",
-        note: "PR ##{number} (#{short(attrs["head_sha"])}) waits for a founder's OK: #{note}"
+        note: relink_note(relink, number, sha, note)
       })
     end)
+    |> keep_approval(relink, idea, number, attrs["url"], sha)
     |> then(fn multi ->
       if Enum.any?(idea.links, &(&1.kind == "pr" and &1.url == attrs["url"])),
         do: multi,
@@ -922,6 +937,66 @@ defmodule TalesForge.Board do
     end)
     |> run(idea.id)
   end
+
+  # What a link of PR `number` at `sha` means for the card's approval:
+  # :request (a new request), :new_commit (same PR, no answer yet),
+  # {:kept, approval} (approved before; the approval stays), :same (same
+  # sha, approved).
+  defp relink(%Idea{pr_number: number} = idea, number, sha, player_change?) do
+    latest =
+      idea.approvals
+      |> Enum.filter(&(&1.pr_number == number))
+      |> Enum.max_by(& &1.inserted_at, DateTime, fn -> nil end)
+
+    case latest do
+      nil -> :new_commit
+      %Approval{decision: "approved"} when player_change? -> :request
+      %Approval{decision: "approved", head_sha: ^sha} -> :same
+      %Approval{decision: "approved"} = approval -> {:kept, approval}
+      _ -> :request
+    end
+  end
+
+  defp relink(_idea, _number, _sha, _player_change?), do: :request
+
+  defp relink_note(:request, number, sha, note),
+    do: "PR ##{number} (#{short(sha)}) waits for a founder's OK: #{note}"
+
+  defp relink_note(:new_commit, number, sha, _note),
+    do: "New commit #{short(sha)} on PR ##{number}."
+
+  defp relink_note(:same, number, sha, _note),
+    do: "PR ##{number} (#{short(sha)}) linked again; approval kept."
+
+  defp relink_note({:kept, _}, _number, sha, _note),
+    do: "New commit #{short(sha)} after approval; approval kept."
+
+  # The approval stays with the newest head: a new approval row for the same
+  # founder, and pr.approved wakes Bobby with the newest head for the merge.
+  defp keep_approval(multi, {:kept, approval}, idea, number, url, sha) do
+    multi
+    |> Multi.insert(
+      :approval,
+      Approval.changeset(%Approval{}, %{
+        idea_id: idea.id,
+        decision: "approved",
+        founder: approval.founder,
+        pr_number: number,
+        head_sha: sha,
+        comment: "Approval kept after new commit #{short(sha)}."
+      })
+    )
+    |> Events.add(:pr_approved, idea, %{
+      actor: approval.founder,
+      from: idea.column,
+      to: idea.column,
+      pr: %{"number" => number, "url" => url, "head_sha" => sha},
+      approver: approval.founder,
+      comment: "Approval kept after new commit #{short(sha)}."
+    })
+  end
+
+  defp keep_approval(multi, _relink, _idea, _number, _url, _sha), do: multi
 
   @doc """
   Marks the open PR `number` (head `head_sha`, at `url`) on a Building card as

@@ -19,9 +19,16 @@ defmodule TalesForge.Board.Api do
   `POST /internal/board/prs` (Bobby only, 403 for the others): a normal-lane
   PR that needs a founder's merge OK. JSON `number`, `url`, `head_sha`,
   `player_note` (one line: what changes for players) and `idea_id` (an existing
-  card) or `title` (a new card). The card goes to Founder check; the founder's
-  Approve / Request changes wakes Bobby with `pr.approved` /
-  `pr.changes_requested`. Fast-lane PRs need no OK: don't post them.
+  card) or `title` (a new card), and optional `player_change`. The card stays
+  in Building with the PR waiting; the founder's Approve / Request changes
+  wakes Bobby with `pr.approved` / `pr.changes_requested`. Fast-lane PRs need
+  no OK: post only normal-lane PRs.
+
+  Approve once (decision 2026-10-10): post the PR again after each new commit.
+  An approval is kept for the new `head_sha`, and `pr.approved` comes again
+  with the newest head: merge that head. Set `player_change: true` when the
+  new commit changes what the PR does for players; then the founders answer
+  again.
 
   Errors: 404 unknown card, 422 with `{"error": "..."}` for a refused change.
   """
