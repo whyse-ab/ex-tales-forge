@@ -39,6 +39,7 @@ defmodule TalesForge.Board.Idea do
     has_many :transitions, Transition
     has_many :links, Link
     has_many :approvals, TalesForge.Board.Approval
+    has_many :answers, TalesForge.Board.Answer
 
     timestamps(type: :utc_datetime)
   end

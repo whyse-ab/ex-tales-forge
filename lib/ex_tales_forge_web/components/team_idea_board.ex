@@ -30,7 +30,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   use TalesForgeWeb, :live_component
 
   alias TalesForge.Board
-  alias TalesForge.Board.{Idea, Transitions}
+  alias TalesForge.Board.{Answer, Idea, Transitions}
 
   @impl true
   def update(%{refresh: true}, socket), do: {:ok, load(socket)}
@@ -181,6 +181,22 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
         ),
       else: result(socket, id, {:error, "Approve or request changes."})
   end
+
+  def handle_event("answer", %{"card_id" => id, "question" => q, "answer" => a}, socket),
+    do:
+      with_idea(
+        socket,
+        id,
+        &Board.answer_question(&1, socket.assigns.founder, q, %{"answer" => a})
+      )
+
+  def handle_event("defer", %{"card_id" => id, "question" => q, "deferred" => d}, socket),
+    do:
+      with_idea(
+        socket,
+        id,
+        &Board.answer_question(&1, socket.assigns.founder, q, %{"deferred" => d == "true"})
+      )
 
   def handle_event("comment", %{"card_id" => id, "body" => body}, socket),
     do: with_idea(socket, id, &Board.add_comment(&1, socket.assigns.founder, body))
@@ -536,9 +552,109 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
     """
   end
 
-  defp comment_prompt("check", "building"), do: "Answer or defer the open questions"
   defp comment_prompt(_from, "refining"), do: "What must change? (necessary)"
   defp comment_prompt(_from, _to), do: "Comment for the move log"
+
+  attr :idea, :any, required: true
+  attr :founder, :string, required: true
+  attr :myself, :any, required: true
+
+  # Case's open questions, each with its own answer box and Defer toggle, in
+  # any column. An answer by another founder is read-only.
+  defp questions(assigns) do
+    assigns =
+      assign(assigns,
+        items: Board.questions(assigns.idea) |> Enum.with_index(),
+        open: Board.facts(assigns.idea).open_questions
+      )
+
+    ~H"""
+    <section
+      :if={@items != []}
+      id={"card-#{@idea.id}-questions"}
+      aria-labelledby={"card-#{@idea.id}-questions-title"}
+      class="space-y-2"
+    >
+      <h5 id={"card-#{@idea.id}-questions-title"} class="font-semibold">
+        Open questions
+        <span class="badge badge-sm ml-1" data-role="open-count">
+          {if @open == 0, do: "all settled", else: "#{@open} open"}
+        </span>
+      </h5>
+      <ol class="space-y-2">
+        <li
+          :for={{{q, a}, i} <- @items}
+          id={"card-#{@idea.id}-q#{i}"}
+          data-state={question_state(a)}
+          class={[
+            "rounded-lg border p-2",
+            if(Answer.settled?(a), do: "border-[var(--paper-rule)]", else: "border-warning")
+          ]}
+        >
+          <p id={"card-#{@idea.id}-q#{i}-text"} class="font-semibold">{q}</p>
+          <p :if={a && a.answer} class="mt-1" data-role="answer">
+            <span class="badge badge-success badge-xs">Answered</span>
+            {a.answer}
+            <span class="text-xs text-[var(--paper-muted)]">
+              by {who(a.answered_by)},
+              <time datetime={DateTime.to_iso8601(a.answered_at)}>{TalesForgeWeb.TimeAgo.stockholm(
+                a.answered_at
+              )}</time>
+            </span>
+          </p>
+          <p :if={a && a.deferred} class="mt-1 text-xs" data-role="deferred">
+            <span class="badge badge-ghost badge-xs">Deferred</span> by {who(a.deferred_by)}
+          </p>
+          <form
+            :if={!(a && a.answered_by not in [nil, @founder])}
+            id={"card-#{@idea.id}-q#{i}-form"}
+            phx-submit="answer"
+            phx-target={@myself}
+            class="mt-1 grid gap-1 sm:grid-cols-[minmax(0,1fr)_auto]"
+          >
+            <input type="hidden" name="card_id" value={@idea.id} />
+            <input type="hidden" name="question" value={q} />
+            <label class="sr-only" for={"card-#{@idea.id}-q#{i}-answer"}>Your answer to: {q}</label>
+            <textarea
+              id={"card-#{@idea.id}-q#{i}-answer"}
+              name="answer"
+              rows="2"
+              required
+              aria-describedby={"card-#{@idea.id}-q#{i}-text"}
+              placeholder="Your answer"
+              class="min-w-0 rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-2 py-1"
+            >{a && a.answered_by == @founder && a.answer}</textarea>
+            <button type="submit" class="min-h-11 rounded border px-3 font-semibold">
+              {if a && a.answer, do: "Save my answer", else: "Answer"}
+            </button>
+          </form>
+          <button
+            type="button"
+            id={"card-#{@idea.id}-q#{i}-defer"}
+            phx-click="defer"
+            phx-value-card_id={@idea.id}
+            phx-value-question={q}
+            phx-value-deferred={to_string(!(a && a.deferred))}
+            phx-target={@myself}
+            aria-pressed={to_string((a && a.deferred) || false)}
+            aria-describedby={"card-#{@idea.id}-q#{i}-text"}
+            class="mt-1 min-h-11 rounded border px-3 text-xs"
+          >
+            {if a && a.deferred, do: "Deferred (select to open again)", else: "Defer"}
+          </button>
+        </li>
+      </ol>
+    </section>
+    """
+  end
+
+  defp question_state(a) do
+    cond do
+      a && a.deferred -> "deferred"
+      Answer.settled?(a) -> "answered"
+      true -> "open"
+    end
+  end
 
   # The PR feed's pull requests by number (TalesForge.PrFeed: title, state,
   # and whether production runs the merge, from /internal/version).
@@ -915,6 +1031,8 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
             </li>
           </ol>
         </section>
+
+        <.questions idea={@idea} founder={@founder} myself={@myself} />
 
         <section aria-label="Case's refinement" class="space-y-1">
           <div class="flex items-center justify-between gap-2">

@@ -41,7 +41,7 @@ defmodule TalesForge.Board.Transitions do
 
     * `up`, `down`: the number of upvotes and downvotes
     * `refined`: the refinement has a verdict, a cost and a list of questions
-    * `open_questions`: the number of open questions in the refinement
+    * `open_questions`: the number of open questions with no answer and not deferred
     * `comment`: the comment that goes with the move (nil or blank for none)
     * `pr`: `nil` (no PR waits), `:awaiting` (a PR waits for a founder's OK)
       or `:approved` (a founder pressed Approve)
@@ -130,16 +130,16 @@ defmodule TalesForge.Board.Transitions do
       {:error, "A founder moves this card."}
 
   Founder check → Building: a founder, when every open question has an
-  answer or is deferred. The founder writes the answers or the deferral in
-  the move comment; with no open questions, no comment is necessary.
+  answer or is deferred (each question has its own answer box and Defer
+  toggle on the full card). The move needs no comment.
 
       iex> alias TalesForge.Board.Transitions, as: T
       iex> T.allowed?(%{open_questions: 0}, "check", "building", {:founder, "a@x"})
       :ok
       iex> T.allowed?(%{open_questions: 2}, "check", "building", {:founder, "a@x"})
-      {:error, "Answer or defer the 2 open questions in the comment."}
-      iex> T.allowed?(%{open_questions: 2, comment: "1: yes. 2: later."}, "check", "building", {:founder, "a@x"})
-      :ok
+      {:error, "Answer or defer the 2 open questions."}
+      iex> T.allowed?(%{open_questions: 1, comment: "a comment is not an answer"}, "check", "building", {:founder, "a@x"})
+      {:error, "Answer or defer the 1 open question."}
       iex> T.allowed?(%{}, "check", "building", {:bot, :bobby})
       {:error, "A founder moves this card."}
 
@@ -265,8 +265,8 @@ defmodule TalesForge.Board.Transitions do
           q = n(card, :open_questions)
 
           need(
-            q == 0 or comment?(card),
-            "Answer or defer the #{q} open #{if q == 1, do: "question", else: "questions"} in the comment."
+            q == 0,
+            "Answer or defer the #{q} open #{if q == 1, do: "question", else: "questions"}."
           )
       end
     end
@@ -313,6 +313,19 @@ defmodule TalesForge.Board.Transitions do
 
   def allowed?(_card, from, to, _actor),
     do: {:error, "#{label(from)} to #{label(to)} is not a move on the board."}
+
+  @doc """
+  Who an event that is not a move wakes. An answer or a deferral of an
+  open question (`question.answered`) wakes Case while the card is in
+  Refining; in other columns the founders see it on the card.
+
+      iex> alias TalesForge.Board.Transitions, as: T
+      iex> {T.event_wakes(:question_answered, "refining"), T.event_wakes(:question_answered, "check")}
+      {[:case], []}
+  """
+  @spec event_wakes(atom(), String.t() | nil) :: [:case]
+  def event_wakes(:question_answered, "refining"), do: [:case]
+  def event_wakes(_event, _column), do: []
 
   @doc """
   Who a move wakes: `:case`, `:bobby`, and `:founders` (a badge on the board,

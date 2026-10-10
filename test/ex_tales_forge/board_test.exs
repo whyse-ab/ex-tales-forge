@@ -26,6 +26,13 @@ defmodule TalesForge.BoardTest do
     Board.get_idea!(idea.id)
   end
 
+  defp defer!(idea) do
+    {:ok, idea} =
+      Board.answer_question(idea, @ada, "After how many visits?", %{"deferred" => true})
+
+    idea
+  end
+
   defp refined!(idea) do
     {:ok, idea} = Board.vote(idea, @ada, 1)
     {:ok, idea} = Board.move(idea, {:founder, @ada}, "refining")
@@ -127,7 +134,7 @@ defmodule TalesForge.BoardTest do
       github!("behind")
       idea = idea!() |> refined!()
       {:ok, idea} = Board.move(idea, {:bot, :case}, "check")
-      {:ok, idea} = Board.move(idea, {:founder, @bo}, "building", "Deferred.")
+      {:ok, idea} = idea |> defer!() |> Board.move({:founder, @bo}, "building")
 
       {:ok, idea} =
         Board.add_link(idea, "bot:bobby", %{
@@ -149,10 +156,13 @@ defmodule TalesForge.BoardTest do
       {:ok, idea} = Board.move(idea, {:bot, :case}, "check")
       {:ok, idea} = Board.add_comment(idea, @bo, "Only after the second visit?")
 
-      assert {:error, "Answer or defer the 1 open question in the comment."} =
-               Board.move(idea, {:founder, @bo}, "building")
+      assert {:error, "Answer or defer the 1 open question."} =
+               Board.move(idea, {:founder, @bo}, "building", "A comment is not an answer.")
 
-      {:ok, idea} = Board.move(idea, {:founder, @bo}, "building", "After two visits.")
+      {:ok, idea} =
+        Board.answer_question(idea, @bo, "After how many visits?", %{"answer" => "Two."})
+
+      {:ok, idea} = Board.move(idea, {:founder, @bo}, "building")
       assert idea.column == "building"
 
       assert {:error, "Link the PR that is on prod first."} =
@@ -168,16 +178,17 @@ defmodule TalesForge.BoardTest do
       assert idea.column == "done"
       assert {:error, "Done is final." <> _} = Board.move(idea, {:founder, @ada}, "ideas")
 
-      assert Enum.map(idea.transitions, &{&1.from, &1.to}) == [
-               {nil, "ideas"},
-               {"ideas", "refining"},
-               {"refining", "check"},
-               {"check", "building"},
-               {"building", "done"}
-             ]
+      assert idea.transitions |> Enum.reject(&(&1.from == &1.to)) |> Enum.map(&{&1.from, &1.to}) ==
+               [
+                 {nil, "ideas"},
+                 {"ideas", "refining"},
+                 {"refining", "check"},
+                 {"check", "building"},
+                 {"building", "done"}
+               ]
 
       assert Enum.at(idea.transitions, 3).actor == @bo
-      assert Enum.at(idea.transitions, 3).note == "After two visits."
+      assert Enum.at(idea.transitions, 3).note == "Answered: After how many visits? Answer: Two."
     end
 
     test "vote gates: Ideas → Refining needs an upvote and no downvote" do
@@ -211,7 +222,7 @@ defmodule TalesForge.BoardTest do
                Board.move(idea, {:founder, @ada}, "refining")
 
       assert {:error, "A founder moves this card."} = Board.move(idea, {:bot, :case}, "building")
-      {:ok, idea} = Board.move(idea, {:founder, @ada}, "building", "Deferred.")
+      {:ok, idea} = idea |> defer!() |> Board.move({:founder, @ada}, "building")
       assert {:error, _} = Board.vote(idea, @ada, 1)
       assert {:error, _} = Board.refine(idea, %{"details" => "x"})
 
@@ -268,6 +279,75 @@ defmodule TalesForge.BoardTest do
       imported = Repo.get_by!(Idea, collab_decision_id: d.id) |> Repo.preload(:comments)
       assert imported.title == d.title
       assert [%{body: "An old comment"}] = imported.comments
+    end
+  end
+
+  describe "open questions (answers, deferrals)" do
+    test "answer, edit own answer, others read only, defer toggles, history" do
+      idea = idea!() |> refined!()
+      q = "After how many visits?"
+      assert [{^q, nil}] = Board.questions(idea)
+      assert Board.facts(idea).open_questions == 1
+
+      assert {:error, "Write an answer, or defer the question."} =
+               Board.answer_question(idea, @ada, q, %{"answer" => "  "})
+
+      assert {:error, "Founders answer the open questions."} =
+               Board.answer_question(idea, "bot:case", q, %{"answer" => "x"})
+
+      assert {:error, "That question is not on the card any more."} =
+               Board.answer_question(idea, @ada, "Other?", %{"answer" => "x"})
+
+      {:ok, idea} = Board.answer_question(idea, @ada, q, %{"answer" => "Two."})
+
+      assert [{^q, %{answer: "Two.", answered_by: @ada, answered_at: %DateTime{}}}] =
+               Board.questions(idea)
+
+      assert Board.facts(idea).open_questions == 0
+
+      {:ok, idea} = Board.answer_question(idea, @ada, q, %{"answer" => "Three."})
+      assert [{_, %{answer: "Three."}}] = Board.questions(idea)
+
+      assert {:error, msg} = Board.answer_question(idea, @bo, q, %{"answer" => "Four."})
+      assert msg =~ "Only they can change the answer"
+
+      {:ok, idea} = Board.answer_question(idea, @bo, q, %{"deferred" => true})
+      assert [{_, %{deferred: true, deferred_by: @bo}}] = Board.questions(idea)
+      {:ok, idea} = Board.answer_question(idea, @bo, q, %{"deferred" => false})
+      assert [{_, %{deferred: false}}] = Board.questions(idea)
+
+      notes = Enum.map(idea.transitions, & &1.note)
+      assert "Answered: #{q} Answer: Two." in notes
+      assert "Deferred: #{q}" in notes
+      assert "Open again (not deferred): #{q}" in notes
+    end
+
+    test "an answer wakes Case only while the card is in Refining" do
+      Oban.Testing.with_testing_mode(:manual, fn ->
+        q = "After how many visits?"
+        idea = idea!() |> refined!()
+        {:ok, idea} = Board.answer_question(idea, @ada, q, %{"answer" => "Two."})
+
+        assert [job] = wakes("question.answered")
+        assert job.args["bot"] == "case"
+
+        assert %{"text" => ^q, "answer" => "Two.", "deferred" => false, "by" => @ada} =
+                 job.args["payload"]["question"]
+
+        {:ok, idea} = Board.move(idea, {:bot, :case}, "check")
+
+        {:ok, idea} =
+          Board.answer_question(idea, @bo, "After how many visits?", %{"deferred" => true})
+
+        assert length(wakes("question.answered")) == 1
+        assert [%{note: "Deferred: " <> _} | _] = Enum.reverse(idea.transitions)
+      end)
+    end
+
+    defp wakes(event) do
+      Oban.Job
+      |> TalesForge.Repo.all()
+      |> Enum.filter(&(&1.args["event"] == event))
     end
   end
 end

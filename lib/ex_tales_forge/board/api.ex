@@ -113,6 +113,17 @@ defmodule TalesForge.Board.Api do
             "head_sha" => idea.pr_head_sha,
             "player_note" => idea.player_note
           },
+      "questions" =>
+        Enum.map(Board.questions(idea), fn {q, a} ->
+          %{
+            "text" => q,
+            "answer" => a && a.answer,
+            "answered_by" => a && a.answered_by,
+            "answered_at" => a && a.answered_at,
+            "deferred" => (a && a.deferred) || false,
+            "deferred_by" => a && a.deferred_by
+          }
+        end),
       "approvals" =>
         Enum.map(
           idea.approvals,

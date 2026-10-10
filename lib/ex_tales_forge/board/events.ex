@@ -9,6 +9,7 @@ defmodule TalesForge.Board.Events do
   | `:idea_to_building` | write the decision log entry, wake Bobby |
   | `:mention` (`@case`, `@bobby`, `@gentry` in a comment) | wake that bot |
   | `:pr_approved`, `:pr_changes_requested` (a founder answers a PR) | wake Bobby |
+  | `:question_answered` (an answer or a deferral) | wake Case while the card is in Refining |
   | `:idea_to_check`, `:idea_to_done` | nothing (founders see the board) |
 
   Only moves (the "Wakes" column of `TalesForge.Board.Transitions`) and
@@ -31,6 +32,7 @@ defmodule TalesForge.Board.Events do
           | :idea_to_done
           | :mention
           | :pr_approved
+          | :question_answered
           | :pr_changes_requested
 
   @doc "Adds the jobs of `event` on `idea` (with `extra` details) to `multi`."
@@ -73,5 +75,9 @@ defmodule TalesForge.Board.Events do
   def bots(:idea_to_building, _extra), do: [:bobby]
   def bots(:mention, %{bot: bot}), do: [bot]
   def bots(event, _extra) when event in [:pr_approved, :pr_changes_requested], do: [:bobby]
+
+  def bots(:question_answered, extra),
+    do: TalesForge.Board.Transitions.event_wakes(:question_answered, extra[:column])
+
   def bots(_event, _extra), do: []
 end

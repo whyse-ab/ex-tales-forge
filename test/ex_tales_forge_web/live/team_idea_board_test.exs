@@ -108,14 +108,27 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     send(view.pid, {:board, :changed})
     refute has_element?(view, "#card-#{idea.id}-edit-refinement")
 
-    # Forward needs the open questions answered: it opens a comment box.
+    # Start building waits for the open questions; each has its own box.
     assert has_element?(view, "#card-#{idea.id}-back", "Back to Refining")
-    assert has_element?(view, "#card-#{idea.id}-forward", "Start building")
+    assert has_element?(view, "#card-#{idea.id}-forward[disabled]", "Start building")
+    assert render(view) =~ "Answer or defer the 2 open questions."
     assert has_element?(view, "#card-#{idea.id}-hold", "Put on hold")
-    view |> element("#card-#{idea.id}-forward") |> render_click()
-    assert has_element?(view, "#card-#{idea.id}-move textarea[required]")
-    view |> element("#card-#{idea.id}-move button", "Cancel") |> render_click()
-    refute has_element?(view, "#card-#{idea.id}-move")
+    assert has_element?(view, "#card-#{idea.id}-q0[data-state=open]", "Where?")
+    assert has_element?(view, "label[for=card-#{idea.id}-q0-answer]", "Your answer to: Where?")
+
+    view
+    |> form("#card-#{idea.id}-q0-form", %{"answer" => "At the mill."})
+    |> render_submit()
+
+    assert has_element?(view, "#card-#{idea.id}-q0[data-state=answered]", "At the mill.")
+    assert has_element?(view, "#card-#{idea.id}-q0-answer", "At the mill.")
+    view |> element("#card-#{idea.id}-q1-defer") |> render_click()
+    assert has_element?(view, "#card-#{idea.id}-q1-defer[aria-pressed=true]")
+    assert has_element?(view, "#card-#{idea.id}-questions", "all settled")
+    assert render(view) =~ "Deferred: Bait?"
+    refute has_element?(view, "#card-#{idea.id}-forward[disabled]")
+    view |> element("#card-#{idea.id}-q1-defer") |> render_click()
+    assert has_element?(view, "#card-#{idea.id}-forward[disabled]")
     assert has_element?(view, "#board-col-check #tile-#{idea.id}")
 
     # A drag that needs a comment opens the card with the reason.
