@@ -7,7 +7,7 @@ defmodule TalesForge.Board.TransitionsTest do
   doctest Transitions
 
   @founder {:founder, "a@x"}
-  @actors [@founder, {:bot, :case}, {:bot, :bobby}, {:bot, :gentry}]
+  @actors [@founder, {:bot, :case}, {:bot, :bobby}, {:bot, :gentry}, {:bot, :board}]
   @open %{up: 1, down: 0, refined: true, open_questions: 0, comment: "x", pr_linked: true}
 
   # The spec's move table: {from, to, actors}.
@@ -20,7 +20,7 @@ defmodule TalesForge.Board.TransitionsTest do
     {"check", "refining", [@founder]},
     {"check", "parked", [@founder]},
     {"building", "check", [{:bot, :bobby}]},
-    {"building", "done", [{:bot, :bobby}]},
+    {"building", "done", [{:bot, :bobby}, {:bot, :board}]},
     {"building", "refining", [{:bot, :bobby}, @founder]},
     {"parked", "ideas", [@founder]}
   ]

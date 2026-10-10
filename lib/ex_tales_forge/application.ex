@@ -23,7 +23,11 @@ defmodule TalesForge.Application do
       TalesForge.AdminAuth.MembershipCache,
       TalesForge.Survey.Cache,
       TalesForge.PrFeed.Poller,
-      TalesForgeWeb.Endpoint
+      TalesForgeWeb.Endpoint,
+      # Production: move Building cards whose PR is in this release to Done.
+      Supervisor.child_spec({Task, &TalesForge.Board.Workers.AutoDone.schedule_on_boot/0},
+        id: :board_auto_done
+      )
     ]
 
     # See https://elixir.hexdocs.pm/Supervisor.html

@@ -18,29 +18,51 @@ defmodule TalesForge.Board.OnProd do
   `{:error, reason}` (a sentence for Bobby and the card).
   """
   @spec check(pos_integer() | nil) :: :ok | {:error, String.t()}
-  def check(nil), do: {:error, "Link the PR that is on prod first."}
-
   def check(number) do
+    case status(number) do
+      :included -> :ok
+      {_, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Like `check/1`, but tells "not in the release (yet)" (`:not_included`)
+  from "cannot tell now" (`:unavailable`: GitHub or `GIT_SHA` missing; try
+  again later).
+  """
+  @spec status(pos_integer() | nil) ::
+          :included | {:not_included, String.t()} | {:unavailable, String.t()}
+  def status(nil), do: {:not_included, "Link the PR that is on prod first."}
+
+  def status(number) do
     with {:token, token} when is_binary(token) <- {:token, PrFeed.token()},
          {:running, running} when is_binary(running) <- {:running, RunMeta.git_sha()},
          {:ok, merge} <- merge_sha(token, number),
          {:ok, status} <- compare(token, merge, running) do
       if status in ["ahead", "identical"],
-        do: :ok,
+        do: :included,
         else:
-          {:error,
+          {:not_included,
            "PR ##{number} (#{short(merge)}) is not in the prod release (#{short(running)}) yet."}
     else
-      {:token, _} -> {:error, "The board cannot read GitHub now (no GITHUB_FEED_TOKEN)."}
-      {:running, _} -> {:error, "The board cannot see the prod release (no GIT_SHA)."}
-      {:error, reason} -> {:error, reason}
+      {:token, _} ->
+        {:unavailable, "The board cannot read GitHub now (no GITHUB_FEED_TOKEN)."}
+
+      {:running, _} ->
+        {:unavailable, "The board cannot see the prod release (no GIT_SHA)."}
+
+      {:not_merged, reason} ->
+        {:not_included, reason}
+
+      {:error, reason} ->
+        {:unavailable, reason}
     end
   end
 
   defp merge_sha(token, number) do
     case get(token, "/repos/#{PrFeed.repo()}/pulls/#{number}") do
       {:ok, %{"merged" => true, "merge_commit_sha" => sha}} when is_binary(sha) -> {:ok, sha}
-      {:ok, _} -> {:error, "PR ##{number} is not merged yet."}
+      {:ok, _} -> {:not_merged, "PR ##{number} is not merged yet."}
       :error -> {:error, "GitHub did not answer for PR ##{number}. Try again later."}
     end
   end
