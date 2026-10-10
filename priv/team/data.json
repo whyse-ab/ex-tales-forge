@@ -993,7 +993,8 @@
         "id": "refining",
         "label": "Refining (Case)",
         "owner": "case",
-        "on_enter": "wakes Case: details, open questions, rough cost"
+        "on_enter": "wakes Case: details, open questions, rough cost",
+        "portrait": "case"
       },
       {
         "id": "founder_check",
@@ -1005,8 +1006,9 @@
         "id": "building",
         "label": "Building (Bobby)",
         "owner": "bobby",
-        "on_enter": "founder OK recorded; wakes Bobby",
-        "approval": true
+        "on_enter": "founder OK recorded; wakes Bobby; Bobby writes 'Picked up by Bobby. ETA ...' on the card at once",
+        "approval": true,
+        "portrait": "bobby"
       },
       {
         "id": "done",
@@ -1031,6 +1033,15 @@
       "note": "Illustrative card for the animation only"
     },
     "parked": "A founder can put a card on hold (Parked) and later send it back to Ideas.",
-    "votes": "Net votes set the order. A card needs an upvote to move, and a downvote (with a reason) stops it until the founder takes it back."
+    "votes": "Net votes set the order. A card needs an upvote to move, and a downvote (with a reason) stops it until the founder takes it back.",
+    "new_on_board": {
+      "as_of": "2026-10-10",
+      "ideas_lane": "One icon sorts the Ideas lane: newest first or oldest first. Cards show tags: founder names become tags by themselves, and founders add free tags. The tag cloud shows the cards that have all the selected tags, and the link keeps the selection. Pings for you shows each comment that mentions you.",
+      "portraits": "Case's portrait is behind Refining, and Bobby's portrait is behind Building.",
+      "pickup": "When a card moves to Building, Bobby writes 'Picked up by Bobby. ETA ...' on the card at once.",
+      "approve_once": "A founder's Approve stays when a later commit is only a rebase or a fix. The card history notes the new commit. The founders get the question again only when what players get changes.",
+      "hourly_check": "Every hour, Case looks at the Building column and reminds Bobby about each card with no PR after more than one hour.",
+      "source": "ex-tales-forge #167 (Ideas lane tags); TalesForge.Board.Api 'Approve once' (decision 2026-10-10)"
+    }
   }
 }

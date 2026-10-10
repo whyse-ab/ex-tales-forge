@@ -1322,4 +1322,59 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       assert has_element?(view, "#chart-commits .team-heat-num")
     end
   end
+
+  describe "what is new on the board (wording)" do
+    test "the Ideas lane, portraits, pickup note, approve once and the hourly check" do
+      html = render_with(@data)
+      doc = LazyHTML.from_fragment(html)
+      text = fn sel -> doc |> LazyHTML.query(sel) |> LazyHTML.text() end
+
+      ideas = text.("#board-new-ideas")
+      assert ideas =~ "newest first or oldest first"
+      assert ideas =~ "A founder's name becomes a tag by itself"
+      assert ideas =~ "free tags"
+      assert ideas =~ "show the cards that have all of them"
+      assert ideas =~ "The link keeps your selection"
+      assert ideas =~ "Pings for you"
+      assert ideas =~ "mentions you"
+
+      assert text.("#board-new-portraits") =~
+               "Case's portrait is behind Refining, and Bobby's portrait is behind Building."
+
+      assert text.("#board-new-pickup") =~ "Picked up by Bobby. ETA ..."
+      assert text.("#board-new-pickup") =~ "at once"
+
+      once = text.("#board-new-approve-once")
+      assert once =~ "Your Approve stays when a later commit is only a rebase or a fix."
+      assert once =~ "The card history notes the new commit."
+      assert once =~ "only when what players get changes"
+
+      assert text.("#board-new-hourly") =~ "Every hour, Case looks at the Building column."
+      assert text.("#board-new-hourly") =~ "Case reminds Bobby"
+    end
+
+    test "the release wording stays, with no handles and no special release step" do
+      html = render_with(@data)
+      text = html |> LazyHTML.from_fragment() |> LazyHTML.text()
+
+      assert text =~ "then it ships to production by itself"
+      assert text =~ "Changes that only touch admin pages ship straight away."
+      refute text =~ ~r/Fredrik pushes/i
+      refute text =~ ~r/Deploy to production/
+      # No @handles: the crew is named by name (code samples keep their @spec).
+      refute text =~ ~r/@(Case|Bobby|Gentry|Fredrik|Thobias|Håkan|Jeanette|Max|fpahlen)\b/i
+    end
+
+    test "Gentry's #166 findings stay fixed" do
+      html = render_with(@data)
+      doc = LazyHTML.from_fragment(html)
+      headings = doc |> LazyHTML.query("#how article h3") |> Enum.map(&LazyHTML.text/1)
+      nums = headings |> Enum.map(&String.trim/1) |> Enum.map(&String.first/1)
+      assert Enum.take(nums, 4) == ~w(1 2 3 4)
+      assert html =~ ~s(id="skip-to-content")
+      assert html =~ ~s(href="#team-main")
+      assert html =~ "Six columns."
+      refute html =~ ~r/PRs in [A-Z][a-z]+/
+    end
+  end
 end

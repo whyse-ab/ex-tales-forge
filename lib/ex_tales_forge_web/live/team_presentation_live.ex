@@ -89,13 +89,13 @@ defmodule TalesForgeWeb.TeamPresentationLive do
   @flow_detail %{
     "idea" => "A founder adds a card on the idea board. Votes set the order.",
     "case" => "Case writes the details, the open questions and a rough cost.",
-    "pr" => "Bobby builds it as a pull request and links the PR to the card.",
+    "pr" => "Bobby writes 'Picked up by Bobby. ETA ...' on the card at once, builds it as a pull request and links the PR to the card.",
     "merge" => "Into main, the shared version of the code.",
     "review" => "Case's architecture review of what just landed.",
     "playtest" =>
       "Our separate copy of the game for testing. Every merge goes here first, by itself.",
     "prod" =>
-      "Where players are. Admin-only changes (the fast lane) go here by themselves after playtest. Other changes go here with \"Deploy to production\".",
+      "Where players are. Admin-only changes (the fast lane) go here by themselves after playtest. Other changes go here by themselves after a founder's Approve and Gentry's check.",
     "done" =>
       "Bobby moves the card to Done. The board allows it only when the merge commit runs on production."
   }

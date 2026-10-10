@@ -7,7 +7,9 @@ defmodule TalesForgeWeb.TeamBoard do
   how a card travels and shows the live board: the real columns with their
   card counts, and the team totals (cards, votes, founder comments, PR
   approvals and how many founders take part) from `TalesForge.Board.stats/0`.
-  It shows team totals only, with no founder names (board card
+  It also lists what is new on the board (`#board-new`): the Ideas
+  lane's sort toggle, tags, tag cloud and Pings for you, the column portraits,
+  Bobby's pickup note, approve once and Case's hourly check. It shows team totals only, with no founder names (board card
   "update presentation after shared workarea", answered 2026-10-10). The
   section reads; it has nothing to drag and sends no events.
 
@@ -145,12 +147,14 @@ defmodule TalesForgeWeb.TeamBoard do
 
       <.live_board live={@live} total_labels={@total_labels} />
 
+      <.new_on_board />
+
       <ul id="board-why" class="grid gap-3 lg:grid-cols-3" aria-label="Three things that make it work">
         <li class="team-card flex flex-col gap-2 p-4">
           <.icon name="hero-bell-alert" class="size-7 text-[var(--paper-accent)]" />
           <h3 class="font-semibold">Moving a card pings the right bot.</h3>
           <p class="text-sm leading-snug">
-            A card in Refining wakes Case, and a card in Building wakes Bobby. A mention like @Case in a comment wakes that bot too.
+            A card in Refining wakes Case, and a card in Building wakes Bobby. When a comment names a bot, that bot wakes too.
             Nobody has to keep checking, bots or people.
           </p>
         </li>
@@ -180,18 +184,69 @@ defmodule TalesForgeWeb.TeamBoard do
     """
   end
 
+  # What is new on the board (live since 2026-10-10): the Ideas lane tools,
+  # the column portraits, Bobby's pickup note, approve once and the hourly check.
+  defp new_on_board(assigns) do
+    ~H"""
+    <div id="board-new" class="space-y-3">
+      <h3 class="font-serif text-xl font-bold sm:text-2xl">New on the board</h3>
+      <ul class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <li id="board-new-ideas" class="team-card flex flex-col gap-2 p-4">
+          <.icon name="hero-tag" class="size-7 text-[var(--paper-accent)]" />
+          <h4 class="font-semibold">The Ideas lane finds the card you want.</h4>
+          <p class="text-sm leading-snug">
+            One icon sorts the lane: newest first or oldest first. Each card shows its tags. A founder's name becomes a tag by itself,
+            and you can add your own free tags. Select tags in the tag cloud to show the cards that have all of them.
+            The link keeps your selection, so you can share it. <strong>Pings for you</strong>
+            shows each comment that mentions you.
+          </p>
+        </li>
+        <li id="board-new-portraits" class="team-card flex flex-col gap-2 p-4">
+          <.icon name="hero-user-circle" class="size-7 text-[var(--paper-accent)]" />
+          <h4 class="font-semibold">Each bot column shows its bot.</h4>
+          <p class="text-sm leading-snug">
+            Case's portrait is behind Refining, and Bobby's portrait is behind Building. You see at a glance who works on a card.
+          </p>
+        </li>
+        <li id="board-new-pickup" class="team-card flex flex-col gap-2 p-4">
+          <.icon name="hero-wrench-screwdriver" class="size-7 text-[var(--paper-accent)]" />
+          <h4 class="font-semibold">Bobby says when the work starts.</h4>
+          <p class="text-sm leading-snug">
+            When a card moves to Building, Bobby writes “Picked up by Bobby. ETA ...” on the card at once.
+          </p>
+        </li>
+        <li id="board-new-approve-once" class="team-card flex flex-col gap-2 p-4">
+          <.icon name="hero-hand-thumb-up" class="size-7 text-[var(--paper-accent)]" />
+          <h4 class="font-semibold">You approve once.</h4>
+          <p class="text-sm leading-snug">
+            Your Approve stays when a later commit is only a rebase or a fix. The card history notes the new commit.
+            The founders get the question again only when what players get changes.
+          </p>
+        </li>
+        <li id="board-new-hourly" class="team-card flex flex-col gap-2 p-4">
+          <.icon name="hero-clock" class="size-7 text-[var(--paper-accent)]" />
+          <h4 class="font-semibold">An hourly check keeps Building moving.</h4>
+          <p class="text-sm leading-snug">
+            Every hour, Case looks at the Building column. When a card has no PR after more than one hour, Case reminds Bobby.
+          </p>
+        </li>
+      </ul>
+    </div>
+    """
+  end
+
   attr :id, :string, default: nil
 
   defp travel(%{id: "ideas"} = assigns) do
     ~H"""
     Any founder adds a card. A sentence is enough. Votes set the order: a card needs an upvote to move,
-    and a downvote (with a reason) stops it until that founder takes it back.
+    and a downvote (with a reason) stops it until that founder takes it back. Tags and a tag cloud help you find a card.
     """
   end
 
   defp travel(%{id: "refining"} = assigns) do
     ~H"""
-    Case fills in the card: the details, the open questions and a rough cost. Then Case sends it to Founder check.
+    Case fills in the card: the details, the open questions and a rough cost. Then Case sends it to Founder check. Case's portrait is behind this column.
     """
   end
 
@@ -204,7 +259,7 @@ defmodule TalesForgeWeb.TeamBoard do
 
   defp travel(%{id: "building"} = assigns) do
     ~H"""
-    Bobby builds it and links the PR to the card. The PR's status (open, merged, on production) shows on the card, so you can follow along and try it.
+    Bobby writes “Picked up by Bobby. ETA ...” on the card at once, builds it and links the PR to the card. The PR's status (open, merged, on production) shows on the card, so you can follow along and try it. Bobby's portrait is behind this column.
     """
   end
 
