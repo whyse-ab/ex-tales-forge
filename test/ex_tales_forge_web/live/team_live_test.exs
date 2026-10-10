@@ -82,12 +82,17 @@ defmodule TalesForgeWeb.TeamLiveTest do
       for {id, href, label} <- [
             {"stat-ideas", "#board-col-ideas", "Ideas waiting for votes"},
             {"stat-check", "#board-col-check", "Founder check cards for you"},
-            {"stat-prs", "#board-col-building", "PRs waiting for approval"},
-            {"stat-pings", "#board-pings", "Pings for you"}
+            {"stat-prs", "#board-col-building", "PRs waiting for approval"}
           ] do
         assert has_element?(view, ~s(a##{id}[href="#{href}"]), label)
         assert has_element?(view, ~s(##{id} [data-count]), "0")
       end
+
+      # No pings: the board has no #board-pings, so the stat is plain text.
+      refute has_element?(view, "#board-pings")
+      assert has_element?(view, "div#stat-pings", "Pings for you")
+      assert has_element?(view, "#stat-pings [data-count]", "0")
+      refute has_element?(view, "a#stat-pings")
     end
 
     test "the stats count the board for the signed-in founder and update live" do
@@ -133,6 +138,8 @@ defmodule TalesForgeWeb.TeamLiveTest do
       {:ok, _} = Board.add_comment(Board.get_idea!(voted.id), "bot:case", "@fredrik a look?")
       send(view.pid, {:board, :changed})
       assert has_element?(view, "#stat-pings [data-count]", "1")
+      assert has_element?(view, ~s(a#stat-pings[href="#board-pings"]))
+      assert has_element?(view, "#board-pings")
     end
 
     test "the crew section is gone: it lives on the presentation", %{conn: conn} do

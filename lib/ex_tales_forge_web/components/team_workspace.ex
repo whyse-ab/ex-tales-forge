@@ -15,7 +15,8 @@ defmodule TalesForgeWeb.TeamWorkspace do
       `#board-col-building`.
     * **Pings for you**: the signed-in founder's unread pings, the same number
       the board shows (`TalesForge.Board.unread_pings/1`). Links to
-      `#board-pings`.
+      `#board-pings`. The board shows that list only when you have pings, so
+      at 0 the stat is plain text, not a link.
 
   Every founder can approve, so the copy names no one role. Copy follows
   tales-forge-docs `docs/team-page/content.md`.
@@ -96,7 +97,12 @@ defmodule TalesForgeWeb.TeamWorkspace do
             n={@stats.prs}
             label="PRs waiting for approval"
           />
-          <.stat id="stat-pings" href="#board-pings" n={@stats.pings} label="Pings for you" />
+          <.stat
+            id="stat-pings"
+            href={if @stats.pings > 0, do: "#board-pings"}
+            n={@stats.pings}
+            label="Pings for you"
+          />
         </ul>
       </nav>
     </section>
@@ -104,7 +110,7 @@ defmodule TalesForgeWeb.TeamWorkspace do
   end
 
   attr :id, :string, required: true
-  attr :href, :string, required: true
+  attr :href, :string, default: nil, doc: "nil renders the stat as plain text"
   attr :n, :integer, required: true
   attr :label, :string, required: true
   attr :hint, :string, default: nil
@@ -113,15 +119,29 @@ defmodule TalesForgeWeb.TeamWorkspace do
     ~H"""
     <li>
       <a
+        :if={@href}
         id={@id}
         href={@href}
         class="team-card flex min-h-[44px] h-full flex-col gap-1 p-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
       >
-        <span class="font-serif text-2xl font-bold" data-count>{@n}</span>
-        <span class="text-sm leading-snug">{@label}</span>
-        <span :if={@hint} class="text-xs text-[var(--paper-muted)]">{@hint}</span>
+        <.stat_body n={@n} label={@label} hint={@hint} />
       </a>
+      <div :if={!@href} id={@id} class="team-card flex min-h-[44px] h-full flex-col gap-1 p-3">
+        <.stat_body n={@n} label={@label} hint={@hint} />
+      </div>
     </li>
+    """
+  end
+
+  attr :n, :integer, required: true
+  attr :label, :string, required: true
+  attr :hint, :string, default: nil
+
+  defp stat_body(assigns) do
+    ~H"""
+    <span class="font-serif text-2xl font-bold" data-count>{@n}</span>
+    <span class="text-sm leading-snug">{@label}</span>
+    <span :if={@hint} class="text-xs text-[var(--paper-muted)]">{@hint}</span>
     """
   end
 end
