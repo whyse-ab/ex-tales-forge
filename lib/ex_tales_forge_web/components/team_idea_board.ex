@@ -627,43 +627,50 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
         {Transitions.label(@column)}
         <span class="font-sans text-xs font-normal text-[var(--paper-muted)]">{length(@cards)}</span>
       </h3>
+      <%!-- The Ideas toolbar: labels sit outside the controls; the row wraps
+           in a narrow column, with no absolute positioning. --%>
       <form
         :if={@sorts}
         id="ideas-sort"
         phx-change="sort"
         phx-target={@myself}
-        class="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 pb-1 text-xs text-[var(--paper-muted)]"
+        class="flex flex-wrap items-end gap-2 px-1 pb-2 text-xs text-[var(--paper-muted)]"
       >
-        <label class="flex min-w-0 flex-1 items-center gap-2">
-          Sort
+        <div class="flex min-w-[7rem] flex-1 flex-col gap-0.5">
+          <label for="ideas-sort-select">Sort</label>
           <select
+            id="ideas-sort-select"
             name="sort"
-            class="min-h-11 flex-1 rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-2 text-sm"
+            class="select select-sm w-full min-w-0 bg-[var(--paper-panel)] text-[var(--paper-ink)]"
           >
             <option :for={{key, label} <- @sorts} value={key} selected={key == @sort}>{label}</option>
           </select>
-        </label>
-        <label class="flex min-w-0 flex-1 items-center gap-2">
-          Written by
+        </div>
+        <div class="flex min-w-[7rem] flex-1 flex-col gap-0.5">
+          <label for="ideas-by">Author</label>
           <select
             id="ideas-by"
             name="by"
-            class="min-h-11 flex-1 rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-2 text-sm"
+            class="select select-sm w-full min-w-0 bg-[var(--paper-panel)] text-[var(--paper-ink)]"
           >
             <option value="">Everyone</option>
             <option :for={{key, name} <- @authors} value={key} selected={key == @by}>{name}</option>
           </select>
-        </label>
-        <label class="flex min-h-11 items-center gap-2">
-          <input type="hidden" name="mine" value="false" />
-          <input
-            id="ideas-mine"
-            type="checkbox"
-            name="mine"
-            value="true"
-            checked={@mine}
-            class="size-4"
-          /> Mentioning me
+        </div>
+        <input type="hidden" name="mine" value="false" />
+        <input
+          id="ideas-mine"
+          type="checkbox"
+          name="mine"
+          value="true"
+          checked={@mine}
+          class="peer sr-only"
+        />
+        <label
+          for="ideas-mine"
+          class="badge badge-outline badge-sm h-7 text-xs cursor-pointer select-none px-3 peer-checked:badge-primary peer-focus-visible:outline peer-focus-visible:outline-2"
+        >
+          Mentioning me
         </label>
       </form>
       <div
@@ -1563,19 +1570,19 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
         <section aria-label="Comments" class="space-y-1">
           <h5 class="font-semibold">Comments</h5>
           <ul class="space-y-1">
-            <li :for={c <- @idea.comments} class="rounded bg-[var(--paper-margin)] px-2 py-1">
-              <span class="text-xs font-semibold">{who(c.author)}</span>
-              <p class="whitespace-pre-line">
-                <%= for {kind, s} <- Mentions.segments(c.body || "") do %>
-                  <mark
-                    :if={kind == :mention}
-                    class="rounded bg-[var(--paper-margin)] px-0.5 font-semibold text-[var(--paper-accent)]"
-                  >{s}</mark>
-                  <%= if kind == :text do %>
-                    {s}
-                  <% end %>
-                <% end %>
-              </p>
+            <li
+              :for={c <- @idea.comments}
+              id={"comment-#{c.id}"}
+              class="rounded bg-[var(--paper-margin)] px-2 py-1 leading-snug"
+            >
+              <div class="flex items-baseline gap-2 text-xs">
+                <span class="font-semibold">{who(c.author)}</span>
+                <time
+                  datetime={DateTime.to_iso8601(c.inserted_at)}
+                  class="text-[var(--paper-muted)]"
+                >{Calendar.strftime(c.inserted_at, "%Y-%m-%d %H:%M UTC")}</time>
+              </div>
+              <p class="whitespace-pre-line break-words">{comment_body(c.body)}</p>
             </li>
           </ul>
           <form
@@ -1640,8 +1647,30 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   end
 
   defp who("bot:" <> bot), do: String.capitalize(bot)
-  defp who(email) when is_binary(email), do: email |> String.split("@") |> hd()
+  defp who(email) when is_binary(email), do: TalesForge.TeamOnline.name(email)
   defp who(_), do: "someone"
+
+  # A comment body as one line of HTML: the text is escaped, the mentions are
+  # inline marks, the author's own line breaks stay (whitespace-pre-line),
+  # and the edges are trimmed.
+  defp comment_body(body) do
+    (body || "")
+    |> String.trim()
+    |> Mentions.segments()
+    |> Enum.map(fn
+      {:mention, s} ->
+        [
+          ~s(<mark class="rounded px-0.5 font-semibold text-[var\(--paper-accent\)] bg-transparent">),
+          Phoenix.HTML.html_escape(s) |> Phoenix.HTML.safe_to_string(),
+          "</mark>"
+        ]
+
+      {_, s} ->
+        Phoenix.HTML.html_escape(s) |> Phoenix.HTML.safe_to_string()
+    end)
+    |> IO.iodata_to_binary()
+    |> Phoenix.HTML.raw()
+  end
 
   defp blank("", default), do: default
   defp blank(s, _), do: s
