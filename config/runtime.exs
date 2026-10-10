@@ -254,6 +254,45 @@ if config_env() != :test do
   config :ex_tales_forge, :app_name, System.get_env("FLY_APP_NAME")
 end
 
+# The founders' idea board on /team (production only; tales-forge-docs
+# docs/design-idea-board.md). Every value is optional: a blank or missing one
+# turns that part off.
+# - GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID, GITHUB_APP_PRIVATE_KEY (PEM; "\n"
+#   escapes allowed): the GitHub App that commits the decisions.md entry when a
+#   card moves to Building. Unset = no commit, the card says so.
+# - BOARD_WEBHOOK_URL_<BOT> and BOARD_WEBHOOK_KEY_<BOT> (BOT = CASE, BOBBY,
+#   GENTRY): where a card move wakes that bot, and the key sent as the bearer
+#   token and used to sign the body (HMAC-SHA256). URL unset = that bot is not pinged.
+# - BOARD_BOT_TOKEN_<BOT>: the bearer token that bot uses on /internal/board.
+#   Unset = that bot cannot call the API.
+if config_env() != :test do
+  board_env = fn name ->
+    case System.get_env(name) do
+      nil -> nil
+      value -> if String.trim(value) == "", do: nil, else: value
+    end
+  end
+
+  config :ex_tales_forge, :github_app,
+    app_id: board_env.("GITHUB_APP_ID"),
+    installation_id: board_env.("GITHUB_APP_INSTALLATION_ID"),
+    private_key: board_env.("GITHUB_APP_PRIVATE_KEY")
+
+  board_bots =
+    for bot <- ~w(case bobby gentry)a do
+      up = bot |> Atom.to_string() |> String.upcase()
+
+      {bot,
+       [
+         webhook_url: board_env.("BOARD_WEBHOOK_URL_" <> up),
+         webhook_key: board_env.("BOARD_WEBHOOK_KEY_" <> up),
+         api_token: board_env.("BOARD_BOT_TOKEN_" <> up)
+       ]}
+    end
+
+  config :ex_tales_forge, :board_bots, board_bots
+end
+
 # Live PR feed on /team (TalesForge.PrFeed): GITHUB_FEED_TOKEN (secret), a
 # fine-grained read-only token for whyse-ab/ex-tales-forge (Pull requests,
 # Contents and Actions: read). Unset = the feed says "Live feed unavailable" and

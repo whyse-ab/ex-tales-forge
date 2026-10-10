@@ -116,3 +116,4 @@ lib/ex_tales_forge_web/components/play_components.ex
 lib/ex_tales_forge_web/router.ex
 lib/ex_tales_forge/application.ex
 lib/ex_tales_forge_web/controllers/costs_peer_controller.ex
+lib/ex_tales_forge_web/controllers/board_api_controller.ex
