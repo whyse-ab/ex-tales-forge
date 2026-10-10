@@ -65,6 +65,8 @@ defmodule TalesForge.PrFeed do
           state: state(),
           draft: boolean(),
           at: DateTime.t() | nil,
+          opened_at: DateTime.t() | nil,
+          merged_at: DateTime.t() | nil,
           ci: ci(),
           deployed: %{playtest: Deploys.status(), production: Deploys.status()}
         }
@@ -233,6 +235,8 @@ defmodule TalesForge.PrFeed do
       state: pr.state,
       draft: pr.draft,
       at: event_at(pr),
+      opened_at: pr.created_at,
+      merged_at: pr.merged_at,
       ci: if(pr.state == :open, do: Map.get(ci, pr.head_sha)),
       deployed: %{
         playtest: deploy_status(pr, main, running[:playtest]),

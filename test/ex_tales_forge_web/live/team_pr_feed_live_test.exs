@@ -122,3 +122,140 @@ defmodule TalesForgeWeb.TeamPrFeedLiveTest do
     assert TeamPrFeedLive.fresh(snap, MapSet.new([{2, :open}])) == MapSet.new([1])
   end
 end
+
+defmodule TalesForgeWeb.TeamPrFeedListTest do
+  @moduledoc "The /team feed list: newest 5, in-flight pulse, live-on-prod marker, times (2026-10-10)."
+  use TalesForgeWeb.ConnCase, async: false
+
+  import Phoenix.LiveViewTest
+  import TalesForge.PrFeedFixtures
+
+  alias TalesForge.PrFeed
+  alias TalesForgeWeb.TeamPrFeed
+
+  doctest TalesForgeWeb.TeamPrFeed, only: [in_flight?: 1, stamp: 1, span_text: 2, duration: 1]
+
+  @prod %{playtest: :deployed, production: :deployed}
+  @waiting %{playtest: :deployed, production: :pending}
+
+  defp child(conn) do
+    {:ok, view, _} = live(log_in_admin(conn), "/team")
+    find_live_child(view, "team-pr-feed") || view
+  end
+
+  defp flight(view, n), do: has_element?(view, "#pr-feed-#{n}[data-in-flight]")
+
+  test "only the newest 5; every in-flight one pulses; shipped ones get the done marker", %{
+    conn: conn
+  } do
+    PrFeed.publish(
+      snapshot([
+        item(7, state: :open),
+        item(6, state: :merged, deployed: @waiting, merged_at: ~U[2026-10-10 03:00:00Z]),
+        item(5, state: :merged, deployed: @prod, merged_at: ~U[2026-10-10 02:00:00Z]),
+        item(4, state: :closed),
+        item(3,
+          state: :merged,
+          deployed: %{playtest: :unknown, production: :unknown},
+          merged_at: ~U[2026-10-09 09:00:00Z]
+        ),
+        item(2, state: :open),
+        item(1, state: :open)
+      ])
+    )
+
+    view = child(conn)
+    for n <- 7..3//-1, do: assert(has_element?(view, "#pr-feed-#{n}"))
+    refute has_element?(view, "#pr-feed-2")
+    refute has_element?(view, "#pr-feed-1")
+
+    assert flight(view, 7)
+    assert flight(view, 6)
+    refute flight(view, 5)
+    refute flight(view, 4)
+    refute flight(view, 3)
+    assert has_element?(view, "#pr-feed-5 [data-role=live-on-prod]", "live on prod")
+    refute has_element?(view, "#pr-feed-6 [data-role=live-on-prod]")
+  end
+
+  test "nothing in flight: nothing pulses", %{conn: conn} do
+    PrFeed.publish(
+      snapshot([
+        item(2, state: :merged, deployed: @prod, merged_at: ~U[2026-10-09 09:00:00Z]),
+        item(1, state: :closed)
+      ])
+    )
+
+    view = child(conn)
+    refute has_element?(view, "[data-in-flight]")
+  end
+
+  test "the pulse only runs with full motion and never under reduced motion", %{conn: conn} do
+    PrFeed.publish(snapshot([item(1, state: :open)]))
+    html = conn |> child() |> render()
+
+    assert html =~
+             ~s(.team-page[data-motion="full"] .pr-feed-item[data-in-flight] { animation: pr-feed-alive)
+
+    assert html =~
+             "@media (prefers-reduced-motion: reduce) { .pr-feed-item[data-in-flight] { animation: none !important; } }"
+  end
+
+  test "times: merged shows the merge time and how long it took; open shows how long so far", %{
+    conn: conn
+  } do
+    PrFeed.publish(
+      snapshot([
+        item(2, state: :open, opened_at: DateTime.add(DateTime.utc_now(), -2 * 3600 - 300)),
+        item(1,
+          state: :merged,
+          deployed: @prod,
+          opened_at: ~U[2026-10-08 08:00:00Z],
+          merged_at: ~U[2026-10-09 09:30:00Z]
+        )
+      ])
+    )
+
+    view = child(conn)
+    assert has_element?(view, "#pr-feed-1 [data-role=pr-stamp]", "Merged 9 Oct 11:30 CEST")
+    assert has_element?(view, "#pr-feed-1 [data-role=pr-span]", "took 1 d 1 h from open to merge")
+    assert has_element?(view, "#pr-feed-2 [data-role=pr-stamp]", "Opened ")
+    assert has_element?(view, "#pr-feed-2 [data-role=pr-span]", "open for 2 h 5 min")
+  end
+
+  describe "formatting across DST (Europe/Stockholm, 25 Oct 2026 03:00 CEST -> 02:00 CET)" do
+    test "stamps switch CEST to CET" do
+      assert TeamPrFeed.stamp(%{state: :open, opened_at: ~U[2026-10-25 00:30:00Z]}) ==
+               "Opened 25 Oct 02:30 CEST"
+
+      assert TeamPrFeed.stamp(%{state: :open, opened_at: ~U[2026-10-25 01:30:00Z]}) ==
+               "Opened 25 Oct 02:30 CET"
+
+      assert TeamPrFeed.stamp(%{
+               state: :merged,
+               opened_at: nil,
+               merged_at: ~U[2026-03-29 01:30:00Z]
+             }) ==
+               "Merged 29 Mar 03:30 CEST"
+    end
+
+    test "spans count real time, not wall clock" do
+      # 01:30 CEST to 02:30 CET on the clock is 2 real hours.
+      pr = %{
+        state: :merged,
+        opened_at: ~U[2026-10-24 23:30:00Z],
+        merged_at: ~U[2026-10-25 01:30:00Z]
+      }
+
+      assert TeamPrFeed.span_text(pr, ~U[2026-10-26 00:00:00Z]) == "took 2 h from open to merge"
+      # Spring forward: 01:30 CET to 03:30 CEST on the clock is 1 real hour.
+      open = %{state: :open, opened_at: ~U[2026-03-29 00:30:00Z], merged_at: nil}
+      assert TeamPrFeed.span_text(open, ~U[2026-03-29 01:30:00Z]) == "open for 1 h"
+    end
+
+    test "no times: no line" do
+      assert TeamPrFeed.stamp(%{state: :open, opened_at: nil}) == nil
+      assert TeamPrFeed.span_text(%{state: :closed, opened_at: nil}, DateTime.utc_now()) == nil
+    end
+  end
+end
