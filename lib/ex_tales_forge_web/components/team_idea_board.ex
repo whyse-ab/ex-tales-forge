@@ -14,9 +14,10 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
 
   Layout: Ideas (the backlog) on the left, the three active columns (Refining,
   Founder check, Building) in the middle with Parked under them across their
-  width, Done on the right. Active columns show small cards (avatar, title, the
-  task clamped to two lines, fixed height); Ideas, Parked and Done show thin
-  cards (avatar and title). Each area has a fixed height and scrolls on its
+  width, Done on the right. Every card is thin (Fredrik, 2026-10-10): the
+  avatar, the full title (it wraps, no ellipsis), the compact "needs work" badge and
+  can't-move reason, and a vote row inside the card (▲ / ▼ with counts and
+  the net score; siblings of the open button, so a vote never opens the card). Each area has a fixed height and scrolls on its
   own; on a phone the areas stack. A card's avatar is a 5×5 identicon seeded
   from its id (`avatar_spec/1`, aria-hidden).
 
@@ -216,7 +217,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           <.area
             :for={c <- ~w(refining check building)}
             column={c}
-            size={:small}
+            size={:thin}
             board={@board}
             founder={@founder}
             myself={@myself}
@@ -318,58 +319,49 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
         aria-label={"#{Transitions.label(@column)} cards"}
       >
         <p :if={@cards == []} class="px-1 text-sm text-[var(--paper-muted)]">Nothing here yet.</p>
-        <ul class={["grid min-w-0 grid-cols-1 gap-1.5", @size == :small && "gap-2"]}>
+        <ul class="grid min-w-0 grid-cols-1 gap-1.5">
           <li
             :for={{idea, look} <- Enum.map(@cards, &{&1, look(&1, @founder)})}
             id={"tile-#{idea.id}"}
             draggable="true"
             data-board-card={idea.id}
             data-moves={Enum.join(look.moves, " ")}
-            data-size={@size}
+            data-size="thin"
             data-faded={to_string(look.faded)}
             data-needs-work={to_string(look.needs_work)}
-            class={["flex min-w-0 items-stretch gap-1", look.faded && "opacity-50"]}
+            class={[
+              "card card-border min-w-0 rounded-lg bg-[var(--paper-panel)] px-2 py-1.5 text-sm hover:border-[var(--paper-accent)]",
+              if(look.needs_work, do: "border-2 border-warning", else: "border-[var(--paper-rule)]"),
+              look.faded && "opacity-50"
+            ]}
           >
+            <%!-- The open button and the vote row are siblings, so a vote
+                 never opens the card. --%>
             <button
               type="button"
               phx-click={open_js(@myself, idea.id)}
               aria-haspopup="dialog"
-              class={[
-                "card card-border flex min-w-0 flex-1 flex-row overflow-hidden items-start gap-2 rounded-lg bg-[var(--paper-panel)] text-left text-sm hover:border-[var(--paper-accent)]",
-                if(look.needs_work,
-                  do: "border-2 border-warning",
-                  else: "border-[var(--paper-rule)]"
-                ),
-                @size == :thin && "min-h-11 items-center px-2 py-1.5",
-                @size == :small && "h-24 overflow-hidden p-2"
-              ]}
+              class="flex w-full min-w-0 min-h-11 flex-row items-center gap-2 text-left"
             >
-              <.avatar id={idea.id} size={if @size == :thin, do: "size-6", else: "size-8"} />
+              <.avatar id={idea.id} size="size-6" />
               <span class="min-w-0 flex-1">
-                <span class={[
-                  "block font-semibold leading-snug",
-                  @size == :thin && "truncate",
-                  @size == :small && "line-clamp-2"
-                ]}>
+                <span class="block break-words font-semibold leading-snug" data-role="title">
                   {idea.title}
-                </span>
-                <span
-                  :if={@size == :small}
-                  class="mt-0.5 block line-clamp-2 text-xs text-[var(--paper-muted)]"
-                  data-role="task"
-                >
-                  {task(idea)}
                 </span>
                 <span
                   :if={look.blocker}
                   id={"tile-#{idea.id}-reason"}
                   data-role="reason"
-                  class="mt-0.5 block truncate text-xs text-[var(--paper-muted)]"
+                  class="block break-words text-xs leading-tight text-[var(--paper-muted)]"
                 >
                   {look.blocker}
                 </span>
               </span>
-              <span :if={look.needs_work} class="badge badge-warning badge-sm shrink-0">
+              <span
+                :if={look.needs_work}
+                class="badge badge-warning badge-xs shrink-0"
+                title="Needs work: a founder voted -1"
+              >
                 Needs work
               </span>
             </button>
@@ -385,20 +377,23 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   attr :founder, :string, required: true
   attr :myself, :any, required: true
 
-  # +1 / net / -1 beside a tile (a sibling of the open button, so a vote never
-  # opens the card and the card's click never eats a vote).
+  # The vote row inside a thin card: ▲ upvotes, ▼ downvotes, the net score.
   defp tile_votes(assigns) do
+    votes = assigns.idea.votes
+
     assigns =
       assign(assigns,
+        up: Enum.count(votes, &(&1.value == 1)),
+        down: Enum.count(votes, &(&1.value == -1)),
         net: Board.net_votes(assigns.idea),
         mine: Board.vote_of(assigns.idea, assigns.founder)
       )
 
     ~H"""
     <div
-      class="flex shrink-0 flex-col items-center justify-center text-xs"
+      class="mt-1 flex items-center justify-end gap-1 text-xs"
       role="group"
-      aria-label={"Vote on #{@idea.title}"}
+      aria-label={"Votes on #{@idea.title}"}
     >
       <button
         type="button"
@@ -408,13 +403,14 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
         phx-value-vote="1"
         phx-target={@myself}
         aria-pressed={to_string(@mine == 1)}
-        aria-label={if @mine == 1, do: "Take back your +1", else: "Vote +1"}
+        aria-label={
+          if @mine == 1, do: "Take back your upvote on #{@idea.title}", else: "Upvote #{@idea.title}"
+        }
         class={[
-          "min-h-6 min-w-8 rounded border border-[var(--paper-rule)] leading-none",
+          "inline-flex min-h-6 items-center gap-0.5 rounded px-1.5 leading-none hover:bg-[var(--paper-bg)]",
           @mine == 1 && "bg-[var(--paper-accent)] text-[var(--paper-on-accent)]"
         ]}
-      >+1</button>
-      <span id={"tile-#{@idea.id}-net"} class="py-0.5 font-semibold" aria-label={"net votes #{@net}"}>{@net}</span>
+      ><span aria-hidden="true">▲</span><span data-role="up">{@up}</span></button>
       <button
         type="button"
         id={"tile-#{@idea.id}-down"}
@@ -423,12 +419,21 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
         phx-value-vote="-1"
         phx-target={@myself}
         aria-pressed={to_string(@mine == -1)}
-        aria-label={if @mine == -1, do: "Take back your -1", else: "Vote -1"}
+        aria-label={
+          if @mine == -1,
+            do: "Take back your downvote on #{@idea.title}",
+            else: "Downvote #{@idea.title}"
+        }
         class={[
-          "min-h-6 min-w-8 rounded border border-[var(--paper-rule)] leading-none",
+          "inline-flex min-h-6 items-center gap-0.5 rounded px-1.5 leading-none hover:bg-[var(--paper-bg)]",
           @mine == -1 && "bg-red-700 text-white"
         ]}
-      >-1</button>
+      ><span aria-hidden="true">▼</span><span data-role="down">{@down}</span></button>
+      <span
+        id={"tile-#{@idea.id}-net"}
+        class="badge badge-ghost badge-xs font-semibold tabular-nums"
+        aria-label={"net votes #{@net}"}
+      >{@net}</span>
     </div>
     """
   end
@@ -447,12 +452,6 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
       moves:
         for({to, :ok} <- Transitions.options(facts, idea.column, {:founder, founder}), do: to)
     }
-  end
-
-  # The abbreviated task on a small card: Case's details, else the body.
-  defp task(idea) do
-    text = (idea.refinement || %{})["details"] || idea.body || ""
-    text |> String.replace(~r/\s+/, " ") |> String.slice(0, 160)
   end
 
   attr :id, :string, required: true

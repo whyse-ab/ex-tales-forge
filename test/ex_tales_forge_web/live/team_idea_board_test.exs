@@ -32,12 +32,13 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
 
     assert has_element?(view, ~s(#board-col-ideas #tile-#{a.id}[data-size="thin"]))
 
-    assert has_element?(
-             view,
-             ~s(#board-col-refining #tile-#{b.id}[data-size="small"] [data-role="task"])
-           )
-
-    refute has_element?(view, ~s(#tile-#{a.id} [data-role="task"]))
+    # Every card is thin: the full title wraps (no ellipsis), no task text.
+    assert has_element?(view, ~s(#board-col-refining #tile-#{b.id}[data-size="thin"]))
+    assert has_element?(view, ~s(#tile-#{b.id} [data-role="title"]), "Active one")
+    refute render(view) =~ ~s(data-size="small")
+    refute has_element?(view, ~s([data-role="task"]))
+    refute has_element?(view, "#board-columns .truncate")
+    refute has_element?(view, "#board-columns .line-clamp-2")
     assert has_element?(view, ~s(#tile-#{a.id} svg[aria-hidden="true"][data-avatar]))
     refute has_element?(view, "#board-modal")
   end
@@ -150,7 +151,7 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
       assert has_element?(view, "#board-col-ideas #tile-#{idea.id}")
 
       view |> element("#tile-#{idea.id}-down") |> render_click()
-      assert has_element?(view, ~s(#tile-#{idea.id}[data-needs-work="true"] .border-warning))
+      assert has_element?(view, ~s(#tile-#{idea.id}.border-warning[data-needs-work="true"]))
       assert has_element?(view, "#tile-#{idea.id} .badge-warning", "Needs work")
       assert has_element?(view, "#tile-#{idea.id}-reason", "Has a downvote.")
       refute has_element?(view, ~s(#tile-#{idea.id}[data-faded="true"]))
@@ -220,14 +221,32 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
       {:ok, thin: thin, small: small}
     end
 
-    test "on thin and small cards: up, toggle off, down, toggle off", %{
+    test "a vote on a thin card is inside its border, changes the count and does not open the card",
+         %{conn: conn, thin: thin} do
+      {:ok, view, _} = live(conn, "/team")
+      assert has_element?(view, ~s(#tile-#{thin.id} button[aria-label="Upvote Thin one"]))
+      assert has_element?(view, ~s(#tile-#{thin.id} button[aria-label="Downvote Thin one"]))
+      refute has_element?(view, ~s(#tile-#{thin.id} button[aria-haspopup] #tile-#{thin.id}-up))
+
+      click(view, "#tile-#{thin.id}-up")
+      assert has_element?(view, ~s(#tile-#{thin.id}-up [data-role="up"]), "1")
+      assert net(view, thin.id) == "1"
+      refute has_element?(view, "#board-modal")
+
+      click(view, "#tile-#{thin.id}-down")
+      assert has_element?(view, ~s(#tile-#{thin.id}-down [data-role="down"]), "1")
+      assert has_element?(view, ~s(#tile-#{thin.id}-up [data-role="up"]), "0")
+      refute has_element?(view, "#board-modal")
+    end
+
+    test "on every thin card: up, toggle off, down, toggle off", %{
       conn: conn,
       thin: thin,
       small: small
     } do
       {:ok, view, _} = live(conn, "/team")
       assert has_element?(view, ~s(#tile-#{thin.id}[data-size="thin"]))
-      assert has_element?(view, ~s(#tile-#{small.id}[data-size="small"]))
+      assert has_element?(view, ~s(#tile-#{small.id}[data-size="thin"]))
 
       for card <- [thin, small] do
         assert net(view, card.id) == "0"
