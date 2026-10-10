@@ -75,6 +75,7 @@ test/ex_tales_forge_web/admin/playtest_live_test.exs
 # both shared)
 lib/ex_tales_forge/team_page.ex
 lib/ex_tales_forge/team_pace.ex
+lib/ex_tales_forge/team_online.ex
 lib/ex_tales_forge/pr_feed.ex
 lib/ex_tales_forge/pr_feed/
 lib/ex_tales_forge_web/live/team_live.ex
@@ -85,6 +86,7 @@ assets/js/team_hooks.js
 priv/team/
 priv/static/images/team/
 test/ex_tales_forge/team_page_test.exs
+test/ex_tales_forge/team_online_test.exs
 test/ex_tales_forge_web/live/team_live_test.exs
 test/ex_tales_forge_web/live/team_presentation_live_test.exs
 test/ex_tales_forge/pr_feed_test.exs

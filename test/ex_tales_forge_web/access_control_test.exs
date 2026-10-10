@@ -27,6 +27,8 @@ defmodule TalesForgeWeb.AccessControlTest do
     # Machine-to-machine, same bearer token: the running commit for the other
     # app's live PR feed on /team; see VersionPeerController.
     {:get, "/internal/version"},
+    # Playtest's founders online for production's /team (OnlinePeerController).
+    {:get, "/internal/online"},
     # The bots' idea-board API (production only), one bearer token per bot
     # (BOARD_BOT_TOKEN_<BOT>); see BoardApiController.
     {:get, "/internal/board/ideas"},
