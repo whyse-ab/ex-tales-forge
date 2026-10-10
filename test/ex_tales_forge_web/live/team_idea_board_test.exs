@@ -48,6 +48,19 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     refute has_element?(view, "#board-modal")
   end
 
+  test "Refining and Building show a decorative portrait layer", %{conn: conn} do
+    {:ok, view, _} = live(conn, "/team")
+
+    for col <- ~w(refining building) do
+      assert has_element?(
+               view,
+               ~s(#board-col-#{col} [data-portrait="#{col}"][aria-hidden="true"])
+             )
+    end
+
+    refute has_element?(view, "#board-col-ideas [data-portrait]")
+  end
+
   test "add, open in a dialog, vote and take back, close", %{conn: conn} do
     {:ok, view, _} = live(conn, "/team")
 
