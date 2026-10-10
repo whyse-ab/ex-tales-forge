@@ -16,18 +16,18 @@ defmodule TalesForgeWeb.AdminLive.SurveyLiveTest do
   test "survey, results and exports are team-only" do
     for conn <- [build_conn(), log_in_non_member(build_conn())],
         path <- [
-          ~p"/admin/survey",
-          ~p"/admin/surveys",
-          ~p"/admin/surveys/founder-survey-3/results",
-          ~p"/admin/surveys/founder-survey-3/results.csv",
-          ~p"/admin/surveys/founder-survey-3/results.md"
+          ~p"/admin/founders/survey",
+          ~p"/admin/founders/surveys",
+          ~p"/admin/founders/surveys/founder-survey-3/results",
+          ~p"/admin/founders/surveys/founder-survey-3/results.csv",
+          ~p"/admin/founders/surveys/founder-survey-3/results.md"
         ] do
       assert redirected_to(get(conn, path)) =~ "/admin/login"
     end
   end
 
   test "the founder survey renders from the snapshot with who you answer as", %{conn: conn} do
-    {:ok, _view, html} = live(conn, ~p"/admin/survey")
+    {:ok, _view, html} = live(conn, ~p"/admin/founders/survey")
 
     assert html =~ "Answering as <strong>@ada</strong>"
     assert html =~ "Not started"
@@ -40,13 +40,13 @@ defmodule TalesForgeWeb.AdminLive.SurveyLiveTest do
     assert html =~
              "https://tales-forge-playtest.fly.dev/admin/playtest/761713eb-b3cd-4460-b4d0-34c7ba6f777c#turn-7"
 
-    assert html =~ ~s(href="/admin/survey")
+    assert html =~ ~s(href="/admin/founders/survey")
     refute html =~ "name?"
   end
 
   test "answers autosave per section and come back on reload", %{conn: conn} do
     use_docs_dir(survey_json())
-    {:ok, view, _html} = live(conn, ~p"/admin/surveys/test-survey")
+    {:ok, view, _html} = live(conn, ~p"/admin/founders/surveys/test-survey")
 
     html =
       view
@@ -68,7 +68,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLiveTest do
     assert response.answers["paul-archetypes"] == %{"Knight" => "3 Love"}
     assert response.saved_in_draft == false
 
-    {:ok, _view, html} = live(conn, ~p"/admin/surveys/test-survey")
+    {:ok, _view, html} = live(conn, ~p"/admin/founders/surveys/test-survey")
     assert html =~ ~s(value="Monologues")
     assert html =~ ~r/value="Lies"\s+checked/
     assert html =~ "1 required questions left"
@@ -76,7 +76,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLiveTest do
 
   test "clear my answers", %{conn: conn} do
     use_docs_dir(survey_json())
-    {:ok, view, _html} = live(conn, ~p"/admin/surveys/test-survey")
+    {:ok, view, _html} = live(conn, ~p"/admin/founders/surveys/test-survey")
     view |> form("#form-general") |> render_change(%{"answers" => %{"one" => "Yes"}})
 
     html = view |> element("button", "Clear my answers") |> render_click()
@@ -86,7 +86,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLiveTest do
 
   test "a closed survey is read-only", %{conn: conn} do
     use_docs_dir(survey_json(%{"status" => "closed"}))
-    {:ok, view, html} = live(conn, ~p"/admin/surveys/test-survey")
+    {:ok, view, html} = live(conn, ~p"/admin/founders/surveys/test-survey")
 
     assert html =~ "Closed."
     assert html =~ "disabled"
@@ -97,17 +97,17 @@ defmodule TalesForgeWeb.AdminLive.SurveyLiveTest do
 
   test "a bad survey file shows an admin error, not a crash", %{conn: conn} do
     use_docs_dir(~s({"format": 1, "id": "test-survey"}))
-    {:ok, view, html} = live(conn, ~p"/admin/surveys/test-survey")
+    {:ok, view, html} = live(conn, ~p"/admin/founders/surveys/test-survey")
 
     assert html =~ "the survey file in tales-forge-docs has a problem"
     assert html =~ "version is missing"
     assert render_click(view, "reload") =~ "version is missing"
 
-    {:ok, view, html} = live(conn, ~p"/admin/surveys/test-survey/results")
+    {:ok, view, html} = live(conn, ~p"/admin/founders/surveys/test-survey/results")
     assert html =~ "sections must be a non-empty list"
     assert render_click(view, "reload") =~ "has a problem"
 
-    conn = get(conn, ~p"/admin/surveys/test-survey/results.csv")
+    conn = get(conn, ~p"/admin/founders/surveys/test-survey/results.csv")
     assert conn.status == 404
   end
 
@@ -128,7 +128,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLiveTest do
         "paul-archetypes" => %{"0" => "2", "1" => "3 Love"}
       })
 
-    {:ok, view, html} = live(conn, ~p"/admin/surveys/test-survey/results")
+    {:ok, view, html} = live(conn, ~p"/admin/founders/surveys/test-survey/results")
     assert html =~ "Survey results"
     assert html =~ "@ada"
     assert html =~ "@bo"
@@ -145,14 +145,14 @@ defmodule TalesForgeWeb.AdminLive.SurveyLiveTest do
 
     assert render_click(view, "reload") =~ "Survey results"
 
-    csv = get(conn, ~p"/admin/surveys/test-survey/results.csv")
+    csv = get(conn, ~p"/admin/founders/surveys/test-survey/results.csv")
     assert csv.status == 200
     assert get_resp_header(csv, "content-type") |> hd() =~ "text/csv"
     assert csv.resp_body =~ ~s("ada","ada@example.com")
     assert csv.resp_body =~ ~s("Q8 paul-archetypes: Knight")
     assert csv.resp_body =~ ~s("Q1 one: labels")
 
-    md = get(conn, ~p"/admin/surveys/test-survey/results.md")
+    md = get(conn, ~p"/admin/founders/surveys/test-survey/results.md")
     assert md.status == 200
     assert md.resp_body =~ "## Paul"
     assert md.resp_body =~ "| Witch | 3.0 | 1 |"
@@ -160,14 +160,14 @@ defmodule TalesForgeWeb.AdminLive.SurveyLiveTest do
   end
 
   test "results page for the founder survey with no answers", %{conn: conn} do
-    {:ok, _view, html} = live(conn, ~p"/admin/surveys/founder-survey-3/results")
+    {:ok, _view, html} = live(conn, ~p"/admin/founders/surveys/founder-survey-3/results")
     assert html =~ "No answers yet."
     assert html =~ ~s(href="/admin/surveys/founder-survey-3")
     assert html =~ "an open tab"
   end
 
   test "the snapshots give two tabs: founder survey 3, then the intent survey", %{conn: conn} do
-    {:ok, view, html} = live(conn, ~p"/admin/survey")
+    {:ok, view, html} = live(conn, ~p"/admin/founders/survey")
 
     assert html =~ ~s(id="survey-tabs")
     assert html =~ "Play style &amp; scores"
@@ -175,7 +175,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLiveTest do
     assert length(Regex.scan(~r/id="survey-tab-/, html)) == 2
     assert view |> element("#survey-tab-founder-survey-3[aria-current=page]") |> has_element?()
 
-    {:ok, view, html} = live(conn, ~p"/admin/surveys/founder-survey-4-intent")
+    {:ok, view, html} = live(conn, ~p"/admin/founders/surveys/founder-survey-4-intent")
 
     assert view
            |> element("#survey-tab-founder-survey-4-intent[aria-current=page]")
@@ -189,7 +189,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLiveTest do
     three_surveys()
     {:ok, open} = TalesForge.Survey.Source.load("open-survey")
 
-    {:ok, view, html} = live(conn, ~p"/admin/survey")
+    {:ok, view, html} = live(conn, ~p"/admin/founders/survey")
     assert html =~ "Open one"
     refute html =~ "survey-tab-quiet-survey"
     refute html =~ "survey-tab-closed-survey"
@@ -209,7 +209,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLiveTest do
     {:ok, _} =
       Surveys.save_section(open, %{login: "ada", email: nil}, "general", %{"one" => "Yes"})
 
-    {:ok, view, _html} = live(conn, ~p"/admin/survey")
+    {:ok, view, _html} = live(conn, ~p"/admin/founders/survey")
     assert view |> element("#survey-tab-open-survey [data-status=done]") |> has_element?()
 
     render_click(view, "clear")
@@ -220,20 +220,20 @@ defmodule TalesForgeWeb.AdminLive.SurveyLiveTest do
   test "an inactive or closed survey is still readable, with its results", %{conn: conn} do
     three_surveys()
 
-    {:ok, _view, html} = live(conn, ~p"/admin/surveys/quiet-survey")
+    {:ok, _view, html} = live(conn, ~p"/admin/founders/surveys/quiet-survey")
     assert html =~ "Quiet survey"
     assert html =~ ~s(id="survey-inactive")
     assert html =~ "survey-tab-open-survey"
 
-    {:ok, _view, html} = live(conn, ~p"/admin/surveys/closed-survey/results")
+    {:ok, _view, html} = live(conn, ~p"/admin/founders/surveys/closed-survey/results")
     assert html =~ "Closed survey"
     assert html =~ "not an open tab"
-    assert get(conn, ~p"/admin/surveys/closed-survey/results.csv").status == 200
+    assert get(conn, ~p"/admin/founders/surveys/closed-survey/results.csv").status == 200
   end
 
   test "with no active survey the page falls back to the configured one", %{conn: conn} do
     use_docs_files(%{"quiet-survey.json" => survey_json(%{"id" => "quiet-survey"})})
-    {:ok, _view, html} = live(conn, ~p"/admin/survey")
+    {:ok, _view, html} = live(conn, ~p"/admin/founders/survey")
     refute html =~ ~s(id="survey-tabs")
     assert html =~ "survey-problems"
   end
@@ -243,7 +243,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLiveTest do
     {:ok, open} = TalesForge.Survey.Source.load("open-survey")
     {:ok, _} = Surveys.save_section(open, %{login: "bo", email: nil}, "general", %{"pace" => "2"})
 
-    {:ok, view, html} = live(conn, ~p"/admin/surveys")
+    {:ok, view, html} = live(conn, ~p"/admin/founders/surveys")
     assert html =~ "Founder surveys"
     assert html =~ "@bo"
 
@@ -262,7 +262,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLiveTest do
 
   test "all surveys lists a broken file as failed to load", %{conn: conn} do
     use_docs_files(%{"broken-survey.json" => "{nope"})
-    {:ok, _view, html} = live(conn, ~p"/admin/surveys")
+    {:ok, _view, html} = live(conn, ~p"/admin/founders/surveys")
     assert html =~ "Failed to load"
   end
 end

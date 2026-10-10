@@ -138,7 +138,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Results do
               <tr :for={u <- @overview.users} class="border-t border-[var(--paper-rule)]">
                 <td class="py-1.5 pr-2">
                   <.link
-                    patch={~p"/admin/surveys/#{@definition.id}/results?user=#{u.login}"}
+                    patch={~p"/admin/founders/surveys/#{@definition.id}/results?user=#{u.login}"}
                     class="text-[var(--paper-accent)] underline"
                   >
                     @{u.login}

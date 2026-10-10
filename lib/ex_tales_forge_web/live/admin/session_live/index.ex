@@ -58,7 +58,7 @@ defmodule TalesForgeWeb.AdminLive.SessionLive.Index do
               <td class="px-4 py-3">{row.turn_count}</td>
               <td class="px-4 py-3 space-x-2">
                 <.link
-                  navigate={~p"/admin/sessions/#{row.session.id}"}
+                  navigate={~p"/admin/play/sessions/#{row.session.id}"}
                   class="text-[var(--paper-accent)]"
                 >
                   View

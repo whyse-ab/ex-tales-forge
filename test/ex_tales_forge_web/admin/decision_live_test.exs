@@ -14,14 +14,14 @@ defmodule TalesForgeWeb.AdminLive.DecisionLiveTest do
   end
 
   test "queue renders ranked decisions", %{conn: conn} do
-    {:ok, _view, html} = live(conn, ~p"/admin/decisions")
+    {:ok, _view, html} = live(conn, ~p"/admin/founders/decisions")
     assert html =~ "Decision queue"
     assert html =~ "Confirm the Elixir rewrite"
     assert html =~ "open"
   end
 
   test "rerank moves a decision up", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/admin/decisions")
+    {:ok, view, _html} = live(conn, ~p"/admin/founders/decisions")
 
     before = Collab.list_decisions()
     second = Enum.at(before, 1)
@@ -34,7 +34,7 @@ defmodule TalesForgeWeb.AdminLive.DecisionLiveTest do
   end
 
   test "record decision on show page", %{conn: conn} do
-    {:ok, view, html} = live(conn, ~p"/admin/decisions/d-001-elixir-foundation")
+    {:ok, view, html} = live(conn, ~p"/admin/founders/decisions/d-001-elixir-foundation")
     assert html =~ "Confirm the Elixir rewrite"
     assert html =~ "Record decision"
 

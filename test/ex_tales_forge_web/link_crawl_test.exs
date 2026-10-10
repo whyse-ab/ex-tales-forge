@@ -8,7 +8,7 @@ defmodule TalesForgeWeb.LinkCrawlTest do
 
   Not followed: external links (checked by hand, GitHub repos may be private),
   `data-method` links (sign out is a DELETE), the LiveDashboard's own pages
-  under `/admin/oban/` and the built `/assets/*` (not built in CI: their
+  under `/admin/operate/telemetry/` and the built `/assets/*` (not built in CI: their
   folder must be one of `TalesForgeWeb.static_paths/0` instead).
   """
   use TalesForgeWeb.ConnCase, async: false
@@ -49,13 +49,14 @@ defmodule TalesForgeWeb.LinkCrawlTest do
     assert broken == [], "broken links:\n" <> Enum.map_join(Enum.reverse(broken), "\n", & &1)
 
     # The crawl really reached the pages that carry the most links.
-    for page <- ~w(/admin/docs /admin/decisions /admin/playtest /admin/sessions /admin/costs) do
+    for page <-
+          ~w(/admin/docs /admin/founders/decisions /admin/play/runs /admin/play/sessions /admin/operate/costs) do
       assert Map.has_key?(visited, page), "crawl never reached #{page}"
     end
 
-    assert Enum.any?(Map.keys(visited), &String.starts_with?(&1, "/admin/playtest/"))
+    assert Enum.any?(Map.keys(visited), &String.starts_with?(&1, "/admin/play/runs/"))
     assert Enum.any?(Map.keys(visited), &String.starts_with?(&1, "/admin/docs/"))
-    assert Enum.any?(Map.keys(visited), &String.starts_with?(&1, "/admin/decisions/"))
+    assert Enum.any?(Map.keys(visited), &String.starts_with?(&1, "/admin/founders/decisions/"))
   end
 
   defp seed do
@@ -101,7 +102,7 @@ defmodule TalesForgeWeb.LinkCrawlTest do
 
         Replaces [survey 2](founder-survey-2.md); scores per [persona](personas.md#paul).
         See the [decision](../decisions/d-008-tin-valley-starter.md), the
-        [script](scripts/jev-rescore/rescore.exs) and the [playtest page](/admin/playtest).
+        [script](scripts/jev-rescore/rescore.exs) and the [playtest page](/admin/play/runs).
 
         ![Score by turn](images/score.png)
         """,
@@ -142,7 +143,15 @@ defmodule TalesForgeWeb.LinkCrawlTest do
           {:error, why} -> ["#{path}: #{why}" | broken]
         end
 
-      found = if html, do: internal_links(path, html), else: []
+      # Old admin URLs redirect to their new place: follow the redirect, so
+      # the target is checked too.
+      found =
+        cond do
+          html -> internal_links(path, html)
+          internal_redirect?(location) -> [URI.parse(location).path]
+          true -> []
+        end
+
       crawl(conn, queue ++ found, visited, broken)
     end
   end
@@ -156,6 +165,11 @@ defmodule TalesForgeWeb.LinkCrawlTest do
     # ConnTest re-raises what the app would render as a 404/500 page.
     error -> {"raised #{inspect(error.__struct__)}", nil, nil}
   end
+
+  defp internal_redirect?("/" <> _ = location),
+    do: not String.starts_with?(location, "/admin/login")
+
+  defp internal_redirect?(_location), do: false
 
   defp check(200, _location), do: :ok
 
@@ -190,10 +204,10 @@ defmodule TalesForgeWeb.LinkCrawlTest do
     false
   end
 
-  defp followed?("/admin/oban/" <> _), do: false
+  defp followed?("/admin/operate/telemetry/" <> _), do: false
   defp followed?(_path), do: true
 
-  # Pages with ids (/admin/sessions/<id>, /play/<id>...) are one template each.
+  # Pages with ids (/admin/play/sessions/<id>, /play/<id>...) are one template each.
   defp route_full?(visited, path) do
     pattern = route_pattern(path)
 

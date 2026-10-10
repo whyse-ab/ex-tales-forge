@@ -51,19 +51,30 @@ defmodule TalesForgeWeb.PhoneLayoutTest do
   describe "admin nav" do
     setup %{conn: conn}, do: {:ok, conn: log_in_admin(conn)}
 
-    test "wraps below lg instead of scrolling sideways; desktop stays a list", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/admin")
-      nav = classes(render(view), "#admin-nav")
+    test "phones get one Menu row that opens the groups; desktop shows them as a list", %{
+      conn: conn
+    } do
+      {:ok, view, html} = live(conn, ~p"/admin/operate/costs")
 
-      assert "flex-wrap" in nav
-      refute "overflow-x-auto" in nav
-      refute "whitespace-nowrap" in nav
-      # The desktop sidebar: a vertical list from lg up.
-      assert "lg:block" in nav
-      assert "lg:space-y-1" in nav
+      # One disclosure, no JavaScript: the summary names the current page.
+      assert has_element?(view, "#admin-nav details#admin-nav-menu > summary", "Menu")
+      assert has_element?(view, "#admin-nav-menu > summary", "Operate · Costs")
+      # From lg up the summary is hidden and the content always shown.
+      assert html =~ "#admin-nav-menu::details-content"
+      refute "overflow-x-auto" in classes(html, "#admin-nav")
 
-      # Every section is a plain link in the wrapping nav, Sign out included.
-      for label <- ["Costs", "Oban / telemetry", "Code docs", "← Player home", "Sign out"] do
+      # Phone-sized targets (44px) on the links, two per row below lg.
+      assert "min-h-11" in classes(html, ~s(#admin-nav a[href="/admin/operate/costs"]))
+      assert "grid-cols-2" in classes(html, "#admin-nav-operate ul")
+
+      for label <- [
+            "Admin home",
+            "Costs",
+            "Telemetry and AI calls",
+            "Code docs",
+            "← Player home",
+            "Sign out"
+          ] do
         assert has_element?(view, "#admin-nav a", label)
       end
     end

@@ -110,8 +110,15 @@ The baseline variant gets no world features. The GM has one reply mode, the stri
 
 Source: decision 2026-10-08 "Each thing lives in one place", `TalesForge.AppRole`.
 
-- Founder surveys live only on production; playtest runs only on playtest. On the other app, `/admin/survey`, `/admin/surveys/*` and `/admin/playtest/*` redirect to the same path on the owning app (`TalesForgeWeb.Plugs.HomeApp`), the admin nav links there, and the data is refused (`Surveys.save_section/4` returns `{:error, :wrong_app}`; `Playtest.Runner.enabled?/0` is false on production).
+- Founder surveys live only on production; playtest runs only on playtest. On the other app, `/admin/founders/survey`, `/admin/founders/surveys/*` and `/admin/play/runs/*` redirect to the same page on the owning app (`TalesForgeWeb.Plugs.HomeApp`), the admin nav links there (cross-app links use the old paths, `TalesForge.AdminPaths.legacy/1`, which every version of either app understands), and the data is refused (`Surveys.save_section/4` returns `{:error, :wrong_app}`; `Playtest.Runner.enabled?/0` is false on production).
 - The role comes from `FLY_APP_NAME` (a name with "playtest" = playtest, no name = local, where both live); the apps' base URLs are `config :ex_tales_forge, TalesForge.AppRole` in `config/config.exs`. Don't hardcode hostnames elsewhere.
+
+## The admin area
+
+Source: decision 2026-10-10 "Admin area grouped by purpose", `TalesForgeWeb.AdminSections`, `TalesForge.AdminPaths`.
+
+- The admin pages are grouped by purpose: Founders (`/team`, the presentation, `/admin/founders/*`), Play and test (`/admin/play/*`), Operate (`/admin/operate/*`), Develop (`/admin/code-docs`), Docs (`/admin/docs`) and a collapsed Archive (`/admin/archive/*`). The nav and the admin home's cards both come from `TalesForgeWeb.AdminSections`; add a page there, not in the nav by hand.
+- Old admin URLs keep working: `TalesForge.AdminPaths` maps each moved prefix and the router sends the old ones to `TalesForgeWeb.AdminRedirectController` (302, after sign-in). A page that moves gets a line there and a row in `admin_reorg_test.exs`.
 
 ## Money and AI spend
 

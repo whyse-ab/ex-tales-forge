@@ -137,7 +137,7 @@ defmodule TalesForge.Survey.ResultsTest do
     assert md =~ "*Does not mean*\n\n- “lying” (@ada)"
 
     assert md =~
-             "[turn 7](https://tp.test/admin/playtest/#{run_id()}#turn-7), Jev 2.88, stricter scale"
+             "[turn 7](https://tp.test/admin/play/runs/#{run_id()}#turn-7), Jev 2.88, stricter scale"
 
     assert md =~ "About right 1 · Too high 1"
     assert md =~ "| Knight | 2.5 | 2 |"

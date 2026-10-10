@@ -38,7 +38,7 @@ defmodule TalesForgeWeb.AdminLive.TurnLive.Index do
     <Layouts.admin flash={@flash} active="sessions">
       <header class="space-y-2">
         <.link
-          navigate={~p"/admin/sessions/#{@session.id}"}
+          navigate={~p"/admin/play/sessions/#{@session.id}"}
           class="text-sm text-[var(--paper-accent)]"
         >
           ← {@session.name}

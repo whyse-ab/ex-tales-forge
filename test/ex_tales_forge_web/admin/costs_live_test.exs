@@ -24,16 +24,21 @@ defmodule TalesForgeWeb.AdminLive.CostsLiveTest do
 
   test "admin only" do
     for conn <- [build_conn(), log_in_non_member(build_conn())] do
-      assert redirected_to(get(conn, ~p"/admin/costs")) =~ "/admin/login"
+      assert redirected_to(get(conn, ~p"/admin/operate/costs")) =~ "/admin/login"
     end
   end
 
   test "in the admin nav, current page marked", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/admin/costs")
-    assert has_element?(view, ~s(#admin-nav a[href="/admin/costs"][aria-current="page"]), "Costs")
+    {:ok, view, _html} = live(conn, ~p"/admin/operate/costs")
+
+    assert has_element?(
+             view,
+             ~s(#admin-nav a[href="/admin/operate/costs"][aria-current="page"]),
+             "Costs"
+           )
 
     {:ok, view, _html} = live(conn, ~p"/admin")
-    assert has_element?(view, ~s(#admin-nav a[href="/admin/costs"]), "Costs")
+    assert has_element?(view, ~s(#admin-nav a[href="/admin/operate/costs"]), "Costs")
   end
 
   test "this app's spend by bucket, fixed costs with unknown, SEK and the rate", %{conn: conn} do
@@ -42,7 +47,7 @@ defmodule TalesForgeWeb.AdminLive.CostsLiveTest do
     insert!("scorer", 10_000, "error")
     insert!("persona", 0, "capped")
 
-    {:ok, view, html} = live(conn, ~p"/admin/costs")
+    {:ok, view, html} = live(conn, ~p"/admin/operate/costs")
 
     %{rate: rate, as_of: as_of} = Costs.usd_sek()
     assert html =~ "1 USD = #{rate} SEK (rate as of #{Date.to_iso8601(as_of)}"
@@ -67,7 +72,7 @@ defmodule TalesForgeWeb.AdminLive.CostsLiveTest do
     test "not configured (no COSTS_PEER_TOKEN): production renders, playtest says so",
          %{conn: conn} do
       insert!("gm", 1_000_000)
-      {:ok, view, _html} = live(conn, ~p"/admin/costs")
+      {:ok, view, _html} = live(conn, ~p"/admin/operate/costs")
 
       assert has_element?(view, "#costs-env-peer", "Playtest: not configured")
       assert has_element?(view, "#costs-env-peer", "COSTS_PEER_TOKEN")
@@ -82,7 +87,7 @@ defmodule TalesForgeWeb.AdminLive.CostsLiveTest do
       insert!("gm", 1_000_000)
       Req.Test.stub(Peer, &Req.Test.transport_error(&1, :econnrefused))
 
-      {:ok, view, _html} = live(conn, ~p"/admin/costs")
+      {:ok, view, _html} = live(conn, ~p"/admin/operate/costs")
       render_async(view)
 
       assert has_element?(view, "#costs-env-peer", "Playtest unavailable")
@@ -98,7 +103,7 @@ defmodule TalesForgeWeb.AdminLive.CostsLiveTest do
       configure_peer()
       Req.Test.stub(Peer, &Plug.Conn.send_resp(&1, 401, "Unauthorized"))
 
-      {:ok, view, _html} = live(conn, ~p"/admin/costs")
+      {:ok, view, _html} = live(conn, ~p"/admin/operate/costs")
       render_async(view)
 
       assert has_element?(view, "#costs-env-peer", "HTTP 401, token rejected")
@@ -118,7 +123,7 @@ defmodule TalesForgeWeb.AdminLive.CostsLiveTest do
         Req.Test.json(conn, playtest_body)
       end)
 
-      {:ok, view, _html} = live(conn, ~p"/admin/costs")
+      {:ok, view, _html} = live(conn, ~p"/admin/operate/costs")
       render_async(view)
 
       assert has_element?(view, "#costs-env-peer h2", "Playtest (tales-forge-playtest)")
@@ -145,7 +150,7 @@ defmodule TalesForgeWeb.AdminLive.CostsLiveTest do
       configure_peer()
       Req.Test.stub(Peer, &Req.Test.json(&1, playtest_body(%{}, 0)))
 
-      {:ok, view, _html} = live(conn, ~p"/admin/costs")
+      {:ok, view, _html} = live(conn, ~p"/admin/operate/costs")
       render_async(view)
 
       assert has_element?(view, "#costs-playtest-ok", "under the $15.00 threshold")
@@ -182,7 +187,7 @@ defmodule TalesForgeWeb.AdminLive.CostsLiveTest do
       # Manual play on playtest: not a run.
       insert!("gm", 7_000_000)
 
-      {:ok, view, html} = live(conn, ~p"/admin/costs")
+      {:ok, view, html} = live(conn, ~p"/admin/operate/costs")
 
       assert has_element?(view, "#costs-runs h2", "Playtest runs (tales-forge-playtest)")
       assert has_element?(view, "#costs-runs-month-gm", "$2.00")
@@ -252,7 +257,7 @@ defmodule TalesForgeWeb.AdminLive.CostsLiveTest do
       cost_micro_usd: 0
     })
 
-    {:ok, view, _html} = live(conn, ~p"/admin/costs")
+    {:ok, view, _html} = live(conn, ~p"/admin/operate/costs")
 
     assert has_element?(view, "#costs-breakdown-game-llm-gm", "$0.0160")
     assert has_element?(view, "#costs-breakdown-game-function-turn_prompt", "3 ms")

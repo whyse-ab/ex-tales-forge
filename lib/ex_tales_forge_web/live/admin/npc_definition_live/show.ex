@@ -24,7 +24,7 @@ defmodule TalesForgeWeb.AdminLive.NpcDefinitionLive.Show do
       {:ok,
        socket
        |> put_flash(:error, "No NPC definition #{inspect(npc_id)}.")
-       |> push_navigate(to: ~p"/admin/npc-definitions")}
+       |> push_navigate(to: ~p"/admin/archive/npc-definitions")}
   end
 
   @impl true
@@ -32,7 +32,10 @@ defmodule TalesForgeWeb.AdminLive.NpcDefinitionLive.Show do
     ~H"""
     <Layouts.admin flash={@flash} active="npc_definitions">
       <header class="space-y-2">
-        <.link navigate={~p"/admin/npc-definitions"} class="text-sm text-[var(--paper-accent)]">
+        <.link
+          navigate={~p"/admin/archive/npc-definitions"}
+          class="text-sm text-[var(--paper-accent)]"
+        >
           ← NPC definitions
         </.link>
         <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">{@npc_id}</h2>

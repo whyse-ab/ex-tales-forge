@@ -41,10 +41,10 @@ defmodule TalesForgeWeb.AccessControlTest do
             "/play/#{@id}",
             "/team",
             "/admin",
-            "/admin/costs",
-            "/admin/playtest",
-            "/admin/sessions",
-            "/admin/oban",
+            "/admin/operate/costs",
+            "/admin/play/runs",
+            "/admin/play/sessions",
+            "/admin/operate/telemetry",
             "/admin/code-docs",
             "/admin/code-docs/index.html"
           ] do
@@ -76,7 +76,14 @@ defmodule TalesForgeWeb.AccessControlTest do
     end
 
     test "LiveViews (game, character play, admin) can't be mounted" do
-      for path <- ["/", "/new/tin_valley", "/play/#{@id}", "/team", "/admin", "/admin/costs"] do
+      for path <- [
+            "/",
+            "/new/tin_valley",
+            "/play/#{@id}",
+            "/team",
+            "/admin",
+            "/admin/operate/costs"
+          ] do
         assert {:error, {:redirect, %{to: "/admin/login"}}} = live(build_conn(), path)
       end
     end
@@ -158,8 +165,8 @@ defmodule TalesForgeWeb.AccessControlTest do
     test "gets the player and admin pages with no second admin step", %{conn: conn} do
       assert conn |> get("/") |> html_response(200)
       assert conn |> get("/admin") |> html_response(200)
-      assert conn |> get("/admin/costs") |> html_response(200)
-      assert {:ok, _view, _html} = live(conn, "/admin/oban/home")
+      assert conn |> get("/admin/operate/costs") |> html_response(200)
+      assert {:ok, _view, _html} = live(conn, "/admin/operate/telemetry/home")
     end
   end
 end

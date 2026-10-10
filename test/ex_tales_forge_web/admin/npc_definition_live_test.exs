@@ -11,15 +11,15 @@ defmodule TalesForgeWeb.AdminLive.NpcDefinitionLiveTest do
 
   test "the index lists the pack files", %{conn: conn} do
     [summary | _] = Admin.list_npc_definitions()
-    {:ok, view, html} = live(conn, ~p"/admin/npc-definitions")
+    {:ok, view, html} = live(conn, ~p"/admin/archive/npc-definitions")
 
     assert html =~ "Read-only"
-    assert has_element?(view, ~s(a[href="/admin/npc-definitions/#{summary.id}"]))
+    assert has_element?(view, ~s(a[href="/admin/archive/npc-definitions/#{summary.id}"]))
   end
 
   test "a definition page is read-only", %{conn: conn} do
     [summary | _] = Admin.list_npc_definitions()
-    {:ok, view, html} = live(conn, ~p"/admin/npc-definitions/#{summary.id}")
+    {:ok, view, html} = live(conn, ~p"/admin/archive/npc-definitions/#{summary.id}")
 
     assert html =~ "read-only"
     assert has_element?(view, "pre#definition_json", summary.id)
@@ -29,8 +29,8 @@ defmodule TalesForgeWeb.AdminLive.NpcDefinitionLiveTest do
   end
 
   test "an unknown definition redirects to the index", %{conn: conn} do
-    assert {:error, {:live_redirect, %{to: "/admin/npc-definitions", flash: flash}}} =
-             live(conn, ~p"/admin/npc-definitions/no_such_npc")
+    assert {:error, {:live_redirect, %{to: "/admin/archive/npc-definitions", flash: flash}}} =
+             live(conn, ~p"/admin/archive/npc-definitions/no_such_npc")
 
     assert flash["error"] =~ "No NPC definition"
   end

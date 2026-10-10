@@ -29,7 +29,7 @@
 # migrations, config, AICalls, mix.exs/deps, the router, CI, this file).
 
 [admin]
-# Founder surveys (production only): /admin/survey, /admin/surveys/*
+# Founder surveys (production only): /admin/founders/survey, /admin/founders/surveys/*
 lib/ex_tales_forge/surveys.ex
 lib/ex_tales_forge/survey/
 lib/ex_tales_forge_web/live/admin/survey_live/
@@ -41,7 +41,7 @@ test/ex_tales_forge/survey/
 test/ex_tales_forge_web/admin/survey_live_test.exs
 test/support/survey_fixtures.ex
 
-# Costs page: /admin/costs (the token-guarded GET /internal/costs controller is
+# Costs page: /admin/operate/costs (the token-guarded GET /internal/costs controller is
 # a signed-out route, so it stays in the normal lane)
 lib/ex_tales_forge/costs.ex
 lib/ex_tales_forge/costs/
@@ -50,7 +50,7 @@ test/ex_tales_forge/costs_test.exs
 test/ex_tales_forge/costs/
 test/ex_tales_forge_web/admin/costs_live_test.exs
 
-# Playtest admin pages: /admin/playtest/* and the summary on top of them (the
+# Playtest admin pages: /admin/play/runs/* and the summary on top of them (the
 # persona runner, scorers, personas and reports read side drive the bot batch,
 # so they stay in the normal lane)
 lib/ex_tales_forge_web/live/admin/playtest_live/

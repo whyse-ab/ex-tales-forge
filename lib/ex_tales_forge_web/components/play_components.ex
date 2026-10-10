@@ -23,7 +23,7 @@ defmodule TalesForgeWeb.PlayComponents do
             {@session_name}
           </h1>
           <.link
-            href={~p"/admin/sessions/#{@session_id}"}
+            href={~p"/admin/play/sessions/#{@session_id}"}
             class="play-label shrink-0 text-[var(--paper-muted)] hover:text-[var(--paper-accent)] hover:underline"
           >
             Admin

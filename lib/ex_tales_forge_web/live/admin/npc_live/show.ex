@@ -19,7 +19,7 @@ defmodule TalesForgeWeb.AdminLive.NpcLive.Show do
         {:ok,
          socket
          |> put_flash(:error, "No NPC #{inspect(npc_id)} in this session.")
-         |> push_navigate(to: ~p"/admin/sessions/#{session.id}/npcs")}
+         |> push_navigate(to: ~p"/admin/play/sessions/#{session.id}/npcs")}
 
       npc ->
         {:ok, assign_npc(socket, session, npc)}
@@ -82,7 +82,7 @@ defmodule TalesForgeWeb.AdminLive.NpcLive.Show do
     <Layouts.admin flash={@flash} active="sessions">
       <header class="space-y-2">
         <.link
-          navigate={~p"/admin/sessions/#{@session.id}/npcs"}
+          navigate={~p"/admin/play/sessions/#{@session.id}/npcs"}
           class="text-sm text-[var(--paper-accent)]"
         >
           ← NPC instances

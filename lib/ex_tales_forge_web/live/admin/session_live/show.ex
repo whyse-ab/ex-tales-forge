@@ -70,7 +70,7 @@ defmodule TalesForgeWeb.AdminLive.SessionLive.Show do
 
   def handle_event("delete", _params, socket) do
     Admin.delete_session(socket.assigns.session)
-    {:noreply, push_navigate(socket, to: ~p"/admin/sessions")}
+    {:noreply, push_navigate(socket, to: ~p"/admin/play/sessions")}
   end
 
   defp assign_session(socket, session) do
@@ -89,7 +89,7 @@ defmodule TalesForgeWeb.AdminLive.SessionLive.Show do
     ~H"""
     <Layouts.admin flash={@flash} active="sessions">
       <header class="space-y-2">
-        <.link navigate={~p"/admin/sessions"} class="text-sm text-[var(--paper-accent)]">← Sessions</.link>
+        <.link navigate={~p"/admin/play/sessions"} class="text-sm text-[var(--paper-accent)]">← Sessions</.link>
         <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">{@session.name}</h2>
         <p class="text-sm text-[var(--paper-muted)] font-mono">{@session.id}</p>
       </header>
@@ -102,13 +102,13 @@ defmodule TalesForgeWeb.AdminLive.SessionLive.Show do
           Open in play
         </.link>
         <.link
-          navigate={~p"/admin/sessions/#{@session.id}/npcs"}
+          navigate={~p"/admin/play/sessions/#{@session.id}/npcs"}
           class="rounded border border-[var(--paper-rule)] px-3 py-1.5 text-sm"
         >
           NPC instances
         </.link>
         <.link
-          navigate={~p"/admin/sessions/#{@session.id}/turns"}
+          navigate={~p"/admin/play/sessions/#{@session.id}/turns"}
           class="rounded border border-[var(--paper-rule)] px-3 py-1.5 text-sm"
         >
           Turns

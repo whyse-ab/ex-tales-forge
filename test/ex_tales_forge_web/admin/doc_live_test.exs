@@ -72,7 +72,7 @@ defmodule TalesForgeWeb.AdminLive.DocLiveTest do
           - [script](scripts/jev-rescore/rescore.exs)
           - [script folder](scripts/jev-compare/)
           - [world file](../worlds/merovingia/game-system.json)
-          - [admin page](/admin/playtest)
+          - [admin page](/admin/play/runs)
           - [pull request](https://github.com/whyse-ab/ex-tales-forge/pull/74)
           - [mail](mailto:team@example.com)
 
@@ -112,12 +112,12 @@ defmodule TalesForgeWeb.AdminLive.DocLiveTest do
         "sibling heading" => "/admin/docs/roadmap-2027.md#q1",
         "same page" => "#answers",
         "not synced" => "#{gh}/blob/main/docs/founder-survey-2.md",
-        "decision" => "/admin/decisions/d-008-tin-valley-starter#why",
+        "decision" => "/admin/founders/decisions/d-008-tin-valley-starter#why",
         "decisions readme" => "#{gh}/blob/main/decisions/README.md",
         "script" => "#{gh}/blob/main/docs/scripts/jev-rescore/rescore.exs",
         "script folder" => "#{gh}/tree/main/docs/scripts/jev-compare",
         "world file" => "#{gh}/blob/main/worlds/merovingia/game-system.json",
-        "admin page" => "/admin/playtest",
+        "admin page" => "/admin/play/runs",
         "pull request" => "https://github.com/whyse-ab/ex-tales-forge/pull/74",
         "mail" => "mailto:team@example.com"
       }
@@ -136,7 +136,10 @@ defmodule TalesForgeWeb.AdminLive.DocLiveTest do
     end
 
     test "every rewritten internal link resolves, anchors included", %{conn: conn} do
-      for page <- [~p"/admin/docs/survey.md", ~p"/admin/decisions/d-008-tin-valley-starter"] do
+      for page <- [
+            ~p"/admin/docs/survey.md",
+            ~p"/admin/founders/decisions/d-008-tin-valley-starter"
+          ] do
         {:ok, _view, html} = live(conn, page)
 
         doc = LazyHTML.from_document(html)

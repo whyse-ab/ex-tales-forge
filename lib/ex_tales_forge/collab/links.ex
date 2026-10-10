@@ -9,14 +9,14 @@ defmodule TalesForge.Collab.Links do
   `rewrite/3` maps each one to the page that shows it:
 
   - a doc in the database: the doc viewer, `/admin/docs/<path under docs/>`;
-  - a decision in the database: `/admin/decisions/<slug>`;
+  - a decision in the database: `/admin/founders/decisions/<slug>`;
   - an image under `docs/`: `/admin/docs-files/<repo path>`
     (`TalesForgeWeb.DocFilesController`, the repo is private);
   - anything else in the repo (scripts, JSON, a doc not synced yet): the file
     on GitHub, which team members can open.
 
   Absolute URLs, `mailto:`, same-page `#anchors` (headings get GitHub-style
-  ids when rendered) and paths of this app (`/admin/playtest`)
+  ids when rendered) and paths of this app (`/admin/play/runs`)
   are left alone.
   """
 
@@ -93,7 +93,7 @@ defmodule TalesForge.Collab.Links do
         "/admin/docs/" <> String.replace_prefix(path, "docs/", "")
 
       decision = decision_slug(path, known) ->
-        "/admin/decisions/" <> decision
+        "/admin/founders/decisions/" <> decision
 
       ext in @images and String.starts_with?(path, "docs/") ->
         "/admin/docs-files/" <> path

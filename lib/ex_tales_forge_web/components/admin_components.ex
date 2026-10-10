@@ -4,102 +4,153 @@ defmodule TalesForgeWeb.AdminComponents do
   use TalesForgeWeb, :html
 
   alias TalesForge.AppRole
+  alias TalesForgeWeb.AdminSections
   alias TalesForgeWeb.TimeAgo
 
   attr :active, :string, default: "dashboard"
 
   @doc """
-  The admin section nav. Below the `lg` breakpoint the links wrap into rows of
-  compact tabs, so every section (Sign out included) is on screen without
-  sideways scrolling, even at 320px; from `lg` up it is the vertical sidebar
-  list. `active` names the current section, marked with `aria-current="page"`.
+  The admin nav, grouped by purpose (`TalesForgeWeb.AdminSections`): Admin
+  home, then Founders, Play and test, Operate, Develop and Docs, a collapsed
+  Archive, and Player home and Sign out.
+
+  Phones and tablets (below `lg`) get one "Menu" row that names the current
+  page and opens the groups (a `<details>`, no JavaScript); from `lg` up it is
+  the always-open sidebar list (the summary is hidden and the content shown
+  with `::details-content`; a browser without it keeps the Menu button).
+  `active` names the current page (an item's `key`), marked with
+  `aria-current="page"`.
   """
   @spec nav(map()) :: Phoenix.LiveView.Rendered.t()
   def nav(assigns) do
+    section = AdminSections.section_of(assigns.active)
+
+    assigns =
+      assigns
+      |> assign(:role, AppRole.role())
+      |> assign(:groups, Enum.reject(AdminSections.sections(), &(&1.id == :archive)))
+      |> assign(:archive, Enum.find(AdminSections.sections(), &(&1.id == :archive)))
+      |> assign(:current, current_label(section, assigns.active))
+      |> assign(:in_archive, match?(%{id: :archive}, section))
+
     ~H"""
-    <%!-- Phones and tablets: wrapping rows of tabs. Desktop: a plain vertical list. --%>
-    <nav
-      id="admin-nav"
-      aria-label="Admin sections"
-      class="admin-nav flex flex-wrap gap-1 text-sm lg:block lg:space-y-1"
-    >
-      <.nav_link href={~p"/admin"} label="Dashboard" active={@active == "dashboard"} />
-      <.nav_link href={~p"/admin/decisions"} label="Decisions" active={@active == "decisions"} />
-      <.nav_link href={~p"/admin/docs"} label="Docs" active={@active == "docs"} />
-      <.nav_link href={~p"/admin/sessions"} label="Sessions" active={@active == "sessions"} />
-      <%!-- Each lives on one app (TalesForge.AppRole); the other app links there. --%>
-      <.home_app_link
-        area={:playtest_runs}
-        path={~p"/admin/playtest"}
-        label="Playtest runs"
-        active={@active == "playtest"}
-      />
-      <.home_app_link
-        area={:surveys}
-        path={~p"/admin/survey"}
-        label="Founder survey"
-        active={@active == "survey"}
-      />
-      <.nav_link
-        href={~p"/admin/npc-definitions"}
-        label="NPC definitions"
-        active={@active == "npc_definitions"}
-      />
-      <.nav_link href={~p"/admin/costs"} label="Costs" active={@active == "costs"} />
-      <.nav_link href={~p"/admin/oban"} label="Oban / telemetry" active={@active == "oban"} />
-      <%!-- Plain page, not a LiveView: full page load --%>
-      <.nav_link href="/admin/code-docs/" label="Code docs" active={false} external />
-      <.nav_link href={~p"/team"} label="Founders' page" active={false} />
-      <.nav_link href={~p"/"} label="← Player home" active={false} />
-      <.link
-        href={~p"/admin/logout"}
-        method="delete"
-        class="block shrink-0 rounded px-2.5 py-1.5 text-[var(--paper-muted)] hover:bg-[var(--paper-bg)] lg:px-3 lg:py-2"
-      >
-        Sign out
-      </.link>
+    <style>
+      @media (min-width: 64rem) {
+        @supports selector(::details-content) {
+          #admin-nav-menu > summary { display: none; }
+          #admin-nav-menu::details-content { content-visibility: visible; display: block; }
+        }
+      }
+    </style>
+    <nav id="admin-nav" aria-label="Admin sections" class="admin-nav text-sm">
+      <details id="admin-nav-menu" class="group/menu">
+        <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded px-2.5 py-1.5 text-[var(--paper-ink)] hover:bg-[var(--paper-bg)] [&::-webkit-details-marker]:hidden">
+          <span class="font-semibold">Menu</span>
+          <span class="min-w-0 truncate text-[var(--paper-muted)]">
+            {@current}
+            <span aria-hidden="true" class="ml-1 inline-block group-open/menu:rotate-180">▾</span>
+          </span>
+        </summary>
+        <div class="space-y-3 px-1 pt-2 pb-1 lg:p-0">
+          <.nav_link href={~p"/admin"} label="Admin home" active={@active == "dashboard"} />
+          <div :for={group <- @groups} id={"admin-nav-#{group.id}"} data-group={group.id}>
+            <p class="play-label px-2.5 pb-1 text-[var(--paper-muted)] lg:px-3">{group.title}</p>
+            <ul class="grid grid-cols-2 gap-0.5 lg:block lg:space-y-0.5">
+              <li :for={item <- Enum.filter(group.items, & &1[:nav])}>
+                <.section_link item={item} role={@role} active={@active} />
+              </li>
+            </ul>
+          </div>
+          <details
+            id="admin-nav-archive"
+            data-group="archive"
+            open={@in_archive}
+            class="border-t border-[var(--paper-rule)] pt-2"
+          >
+            <summary class="play-label min-h-11 cursor-pointer px-2.5 py-2 text-[var(--paper-muted)] lg:px-3">
+              Archive
+            </summary>
+            <ul class="grid grid-cols-2 gap-0.5 lg:block">
+              <li :for={item <- @archive.items}>
+                <.section_link item={item} role={@role} active={@active} />
+              </li>
+            </ul>
+          </details>
+          <div class="grid grid-cols-2 gap-0.5 border-t border-[var(--paper-rule)] pt-2 lg:block">
+            <.nav_link href={~p"/"} label="← Player home" active={false} />
+            <.link
+              href={~p"/admin/logout"}
+              method="delete"
+              class="block min-h-11 rounded px-2.5 py-2.5 text-[var(--paper-muted)] hover:bg-[var(--paper-bg)] lg:min-h-0 lg:px-3 lg:py-1.5"
+            >
+              Sign out
+            </.link>
+          </div>
+        </div>
+      </details>
     </nav>
     """
   end
 
-  attr :area, :atom, required: true, doc: "TalesForge.AppRole area"
-  attr :path, :string, required: true
-  attr :label, :string, required: true
-  attr :active, :boolean, default: false
+  defp current_label(nil, "dashboard"), do: "Admin home"
+  defp current_label(nil, _active), do: "All pages"
 
-  # A nav link to a page that lives on one app: a LiveView link here, or a full
-  # URL to the other app with its name in the label.
-  defp home_app_link(assigns) do
-    if AppRole.here?(assigns.area) do
-      ~H"""
-      <.nav_link href={@path} label={@label} active={@active} />
-      """
-    else
-      assigns =
-        assign(assigns,
-          href: AppRole.link(assigns.area, assigns.path),
-          label: "#{assigns.label} (#{AppRole.home_label(assigns.area)}) ↗"
-        )
-
-      ~H"""
-      <.nav_link href={@href} label={@label} active={false} external />
-      """
+  defp current_label(section, active) do
+    case Enum.find(section.items, &(&1[:key] == active)) do
+      nil -> section.title
+      item -> section.title <> " · " <> item.label
     end
+  end
+
+  attr :item, :map, required: true, doc: "a TalesForgeWeb.AdminSections item"
+  attr :role, :atom, required: true
+  attr :active, :string, default: nil
+
+  @doc """
+  A link to one `TalesForgeWeb.AdminSections` item: `navigate` for a LiveView
+  in the admin live session, a plain `href` for any other page, a new tab for
+  another site, and the full URL with the app's name for a page that lives on
+  the other app (`TalesForge.AppRole`).
+  """
+  @spec section_link(map()) :: Phoenix.LiveView.Rendered.t()
+  def section_link(assigns) do
+    item = assigns.item
+    elsewhere = AdminSections.elsewhere?(item, assigns.role)
+
+    assigns =
+      assign(assigns,
+        href: AdminSections.href(item, assigns.role),
+        label:
+          if(elsewhere,
+            do: "#{item.label} (#{AppRole.home_label(item.area)}) ↗",
+            else: item.label
+          ),
+        external: elsewhere or item.kind != :live,
+        new_tab: item.kind == :external,
+        current: not elsewhere and item[:key] != nil and item[:key] == assigns.active
+      )
+
+    ~H"""
+    <.nav_link href={@href} label={@label} active={@current} external={@external} new_tab={@new_tab} />
+    """
   end
 
   attr :href, :string, required: true
   attr :label, :string, required: true
   attr :active, :boolean, default: false
   attr :external, :boolean, default: false, doc: "non-LiveView page: plain href"
+  attr :new_tab, :boolean, default: false, doc: "another site: opens in a new tab"
 
   defp nav_link(assigns) do
     ~H"""
     <.link
       navigate={if !@external, do: @href}
       href={if @external, do: @href}
+      target={@new_tab && "_blank"}
+      rel={@new_tab && "noopener noreferrer"}
       aria-current={@active && "page"}
       class={[
-        "block shrink-0 rounded px-2.5 py-1.5 lg:px-3 lg:py-2",
+        "block min-h-11 rounded px-2.5 py-2.5 leading-snug lg:min-h-0 lg:px-3 lg:py-1.5",
         @active && "bg-[var(--paper-accent)] text-[var(--paper-on-accent)]",
         !@active && "text-[var(--paper-ink)] hover:bg-[var(--paper-bg)]"
       ]}

@@ -73,23 +73,31 @@ defmodule TalesForgeWeb.Router do
     end
   end
 
+  # The admin area, grouped by purpose (decision 2026-10-10; the nav and the
+  # home's cards come from TalesForgeWeb.AdminSections): Founders, Play and
+  # test, Operate, Develop, Docs and a collapsed Archive.
   scope "/admin", TalesForgeWeb.AdminLive do
     pipe_through :browser
 
     live_session :admin, on_mount: [{Hooks, :require_team_member}] do
       live "/", DashboardLive, :index
-      live "/sessions", SessionLive.Index, :index
-      live "/sessions/:id", SessionLive.Show, :show
-      live "/sessions/:id/npcs", NpcLive.Index, :index
-      live "/sessions/:id/npcs/:npc_id", NpcLive.Show, :show
-      live "/sessions/:id/turns", TurnLive.Index, :index
-      live "/npc-definitions", NpcDefinitionLive.Index, :index
-      live "/npc-definitions/:id", NpcDefinitionLive.Show, :show
-      live "/decisions", DecisionLive.Index, :index
-      live "/decisions/:slug", DecisionLive.Show, :show
+      # Founders
+      live "/founders/decisions", DecisionLive.Index, :index
+      live "/founders/decisions/:slug", DecisionLive.Show, :show
+      # Play and test
+      live "/play/sessions", SessionLive.Index, :index
+      live "/play/sessions/:id", SessionLive.Show, :show
+      live "/play/sessions/:id/npcs", NpcLive.Index, :index
+      live "/play/sessions/:id/npcs/:npc_id", NpcLive.Show, :show
+      live "/play/sessions/:id/turns", TurnLive.Index, :index
+      # Operate
+      live "/operate/costs", CostsLive, :index
+      # Docs
       live "/docs", DocLive.Index, :index
       live "/docs/*path", DocLive.Index, :show
-      live "/costs", CostsLive, :index
+      # Archive
+      live "/archive/npc-definitions", NpcDefinitionLive.Index, :index
+      live "/archive/npc-definitions/:id", NpcDefinitionLive.Show, :show
     end
 
     # Pages that live on one app only (TalesForge.AppRole): playtest runs on
@@ -97,15 +105,15 @@ defmodule TalesForgeWeb.Router do
     # them is a full page load through the :browser pipeline, where HomeApp
     # sends them to the other app when they don't live here.
     live_session :admin_playtest, on_mount: [{Hooks, :require_team_member}] do
-      live "/playtest", PlaytestLive.Index, :index
-      live "/playtest/:id", PlaytestLive.Show, :show
+      live "/play/runs", PlaytestLive.Index, :index
+      live "/play/runs/:id", PlaytestLive.Show, :show
     end
 
     live_session :admin_surveys, on_mount: [{Hooks, :require_team_member}] do
-      live "/survey", SurveyLive.Show, :current
-      live "/surveys", SurveyLive.Index, :index
-      live "/surveys/:id", SurveyLive.Show, :show
-      live "/surveys/:id/results", SurveyLive.Results, :index
+      live "/founders/survey", SurveyLive.Show, :current
+      live "/founders/surveys", SurveyLive.Index, :index
+      live "/founders/surveys/:id", SurveyLive.Show, :show
+      live "/founders/surveys/:id/results", SurveyLive.Results, :index
     end
   end
 
@@ -114,9 +122,23 @@ defmodule TalesForgeWeb.Router do
 
     import Phoenix.LiveDashboard.Router
 
-    live_dashboard "/oban",
+    # Operate: telemetry (LiveDashboard: metrics, processes, Oban, Ecto).
+    live_dashboard "/operate/telemetry",
       metrics: TalesForgeWeb.Telemetry,
       on_mount: [TalesForgeWeb.LiveAuth]
+  end
+
+  # The old admin URLs (before the 2026-10-10 regrouping) and everything below
+  # them redirect to where the page lives now (TalesForge.AdminPaths), query
+  # kept. Behind the sign-in like every admin page; on the wrong app, HomeApp
+  # sends the old path across first.
+  scope "/admin", TalesForgeWeb do
+    pipe_through :browser
+
+    for old <- TalesForge.AdminPaths.old_segments() do
+      get "/#{old}", AdminRedirectController, :show
+      get "/#{old}/*rest", AdminRedirectController, :show
+    end
   end
 
   # ExDoc site built into the release (CodeDocsController) and the images of
@@ -131,8 +153,8 @@ defmodule TalesForgeWeb.Router do
     get "/docs-files/*path", DocFilesController, :show
 
     # Founder survey result downloads (team members only, like every page).
-    get "/surveys/:id/results.csv", SurveyExportController, :csv
-    get "/surveys/:id/results.md", SurveyExportController, :markdown
+    get "/founders/surveys/:id/results.csv", SurveyExportController, :csv
+    get "/founders/surveys/:id/results.md", SurveyExportController, :markdown
   end
 
   # Machine-to-machine: production's costs page reads playtest's aggregated
@@ -148,7 +170,7 @@ defmodule TalesForgeWeb.Router do
     get "/version", VersionPeerController, :show
   end
 
-  # Swoosh mailbox preview in development (LiveDashboard lives at /admin/oban)
+  # Swoosh mailbox preview in development (LiveDashboard lives at /admin/operate/telemetry)
   if Application.compile_env(:ex_tales_forge, :dev_routes) do
     scope "/dev" do
       pipe_through :browser
