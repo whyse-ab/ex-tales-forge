@@ -658,9 +658,11 @@ defmodule TalesForge.Board do
   end
 
   # A PR link added, or a card moved to Building, after the deploy: the boot
-  # run of AutoDone is over, so queue a new run now.
+  # run of AutoDone is over, so queue a new run now. PrBackfill also runs, so
+  # an open normal-lane PR on the card waits for approval.
   defp check_done_after({:ok, %Idea{column: "building"}} = result, true) do
     TalesForge.Board.Workers.AutoDone.schedule()
+    TalesForge.Board.Workers.PrBackfill.schedule()
     result
   end
 
@@ -920,6 +922,41 @@ defmodule TalesForge.Board do
     end)
     |> run(idea.id)
   end
+
+  @doc """
+  Marks the open PR `number` (head `head_sha`, at `url`) on a Building card as
+  waiting for a founder's OK, for a PR that came to the card as a plain `pr`
+  link, not through `link_pr/1`. `TalesForge.Board.Workers.PrBackfill` calls
+  this after GitHub tells that the PR is open, not merged, and in the normal
+  lane. The card then shows "PR waiting for approval" with Approve and Request
+  changes, the same as after `link_pr/1`. A line goes in the move log. The
+  card keeps its player note.
+  """
+  @spec mark_pr_waiting(Idea.t(), pos_integer(), String.t(), String.t()) ::
+          {:ok, Idea.t()} | error()
+  def mark_pr_waiting(%Idea{column: "building"} = idea, number, url, head_sha)
+      when is_integer(number) and number > 0 and is_binary(url) and is_binary(head_sha) do
+    Multi.new()
+    |> Multi.update(
+      :idea,
+      Idea.update_changeset(idea, %{pr_number: number, pr_url: url, pr_head_sha: head_sha})
+    )
+    |> Multi.insert(:transition, fn _ ->
+      Transition.changeset(%Transition{}, %{
+        idea_id: idea.id,
+        from: idea.column,
+        to: idea.column,
+        actor: "bot:board",
+        note: "PR ##{number} (#{short(head_sha)}) waits for a founder's OK."
+      })
+    end)
+    |> run(idea.id)
+  end
+
+  def mark_pr_waiting(%Idea{} = idea, _number, _url, _head_sha),
+    do:
+      {:error,
+       "A PR waits for approval on a card in Building. This card is in #{Transitions.label(idea.column)}."}
 
   @doc """
   A founder answers the PR on a card: `:approve` or `:request_changes`, with

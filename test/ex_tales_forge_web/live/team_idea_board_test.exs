@@ -834,6 +834,33 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     assert [%{decision: "approved"}] = Board.get_idea!(idea.id).approvals
   end
 
+  test "a PR from a plain pr link: after the backfill, badge and Approve on the thin card",
+       %{conn: conn} do
+    {:ok, idea} = Board.create_idea("ada@example.com", %{"title" => "Scroll"})
+    idea = idea |> Board.Idea.update_changeset(%{column: "building"}) |> TalesForge.Repo.update!()
+
+    {:ok, idea} =
+      Board.add_link(idea, "bot:bobby", %{
+        "kind" => "pr",
+        "url" => "https://github.com/whyse-ab/ex-tales-forge/pull/151"
+      })
+
+    {:ok, view, _} = live(conn, "/team")
+    refute has_element?(view, "#tile-#{idea.id}-pr-waiting")
+
+    {:ok, _} =
+      Board.mark_pr_waiting(
+        idea,
+        151,
+        "https://github.com/whyse-ab/ex-tales-forge/pull/151",
+        "2a8ca25"
+      )
+
+    send(view.pid, {:board, :changed})
+    assert has_element?(view, "#board-col-building #tile-#{idea.id}-pr-waiting")
+    assert has_element?(view, "#tile-#{idea.id}-approve[aria-label='Approve PR #151 of Scroll']")
+  end
+
   test "typing hint: others see '<name> is typing…' under the box and a pencil on the thin card",
        %{conn: conn} do
     Application.put_env(:ex_tales_forge, :board_typing_ms, 150)

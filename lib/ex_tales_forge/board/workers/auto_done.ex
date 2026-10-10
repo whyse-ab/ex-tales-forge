@@ -30,14 +30,17 @@ defmodule TalesForge.Board.Workers.AutoDone do
   alias TalesForge.Playtest.RunMeta
   alias TalesForge.Repo
 
-  @doc "Queues the run 30 seconds after boot, on production only."
+  @doc """
+  Queues the run 30 seconds after boot, on production only. Also queues the
+  boot run of `TalesForge.Board.Workers.PrBackfill`.
+  """
   @spec schedule_on_boot() :: :ok
   def schedule_on_boot do
     if AppRole.role() == :production do
       {:ok, _} = %{} |> new(schedule_in: 30) |> Oban.insert()
     end
 
-    :ok
+    TalesForge.Board.Workers.PrBackfill.schedule_on_boot()
   end
 
   @doc """
