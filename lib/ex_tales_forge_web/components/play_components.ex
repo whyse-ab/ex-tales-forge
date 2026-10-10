@@ -72,7 +72,12 @@ defmodule TalesForgeWeb.PlayComponents do
       <%!-- The GM placeholders sit after the stream container, not inside it: every
            child of a phx-update="stream" element must be a stream item with an id.
            `contents` lets the entries and placeholders share one gap-4 column. --%>
-      <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto bg-[var(--paper-margin)] p-4">
+      <%!-- StoryScroll (assets/js/story_scroll.js) keeps the newest text in view. --%>
+      <div
+        id="story-scroll"
+        phx-hook="StoryScroll"
+        class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto bg-[var(--paper-margin)] p-4"
+      >
         <div id="narrative-log" class="contents" phx-update="stream">
           <div :for={{dom_id, entry} <- @streams.entries} id={dom_id} class="space-y-1">
             <p class={entry_heading_class(entry)}>
