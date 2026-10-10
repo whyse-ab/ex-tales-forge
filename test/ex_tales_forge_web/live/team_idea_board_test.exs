@@ -738,4 +738,39 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     assert has_element?(view, "#board-col-building #tile-#{idea.id}")
     assert [%{decision: "approved"}] = Board.get_idea!(idea.id).approvals
   end
+
+  test "typing hint: others see '<name> is typing…' under the box and a pencil on the thin card",
+       %{conn: conn} do
+    Application.put_env(:ex_tales_forge, :board_typing_ms, 150)
+    on_exit(fn -> Application.delete_env(:ex_tales_forge, :board_typing_ms) end)
+    {:ok, idea} = Board.create_idea("fredrik@whyse.se", %{"title" => "Fishing"})
+
+    {:ok, fredrik, _} = live(log_in_admin(build_conn(), "fredrik@whyse.se"), "/team")
+    {:ok, other, _} = live(conn, "/team")
+    open(fredrik, idea)
+    open(other, idea)
+
+    fredrik
+    |> form("#card-#{idea.id}-comment", %{"body" => "I think"})
+    |> render_change()
+
+    assert has_element?(other, "#card-#{idea.id}-typing", "Fredrik is typing…")
+    assert has_element?(other, "#tile-#{idea.id}-typing[aria-label='Fredrik is typing…']")
+    refute has_element?(fredrik, "#card-#{idea.id}-typing", "typing")
+    # A hint, not a lock: the box stays open for everyone.
+    refute has_element?(other, "#card-#{idea.id}-comment-body[disabled]")
+
+    # It goes a moment after the last keystroke.
+    Process.sleep(300)
+    refute has_element?(other, "#card-#{idea.id}-typing", "typing")
+
+    fredrik
+    |> form("#card-#{idea.id}-comment", %{"body" => "I think so"})
+    |> render_change()
+
+    assert has_element?(other, "#tile-#{idea.id}-typing")
+    fredrik |> form("#card-#{idea.id}-comment", %{"body" => "I think so"}) |> render_submit()
+    refute has_element?(other, "#tile-#{idea.id}-typing")
+    assert render(other) =~ "I think so"
+  end
 end
