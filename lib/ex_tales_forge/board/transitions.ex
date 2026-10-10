@@ -1,0 +1,401 @@
+defmodule TalesForge.Board.Transitions do
+  @moduledoc """
+  The idea board's card state machine (tales-forge-docs
+  `docs/design-board-states.md`, approved by Fredrik 2026-10-10). Pure.
+
+  The server checks every move with `allowed?/4`, and the board UI asks the
+  same module which moves it can offer (`options/3`) and why a card cannot
+  move (`blocker/2`).
+
+  A card changes state only by an explicit move. A move that is not in this
+  table is refused. Votes and comments do not move cards.
+
+  States (the stored column names are on the left, the spec names in brackets):
+  `ideas` (idea), `refining`, `check` (founder_check), `building`, `done`,
+  `parked`.
+
+  | From | To | Who | Gate | Wakes |
+  |---|---|---|---|---|
+  | ideas | refining | founder | at least 1 upvote and 0 downvotes | Case |
+  | ideas | parked | founder | none | none |
+  | refining | check | Case | refinement has verdict, cost and questions | founders (badge) |
+  | refining | ideas | founder | none | none |
+  | check | building | founder | all open questions answered or deferred | Bobby |
+  | check | refining | founder | a comment that says what to change | Case |
+  | check | parked | founder | none | none |
+  | building | check | Bobby | linked PR needs founder approval | founders |
+  | check (PR) | building | founder | Approve | Bobby (merge) |
+  | building | done | Bobby | linked PR is on prod | founders (badge) |
+  | building | refining | Bobby or founder | a comment with the blocker | Case |
+  | parked | ideas | founder | none | none |
+  | done | (none) | | done is final | |
+
+  The card facts (`t:card/0`) come from `TalesForge.Board.facts/1`.
+  """
+
+  @typedoc "Who moves the card."
+  @type actor :: {:founder, String.t()} | {:bot, :case | :bobby | :gentry}
+
+  @typedoc """
+  Facts about the card that the gates need:
+
+    * `up`, `down`: the number of upvotes and downvotes
+    * `refined`: the refinement has a verdict, a cost and a list of questions
+    * `open_questions`: the number of open questions in the refinement
+    * `comment`: the comment that goes with the move (nil or blank for none)
+    * `pr`: `nil` (no PR waits), `:awaiting` (a PR waits for a founder's OK)
+      or `:approved` (a founder pressed Approve)
+    * `pr_linked`: the card has a linked PR
+  """
+  @type card :: %{
+          optional(:up) => non_neg_integer(),
+          optional(:down) => non_neg_integer(),
+          optional(:refined) => boolean(),
+          optional(:open_questions) => non_neg_integer(),
+          optional(:comment) => String.t() | nil,
+          optional(:pr) => nil | :awaiting | :approved,
+          optional(:pr_linked) => boolean()
+        }
+
+  @states ~w(ideas refining check building done parked)
+
+  @labels %{
+    "ideas" => "Ideas",
+    "refining" => "Refining (Case)",
+    "check" => "Founder check",
+    "building" => "Building (Bobby)",
+    "done" => "Done",
+    "parked" => "Parked"
+  }
+
+  @doc """
+  The states, in board order.
+
+      iex> TalesForge.Board.Transitions.states()
+      ["ideas", "refining", "check", "building", "done", "parked"]
+  """
+  @spec states() :: [String.t()]
+  def states, do: @states
+
+  @doc """
+  The display label of a state.
+
+      iex> TalesForge.Board.Transitions.label("check")
+      "Founder check"
+  """
+  @spec label(String.t()) :: String.t()
+  def label(state), do: Map.get(@labels, state, state)
+
+  @doc """
+  `:ok` when `actor` may move the card from `from` to `to`, else
+  `{:error, reason}`, a short sentence for the UI or the bot.
+
+  Ideas → Refining: a founder, with at least 1 upvote and 0 downvotes.
+
+      iex> alias TalesForge.Board.Transitions, as: T
+      iex> T.allowed?(%{up: 1, down: 0}, "ideas", "refining", {:founder, "a@x"})
+      :ok
+      iex> T.allowed?(%{up: 0, down: 0}, "ideas", "refining", {:founder, "a@x"})
+      {:error, "Needs an upvote."}
+      iex> T.allowed?(%{up: 2, down: 1}, "ideas", "refining", {:founder, "a@x"})
+      {:error, "Has a downvote. A founder must change their vote first."}
+      iex> T.allowed?(%{up: 3, down: 0}, "ideas", "refining", {:bot, :case})
+      {:error, "A founder moves this card."}
+
+  Ideas → Parked: a founder, no gate.
+
+      iex> TalesForge.Board.Transitions.allowed?(%{down: 1}, "ideas", "parked", {:founder, "a@x"})
+      :ok
+      iex> TalesForge.Board.Transitions.allowed?(%{}, "ideas", "parked", {:bot, :case})
+      {:error, "A founder moves this card."}
+
+  Refining → Founder check: Case, when the refinement has a verdict, a cost and questions.
+
+      iex> alias TalesForge.Board.Transitions, as: T
+      iex> T.allowed?(%{refined: true}, "refining", "check", {:bot, :case})
+      :ok
+      iex> T.allowed?(%{refined: false}, "refining", "check", {:bot, :case})
+      {:error, "Waits for Case's refinement: verdict, cost and questions."}
+      iex> T.allowed?(%{refined: true}, "refining", "check", {:founder, "a@x"})
+      {:error, "Case moves this card when the refinement is complete."}
+
+  Refining → Ideas: a founder, no gate.
+
+      iex> TalesForge.Board.Transitions.allowed?(%{}, "refining", "ideas", {:founder, "a@x"})
+      :ok
+      iex> TalesForge.Board.Transitions.allowed?(%{}, "refining", "ideas", {:bot, :case})
+      {:error, "A founder moves this card."}
+
+  Founder check → Building: a founder, when every open question has an
+  answer or is deferred. The founder writes the answers or the deferral in
+  the move comment; with no open questions, no comment is necessary.
+
+      iex> alias TalesForge.Board.Transitions, as: T
+      iex> T.allowed?(%{open_questions: 0}, "check", "building", {:founder, "a@x"})
+      :ok
+      iex> T.allowed?(%{open_questions: 2}, "check", "building", {:founder, "a@x"})
+      {:error, "Answer or defer the 2 open questions in the comment."}
+      iex> T.allowed?(%{open_questions: 2, comment: "1: yes. 2: later."}, "check", "building", {:founder, "a@x"})
+      :ok
+      iex> T.allowed?(%{}, "check", "building", {:bot, :bobby})
+      {:error, "A founder moves this card."}
+
+  Founder check → Refining: a founder, with a comment that says what to change.
+
+      iex> alias TalesForge.Board.Transitions, as: T
+      iex> T.allowed?(%{comment: "Make it cheaper."}, "check", "refining", {:founder, "a@x"})
+      :ok
+      iex> T.allowed?(%{comment: " "}, "check", "refining", {:founder, "a@x"})
+      {:error, "Write a comment that says what to change."}
+
+  Founder check → Parked: a founder, no gate.
+
+      iex> TalesForge.Board.Transitions.allowed?(%{}, "check", "parked", {:founder, "a@x"})
+      :ok
+
+  Building → Founder check: Bobby, when a linked PR needs a founder's approval
+  (normal lane).
+
+      iex> alias TalesForge.Board.Transitions, as: T
+      iex> T.allowed?(%{pr: :awaiting}, "building", "check", {:bot, :bobby})
+      :ok
+      iex> T.allowed?(%{pr: nil}, "building", "check", {:bot, :bobby})
+      {:error, "Bobby moves the card here only with a PR that needs a founder's approval."}
+      iex> T.allowed?(%{pr: :awaiting}, "building", "check", {:founder, "a@x"})
+      {:error, "Bobby moves this card."}
+
+  Founder check (PR) → Building: a founder, with Approve.
+
+      iex> alias TalesForge.Board.Transitions, as: T
+      iex> T.allowed?(%{pr: :approved}, "check", "building", {:founder, "a@x"})
+      :ok
+      iex> T.allowed?(%{pr: :awaiting, open_questions: 0}, "check", "building", {:founder, "a@x"})
+      {:error, "Approve the PR to move this card to Building."}
+
+  Building → Done: Bobby, when the linked PR is on prod (Bobby moves it after
+  the deploy).
+
+      iex> alias TalesForge.Board.Transitions, as: T
+      iex> T.allowed?(%{pr_linked: true}, "building", "done", {:bot, :bobby})
+      :ok
+      iex> T.allowed?(%{pr_linked: false}, "building", "done", {:bot, :bobby})
+      {:error, "Link the PR that is on prod first."}
+      iex> T.allowed?(%{pr_linked: true}, "building", "done", {:founder, "a@x"})
+      {:error, "Bobby moves this card when its PR is on prod."}
+
+  Building → Refining: Bobby or a founder, with a comment that names the blocker.
+
+      iex> alias TalesForge.Board.Transitions, as: T
+      iex> T.allowed?(%{comment: "The API has no search."}, "building", "refining", {:bot, :bobby})
+      :ok
+      iex> T.allowed?(%{comment: "Too slow."}, "building", "refining", {:founder, "a@x"})
+      :ok
+      iex> T.allowed?(%{}, "building", "refining", {:bot, :bobby})
+      {:error, "Write a comment that names the blocker."}
+      iex> T.allowed?(%{comment: "x"}, "building", "refining", {:bot, :case})
+      {:error, "Bobby or a founder moves this card."}
+
+  Parked → Ideas: a founder, no gate.
+
+      iex> TalesForge.Board.Transitions.allowed?(%{}, "parked", "ideas", {:founder, "a@x"})
+      :ok
+
+  Done is final; moves not in the table are refused.
+
+      iex> alias TalesForge.Board.Transitions, as: T
+      iex> T.allowed?(%{}, "done", "ideas", {:founder, "a@x"})
+      {:error, "Done is final. Make a new card that links to this one."}
+      iex> T.allowed?(%{}, "refining", "parked", {:founder, "a@x"})
+      {:error, "Refining (Case) to Parked is not a move on the board."}
+      iex> T.allowed?(%{}, "ideas", "ideas", {:founder, "a@x"})
+      {:error, "The card is already there."}
+  """
+  @spec allowed?(card(), String.t(), String.t(), actor()) :: :ok | {:error, String.t()}
+  def allowed?(_card, same, same, _actor), do: {:error, "The card is already there."}
+
+  def allowed?(_card, "done", _to, _actor),
+    do: {:error, "Done is final. Make a new card that links to this one."}
+
+  def allowed?(card, "ideas", "refining", actor) do
+    with :ok <- founder(actor) do
+      cond do
+        n(card, :down) > 0 -> {:error, "Has a downvote. A founder must change their vote first."}
+        n(card, :up) < 1 -> {:error, "Needs an upvote."}
+        true -> :ok
+      end
+    end
+  end
+
+  def allowed?(_card, "ideas", "parked", actor), do: founder(actor)
+
+  def allowed?(card, "refining", "check", {:bot, :case}),
+    do: need(card[:refined] == true, "Waits for Case's refinement: verdict, cost and questions.")
+
+  def allowed?(_card, "refining", "check", _actor),
+    do: {:error, "Case moves this card when the refinement is complete."}
+
+  def allowed?(_card, "refining", "ideas", actor), do: founder(actor)
+
+  def allowed?(card, "check", "building", actor) do
+    with :ok <- founder(actor) do
+      case card[:pr] do
+        :approved ->
+          :ok
+
+        :awaiting ->
+          {:error, "Approve the PR to move this card to Building."}
+
+        _ ->
+          q = n(card, :open_questions)
+
+          need(
+            q == 0 or comment?(card),
+            "Answer or defer the #{q} open #{if q == 1, do: "question", else: "questions"} in the comment."
+          )
+      end
+    end
+  end
+
+  def allowed?(card, "check", "refining", actor) do
+    with :ok <- founder(actor),
+         do: need(comment?(card), "Write a comment that says what to change.")
+  end
+
+  def allowed?(_card, "check", "parked", actor), do: founder(actor)
+
+  def allowed?(card, "building", "check", {:bot, :bobby}),
+    do:
+      need(
+        card[:pr] == :awaiting,
+        "Bobby moves the card here only with a PR that needs a founder's approval."
+      )
+
+  def allowed?(_card, "building", "check", _actor), do: {:error, "Bobby moves this card."}
+
+  def allowed?(card, "building", "done", {:bot, :bobby}),
+    do: need(card[:pr_linked] == true, "Link the PR that is on prod first.")
+
+  def allowed?(_card, "building", "done", _actor),
+    do: {:error, "Bobby moves this card when its PR is on prod."}
+
+  def allowed?(card, "building", "refining", actor) do
+    case actor do
+      a when a == {:bot, :bobby} or elem(a, 0) == :founder ->
+        need(comment?(card), "Write a comment that names the blocker.")
+
+      _ ->
+        {:error, "Bobby or a founder moves this card."}
+    end
+  end
+
+  def allowed?(_card, "parked", "ideas", actor), do: founder(actor)
+
+  def allowed?(_card, from, to, _actor),
+    do: {:error, "#{label(from)} to #{label(to)} is not a move on the board."}
+
+  @doc """
+  Who a move wakes: `:case`, `:bobby`, and `:founders` (a badge on the board,
+  no webhook). Empty for moves that wake nobody.
+
+      iex> alias TalesForge.Board.Transitions, as: T
+      iex> {T.wakes("ideas", "refining"), T.wakes("check", "refining"), T.wakes("building", "refining")}
+      {[:case], [:case], [:case]}
+      iex> {T.wakes("check", "building"), T.wakes("refining", "check"), T.wakes("building", "check"), T.wakes("building", "done")}
+      {[:bobby], [:founders], [:founders], [:founders]}
+      iex> {T.wakes("ideas", "parked"), T.wakes("refining", "ideas"), T.wakes("parked", "ideas"), T.wakes("check", "parked")}
+      {[], [], [], []}
+  """
+  @spec wakes(String.t(), String.t()) :: [:case | :bobby | :founders]
+  def wakes(_from, "refining"), do: [:case]
+  def wakes("check", "building"), do: [:bobby]
+
+  def wakes(from, to)
+      when {from, to} in [{"refining", "check"}, {"building", "check"}, {"building", "done"}],
+      do: [:founders]
+
+  def wakes(_from, _to), do: []
+
+  @doc """
+  Every other state with the answer of `allowed?/4` for `actor`, for the UI's
+  "Move to" list and drag targets. A move that needs a comment counts as
+  possible when the only gate is the comment (the form asks for it).
+
+      iex> TalesForge.Board.Transitions.options(%{up: 0}, "ideas", {:founder, "a@x"})
+      [{"refining", {:error, "Needs an upvote."}}, {"parked", :ok}]
+      iex> TalesForge.Board.Transitions.options(%{}, "check", {:founder, "a@x"}) |> Enum.map(&elem(&1, 0))
+      ["refining", "building", "parked"]
+  """
+  @spec options(card(), String.t(), actor()) :: [{String.t(), :ok | {:error, String.t()}}]
+  def options(card, from, actor) do
+    card = Map.put(card, :comment, "(comment)")
+
+    for to <- @states, to != from, row?(from, to, actor) do
+      {to, allowed?(card, from, to, actor)}
+    end
+  end
+
+  # The actor may make this move when its gate is met.
+  defp row?(from, to, actor) do
+    open = %{up: 1, down: 0, refined: true, open_questions: 0, comment: "x", pr_linked: true}
+
+    Enum.any?([:awaiting, :approved], fn pr ->
+      allowed?(Map.put(open, :pr, pr), from, to, actor) == :ok
+    end)
+  end
+
+  @doc """
+  Why a card cannot take its next step, or nil when it can (or the next step
+  is a bot's and its gate is met). The next steps: Ideas → Refining (a
+  founder), Refining → Founder check (Case), Founder check → Building (a
+  founder), Building → Done (Bobby). Shown on the card.
+
+      iex> alias TalesForge.Board.Transitions, as: T
+      iex> T.blocker(%{up: 0, down: 0}, "ideas")
+      "Needs an upvote."
+      iex> T.blocker(%{up: 1, down: 0}, "ideas")
+      nil
+      iex> T.blocker(%{refined: false}, "refining")
+      "Waits for Case's refinement: verdict, cost and questions."
+      iex> T.blocker(%{pr: :awaiting}, "check")
+      "Approve the PR to move this card to Building."
+      iex> T.blocker(%{}, "done")
+      nil
+  """
+  @spec blocker(card(), String.t()) :: String.t() | nil
+  def blocker(card, from) do
+    step =
+      %{
+        "ideas" => {"refining", {:founder, "founder"}},
+        "refining" => {"check", {:bot, :case}},
+        "check" => {"building", {:founder, "founder"}},
+        "building" => {"done", {:bot, :bobby}}
+      }[from]
+
+    with {to, actor} <- step,
+         {:error, reason} <- allowed?(card, from, to, actor) do
+      reason
+    else
+      _ -> nil
+    end
+  end
+
+  @doc """
+  The actor as a string for the move log (`founder email` or `bot:case`).
+
+      iex> TalesForge.Board.Transitions.actor_name({:bot, :case})
+      "bot:case"
+  """
+  @spec actor_name(actor()) :: String.t()
+  def actor_name({:founder, email}), do: email
+  def actor_name({:bot, bot}), do: "bot:#{bot}"
+
+  defp founder({:founder, _}), do: :ok
+  defp founder(_), do: {:error, "A founder moves this card."}
+
+  defp need(true, _reason), do: :ok
+  defp need(_, reason), do: {:error, reason}
+
+  defp n(card, key), do: Map.get(card, key) || 0
+
+  defp comment?(card), do: is_binary(card[:comment]) and String.trim(card[:comment]) != ""
+end

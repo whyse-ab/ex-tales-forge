@@ -82,35 +82,46 @@ export const TeamPage = {
 // The idea board (TalesForgeWeb.TeamIdeaBoard): drag a card
 // ([data-board-card]) onto a column ([data-board-column]) to move it. Delegated
 // on the page root, so it survives LiveView patches. The keyboard and phone
-// alternative is each card's "Move to" form; the server checks the rules.
+// alternative is each card's "Move to" form. The server renders the columns a
+// card may go to in data-moves (TalesForge.Board.Transitions); the JS only
+// reads that list, it has no rules of its own. The server checks every move.
 export const setupBoardDrag = hook => {
   const root = hook.el
   let dragged = null
+  let moves = []
   const column = e => e.target.closest?.("[data-board-column]")
+  const columns = () => root.querySelectorAll("[data-board-column]")
+  const accepts = col => col && moves.includes(col.dataset.boardColumn)
   const onStart = e => {
     const card = e.target.closest?.("[data-board-card]")
     if (!card) return
     dragged = card.dataset.boardCard
+    moves = (card.dataset.moves || "").split(" ").filter(Boolean)
+    columns().forEach(c => { c.dataset.accepts = String(accepts(c)) })
     e.dataTransfer.effectAllowed = "move"
     e.dataTransfer.setData("text/plain", dragged)
   }
   const onOver = e => {
     const col = column(e)
-    if (!dragged || !col) return
+    if (!dragged || !accepts(col)) return
     e.preventDefault()
     col.classList.add("is-drop-target")
   }
   const onLeave = e => column(e)?.classList.remove("is-drop-target")
   const onDrop = e => {
     const col = column(e)
-    if (!dragged || !col) return
+    if (!dragged || !accepts(col)) return
     e.preventDefault()
     col.classList.remove("is-drop-target")
     const target = root.querySelector("[data-board-target]")
     if (target) hook.pushEventTo(target, "move", {card_id: dragged, to: col.dataset.boardColumn})
     dragged = null
   }
-  const onEnd = () => { dragged = null }
+  const onEnd = () => {
+    dragged = null
+    moves = []
+    columns().forEach(c => { delete c.dataset.accepts })
+  }
   const events = [["dragstart", onStart], ["dragover", onOver], ["dragleave", onLeave], ["drop", onDrop], ["dragend", onEnd]]
   events.forEach(([n, f]) => root.addEventListener(n, f))
   return () => events.forEach(([n, f]) => root.removeEventListener(n, f))

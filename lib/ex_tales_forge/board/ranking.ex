@@ -5,15 +5,13 @@ defmodule TalesForge.Board.Ranking do
 
       score = net_votes / (age_days + 2) ^ 0.8
 
-  so a new idea with fair support rises and an old one fades unless it keeps
-  getting votes. Ties go to the older idea. Case pulls an idea on its own when
-  it has real support: score above 0.3 and in the top 3 (`pullable?/2`).
+  The card shows this score. The backlog order is net votes, then total
+  votes (tales-forge-docs `docs/design-board-states.md`, 2026-10-10; see
+  `TalesForge.Board.board/1`). Votes do not move cards and do not wake bots.
   """
 
   @exponent 0.8
   @offset_days 2
-  @pull_min_score 0.3
-  @pull_top 3
 
   @doc """
   The score of an idea with `net` votes, `age_days` old (fractional days).
@@ -35,30 +33,4 @@ defmodule TalesForge.Board.Ranking do
   @doc "Age in fractional days from `inserted_at` to `now`."
   @spec age_days(DateTime.t(), DateTime.t()) :: float()
   def age_days(inserted_at, now), do: DateTime.diff(now, inserted_at, :second) / 86_400
-
-  @doc """
-  Sorts `{score, inserted_at, item}` triples: highest score first, older first on ties.
-  """
-  @spec sort([{float(), DateTime.t(), term()}]) :: [term()]
-  def sort(triples) do
-    triples
-    |> Enum.sort(fn {s1, t1, _}, {s2, t2, _} ->
-      s1 > s2 or (s1 == s2 and DateTime.compare(t1, t2) != :gt)
-    end)
-    |> Enum.map(&elem(&1, 2))
-  end
-
-  @doc """
-  True when the idea at `position` (1-based, in the ranked Ideas column) with
-  `score` is one Case may pull into Refining on its own.
-
-      iex> TalesForge.Board.Ranking.pullable?(0.41, 1)
-      true
-      iex> TalesForge.Board.Ranking.pullable?(0.3, 1)
-      false
-      iex> TalesForge.Board.Ranking.pullable?(0.9, 4)
-      false
-  """
-  @spec pullable?(float(), pos_integer()) :: boolean()
-  def pullable?(score, position), do: score > @pull_min_score and position <= @pull_top
 end

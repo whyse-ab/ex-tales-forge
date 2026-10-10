@@ -27,6 +27,7 @@ defmodule TalesForge.BoardTest do
   end
 
   defp refined!(idea) do
+    {:ok, idea} = Board.vote(idea, @ada, 1)
     {:ok, idea} = Board.move(idea, {:founder, @ada}, "refining")
 
     {:ok, idea} =
@@ -64,33 +65,38 @@ defmodule TalesForge.BoardTest do
       assert {:error, _} = Board.vote(idea, @ada, 2)
     end
 
-    test "the Ideas column is ranked by net votes with decay (the design's example)" do
+    test "the backlog is sorted by net votes, then total votes" do
       a = idea!("Idea A") |> age!(10)
       b = idea!("Idea B") |> age!(1)
       c = idea!("Idea C") |> age!(2)
+      d = idea!("Idea D") |> age!(30)
+      e = idea!("Idea E") |> age!(1)
 
       for f <- ~w(f1@x f2@x f3@x), do: {:ok, _} = Board.vote(a, f, 1)
       for f <- ~w(f1@x f2@x), do: {:ok, _} = Board.vote(b, f, 1)
       for f <- ~w(f1@x f2@x f3@x), do: {:ok, _} = Board.vote(c, f, 1)
       {:ok, _} = Board.vote(c, "f4@x", -1)
+      _ = {d, e}
 
-      ranked = Board.ranked_ideas()
-      assert Enum.map(ranked, & &1.title) == ["Idea B", "Idea C", "Idea A"]
-      assert ranked |> hd() |> Map.get(:score) |> Float.round(2) == 0.83
-      assert MapSet.size(Board.pullable_ids()) == 3
+      assert Enum.map(Board.ranked_ideas(), & &1.title) ==
+               ["Idea A", "Idea C", "Idea B", "Idea D", "Idea E"]
     end
   end
 
   describe "moves and rules" do
-    test "the happy path: founder → Case → founder OK → Bobby → Gentry → Done" do
+    test "the happy path: founder → Case → founder OK → Bobby → Done" do
       idea = idea!() |> refined!()
       assert Board.refined?(idea)
       {:ok, idea} = Board.move(idea, {:bot, :case}, "check")
       {:ok, idea} = Board.add_comment(idea, @bo, "Only after the second visit?")
-      {:ok, idea} = Board.move(idea, {:founder, @bo}, "building", "Looks right")
+
+      assert {:error, "Answer or defer the 1 open question in the comment."} =
+               Board.move(idea, {:founder, @bo}, "building")
+
+      {:ok, idea} = Board.move(idea, {:founder, @bo}, "building", "After two visits.")
       assert idea.column == "building"
 
-      assert {:error, "Add the PR and playtest links first."} =
+      assert {:error, "Link the PR that is on prod first."} =
                Board.move(idea, {:bot, :bobby}, "done")
 
       {:ok, idea} =
@@ -99,13 +105,9 @@ defmodule TalesForge.BoardTest do
           "url" => "https://github.com/x/y/pull/1"
         })
 
-      {:ok, idea} =
-        Board.add_link(idea, "bot:bobby", %{"kind" => "playtest", "url" => "https://p.example/v1"})
-
-      assert {:error, "Wait for Gentry's check first."} = Board.move(idea, {:bot, :bobby}, "done")
-      {:ok, idea} = Board.add_comment(idea, "bot:gentry", Board.gentry_pass() <> ". All good.")
       {:ok, idea} = Board.move(idea, {:bot, :bobby}, "done")
       assert idea.column == "done"
+      assert {:error, "Done is final." <> _} = Board.move(idea, {:founder, @ada}, "ideas")
 
       assert Enum.map(idea.transitions, &{&1.from, &1.to}) == [
                {nil, "ideas"},
@@ -116,43 +118,49 @@ defmodule TalesForge.BoardTest do
              ]
 
       assert Enum.at(idea.transitions, 3).actor == @bo
-      assert Enum.at(idea.transitions, 3).note == "Looks right"
+      assert Enum.at(idea.transitions, 3).note == "After two visits."
     end
 
-    test "no OK while any founder has a -1 vote" do
-      idea = idea!() |> refined!()
-      {:ok, idea} = Board.move(idea, {:bot, :case}, "check")
-      {:ok, idea} = Board.vote(idea, @bo, -1)
-
-      assert {:error, "A founder has voted -1 on this idea. Talk it through first."} =
-               Board.move(idea, {:founder, @ada}, "building")
-
-      {:ok, idea} = Board.vote(idea, @bo, -1)
-      assert {:ok, %{column: "building"}} = Board.move(idea, {:founder, @ada}, "building")
-    end
-
-    test "Case needs a complete refinement and may only pull ideas with support" do
+    test "vote gates: Ideas → Refining needs an upvote and no downvote" do
       idea = idea!()
-      assert {:error, _} = Board.move(idea, {:bot, :case}, "refining")
+      assert {:error, "Needs an upvote."} = Board.move(idea, {:founder, @ada}, "refining")
       {:ok, idea} = Board.vote(idea, @ada, 1)
-      assert {:ok, idea} = Board.move(idea, {:bot, :case}, "refining")
+      {:ok, idea} = Board.vote(idea, @bo, -1)
+      assert {:error, "Has a downvote." <> _} = Board.move(idea, {:founder, @ada}, "refining")
+      {:ok, idea} = Board.vote(idea, @bo, -1)
+      assert {:ok, %{column: "refining"}} = Board.move(idea, {:founder, @ada}, "refining")
+    end
+
+    test "only founders move Ideas → Refining; Case needs a complete refinement" do
+      idea = idea!()
+      {:ok, idea} = Board.vote(idea, @ada, 1)
+      assert {:error, "A founder moves this card."} = Board.move(idea, {:bot, :case}, "refining")
+      {:ok, idea} = Board.move(idea, {:founder, @ada}, "refining")
       assert {:error, msg} = Board.move(idea, {:bot, :case}, "check")
       assert msg =~ "refinement"
       assert {:error, _} = Board.refine(idea, %{"rough_cost" => "XL"})
       assert {:error, _} = Board.refine(idea, %{"verdict" => "maybe"})
       assert {:error, _} = Board.refine(idea, %{"open_questions" => "one"})
+      assert {:ok, %{column: "ideas"}} = Board.move(idea, {:founder, @ada}, "ideas")
     end
 
-    test "bots never OK, and votes close once building" do
+    test "back to Refining needs a comment; bots never OK; votes close once building" do
       idea = idea!() |> refined!()
       {:ok, idea} = Board.move(idea, {:bot, :case}, "check")
 
-      assert {:error, "Only a founder can move a card to Building."} =
-               Board.move(idea, {:bot, :case}, "building")
+      assert {:error, "Write a comment that says what to change."} =
+               Board.move(idea, {:founder, @ada}, "refining")
 
-      {:ok, idea} = Board.move(idea, {:founder, @ada}, "building")
+      assert {:error, "A founder moves this card."} = Board.move(idea, {:bot, :case}, "building")
+      {:ok, idea} = Board.move(idea, {:founder, @ada}, "building", "Deferred.")
       assert {:error, _} = Board.vote(idea, @ada, 1)
       assert {:error, _} = Board.refine(idea, %{"details" => "x"})
+
+      assert {:error, "Write a comment that names the blocker."} =
+               Board.move(idea, {:bot, :bobby}, "refining")
+
+      assert {:ok, %{column: "refining"}} =
+               Board.move(idea, {:bot, :bobby}, "refining", "The API has no search.")
     end
 
     test "park and unpark" do

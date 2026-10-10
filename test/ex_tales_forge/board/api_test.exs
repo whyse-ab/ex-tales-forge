@@ -23,11 +23,13 @@ defmodule TalesForge.Board.ApiTest do
     assert {404, _} = Api.handle(:show, :case, %{})
   end
 
-  test "Case pulls, refines and hands over; others can't refine", %{idea: idea} do
+  test "Case refines and hands over; only founders move Ideas → Refining", %{idea: idea} do
     id = idea.id
 
-    assert {200, %{"column" => "refining"}} =
+    assert {422, %{"error" => "A founder moves this card."}} =
              Api.handle(:move, :case, %{"id" => id, "to" => "refining"})
+
+    {:ok, _} = TalesForge.Board.move(idea, {:founder, "ada@example.com"}, "refining")
 
     assert {422, %{"error" => "Only Case refines cards."}} =
              Api.handle(:refine, :bobby, %{"id" => id})
@@ -44,7 +46,7 @@ defmodule TalesForge.Board.ApiTest do
     assert {200, %{"column" => "check"}} =
              Api.handle(:move, :case, %{"id" => id, "to" => "check"})
 
-    assert {422, %{"error" => "Only a founder can move a card to Building."}} =
+    assert {422, %{"error" => "A founder moves this card."}} =
              Api.handle(:move, :case, %{"id" => id, "to" => "building"})
   end
 
