@@ -121,7 +121,11 @@ defmodule TalesForgeWeb.TeamLive do
 
       <main class="mx-auto max-w-6xl space-y-16 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
         <.hero d={@d} />
-        <.going_to_do board?={assigns[:board?] || false} founder={assigns[:admin_email]} />
+        <.going_to_do
+          board?={assigns[:board?] || false}
+          founder={assigns[:admin_email]}
+          login={assigns[:admin_github_login]}
+        />
         <.live_section socket={assigns[:socket]} />
         <.presentation />
       </main>
@@ -230,6 +234,7 @@ defmodule TalesForgeWeb.TeamLive do
   # production (TalesForgeWeb.Plugs.HomeApp), so there is no placeholder.
   attr :board?, :boolean, default: false
   attr :founder, :string, default: nil
+  attr :login, :string, default: nil
 
   defp going_to_do(assigns) do
     ~H"""
@@ -247,6 +252,7 @@ defmodule TalesForgeWeb.TeamLive do
         module={TalesForgeWeb.TeamIdeaBoard}
         id="idea-board-live"
         founder={@founder}
+        login={@login}
       />
     </section>
     """

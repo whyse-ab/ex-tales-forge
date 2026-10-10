@@ -56,7 +56,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
     assign(socket,
       board: board,
       prs: prs(),
-      pings: Board.unread_pings(socket.assigns.founder),
+      pings: Board.unread_pings(socket.assigns[:login]),
       open: open
     )
   end
@@ -101,7 +101,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
 
   @impl true
   def handle_event("open", %{"card_id" => id}, socket) do
-    Board.read_pings(id, socket.assigns.founder)
+    Board.read_pings(id, socket.assigns[:login])
     {:noreply, socket |> assign(:open_id, id) |> load()}
   end
 
@@ -202,7 +202,12 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
       )
 
   def handle_event("comment", %{"card_id" => id, "body" => body}, socket),
-    do: with_idea(socket, id, &Board.add_comment(&1, socket.assigns.founder, body))
+    do:
+      with_idea(
+        socket,
+        id,
+        &Board.add_comment(&1, socket.assigns.founder, body, login: socket.assigns[:login])
+      )
 
   def handle_event("refine", %{"card_id" => id} = params, socket) do
     attrs = %{

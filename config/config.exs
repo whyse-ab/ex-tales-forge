@@ -224,8 +224,12 @@ config :phoenix, :json_library, Jason
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
 
-# Founder handles for @mentions on the idea board, when the first part of the
-# email is not the founder's first name (TalesForge.Board.Mentions).
+# Founder handles for @mentions on the idea board, by GitHub login in lower
+# case (founders sign in with GitHub; TalesForge.Board.Mentions).
 config :ex_tales_forge, :board_founder_handles, %{
-  "hawkan.fredriksson@gmail.com" => "hakan"
+  "fpahlen" => "fredrik",
+  "jpa71" => "jeanette",
+  "tsjokvist" => "thobias",
+  "hawkan-fredriksson" => "hakan",
+  "maxpahlen" => "max"
 }
