@@ -16,8 +16,8 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   Founder check, Building) in the middle with Parked under them across their
   width, Done on the right. Every card is thin (Fredrik, 2026-10-10): the
   avatar, the full title (it wraps, no ellipsis), the compact "needs work" badge and
-  can't-move reason, and a vote row inside the card (▲ / ▼ with counts and
-  the net score; siblings of the open button, so a vote never opens the card). Each area has a fixed height and scrolls on its
+  can't-move reason, and a vote row inside the card (thumbs up and thumbs
+  down, each with its own count, no net number; siblings of the open button, so a vote never opens the card). Each area has a fixed height and scrolls on its
   own; on a phone the areas stack. A card's avatar is a 5×5 identicon seeded
   from its id (`avatar_spec/1`, aria-hidden).
 
@@ -434,63 +434,104 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   attr :founder, :string, required: true
   attr :myself, :any, required: true
 
-  # The vote row inside a thin card: ▲ upvotes, ▼ downvotes, the net score.
+  # The vote row inside a thin card: thumbs up and thumbs down, each with its
+  # own count. No net number on the card (sorting still uses net, then total).
   defp tile_votes(assigns) do
+    ~H"""
+    <.vote_buttons
+      idea={@idea}
+      founder={@founder}
+      myself={@myself}
+      prefix={"tile-#{@idea.id}"}
+      class="mt-1 justify-end text-xs"
+      button_class="min-h-6 px-1.5"
+      icon_class="size-4"
+    />
+    """
+  end
+
+  attr :idea, :map, required: true
+  attr :founder, :string, default: nil
+  attr :myself, :any, required: true
+  attr :prefix, :string, required: true
+  attr :class, :string, default: nil
+  attr :button_class, :string, default: nil
+  attr :icon_class, :string, default: "size-5"
+  attr :downvote_for, :any, default: :none
+
+  # The two vote buttons, shared by thin and full cards: [thumb up] n
+  # [thumb down] m. aria-label "Upvote: n" / "Downvote: m"; aria-pressed and
+  # a filled highlight show the current founder's own vote. The buttons are
+  # siblings of the card's open button, so a vote never opens the card.
+  defp vote_buttons(assigns) do
     votes = assigns.idea.votes
 
     assigns =
       assign(assigns,
         up: Enum.count(votes, &(&1.value == 1)),
         down: Enum.count(votes, &(&1.value == -1)),
-        net: Board.net_votes(assigns.idea),
         mine: Board.vote_of(assigns.idea, assigns.founder)
       )
 
     ~H"""
     <div
-      class="mt-1 flex items-center justify-end gap-1 text-xs"
+      class={["flex items-center gap-1", @class]}
       role="group"
       aria-label={"Votes on #{@idea.title}"}
     >
       <button
         type="button"
-        id={"tile-#{@idea.id}-up"}
+        id={"#{@prefix}-up"}
         phx-click="vote"
         phx-value-card_id={@idea.id}
         phx-value-vote="1"
         phx-target={@myself}
         aria-pressed={to_string(@mine == 1)}
-        aria-label={
-          if @mine == 1, do: "Take back your upvote on #{@idea.title}", else: "Upvote #{@idea.title}"
-        }
+        aria-label={"Upvote: #{@up}"}
+        title={if @mine == 1, do: "Your upvote. Click to take it back.", else: "Upvote"}
+        data-mine={@mine == 1 && "true"}
         class={[
-          "inline-flex min-h-6 items-center gap-0.5 rounded px-1.5 leading-none hover:bg-[var(--paper-bg)]",
-          @mine == 1 && "bg-[var(--paper-accent)] text-[var(--paper-on-accent)]"
+          "inline-flex items-center gap-1 rounded border leading-none",
+          @button_class,
+          if(@mine == 1,
+            do:
+              "border-[var(--paper-accent)] bg-[var(--paper-accent)] text-[var(--paper-on-accent)] font-semibold",
+            else: "border-transparent hover:bg-[var(--paper-bg)]"
+          )
         ]}
-      ><span aria-hidden="true">▲</span><span data-role="up">{@up}</span></button>
+      >
+        <.icon name="hero-hand-thumb-up" class={@icon_class} />
+        <span data-role="up" class="tabular-nums" aria-hidden="true">{@up}</span>
+      </button>
       <button
         type="button"
-        id={"tile-#{@idea.id}-down"}
+        id={"#{@prefix}-down"}
         phx-click="vote"
         phx-value-card_id={@idea.id}
         phx-value-vote="-1"
         phx-target={@myself}
         aria-pressed={to_string(@mine == -1)}
-        aria-label={
+        aria-label={"Downvote: #{@down}"}
+        title={
           if @mine == -1,
-            do: "Take back your downvote on #{@idea.title}",
-            else: "Downvote #{@idea.title}"
+            do: "Your downvote. Click to take it back.",
+            else: "Downvote (needs a reason)"
         }
+        aria-expanded={@downvote_for != :none && to_string(@downvote_for == @idea.id)}
+        aria-controls={@downvote_for != :none && "card-#{@idea.id}-downvote"}
+        data-mine={@mine == -1 && "true"}
         class={[
-          "inline-flex min-h-6 items-center gap-0.5 rounded px-1.5 leading-none hover:bg-[var(--paper-bg)]",
-          @mine == -1 && "bg-red-700 text-white"
+          "inline-flex items-center gap-1 rounded border leading-none",
+          @button_class,
+          if(@mine == -1,
+            do: "border-red-700 bg-red-700 text-white font-semibold",
+            else: "border-transparent hover:bg-[var(--paper-bg)]"
+          )
         ]}
-      ><span aria-hidden="true">▼</span><span data-role="down">{@down}</span></button>
-      <span
-        id={"tile-#{@idea.id}-net"}
-        class="badge badge-ghost badge-xs font-semibold tabular-nums"
-        aria-label={"net votes #{@net}"}
-      >{@net}</span>
+      >
+        <.icon name="hero-hand-thumb-down" class={@icon_class} />
+        <span data-role="down" class="tabular-nums" aria-hidden="true">{@down}</span>
+      </button>
     </div>
     """
   end
@@ -619,8 +660,6 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
 
     assigns =
       assign(assigns,
-        net: Board.net_votes(idea),
-        mine: Board.vote_of(idea, assigns.founder),
         facts: Board.facts(idea),
         buttons: Transitions.buttons(Board.facts(idea), idea.column, {:founder, assigns.founder}),
         downvotes: Enum.filter(idea.votes, &(&1.value == -1)),
@@ -677,38 +716,15 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
             </li>
           </ul>
         </div>
-        <div
-          class="flex shrink-0 items-center gap-1"
-          role="group"
-          aria-label={"Vote on #{@idea.title}"}
-        >
-          <button
-            type="button"
-            phx-click="vote"
-            phx-value-card_id={@idea.id}
-            phx-value-vote="1"
-            phx-target={@myself}
-            aria-pressed={to_string(@mine == 1)}
-            aria-label={if @mine == 1, do: "Take back your +1", else: "Vote +1"}
-            class={[
-              "min-h-11 min-w-11 rounded border px-2",
-              @mine == 1 && "bg-[var(--paper-accent)] text-[var(--paper-on-accent)]"
-            ]}
-          >+1</button>
-          <span class="min-w-6 text-center font-semibold" aria-label={"Net votes #{@net}"}>{@net}</span>
-          <button
-            type="button"
-            phx-click="vote"
-            phx-value-card_id={@idea.id}
-            phx-value-vote="-1"
-            phx-target={@myself}
-            aria-pressed={to_string(@mine == -1)}
-            aria-label={if @mine == -1, do: "Take back your -1", else: "Vote -1"}
-            aria-expanded={to_string(@downvote_for == @idea.id)}
-            aria-controls={"card-#{@idea.id}-downvote"}
-            class={["min-h-11 min-w-11 rounded border px-2", @mine == -1 && "bg-red-700 text-white"]}
-          >-1</button>
-        </div>
+        <.vote_buttons
+          idea={@idea}
+          founder={@founder}
+          myself={@myself}
+          prefix={"card-#{@idea.id}"}
+          class="shrink-0"
+          button_class="min-h-11 min-w-11 justify-center px-2"
+          downvote_for={@downvote_for}
+        />
       </div>
 
       <form
