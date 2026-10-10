@@ -96,8 +96,17 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
     end
   end
 
-  def handle_event("vote", %{"card_id" => id, "value" => value}, socket),
-    do: with_idea(socket, id, &Board.vote(&1, socket.assigns.founder, String.to_integer(value)))
+  # The vote travels as phx-value-vote, never "value": a <button>'s own
+  # (empty) value attribute overrides phx-value-value in the browser.
+  def handle_event("vote", %{"card_id" => id, "vote" => vote}, socket) do
+    case Integer.parse(to_string(vote)) do
+      {v, ""} when v in [1, -1] ->
+        with_idea(socket, id, &Board.vote(&1, socket.assigns.founder, v))
+
+      _ ->
+        result(socket, id, {:error, "A vote is +1 or -1."})
+    end
+  end
 
   def handle_event("move", %{"card_id" => id, "to" => to} = params, socket) do
     note = params["note"] |> to_string() |> String.trim()
@@ -174,6 +183,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           column="ideas"
           size={:thin}
           board={@board}
+          founder={@founder}
           myself={@myself}
           pullable={@pullable}
           class="lg:row-span-2"
@@ -184,6 +194,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
             column={c}
             size={:small}
             board={@board}
+            founder={@founder}
             myself={@myself}
             pullable={@pullable}
           />
@@ -192,6 +203,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           column="parked"
           size={:thin}
           board={@board}
+          founder={@founder}
           myself={@myself}
           pullable={@pullable}
           class="lg:col-start-2 lg:row-start-2"
@@ -200,6 +212,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           column="done"
           size={:thin}
           board={@board}
+          founder={@founder}
           myself={@myself}
           pullable={@pullable}
           class="lg:col-start-3 lg:row-start-1 lg:row-span-2"
@@ -251,6 +264,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
     do: JS.push_focus() |> JS.push("open", value: %{card_id: id}, target: myself)
 
   attr :column, :string, required: true
+  attr :founder, :string, required: true
   attr :size, :atom, required: true
   attr :board, :map, required: true
   attr :myself, :any, required: true
@@ -292,14 +306,14 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
             draggable="true"
             data-board-card={idea.id}
             data-size={@size}
-            class="min-w-0"
+            class="flex min-w-0 items-stretch gap-1"
           >
             <button
               type="button"
               phx-click={open_js(@myself, idea.id)}
               aria-haspopup="dialog"
               class={[
-                "flex w-full min-w-0 max-w-full overflow-hidden items-start gap-2 rounded-lg border border-[var(--paper-rule)] bg-[var(--paper-panel)] text-left text-sm hover:border-[var(--paper-accent)]",
+                "flex min-w-0 flex-1 overflow-hidden items-start gap-2 rounded-lg border border-[var(--paper-rule)] bg-[var(--paper-panel)] text-left text-sm hover:border-[var(--paper-accent)]",
                 @size == :thin && "min-h-11 items-center px-2 py-1.5",
                 @size == :small && "h-24 overflow-hidden p-2"
               ]}
@@ -322,7 +336,6 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
                 </span>
               </span>
               <span class="flex shrink-0 flex-col items-end gap-0.5 text-xs">
-                <span aria-label={"net votes #{Board.net_votes(idea)}"}>{Board.net_votes(idea)}</span>
                 <span
                   :if={Board.downvoted?(idea)}
                   class="rounded bg-red-100 px-1 text-red-800"
@@ -331,10 +344,63 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
                 <span :if={MapSet.member?(@pullable, idea.id)} class="sr-only">Case may pull</span>
               </span>
             </button>
+            <.tile_votes idea={idea} founder={@founder} myself={@myself} />
           </li>
         </ul>
       </div>
     </section>
+    """
+  end
+
+  attr :idea, :any, required: true
+  attr :founder, :string, required: true
+  attr :myself, :any, required: true
+
+  # +1 / net / -1 beside a tile (a sibling of the open button, so a vote never
+  # opens the card and the card's click never eats a vote).
+  defp tile_votes(assigns) do
+    assigns =
+      assign(assigns,
+        net: Board.net_votes(assigns.idea),
+        mine: Board.vote_of(assigns.idea, assigns.founder)
+      )
+
+    ~H"""
+    <div
+      class="flex shrink-0 flex-col items-center justify-center text-xs"
+      role="group"
+      aria-label={"Vote on #{@idea.title}"}
+    >
+      <button
+        type="button"
+        id={"tile-#{@idea.id}-up"}
+        phx-click="vote"
+        phx-value-card_id={@idea.id}
+        phx-value-vote="1"
+        phx-target={@myself}
+        aria-pressed={to_string(@mine == 1)}
+        aria-label={if @mine == 1, do: "Take back your +1", else: "Vote +1"}
+        class={[
+          "min-h-6 min-w-8 rounded border border-[var(--paper-rule)] leading-none",
+          @mine == 1 && "bg-[var(--paper-accent)] text-[var(--paper-on-accent)]"
+        ]}
+      >+1</button>
+      <span id={"tile-#{@idea.id}-net"} class="py-0.5 font-semibold" aria-label={"net votes #{@net}"}>{@net}</span>
+      <button
+        type="button"
+        id={"tile-#{@idea.id}-down"}
+        phx-click="vote"
+        phx-value-card_id={@idea.id}
+        phx-value-vote="-1"
+        phx-target={@myself}
+        aria-pressed={to_string(@mine == -1)}
+        aria-label={if @mine == -1, do: "Take back your -1", else: "Vote -1"}
+        class={[
+          "min-h-6 min-w-8 rounded border border-[var(--paper-rule)] leading-none",
+          @mine == -1 && "bg-red-700 text-white"
+        ]}
+      >-1</button>
+    </div>
     """
   end
 
@@ -454,7 +520,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
             type="button"
             phx-click="vote"
             phx-value-card_id={@idea.id}
-            phx-value-value="1"
+            phx-value-vote="1"
             phx-target={@myself}
             aria-pressed={to_string(@mine == 1)}
             aria-label={if @mine == 1, do: "Take back your +1", else: "Vote +1"}
@@ -468,7 +534,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
             type="button"
             phx-click="vote"
             phx-value-card_id={@idea.id}
-            phx-value-value="-1"
+            phx-value-vote="-1"
             phx-target={@myself}
             aria-pressed={to_string(@mine == -1)}
             aria-label={if @mine == -1, do: "Take back your -1", else: "Vote -1"}
