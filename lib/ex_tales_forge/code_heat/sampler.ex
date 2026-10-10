@@ -41,6 +41,17 @@ defmodule TalesForge.CodeHeat.Sampler do
   @spec sample_now(GenServer.server()) :: {:ok, struct()} | {:error, Ecto.Changeset.t()}
   def sample_now(server \\ __MODULE__), do: GenServer.call(server, :sample, 30_000)
 
+  @doc """
+  Returns the time of the next sample (UTC), or `nil` when the sampler does
+  not run on this app.
+  """
+  @spec next_sample_at(GenServer.server()) :: DateTime.t() | nil
+  def next_sample_at(server \\ __MODULE__) do
+    if GenServer.whereis(server), do: GenServer.call(server, :next_sample_at), else: nil
+  catch
+    :exit, _reason -> nil
+  end
+
   @impl true
   def init(opts) do
     Process.flag(:trap_exit, true)
@@ -72,6 +83,11 @@ defmodule TalesForge.CodeHeat.Sampler do
   def handle_call(:sample, _from, state) do
     {result, state} = sample(state)
     {:reply, result, state}
+  end
+
+  def handle_call(:next_sample_at, _from, state) do
+    next = DateTime.add(state.started_at, CodeHeat.config(:sample_every_ms), :millisecond)
+    {:reply, next, state}
   end
 
   @impl true
