@@ -411,6 +411,15 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
       assert idea_titles(view) == ~w(Fishing Boats Maps)
     end
 
+    test "Written by shows the founder name from the team data (Håkan, not Hawkan)", %{
+      conn: conn
+    } do
+      {:ok, _} = Board.create_idea("hawkan.fredriksson@gmail.com", %{"title" => "Lanterns"})
+      {:ok, view, _} = live(conn, "/team")
+      assert has_element?(view, ~s(#ideas-by option[value="hawkan"]), "Håkan")
+      refute has_element?(view, "#ideas-by option", "Hawkan")
+    end
+
     test "Mentioning me keeps the cards where a comment @mentions you", %{conn: conn} do
       {:ok, view, _} = live(conn, "/team")
       view |> form("#ideas-sort", %{mine: "true"}) |> render_change()

@@ -104,6 +104,8 @@ defmodule TalesForge.TeamOnline do
   A founder's display name from the team data (accents kept). First the
   handle of their GitHub login (`TalesForge.Board.Mentions`, config
   `:board_founder_handles`), so "Hawkan-Fredriksson" is "Håkan"; then the
+  login that the whole email local part spells (letters only, so
+  "hawkan.fredriksson@…" is the login "hawkan-fredriksson", "Håkan"); then the
   first part of the email; else that first part, capitalised.
 
       iex> TalesForge.TeamOnline.name("hawkan.fredriksson@gmail.com", "Hawkan-Fredriksson")
@@ -118,10 +120,19 @@ defmodule TalesForge.TeamOnline do
   @spec name(String.t(), String.t() | nil) :: String.t()
   def name(email, login \\ nil) do
     first = email |> String.split(["@", ".", "+"]) |> hd() |> String.downcase()
-    handle = Mentions.handle_for(login) || plain(first)
+    handle = Mentions.handle_for(login) || handle_of_email(email) || plain(first)
 
     Enum.find(founder_names(), &(plain(&1) == handle)) ||
       Enum.find(founder_names(), String.capitalize(first), &(plain(&1) == plain(first)))
+  end
+
+  # The founder handle whose GitHub login spells the email local part.
+  defp handle_of_email(email) do
+    local = email |> String.split("@") |> hd() |> plain()
+
+    :ex_tales_forge
+    |> Application.get_env(:board_founder_handles, %{})
+    |> Enum.find_value(fn {login, handle} -> plain(login) == local && handle end)
   end
 
   defp founder_names do
