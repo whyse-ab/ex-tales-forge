@@ -266,7 +266,7 @@ defmodule TalesForgeWeb.AdminLive.CodeHeatLive do
             class="rounded-md border border-[var(--paper-margin)] p-2 text-sm"
           >
             <div class="flex items-baseline justify-between gap-2">
-              <span class="break-all font-mono">{line.purpose}</span>
+              <span class="min-w-0 break-words font-mono"><.wrap_name name={line.purpose} /></span>
               <span class="badge badge-ghost badge-sm shrink-0">{line.call_type}</span>
             </div>
             <dl class="mt-1 grid grid-cols-3 gap-1 text-xs tabular-nums">
@@ -285,28 +285,55 @@ defmodule TalesForgeWeb.AdminLive.CodeHeatLive do
             </dl>
           </li>
         </ul>
-        <table :if={@ai_calls != []} id="code-heat-ai-table" class="table table-sm hidden sm:table">
-          <thead>
-            <tr>
-              <th>Type</th>
-              <th>Purpose</th>
-              <th class="text-right">Calls</th>
-              <th class="text-right">Total time</th>
-              <th class="text-right">Average</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr :for={line <- @ai_calls} id={"ai-#{line.call_type}-#{tile_id(line.purpose)}"}>
-              <td>{line.call_type}</td>
-              <td class="break-all font-mono">{line.purpose}</td>
-              <td class="text-right tabular-nums">{format_int(line.calls)}</td>
-              <td class="text-right tabular-nums">{format_ms(line.total_ms)}</td>
-              <td class="text-right tabular-nums">{format_ms(line.avg_ms)}</td>
-            </tr>
-          </tbody>
-        </table>
+        <%!-- The wrapper hides the table below sm. The cards above show the same data
+             there. The daisyUI table class sets display, so the hidden class goes on
+             the wrapper and not on the table. --%>
+        <div :if={@ai_calls != []} id="code-heat-ai-table-wrap" class="hidden sm:block">
+          <table id="code-heat-ai-table" class="table table-sm">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Purpose</th>
+                <th class="text-right">Calls</th>
+                <th class="text-right">Total time</th>
+                <th class="text-right">Average</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr :for={line <- @ai_calls} id={"ai-#{line.call_type}-#{tile_id(line.purpose)}"}>
+                <td>{line.call_type}</td>
+                <td class="break-words font-mono"><.wrap_name name={line.purpose} /></td>
+                <td class="text-right tabular-nums">{format_int(line.calls)}</td>
+                <td class="text-right tabular-nums">{format_ms(line.total_ms)}</td>
+                <td class="text-right tabular-nums">{format_ms(line.avg_ms)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </.section_card>
     </Layouts.admin>
+    """
+  end
+
+  attr :name, :string, required: true
+
+  # Shows a name such as "npc_reaction" with a line-break point after each
+  # underscore, so a narrow screen breaks the name at "npc_" and not in the
+  # middle of a word. Each part is HTML-escaped before the join.
+  defp wrap_name(assigns) do
+    html =
+      assigns.name
+      |> to_string()
+      |> String.split("_")
+      |> Enum.map_join(
+        "_<wbr>",
+        &(&1 |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string())
+      )
+
+    assigns = assign(assigns, :html, Phoenix.HTML.raw(html))
+
+    ~H"""
+    {@html}
     """
   end
 

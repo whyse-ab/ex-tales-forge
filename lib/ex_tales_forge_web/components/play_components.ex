@@ -10,16 +10,16 @@ defmodule TalesForgeWeb.PlayComponents do
 
   def play_header(assigns) do
     ~H"""
-    <header class="play-header shrink-0 px-4 py-3 sm:px-6">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="flex min-w-0 items-center gap-4">
+    <header class="play-header shrink-0 px-3 py-1.5 sm:px-6 sm:py-3">
+      <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 sm:gap-3">
+        <div class="flex min-w-0 items-center gap-3 sm:gap-4">
           <.link
             navigate={~p"/"}
             class="play-label shrink-0 text-[var(--paper-accent)] hover:underline"
           >
             Tales Forge
           </.link>
-          <h1 class="truncate font-serif text-lg font-semibold text-[var(--paper-ink)]">
+          <h1 class="truncate font-serif text-base font-semibold sm:text-lg text-[var(--paper-ink)]">
             {@session_name}
           </h1>
           <.link
@@ -29,7 +29,7 @@ defmodule TalesForgeWeb.PlayComponents do
             Admin
           </.link>
         </div>
-        <dl class="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+        <dl class="flex flex-wrap items-center gap-x-4 gap-y-0 text-xs sm:gap-x-6 sm:gap-y-1 sm:text-sm">
           <div class="flex items-baseline gap-2">
             <dt class="play-label">Time</dt>
             <dd class="font-medium text-[var(--paper-ink)]">{@world_clock}</dd>
@@ -60,12 +60,18 @@ defmodule TalesForgeWeb.PlayComponents do
   placeholders, any clarification question, and the action form (text input
   plus the Act button). On phones the input shrinks to the space left beside
   Act, so the button stays on screen down to a 320px viewport.
+
+  When the player scrolled up and new text arrives, the "New text below"
+  button shows above the action form. StoryScroll (assets/js/story_scroll.js)
+  shows the button, hides it at the end of the story, and scrolls to the end
+  when the player selects it. The wrapper is a polite live region, so a
+  screen reader reads the button text when it shows.
   """
   @spec narrative_panel(map()) :: Phoenix.LiveView.Rendered.t()
   def narrative_panel(assigns) do
     ~H"""
     <section class="play-panel flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg">
-      <div class="border-b border-[var(--paper-rule)] px-4 py-2">
+      <div class="border-b border-[var(--paper-rule)] px-3 py-1 sm:px-4 sm:py-2">
         <h2 class="play-label">Story</h2>
       </div>
 
@@ -73,31 +79,50 @@ defmodule TalesForgeWeb.PlayComponents do
            child of a phx-update="stream" element must be a stream item with an id.
            `contents` lets the entries and placeholders share one gap-4 column. --%>
       <%!-- StoryScroll (assets/js/story_scroll.js) keeps the newest text in view. --%>
-      <div
-        id="story-scroll"
-        phx-hook="StoryScroll"
-        class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto bg-[var(--paper-margin)] p-4"
-      >
-        <div id="narrative-log" class="contents" phx-update="stream">
-          <div :for={{dom_id, entry} <- @streams.entries} id={dom_id} class="space-y-1">
-            <p class={entry_heading_class(entry)}>
-              {entry_heading(entry)}
-            </p>
-            <div class={entry_body_class(entry)}>
-              <span class="play-narrative-body">{entry.text}</span>
+      <div class="relative flex min-h-0 flex-1 flex-col">
+        <div
+          id="story-scroll"
+          phx-hook="StoryScroll"
+          class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto bg-[var(--paper-margin)] p-3 sm:p-4"
+        >
+          <div id="narrative-log" class="contents" phx-update="stream">
+            <div :for={{dom_id, entry} <- @streams.entries} id={dom_id} class="space-y-1">
+              <p class={entry_heading_class(entry)}>
+                {entry_heading(entry)}
+              </p>
+              <div class={entry_body_class(entry)}>
+                <span class="play-narrative-body">{entry.text}</span>
+              </div>
             </div>
           </div>
+
+          <p :if={@scene_loading} class="text-sm italic text-[var(--paper-muted)]">
+            The GM is setting the scene…
+          </p>
+          <p :if={@thinking} class="text-sm italic text-[var(--paper-muted)]">
+            The GM is thinking…
+          </p>
         </div>
 
-        <p :if={@scene_loading} class="text-sm italic text-[var(--paper-muted)]">
-          The GM is setting the scene…
-        </p>
-        <p :if={@thinking} class="text-sm italic text-[var(--paper-muted)]">
-          The GM is thinking…
-        </p>
+        <div
+          id="story-new-text-region"
+          phx-update="ignore"
+          aria-live="polite"
+          class="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center"
+        >
+          <button
+            id="story-new-text"
+            type="button"
+            hidden
+            aria-controls="story-scroll"
+            class="pointer-events-auto rounded-full bg-[var(--paper-accent)] px-3 py-1 text-sm font-medium text-white shadow hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            New text below <span aria-hidden="true">↓</span>
+          </button>
+        </div>
       </div>
 
-      <div class="shrink-0 space-y-3 border-t border-[var(--paper-rule)] p-4">
+      <div class="shrink-0 space-y-2 border-t border-[var(--paper-rule)] p-2 sm:space-y-3 sm:p-4">
         <p :if={@session_status == "dead"} class="text-sm italic text-[var(--paper-muted)]">
           You are dead.
         </p>

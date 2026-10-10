@@ -115,6 +115,26 @@ defmodule TalesForgeWeb.AdminLive.CodeHeatLiveTest do
     assert has_element?(view, "#tile-ex_tales_forge")
   end
 
+  test "below sm only the AI cards show, and a long purpose breaks after an underscore",
+       %{conn: conn} do
+    Application.put_env(:ex_tales_forge, CodeHeat, enabled: true)
+    seed()
+
+    Repo.insert!(%AICall{
+      model: "m",
+      status: "ok",
+      call_type: "llm",
+      purpose: "npc_reaction",
+      latency_ms: 900
+    })
+
+    {:ok, view, html} = live(conn, ~p"/admin/operate/code-heat")
+    assert has_element?(view, "#code-heat-ai-cards.sm\\:hidden")
+    assert has_element?(view, "#code-heat-ai-table-wrap.hidden.sm\\:block #code-heat-ai-table")
+    assert html =~ ~r/npc_<wbr[^>]*>reaction/
+    refute html =~ "break-all font-mono\">npc"
+  end
+
   test "format_us/1" do
     assert CodeHeatLive.format_us(12) == "12 µs"
     assert CodeHeatLive.format_us(1.25) == "1.3 µs"

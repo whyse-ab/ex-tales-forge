@@ -173,8 +173,15 @@ defmodule TalesForgeWeb.PlayLive do
         quick_stats={@quick_stats}
       />
 
-      <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-3 py-3 sm:px-4 lg:flex-row">
-        <div class="flex min-h-0 min-w-0 flex-1 flex-col lg:min-h-0">
+      <%!-- Below lg the page scrolls: the story panel fills the screen under the
+           header (calc on dvh, so the phone toolbars do not cover the input),
+           and Visuals and the character state come after it. From lg the
+           panels sit side by side and the page does not scroll. --%>
+      <div class="flex flex-none flex-col gap-3 px-2 py-2 sm:px-4 sm:py-3 lg:min-h-0 lg:flex-1 lg:flex-row lg:overflow-hidden">
+        <div
+          id="story-column"
+          class="flex h-[calc(100dvh-5.5rem)] min-w-0 flex-none flex-col lg:h-auto lg:min-h-0 lg:flex-1"
+        >
           <.narrative_panel
             streams={@streams}
             scene_loading={@scene_loading}
@@ -191,7 +198,7 @@ defmodule TalesForgeWeb.PlayLive do
         />
       </div>
 
-      <div class="shrink-0 px-3 pb-3 sm:px-4">
+      <div class="shrink-0 px-2 pb-3 sm:px-4">
         <.state_panel character={@character} />
       </div>
     </Layouts.play>
