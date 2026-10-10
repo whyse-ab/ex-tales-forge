@@ -11,7 +11,7 @@ defmodule TalesForgeWeb.AppComponents do
   - `other_app_link/1`: "Same page on playtest ↗", for pages that exist on
     both apps with different data (sessions, costs, telemetry).
 
-  The role comes from `TalesForge.AppRole.role/0`; tests can pass `role`.
+  The role comes from `TalesForge.AppRole.role/1`; tests can pass `role`.
   """
 
   use Phoenix.Component
