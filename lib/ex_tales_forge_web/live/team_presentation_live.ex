@@ -195,9 +195,16 @@ defmodule TalesForgeWeb.TeamPresentationLive do
       phx-hook="TeamPage"
       data-motion="auto"
     >
+      <a
+        id="skip-to-content"
+        href="#team-main"
+        class="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-[var(--paper-panel)] focus:px-3 focus:py-2 focus:text-[var(--paper-ink)] focus:ring-2"
+      >
+        Skip to content
+      </a>
       <TeamLayout.header socket={assigns[:socket]} page={:presentation} items={@sections} />
 
-      <main class="mx-auto max-w-6xl space-y-20 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
+      <main id="team-main" tabindex="-1" class="mx-auto max-w-6xl space-y-20 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
         <.hero d={@d} pace={@pace} live={@live} />
         <.team_section d={@d} />
         <.how_section d={@d} live={@live} />
@@ -699,7 +706,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
             </p>
           </article>
           <article id="rule-code" class="team-card space-y-2 p-5">
-            <h3 class="font-serif text-lg font-bold">4. Code that explains itself.</h3>
+            <h3 class="font-serif text-lg font-bold">3. Code that explains itself.</h3>
             <p class="text-sm leading-relaxed">
               “Humans may need to understand the code one day.” Every module says what it's for, every public function has docs and a type spec,
               and the tools check it all on every PR:
@@ -726,7 +733,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
       </div>
 
       <article id="rule-call-types" class="team-card space-y-4 p-5">
-        <h3 class="font-serif text-lg font-bold">3. The call-type rule.</h3>
+        <h3 class="font-serif text-lg font-bold">4. The call-type rule.</h3>
         <p class="text-sm leading-relaxed">
           Each piece of work in a turn uses the cheapest tool that can do it:
         </p>
@@ -1942,11 +1949,11 @@ defmodule TalesForgeWeb.TeamPresentationLive do
   end
 
   # PRs per day since 2026-10-07; earlier days become one chip ("+14 PRs
-  # in July").
+  # before 7 Oct").
   defp split_prs_since_inception(pace) do
     days = pace.prs_by_day
     {current, _n} = TeamLiveNumbers.since_inception(days)
-    {current, earlier_chip(days -- current)}
+    {current, earlier_chip(days -- current, List.first(current))}
   end
 
   defp earlier_count(all_days, kept) do
@@ -1967,18 +1974,15 @@ defmodule TalesForgeWeb.TeamPresentationLive do
     """
   end
 
-  defp earlier_chip([]), do: nil
+  defp earlier_chip([], _first), do: nil
 
-  defp earlier_chip(days) do
+  defp earlier_chip(days, first) do
     total = days |> Enum.map(&(&1["created"] || 0)) |> Enum.sum()
 
-    months =
-      days
-      |> Enum.map(&(&1["date"] |> Date.from_iso8601!() |> Calendar.strftime("%B")))
-      |> Enum.uniq()
-      |> Enum.join(" and ")
-
-    "+#{number(total)} PRs in #{months}"
+    case first do
+      %{"date" => date} -> "+#{number(total)} PRs before #{TeamPage.short_date(date)}"
+      _none -> "+#{number(total)} earlier PRs"
+    end
   end
 
   # The app a live number comes from, by name: the presentation lives on

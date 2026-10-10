@@ -124,9 +124,10 @@ defmodule TalesForgeWeb.TeamBoard do
       <div id="board-travel" class="space-y-3">
         <h3 class="font-serif text-xl font-bold sm:text-2xl">How a card travels</h3>
         <p class="text-sm text-[var(--paper-muted)]">
-          {count_word(length(@columns)) |> String.capitalize()} columns, from an idea to done.
-          A founder can also put a card on hold in <strong>Parked</strong>
-          and later send it back to Ideas.
+          {count_word(length(@columns) + 1) |> String.capitalize()} columns. A card goes through {count_word(
+            length(@columns)
+          )} of them, from an idea to done. The sixth, <strong>Parked</strong>,
+          holds a card for later; a founder can send it back to Ideas.
         </p>
         <ol class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <li
