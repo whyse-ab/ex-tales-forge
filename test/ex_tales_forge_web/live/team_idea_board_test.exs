@@ -641,4 +641,37 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     view |> element("#board-modal-close") |> render_click()
     assert [{_, %{answer: "Three."}}] = Board.questions(Board.get_idea!(other.id))
   end
+
+  test "a PR waiting for approval: badge and Approve on the thin card (no open), Request changes opens the card",
+       %{conn: conn} do
+    {:ok, idea} =
+      Board.link_pr(%{
+        "number" => 150,
+        "url" => "https://github.com/whyse-ab/ex-tales-forge/pull/150",
+        "head_sha" => "abc1234",
+        "player_note" => "Nothing changes for players.",
+        "title" => "Pings"
+      })
+
+    {:ok, view, _} = live(conn, "/team")
+
+    assert has_element?(
+             view,
+             "#board-col-building #tile-#{idea.id}-pr-waiting",
+             "PR waiting for approval"
+           )
+
+    assert has_element?(view, "#tile-#{idea.id}-approve[aria-label='Approve PR #150 of Pings']")
+
+    view |> element("#tile-#{idea.id}-request-changes") |> render_click()
+    assert has_element?(view, "#board-modal [data-role=pr-waiting]")
+    assert has_element?(view, "#card-#{idea.id}-answer textarea")
+    view |> element("#board-modal-close") |> render_click()
+
+    view |> element("#tile-#{idea.id}-approve") |> render_click()
+    refute has_element?(view, "#board-modal")
+    refute has_element?(view, "#tile-#{idea.id}-pr-waiting")
+    assert has_element?(view, "#board-col-building #tile-#{idea.id}")
+    assert [%{decision: "approved"}] = Board.get_idea!(idea.id).approvals
+  end
 end

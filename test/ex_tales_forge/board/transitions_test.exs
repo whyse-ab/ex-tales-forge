@@ -19,7 +19,6 @@ defmodule TalesForge.Board.TransitionsTest do
     {"check", "building", [@founder]},
     {"check", "refining", [@founder]},
     {"check", "parked", [@founder]},
-    {"building", "check", [{:bot, :bobby}]},
     {"building", "done", [{:bot, :bobby}, {:bot, :board}]},
     {"building", "refining", [{:bot, :bobby}, @founder]},
     {"parked", "ideas", [@founder]}

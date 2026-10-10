@@ -156,24 +156,17 @@ defmodule TalesForge.Board.Transitions do
       iex> TalesForge.Board.Transitions.allowed?(%{}, "check", "parked", {:founder, "a@x"})
       :ok
 
-  Building → Founder check: Bobby, when a linked PR needs a founder's approval
-  (normal lane).
+  Building → Founder check: nobody. Founder check is only for the refined
+  idea. A PR that waits for a founder's OK keeps the card in Building (see
+  `pr_answer/2`).
 
       iex> alias TalesForge.Board.Transitions, as: T
       iex> T.allowed?(%{pr: :awaiting}, "building", "check", {:bot, :bobby})
-      :ok
-      iex> T.allowed?(%{pr: nil}, "building", "check", {:bot, :bobby})
-      {:error, "Bobby moves the card here only with a PR that needs a founder's approval."}
+      {:error, "Founder check is for the refined idea. A PR waits for approval in Building."}
       iex> T.allowed?(%{pr: :awaiting}, "building", "check", {:founder, "a@x"})
-      {:error, "Bobby moves this card."}
-
-  Founder check (PR) → Building: a founder, with Approve.
-
-      iex> alias TalesForge.Board.Transitions, as: T
-      iex> T.allowed?(%{pr: :approved}, "check", "building", {:founder, "a@x"})
-      :ok
+      {:error, "Founder check is for the refined idea. A PR waits for approval in Building."}
       iex> T.allowed?(%{pr: :awaiting, open_questions: 0}, "check", "building", {:founder, "a@x"})
-      {:error, "Approve the PR to move this card to Building."}
+      :ok
 
   Building → Done: the board itself (`{:bot, :board}`, automatically after
   each prod boot, `TalesForge.Board.Workers.AutoDone`) or Bobby (the manual
@@ -254,21 +247,12 @@ defmodule TalesForge.Board.Transitions do
 
   def allowed?(card, "check", "building", actor) do
     with :ok <- founder(actor) do
-      case card[:pr] do
-        :approved ->
-          :ok
+      q = n(card, :open_questions)
 
-        :awaiting ->
-          {:error, "Approve the PR to move this card to Building."}
-
-        _ ->
-          q = n(card, :open_questions)
-
-          need(
-            q == 0,
-            "Answer or defer the #{q} open #{if q == 1, do: "question", else: "questions"}."
-          )
-      end
+      need(
+        q == 0,
+        "Answer or defer the #{q} open #{if q == 1, do: "question", else: "questions"}."
+      )
     end
   end
 
@@ -279,14 +263,8 @@ defmodule TalesForge.Board.Transitions do
 
   def allowed?(_card, "check", "parked", actor), do: founder(actor)
 
-  def allowed?(card, "building", "check", {:bot, :bobby}),
-    do:
-      need(
-        card[:pr] == :awaiting,
-        "Bobby moves the card here only with a PR that needs a founder's approval."
-      )
-
-  def allowed?(_card, "building", "check", _actor), do: {:error, "Bobby moves this card."}
+  def allowed?(_card, "building", "check", _actor),
+    do: {:error, "Founder check is for the refined idea. A PR waits for approval in Building."}
 
   def allowed?(card, "building", "done", {:bot, bot}) when bot in [:board, :bobby] do
     case {card[:pr_linked], card[:pr_on_prod]} do
@@ -313,6 +291,32 @@ defmodule TalesForge.Board.Transitions do
 
   def allowed?(_card, from, to, _actor),
     do: {:error, "#{label(from)} to #{label(to)} is not a move on the board."}
+
+  @doc """
+  Can the actor Approve or Request changes on the card's PR? Only a founder,
+  and only while the card is in Building with a PR that waits for an OK
+  (`pr: :awaiting`). The card stays in Building. Approve wakes Bobby
+  (`pr.approved`) to merge and ship; Request changes wakes him
+  (`pr.changes_requested`) with the comment.
+
+      iex> alias TalesForge.Board.Transitions, as: T
+      iex> T.pr_answer(%{pr: :awaiting}, "building", {:founder, "a@x"})
+      :ok
+      iex> T.pr_answer(%{pr: :awaiting}, "building", {:bot, :bobby})
+      {:error, "Only a founder can answer a PR."}
+      iex> T.pr_answer(%{pr: :approved}, "building", {:founder, "a@x"})
+      {:error, "No PR waits for approval on this card."}
+      iex> T.pr_answer(%{pr: :awaiting}, "check", {:founder, "a@x"})
+      {:error, "A PR waits for approval in Building. This card is in Founder check."}
+  """
+  @spec pr_answer(card(), String.t(), actor()) :: :ok | {:error, String.t()}
+  def pr_answer(_card, _column, {:bot, _}), do: {:error, "Only a founder can answer a PR."}
+
+  def pr_answer(card, "building", _actor),
+    do: need(card[:pr] == :awaiting, "No PR waits for approval on this card.")
+
+  def pr_answer(_card, column, _actor),
+    do: {:error, "A PR waits for approval in Building. This card is in #{label(column)}."}
 
   @doc """
   Who an event that is not a move wakes. An answer or a deferral of an
@@ -484,8 +488,8 @@ defmodule TalesForge.Board.Transitions do
       nil
       iex> T.blocker(%{refined: false}, "refining")
       "Waits for Case's refinement: verdict, cost and questions."
-      iex> T.blocker(%{pr: :awaiting}, "check")
-      "Approve the PR to move this card to Building."
+      iex> T.blocker(%{open_questions: 1}, "check")
+      "Answer or defer the 1 open question."
       iex> T.blocker(%{}, "done")
       nil
   """

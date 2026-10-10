@@ -39,12 +39,12 @@ defmodule TalesForge.Board.ApprovalsTest do
   defp header(headers, name), do: headers |> List.keyfind(name, 0) |> elem(1)
 
   describe "Bobby links a PR (POST /internal/board/prs)" do
-    test "only Bobby; the card is made, goes to Founder check with the PR and the note" do
+    test "only Bobby; the card is made and stays in Building with the PR waiting for approval" do
       assert {403, _} = Api.handle(:pr, :case, @pr)
       assert {403, _} = Api.handle(:pr, :gentry, @pr)
 
       assert {200, card} = Api.handle(:pr, :bobby, @pr)
-      assert card["column"] == "check"
+      assert card["column"] == "building"
       assert card["author"] == "bot:bobby"
 
       assert card["pr"] == %{
@@ -61,8 +61,10 @@ defmodule TalesForge.Board.ApprovalsTest do
 
       assert Enum.map(card["history"], &{&1["from"], &1["to"]}) == [
                {nil, "building"},
-               {"building", "check"}
+               {"building", "building"}
              ]
+
+      assert Board.pr_waiting?(Board.get_idea!(card["id"]))
     end
 
     test "the same PR again updates the card instead of making a second one; an existing card can be named" do
@@ -86,7 +88,7 @@ defmodule TalesForge.Board.ApprovalsTest do
 
       {:ok, idea} = Board.move(idea, {:bot, :case}, "check")
       {:ok, _} = Board.move(idea, {:founder, "ada@example.com"}, "building")
-      assert {200, %{"id" => id, "column" => "check"}} = Api.handle(:pr, :bobby, named)
+      assert {200, %{"id" => id, "column" => "building"}} = Api.handle(:pr, :bobby, named)
       assert id == idea.id
     end
 
@@ -112,10 +114,11 @@ defmodule TalesForge.Board.ApprovalsTest do
       end
     end
 
-    test "Approve records who, when, PR and sha, moves to Building and wakes Bobby with pr.approved",
+    test "Approve records who, when, PR and sha, keeps the card in Building and wakes Bobby with pr.approved",
          %{idea: idea} do
       assert {:ok, idea} = Board.answer_pr(idea, "Fredrik@Whyse.se", :approve, "Ship it")
       assert idea.column == "building"
+      refute Board.pr_waiting?(idea)
       assert [a] = idea.approvals
 
       assert {a.decision, a.founder, a.pr_number, a.head_sha, a.comment} ==
@@ -146,19 +149,20 @@ defmodule TalesForge.Board.ApprovalsTest do
       assert payload["idea"]["id"] == idea.id
 
       assert payload["transition"] == %{
-               "from" => "check",
+               "from" => "building",
                "to" => "building",
                "actor" => "fredrik@whyse.se"
              }
     end
 
-    test "Request changes keeps the card in Founder check and sends pr.changes_requested", %{
+    test "Request changes keeps the card in Building and sends pr.changes_requested", %{
       idea: idea
     } do
       assert {:ok, idea} =
                Board.answer_pr(idea, "bo@example.com", :request_changes, "Say her name twice")
 
-      assert idea.column == "check"
+      assert idea.column == "building"
+      assert Board.pr_waiting?(idea)
       assert [%{decision: "changes_requested", comment: "Say her name twice"}] = idea.approvals
       assert List.last(idea.transitions).note =~ "Changes requested on PR #125"
 
@@ -170,20 +174,23 @@ defmodule TalesForge.Board.ApprovalsTest do
       assert payload["pr"]["number"] == 125
     end
 
-    test "permissions: bots can't answer, only in Founder check, only with a PR; a new sha needs a new Approve",
+    test "permissions: bots can't answer, only while a PR waits, only with a PR; a new sha needs a new Approve",
          %{idea: idea} do
       assert {:error, "Only a founder can answer a PR."} =
                Board.answer_pr(idea, "bot:bobby", :approve, "")
 
-      assert {:error, "Approve the PR to move this card to Building."} =
-               Board.move(idea, {:founder, "ada@example.com"}, "building", "x")
+      assert {:error, "Founder check is for the refined idea." <> _} =
+               Board.move(idea, {:bot, :bobby}, "check")
 
       assert {:ok, _} = Board.answer_pr(idea, "ada@example.com", :request_changes, "Let's talk")
       assert {:ok, idea} = Board.answer_pr(idea, "ada@example.com", :approve, "")
       assert idea.column == "building"
 
-      assert {:error, "The PR waits in Founder check" <> _} =
+      assert {:error, "No PR waits for approval on this card."} =
                Board.answer_pr(idea, "ada@example.com", :approve, "")
+
+      {:ok, idea} = Board.link_pr(%{@pr | "head_sha" => "beef000"})
+      assert Board.pr_waiting?(idea)
 
       {:ok, plain} = Board.create_idea("ada@example.com", %{"title" => "No PR"})
 
