@@ -103,7 +103,13 @@ defmodule TalesForgeWeb.TeamLive do
   def handle_params(params, _uri, socket),
     do:
       {:noreply,
-       assign(socket, :ideas_sort, TalesForgeWeb.TeamIdeaBoard.sort_key(params["sort"]))}
+       socket
+       |> assign(:ideas_sort, TalesForgeWeb.TeamIdeaBoard.sort_key(params["sort"]))
+       |> assign(:ideas_by, ideas_by(params["by"]))
+       |> assign(:ideas_mine, params["mine"] == "1")}
+
+  defp ideas_by(by) when is_binary(by) and by != "", do: String.downcase(by)
+  defp ideas_by(_by), do: nil
 
   # The board lives on production (and locally); playtest keeps the placeholder.
   defp board_here?, do: TalesForge.AppRole.here?(:board)
@@ -145,6 +151,8 @@ defmodule TalesForgeWeb.TeamLive do
           founder={assigns[:admin_email]}
           login={assigns[:admin_github_login]}
           ideas_sort={assigns[:ideas_sort] || "top"}
+          ideas_by={assigns[:ideas_by]}
+          ideas_mine={assigns[:ideas_mine] || false}
         />
         <.live_section socket={assigns[:socket]} />
         <.presentation />
@@ -215,6 +223,8 @@ defmodule TalesForgeWeb.TeamLive do
   attr :founder, :string, default: nil
   attr :login, :string, default: nil
   attr :ideas_sort, :string, default: "top"
+  attr :ideas_by, :string, default: nil
+  attr :ideas_mine, :boolean, default: false
 
   defp going_to_do(assigns) do
     ~H"""
@@ -234,6 +244,8 @@ defmodule TalesForgeWeb.TeamLive do
         founder={@founder}
         login={@login}
         ideas_sort={@ideas_sort}
+        ideas_by={@ideas_by}
+        ideas_mine={@ideas_mine}
       />
     </section>
     """

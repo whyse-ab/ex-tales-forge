@@ -373,6 +373,59 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
       {:ok, view, _} = live(conn, "/team?sort=unknown")
       assert has_element?(view, ~s(#ideas-sort option[value="top"][selected]))
     end
+
+    test "the default sort is called Most support", %{conn: conn} do
+      {:ok, view, _} = live(conn, "/team")
+      assert has_element?(view, ~s(#ideas-sort option[value="top"]), "Most support")
+    end
+  end
+
+  describe "filter the Ideas column: Written by and Mentioning me (card b18fc8dc)" do
+    defp idea_titles(view) do
+      html = view |> element("#board-col-ideas") |> render()
+      for t <- ~w(Fishing Boats Maps), html =~ t, do: t
+    end
+
+    setup %{conn: conn} do
+      {:ok, a} = Board.create_idea("fredrik@whyse.se", %{"title" => "Fishing"})
+      {:ok, _} = Board.create_idea("max@example.com", %{"title" => "Boats"})
+      {:ok, c} = Board.create_idea("max@example.com", %{"title" => "Maps"})
+      {:ok, _} = Board.add_comment(a, "bot:case", "@fredrik a question for you.")
+      {:ok, _} = Board.add_comment(c, "bot:case", "@max over to you.")
+      {:ok, conn: log_in_admin(conn, "fredrik@whyse.se", login: "fpahlen")}
+    end
+
+    test "Written by keeps one founder's cards and writes it to the URL", %{conn: conn} do
+      {:ok, view, _} = live(conn, "/team")
+      assert idea_titles(view) == ~w(Fishing Boats Maps)
+      assert has_element?(view, ~s(#ideas-by option[value="max"]), "Max")
+      assert has_element?(view, ~s(#ideas-by option[value="fredrik"]), "Fredrik")
+
+      view |> form("#ideas-sort", %{by: "max"}) |> render_change()
+      assert_patch(view, "/team?by=max")
+      assert idea_titles(view) == ~w(Boats Maps)
+      assert has_element?(view, ~s(#ideas-by option[value="max"][selected]))
+
+      view |> form("#ideas-sort", %{by: ""}) |> render_change()
+      assert_patch(view, "/team")
+      assert idea_titles(view) == ~w(Fishing Boats Maps)
+    end
+
+    test "Mentioning me keeps the cards where a comment @mentions you", %{conn: conn} do
+      {:ok, view, _} = live(conn, "/team")
+      view |> form("#ideas-sort", %{mine: "true"}) |> render_change()
+      assert_patch(view, "/team?mine=1")
+      assert idea_titles(view) == ~w(Fishing)
+      assert has_element?(view, "#ideas-mine[checked]")
+    end
+
+    test "the URL sets all three on load", %{conn: conn} do
+      {:ok, view, _} = live(conn, "/team?sort=oldest&by=max&mine=1")
+      assert idea_titles(view) == []
+      {:ok, view, _} = live(conn, "/team?by=fredrik&mine=1")
+      assert idea_titles(view) == ~w(Fishing)
+      assert has_element?(view, ~s(#ideas-sort option[value="top"][selected]))
+    end
   end
 
   describe "voting (Fredrik's report 2026-10-10: the browser sends the button's empty value)" do
