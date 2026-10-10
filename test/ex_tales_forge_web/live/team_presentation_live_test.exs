@@ -361,11 +361,12 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
   describe "'not measured yet'" do
     setup %{conn: conn}, do: {:ok, conn: log_in_admin(conn)}
 
-    test "the empty values in data.json (full batch, holdout) say so", %{conn: conn} do
+    test "the full batch is filled in; the empty holdout says so", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/team/presentation")
-      assert @data["playtest_series"]["full_batch"]["weighted"]["paul"] == nil
-      assert has_element?(view, "#full-batch", "Paul: not measured yet")
-      assert has_element?(view, "#full-batch", "Cost: not measured yet")
+      assert @data["playtest_series"]["full_batch"]["weighted"]["paul"] == 4.54
+      assert has_element?(view, "#full-batch", ~r/Paul:\s+4.5\/5/)
+      assert has_element?(view, "#full-batch", ~r/Runs:\s+25/)
+      refute has_element?(view, "#full-batch", "Running")
       assert @data["intent_eval_set"]["holdout_results"] == nil
       assert has_element?(view, "#eval-holdout", "not measured yet")
     end
@@ -1320,6 +1321,86 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
     test "the commits heat strip shows each day's number, not colour only", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/team/presentation")
       assert has_element?(view, "#chart-commits .team-heat-num")
+    end
+  end
+
+  describe "what is new on the board (wording)" do
+    test "the Ideas lane, portraits, pickup note, approve once and the hourly check" do
+      html = render_with(@data)
+      doc = LazyHTML.from_fragment(html)
+      text = fn sel -> doc |> LazyHTML.query(sel) |> LazyHTML.text() end
+
+      ideas = text.("#board-new-ideas")
+      assert ideas =~ "newest first or oldest first"
+      assert ideas =~ "A founder's name becomes a tag by itself"
+      assert ideas =~ "free tags"
+      assert ideas =~ "show the cards that have all of them"
+      assert ideas =~ "The link keeps your selection"
+      assert ideas =~ "Pings for you"
+      assert ideas =~ "mentions you"
+
+      assert text.("#board-new-portraits") =~
+               "Case's portrait is behind Refining, and Bobby's portrait is behind Building."
+
+      assert text.("#board-new-pickup") =~ "Picked up by Bobby. ETA ..."
+      assert text.("#board-new-pickup") =~ "at once"
+
+      once = text.("#board-new-approve-once")
+      assert once =~ "Your Approve stays when a later commit is only a rebase or a fix."
+      assert once =~ "The card history notes the new commit."
+      assert once =~ "only when what players get changes"
+
+      assert text.("#board-new-hourly") =~ "Every hour, Case looks at the Building column."
+      assert text.("#board-new-hourly") =~ "Case reminds Bobby"
+    end
+
+    test "the release wording stays, with no handles and no special release step" do
+      html = render_with(@data)
+      text = html |> LazyHTML.from_fragment() |> LazyHTML.text()
+
+      assert text =~ "then it ships to production by itself"
+      assert text =~ "Changes that only touch admin pages ship straight away."
+      refute text =~ ~r/Fredrik pushes/i
+      refute text =~ ~r/Deploy to production/
+      # No @handles: the crew is named by name (code samples keep their @spec).
+      refute text =~ ~r/@(Case|Bobby|Gentry|Fredrik|Thobias|Håkan|Jeanette|Max|fpahlen)\b/i
+    end
+
+    test "Gentry's #166 findings stay fixed" do
+      html = render_with(@data)
+      doc = LazyHTML.from_fragment(html)
+      headings = doc |> LazyHTML.query("#how article h3") |> Enum.map(&LazyHTML.text/1)
+      nums = headings |> Enum.map(&String.trim/1) |> Enum.map(&String.first/1)
+      assert Enum.take(nums, 4) == ~w(1 2 3 4)
+      assert html =~ ~s(id="skip-to-content")
+      assert html =~ ~s(href="#team-main")
+      assert html =~ "Six columns."
+      refute html =~ ~r/PRs in [A-Z][a-z]+/
+    end
+  end
+
+  describe "Gentry on prod 0415def (wording)" do
+    test "the starting-point callout shows at once in the hero, not hidden behind a reveal" do
+      html = render_with(@data)
+      doc = LazyHTML.from_fragment(html)
+      assert doc |> LazyHTML.query("#hero[data-reveal]") |> Enum.count() == 0
+
+      assert doc |> LazyHTML.query("#hero #starting-point") |> LazyHTML.text() =~
+               "This is how we work today, and we shape it together."
+    end
+
+    test "the flow intro puts the founder's OK on the board, before the merge" do
+      html = render_with(@data)
+      refute html =~ "gives the OK to ship"
+      assert html =~ "the move to Building, then Approve on the PR before the merge"
+    end
+
+    test "section 7 says a founder moves an upvoted card" do
+      html = render_with(@data)
+      refute html =~ "A card with an upvote goes to Case"
+
+      assert html =~
+               "A card needs an upvote before it can move. Then a founder moves it to Refining"
     end
   end
 end

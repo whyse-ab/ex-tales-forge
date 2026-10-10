@@ -2,7 +2,7 @@ defmodule TalesForgeWeb.TeamLayout do
   @moduledoc """
   The frame shared by the two founders' pages, the landing page at `/team`
   (`TalesForgeWeb.TeamLive`) and the full presentation at `/team/presentation`
-  (`TalesForgeWeb.TeamPresentationLive`): the sticky header with its in-page
+  (`TalesForgeWeb.TeamPresentationLive`): the header (sticky from 640 px) with its in-page
   nav, and the "Numbers as of" footer.
 
   The in-page nav wraps onto a second (or third) line on a phone instead of
@@ -21,7 +21,7 @@ defmodule TalesForgeWeb.TeamLayout do
   @type nav_item :: {String.t(), String.t()}
 
   @doc """
-  The sticky header: the Tales Forge link, Admin and the theme toggle, then the
+  The header (sticky from 640 px; it scrolls away on a phone): the Tales Forge link, Admin and the theme toggle, then the
   in-page nav. `page` is the page being shown (`:landing` or `:presentation`);
   `items` are the `{anchor, label}` pairs of that page. The presentation's nav
   starts with the way back to the overview; the landing page links the
