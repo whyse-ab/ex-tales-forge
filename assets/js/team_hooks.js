@@ -483,3 +483,58 @@ export const TeamAnchorRedirect = {
     window.removeEventListener("hashchange", this.onHash)
   },
 }
+
+// @mention suggestions in a board comment box (TalesForge.Board.Mentions).
+// Type @ and letters: a list of matching names opens under the box. Arrow
+// keys choose, Enter or Tab inserts, Escape closes. A click also inserts.
+export const mentionQuery = (text, caret) => {
+  const m = /(^|[^\w@.])@([\p{L}]*)$/u.exec(text.slice(0, caret))
+  return m ? {start: caret - m[2].length - 1, query: m[2].toLowerCase().normalize("NFD").replace(/[^a-z]/g, "")} : null
+}
+
+export const MentionSuggest = {
+  mounted() {
+    const box = this.el
+    const list = document.getElementById(box.getAttribute("aria-controls"))
+    const handles = JSON.parse(box.dataset.handles || "[]")
+    let items = [], active = 0, at = null
+    const close = () => { list.hidden = true; items = []; box.removeAttribute("aria-activedescendant") }
+    const insert = name => {
+      const end = box.selectionStart
+      box.value = box.value.slice(0, at.start) + "@" + name + " " + box.value.slice(end)
+      const pos = at.start + name.length + 2
+      box.setSelectionRange(pos, pos)
+      close()
+      box.focus()
+    }
+    const draw = () => {
+      list.innerHTML = ""
+      items.forEach((name, i) => {
+        const li = document.createElement("li")
+        li.id = `${list.id}-${i}`
+        li.setAttribute("role", "option")
+        li.setAttribute("aria-selected", String(i === active))
+        li.className = "cursor-pointer px-3 py-2" + (i === active ? " bg-[var(--paper-margin)] font-semibold" : "")
+        li.textContent = "@" + name
+        li.addEventListener("mousedown", e => { e.preventDefault(); insert(name) })
+        list.appendChild(li)
+      })
+      list.hidden = items.length === 0
+      if (items.length) box.setAttribute("aria-activedescendant", `${list.id}-${active}`)
+    }
+    box.addEventListener("input", () => {
+      at = mentionQuery(box.value, box.selectionStart)
+      items = at ? handles.filter(h => h.startsWith(at.query)) : []
+      active = 0
+      draw()
+    })
+    box.addEventListener("keydown", e => {
+      if (list.hidden || !items.length) return
+      if (e.key === "ArrowDown") { active = (active + 1) % items.length; draw(); e.preventDefault() }
+      else if (e.key === "ArrowUp") { active = (active - 1 + items.length) % items.length; draw(); e.preventDefault() }
+      else if (e.key === "Enter" || e.key === "Tab") { insert(items[active]); e.preventDefault() }
+      else if (e.key === "Escape") { close(); e.preventDefault(); e.stopPropagation() }
+    })
+    box.addEventListener("blur", () => setTimeout(close, 100))
+  }
+}
