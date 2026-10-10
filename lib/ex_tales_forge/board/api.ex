@@ -14,6 +14,13 @@ defmodule TalesForge.Board.Api do
   - `POST /ideas/:id/comments`: `body`. Gentry passes a card with
     `"verdict": "pass"` (the comment then starts "Gentry check: pass").
 
+  `POST /internal/board/prs` (Bobby only, 403 for the others): a normal-lane
+  PR that needs a founder's merge OK. JSON `number`, `url`, `head_sha`,
+  `player_note` (one line: what changes for players) and `idea_id` (an existing
+  card) or `title` (a new card). The card goes to Founder check; the founder's
+  Approve / Request changes wakes Bobby with `pr.approved` /
+  `pr.changes_requested`. Fast-lane PRs need no OK: don't post them.
+
   Errors: 404 unknown card, 422 with `{"error": "..."}` for a refused change.
   """
 
@@ -30,6 +37,11 @@ defmodule TalesForge.Board.Api do
     columns = if params["column"] in Idea.columns(), do: [params["column"]], else: Idea.columns()
     {200, %{"ideas" => Enum.flat_map(columns, fn c -> Enum.map(board[c], &card/1) end)}}
   end
+
+  def handle(:pr, :bobby, params), do: params |> Board.link_pr() |> answer()
+
+  def handle(:pr, _bot, _params),
+    do: {403, %{"error" => "Only Bobby puts PRs up for a founder's OK."}}
 
   def handle(action, bot, %{"id" => id} = params) do
     case Board.get_idea(id) do
@@ -93,6 +105,26 @@ defmodule TalesForge.Board.Api do
       "downvoted" => Board.downvoted?(idea),
       "refinement" => idea.refinement,
       "refined" => Board.refined?(idea),
+      "pr" =>
+        idea.pr_number &&
+          %{
+            "number" => idea.pr_number,
+            "url" => idea.pr_url,
+            "head_sha" => idea.pr_head_sha,
+            "player_note" => idea.player_note
+          },
+      "approvals" =>
+        Enum.map(
+          idea.approvals,
+          &%{
+            "decision" => &1.decision,
+            "founder" => &1.founder,
+            "pr_number" => &1.pr_number,
+            "head_sha" => &1.head_sha,
+            "comment" => &1.comment,
+            "at" => &1.inserted_at
+          }
+        ),
       "decision" =>
         idea.decision_sha && %{"slug" => idea.decision_slug, "sha" => idea.decision_sha},
       "url" => TalesForge.Board.url(idea),

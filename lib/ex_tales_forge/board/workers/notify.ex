@@ -29,18 +29,26 @@ defmodule TalesForge.Board.Workers.Notify do
       "bot" => Atom.to_string(bot),
       "event" => event_name(event),
       "delivery_id" => Ecto.UUID.generate(),
-      "payload" => %{
-        "idea" => %{
-          "id" => idea.id,
-          "title" => idea.title,
-          "column" => extra[:to] || idea.column,
-          "url" => Board.url(idea)
-        },
-        "transition" => Map.take(stringify(extra), ~w(from to actor)),
-        "comment" => if(extra[:body], do: %{"author" => extra[:author], "body" => extra[:body]})
-      }
+      "payload" =>
+        %{
+          "idea" => %{
+            "id" => idea.id,
+            "title" => idea.title,
+            "column" => extra[:to] || idea.column,
+            "url" => Board.url(idea)
+          },
+          "transition" => Map.take(stringify(extra), ~w(from to actor)),
+          "comment" => if(extra[:body], do: %{"author" => extra[:author], "body" => extra[:body]})
+        }
+        |> Map.merge(pr_fields(extra))
     })
   end
+
+  # pr.approved / pr.changes_requested: the PR, the founder and the comment.
+  defp pr_fields(%{pr: pr} = extra),
+    do: %{"pr" => pr, "approver" => extra[:approver], "comment" => extra[:comment]}
+
+  defp pr_fields(_extra), do: %{}
 
   @doc """
   The event's wire name.

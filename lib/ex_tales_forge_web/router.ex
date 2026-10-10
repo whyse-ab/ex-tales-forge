@@ -196,6 +196,7 @@ defmodule TalesForgeWeb.Router do
     post "/ideas/:id/move", BoardApiController, :move
     post "/ideas/:id/links", BoardApiController, :link
     post "/ideas/:id/comments", BoardApiController, :comment
+    post "/prs", BoardApiController, :pr
   end
 
   # Swoosh mailbox preview in development (LiveDashboard lives at /admin/operate/telemetry)

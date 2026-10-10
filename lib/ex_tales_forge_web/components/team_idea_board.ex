@@ -113,6 +113,19 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
     with_idea(socket, id, &Board.move(&1, actor(socket), to, if(note == "", do: nil, else: note)))
   end
 
+  def handle_event("answer_pr", %{"card_id" => id, "answer" => answer} = params, socket) do
+    answer = %{"approve" => :approve, "request_changes" => :request_changes}[answer]
+
+    if answer,
+      do:
+        with_idea(
+          socket,
+          id,
+          &Board.answer_pr(&1, socket.assigns.founder, answer, params["comment"])
+        ),
+      else: result(socket, id, {:error, "Approve or request changes."})
+  end
+
   def handle_event("comment", %{"card_id" => id, "body" => body}, socket),
     do: with_idea(socket, id, &Board.add_comment(&1, socket.assigns.founder, body))
 
@@ -580,6 +593,80 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           />
           <button type="submit" class="min-h-11 rounded border px-3 font-semibold">Move</button>
         </form>
+
+        <section
+          :if={@idea.pr_number}
+          id={"card-#{@idea.id}-pr"}
+          aria-labelledby={"card-#{@idea.id}-pr-title"}
+          class="space-y-2 rounded-lg border border-[var(--paper-accent)] p-3"
+        >
+          <h5 id={"card-#{@idea.id}-pr-title"} class="font-semibold">
+            Merge approval:
+            <a
+              href={@idea.pr_url}
+              class="text-[var(--paper-accent)] underline"
+              rel="noopener noreferrer"
+            >PR #{@idea.pr_number}</a>
+            <span class="font-mono text-xs text-[var(--paper-muted)]">{String.slice(
+              @idea.pr_head_sha || "",
+              0,
+              7
+            )}</span>
+          </h5>
+          <p :if={@idea.player_note} data-role="player-note">
+            <span class="font-semibold">For players:</span> {@idea.player_note}
+          </p>
+          <form
+            :if={@idea.column == "check"}
+            id={"card-#{@idea.id}-answer"}
+            phx-submit="answer_pr"
+            phx-target={@myself}
+            class="grid gap-1"
+          >
+            <input type="hidden" name="card_id" value={@idea.id} />
+            <label class="grid gap-1">
+              Comment for Bobby (optional) <textarea
+                name="comment"
+                rows="2"
+                class="rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-2 py-1"
+              ></textarea>
+            </label>
+            <div class="flex flex-wrap gap-2">
+              <button
+                type="submit"
+                name="answer"
+                value="approve"
+                aria-label={"Approve PR ##{@idea.pr_number} for merge"}
+                class="team-cta min-h-11 rounded-full px-4 font-semibold"
+              >Approve</button>
+              <button
+                type="submit"
+                name="answer"
+                value="request_changes"
+                aria-label={"Request changes on PR ##{@idea.pr_number}"}
+                class="min-h-11 rounded-full border px-4 font-semibold"
+              >Request changes</button>
+            </div>
+          </form>
+          <ol
+            :if={@idea.approvals != []}
+            id={"card-#{@idea.id}-approvals"}
+            class="space-y-0.5 text-xs"
+            aria-label="Approval log"
+          >
+            <li :for={a <- @idea.approvals}>
+              {if a.decision == "approved", do: "✓ Approved", else: "↺ Changes requested"} by {who(
+                a.founder
+              )} · PR #{a.pr_number}
+              <span class="font-mono">{String.slice(a.head_sha || "", 0, 7)}</span>
+              ·
+              <time datetime={DateTime.to_iso8601(a.inserted_at)}>{TalesForgeWeb.TimeAgo.stockholm(
+                a.inserted_at
+              )}</time>
+              <span :if={a.comment not in [nil, ""]}>: {a.comment}</span>
+            </li>
+          </ol>
+        </section>
 
         <section aria-label="Case's refinement" class="space-y-1">
           <h5 class="font-semibold">Case's refinement</h5>

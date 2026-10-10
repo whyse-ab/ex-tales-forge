@@ -29,11 +29,16 @@ defmodule TalesForge.Board.Idea do
     field :decision_sha, :string
     field :decision_slug, :string
     field :collab_decision_id, :binary_id
+    field :pr_number, :integer
+    field :pr_url, :string
+    field :pr_head_sha, :string
+    field :player_note, :string
 
     has_many :votes, Vote
     has_many :comments, Comment
     has_many :transitions, Transition
     has_many :links, Link
+    has_many :approvals, TalesForge.Board.Approval
 
     timestamps(type: :utc_datetime)
   end
@@ -59,7 +64,17 @@ defmodule TalesForge.Board.Idea do
   @spec update_changeset(t(), map()) :: Ecto.Changeset.t()
   def update_changeset(idea, attrs) do
     idea
-    |> cast(attrs, [:column, :refinement, :score, :decision_sha, :decision_slug])
+    |> cast(attrs, [
+      :column,
+      :refinement,
+      :score,
+      :decision_sha,
+      :decision_slug,
+      :pr_number,
+      :pr_url,
+      :pr_head_sha,
+      :player_note
+    ])
     |> validate_inclusion(:column, @columns)
   end
 end
