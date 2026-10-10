@@ -39,7 +39,7 @@ defmodule TalesForgeWeb.TeamLiveTest do
 
       test "a team member gets #{path}", %{conn: conn} do
         assert {:ok, _view, html} = live(log_in_admin(conn), @path)
-        assert html =~ "How Tales Forge gets built"
+        assert html =~ ~s(id="team-page")
       end
     end
 
@@ -52,27 +52,87 @@ defmodule TalesForgeWeb.TeamLiveTest do
   describe "the landing page" do
     setup %{conn: conn}, do: {:ok, conn: log_in_admin(conn)}
 
-    test "the hero is the painted crew, loaded first", %{conn: conn} do
+    test "the workspace header replaces the hero; the hero stays on the presentation",
+         %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/team")
+
+      assert has_element?(view, "#workspace h1#workspace-title", "Our workspace")
+
+      assert has_element?(
+               view,
+               "#workspace-subtitle",
+               "Ideas, building and chat for the whole crew"
+             )
+
+      refute has_element?(view, "#landing-hero")
+      refute has_element?(view, "#landing-hero-art")
+      refute has_element?(view, "#landing-starting-point")
+      refute html =~ "How Tales Forge gets built"
+      refute html =~ "approval key"
+
+      {:ok, _pres, pres} = live(conn, ~p"/team/presentation")
+      assert pres =~ "approval key"
+    end
+
+    test "the quick stats are links to the board, all zero on an empty board", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/team")
 
-      assert has_element?(view, "#landing-hero h1", "How Tales Forge gets built")
+      assert has_element?(view, ~s(nav#workspace-stats[aria-label="Quick stats"]))
 
-      assert has_element?(
-               view,
-               ~s(#landing-hero-art[src="/images/team/hero-960.jpg"][width="1280"][height="720"][loading="eager"][fetchpriority="high"])
-             )
+      for {id, href, label} <- [
+            {"stat-ideas", "#board-col-ideas", "Ideas waiting for votes"},
+            {"stat-check", "#board-col-check", "Founder check cards for you"},
+            {"stat-prs", "#board-col-building", "PRs waiting for approval"},
+            {"stat-pings", "#board-pings", "Pings for you"}
+          ] do
+        assert has_element?(view, ~s(a##{id}[href="#{href}"]), label)
+        assert has_element?(view, ~s(##{id} [data-count]), "0")
+      end
+    end
 
-      assert has_element?(view, ~s(#landing-hero-art[alt*="The five founders"]))
+    test "the stats count the board for the signed-in founder and update live" do
+      me = "me@example.com"
+      conn = log_in_admin(build_conn(), me, login: "fpahlen")
+      alias TalesForge.Board
 
-      refute has_element?(view, ~s(#landing-hero-art[alt*="apprentice"]))
+      {:ok, _} = Board.create_idea("bo@example.com", %{"title" => "One"})
+      {:ok, _} = Board.create_idea("bo@example.com", %{"title" => "Two"})
 
-      assert has_element?(view, ~s(#landing-hero-art[alt*="Case, Bobby and Gentry"]))
+      # Founder check: one card I voted on (not for me), one I did not (for me),
+      # one I voted on that has an open question with no answer (for me).
+      check = fn title, refinement ->
+        {:ok, i} = Board.create_idea("bo@example.com", %{"title" => title})
 
-      assert has_element?(
-               view,
-               "#landing-starting-point",
-               "Right now Fredrik holds the approval key"
-             )
+        i
+        |> Ecto.Changeset.change(column: "check", refinement: refinement)
+        |> TalesForge.Repo.update!()
+      end
+
+      voted = check.("Voted", %{})
+      {:ok, _} = Board.vote(Board.get_idea!(voted.id), me, 1)
+      _not_voted = check.("Not voted", %{})
+      asks = check.("Asks", %{"open_questions" => ["How big?"]})
+      {:ok, _} = Board.vote(Board.get_idea!(asks.id), me, 1)
+
+      {:ok, _} =
+        Board.link_pr(%{
+          "number" => 150,
+          "url" => "https://github.com/whyse-ab/ex-tales-forge/pull/150",
+          "head_sha" => "abc1234",
+          "player_note" => "Nothing changes for players.",
+          "title" => "Pings"
+        })
+
+      {:ok, view, _html} = live(conn, ~p"/team")
+
+      assert has_element?(view, "#stat-ideas [data-count]", "2")
+      assert has_element?(view, "#stat-check [data-count]", "2")
+      assert has_element?(view, "#stat-prs [data-count]", "1")
+      assert has_element?(view, "#stat-pings [data-count]", "0")
+
+      {:ok, _} = Board.add_comment(Board.get_idea!(voted.id), "bot:case", "@fredrik a look?")
+      send(view.pid, {:board, :changed})
+      assert has_element?(view, "#stat-pings [data-count]", "1")
     end
 
     test "the crew section is gone: it lives on the presentation", %{conn: conn} do
@@ -139,14 +199,12 @@ defmodule TalesForgeWeb.TeamLiveTest do
         |> LazyHTML.query("main > section")
         |> Enum.map(&(&1 |> LazyHTML.attribute("id") |> hd()))
 
-      assert ids == ~w(landing-hero idea-board live presentation-cta)
+      assert ids == ~w(workspace idea-board live presentation-cta)
     end
 
     test "null and missing numbers still render, never a zero" do
       html = render_with(%{})
-      assert html =~ "The founders and not measured yet bots"
       assert html =~ "Bundled numbers as of not measured yet"
-      assert html =~ "Right now one founder holds the approval key"
     end
 
     test "the nav wraps on a phone: no sideways-scroll classes", %{conn: conn} do
