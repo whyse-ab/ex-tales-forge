@@ -180,13 +180,17 @@ defmodule TalesForge.Board do
   end
 
   @doc """
-  Sets `founder`'s vote on the card to `value` (1 or -1). Voting the same value
-  again takes the vote back; the other value changes it. Only on cards in Ideas,
-  Refining or Founder check.
+  Sets `founder`'s vote on the card to `value` (1 or -1). A -1 needs a
+  `reason`, saved with the vote. Voting the same value again takes the vote
+  back (and its reason); the other value changes it. Only on cards in Ideas,
+  Refining or Founder check. Votes do not move cards and wake nobody.
   """
-  @spec vote(Idea.t(), String.t(), 1 | -1) :: {:ok, Idea.t()} | error()
-  def vote(%Idea{} = idea, founder, value) when value in [1, -1] do
+  @spec vote(Idea.t(), String.t(), 1 | -1, String.t() | nil) :: {:ok, Idea.t()} | error()
+  def vote(idea, founder, value, reason \\ nil)
+
+  def vote(%Idea{} = idea, founder, value, reason) when value in [1, -1] do
     founder = normalize(founder)
+    reason = if is_binary(reason), do: String.trim(reason), else: nil
 
     if idea.column in ~w(ideas refining check) do
       result =
@@ -195,24 +199,31 @@ defmodule TalesForge.Board do
             Repo.delete(vote)
 
           %Vote{} = vote ->
-            vote |> Vote.changeset(%{value: value}) |> Repo.update()
+            vote |> Vote.changeset(%{value: value, reason: reason}) |> Repo.update()
 
           nil ->
             %Vote{}
-            |> Vote.changeset(%{idea_id: idea.id, founder: founder, value: value})
+            |> Vote.changeset(%{idea_id: idea.id, founder: founder, value: value, reason: reason})
             |> Repo.insert()
         end
 
-      with {:ok, _} <- result do
-        broadcast()
-        {:ok, get_idea!(idea.id)}
+      case result do
+        {:ok, _} ->
+          broadcast()
+          {:ok, get_idea!(idea.id)}
+
+        {:error, %Ecto.Changeset{errors: [{:reason, _} | _]}} ->
+          {:error, "A downvote needs a reason. Write what needs work."}
+
+        other ->
+          other
       end
     else
       {:error, "Votes are closed once a card is in #{Transitions.label(idea.column)}."}
     end
   end
 
-  def vote(_idea, _founder, _value), do: {:error, "A vote is +1 or -1."}
+  def vote(_idea, _founder, _value, _reason), do: {:error, "A vote is +1 or -1."}
 
   @doc "Adds a comment by `author` (a founder email or `bot:<name>`); `@case`, `@bobby`, `@gentry` ping that bot."
   @spec add_comment(Idea.t(), String.t(), String.t()) :: {:ok, Idea.t()} | error()
@@ -323,6 +334,21 @@ defmodule TalesForge.Board do
     }
   end
 
+  # The card's PR number: the one Bobby linked for approval, else the last
+  # `pr` link that points at a pull request.
+  defp pr_number_of(%Idea{pr_number: n}) when is_integer(n), do: n
+
+  defp pr_number_of(idea) do
+    idea.links
+    |> Enum.filter(&(&1.kind == "pr"))
+    |> Enum.find_value(fn l ->
+      case Regex.run(~r{/pull/(\d+)}, l.url) do
+        [_, n] -> String.to_integer(n)
+        _ -> nil
+      end
+    end)
+  end
+
   # :awaiting while the card's PR (at its current head sha) has no Approve.
   defp pr_state(%Idea{pr_number: nil}), do: nil
 
@@ -347,6 +373,11 @@ defmodule TalesForge.Board do
     idea = get_idea!(idea.id)
 
     facts = facts(idea, note)
+
+    facts =
+      if idea.column == "building" and to == "done" and facts.pr_linked,
+        do: Map.put(facts, :pr_on_prod, TalesForge.Board.OnProd.check(pr_number_of(idea))),
+        else: facts
 
     with :ok <- Transitions.allowed?(facts, idea.column, to, actor) do
       Multi.new()

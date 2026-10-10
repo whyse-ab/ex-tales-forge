@@ -55,11 +55,11 @@ defmodule TalesForge.BoardTest do
       {:ok, idea} = Board.vote(idea, @ada, 1)
       {:ok, idea} = Board.vote(idea, "BO@example.com", 1)
       assert Board.net_votes(idea) == 2
-      {:ok, idea} = Board.vote(idea, @bo, -1)
+      {:ok, idea} = Board.vote(idea, @bo, -1, "Too big")
       assert Board.net_votes(idea) == 0
       assert Board.vote_of(idea, @bo) == -1
       assert Board.downvoted?(idea)
-      {:ok, idea} = Board.vote(idea, @bo, -1)
+      {:ok, idea} = Board.vote(idea, @bo, -1, "Too big")
       assert Board.vote_of(idea, @bo) == nil
       assert Board.net_votes(idea) == 1
       assert {:error, _} = Board.vote(idea, @ada, 2)
@@ -75,7 +75,7 @@ defmodule TalesForge.BoardTest do
       for f <- ~w(f1@x f2@x f3@x), do: {:ok, _} = Board.vote(a, f, 1)
       for f <- ~w(f1@x f2@x), do: {:ok, _} = Board.vote(b, f, 1)
       for f <- ~w(f1@x f2@x f3@x), do: {:ok, _} = Board.vote(c, f, 1)
-      {:ok, _} = Board.vote(c, "f4@x", -1)
+      {:ok, _} = Board.vote(c, "f4@x", -1, "Too big")
       _ = {d, e}
 
       assert Enum.map(Board.ranked_ideas(), & &1.title) ==
@@ -83,8 +83,67 @@ defmodule TalesForge.BoardTest do
     end
   end
 
+  # GitHub for TalesForge.Board.OnProd: PR 1 merged as m1, which is in the
+  # running release run1 unless the test says otherwise.
+  defp github!(compare_status \\ "ahead") do
+    Application.put_env(:ex_tales_forge, :pr_feed_token, "feed-token")
+    Application.put_env(:ex_tales_forge, :board_req_options, plug: {Req.Test, __MODULE__})
+    System.put_env("GIT_SHA", "run1")
+
+    Req.Test.stub(__MODULE__, fn conn ->
+      case conn.request_path do
+        "/repos/whyse-ab/ex-tales-forge/pulls/1" ->
+          Req.Test.json(conn, %{"merged" => true, "merge_commit_sha" => "m1abcdef"})
+
+        "/repos/whyse-ab/ex-tales-forge/compare/m1abcdef...run1" ->
+          Req.Test.json(conn, %{"status" => compare_status})
+      end
+    end)
+
+    on_exit(fn ->
+      Application.delete_env(:ex_tales_forge, :pr_feed_token)
+      Application.delete_env(:ex_tales_forge, :board_req_options)
+      System.delete_env("GIT_SHA")
+    end)
+  end
+
+  describe "downvote reasons" do
+    test "a -1 needs a reason; it is saved with the vote and goes when the vote goes" do
+      idea = idea!()
+      assert {:error, "A downvote needs a reason." <> _} = Board.vote(idea, @bo, -1)
+      assert {:error, "A downvote needs a reason." <> _} = Board.vote(idea, @bo, -1, "  ")
+      {:ok, idea} = Board.vote(idea, @bo, -1, " Too big for now ")
+      assert [%{value: -1, reason: "Too big for now"}] = idea.votes
+      {:ok, idea} = Board.vote(idea, @bo, 1)
+      assert [%{value: 1, reason: nil}] = idea.votes
+      {:ok, idea} = Board.vote(idea, @bo, -1, "Again")
+      {:ok, idea} = Board.vote(idea, @bo, -1)
+      assert idea.votes == []
+    end
+  end
+
   describe "moves and rules" do
+    test "Building → Done needs the PR's merge commit in the running prod release" do
+      github!("behind")
+      idea = idea!() |> refined!()
+      {:ok, idea} = Board.move(idea, {:bot, :case}, "check")
+      {:ok, idea} = Board.move(idea, {:founder, @bo}, "building", "Deferred.")
+
+      {:ok, idea} =
+        Board.add_link(idea, "bot:bobby", %{
+          "kind" => "pr",
+          "url" => "https://github.com/x/y/pull/1"
+        })
+
+      assert {:error, "PR #1 (m1abcde) is not in the prod release (run1) yet."} =
+               Board.move(idea, {:bot, :bobby}, "done")
+
+      github!("identical")
+      assert {:ok, %{column: "done"}} = Board.move(idea, {:bot, :bobby}, "done")
+    end
+
     test "the happy path: founder → Case → founder OK → Bobby → Done" do
+      github!()
       idea = idea!() |> refined!()
       assert Board.refined?(idea)
       {:ok, idea} = Board.move(idea, {:bot, :case}, "check")
@@ -125,9 +184,9 @@ defmodule TalesForge.BoardTest do
       idea = idea!()
       assert {:error, "Needs an upvote."} = Board.move(idea, {:founder, @ada}, "refining")
       {:ok, idea} = Board.vote(idea, @ada, 1)
-      {:ok, idea} = Board.vote(idea, @bo, -1)
+      {:ok, idea} = Board.vote(idea, @bo, -1, "Too big")
       assert {:error, "Has a downvote." <> _} = Board.move(idea, {:founder, @ada}, "refining")
-      {:ok, idea} = Board.vote(idea, @bo, -1)
+      {:ok, idea} = Board.vote(idea, @bo, -1, "Too big")
       assert {:ok, %{column: "refining"}} = Board.move(idea, {:founder, @ada}, "refining")
     end
 
