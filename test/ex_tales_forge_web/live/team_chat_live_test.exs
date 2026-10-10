@@ -7,7 +7,7 @@ defmodule TalesForgeWeb.TeamChatLiveTest do
 
   setup %{conn: conn} do
     on_exit(fn -> Application.delete_env(:ex_tales_forge, :app_name) end)
-    {:ok, conn: log_in_admin(conn, "fredrik@whyse.se")}
+    {:ok, conn: log_in_admin(conn, "fredrik@whyse.se", login: "fpahlen")}
   end
 
   defp chat(view, prefix \\ "admin-online") do
