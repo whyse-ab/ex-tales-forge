@@ -40,7 +40,10 @@ defmodule TalesForgeWeb.AccessControlTest do
     {:post, "/internal/board/prs"},
     # The team chat's bot API (production only), the same bot tokens.
     {:get, "/internal/chat"},
-    {:post, "/internal/chat"}
+    {:post, "/internal/chat"},
+    # The bots open card and chat images with the same bot tokens
+    # (TeamImageController); 401 without a token.
+    {:get, "/internal/images/:id"}
   ]
 
   @id Ecto.UUID.generate()

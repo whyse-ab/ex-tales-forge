@@ -24,13 +24,15 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   Clicking a card opens it in full in a modal dialog (`role="dialog"`, focus
   trapped by `focus_wrap`, Esc or clicking outside closes it, focus returns to
   the card): votes, the open -1 block, Move to, Case's refinement, links,
-  comments and history. The parent LiveView forwards `{:board, :changed}` as
+  images (`TalesForgeWeb.TeamImages`: paste, drop, pick or "Capture screen",
+  with a note), comments and history. The parent LiveView forwards `{:board, :changed}` as
   `send_update(refresh: true)`; an open card stays open and refreshes.
   """
   use TalesForgeWeb, :live_component
 
   alias TalesForge.Board
   alias TalesForge.Board.{Idea, Mentions, Transitions, Typing}
+  alias TalesForgeWeb.TeamImages
 
   # The sort choices for the Ideas column: {URL value, label}.
   @sorts [
@@ -67,6 +69,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
      |> assign_new(:drafts, fn -> %{} end)
      |> assign(:sorts, @sorts)
      |> assign_new(:typed, fn -> %{} end)
+     |> TeamImages.allow(:card_images)
      |> load()}
   end
 
@@ -374,6 +377,17 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
     end
   end
 
+  def handle_event("validate_images", _params, socket), do: {:noreply, socket}
+
+  def handle_event("cancel_image", %{"ref" => ref}, socket),
+    do: {:noreply, cancel_upload(socket, :card_images, ref)}
+
+  def handle_event("add_images", %{"card_id" => id} = params, socket) do
+    images = TeamImages.read_all(socket, :card_images)
+
+    with_idea(socket, id, &Board.add_images(&1, socket.assigns.founder, images, params["note"]))
+  end
+
   def handle_event("comment", %{"card_id" => id, "body" => body}, socket) do
     Typing.stop(id, socket.assigns.founder)
 
@@ -579,6 +593,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
             editing={@editing}
             drafts={@drafts}
             typing={@typing}
+            uploads={@uploads}
           />
         </.focus_wrap>
       </div>
@@ -1159,6 +1174,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   attr :editing, :any, default: nil
   attr :drafts, :map, default: %{}
   attr :typing, :map, default: %{}
+  attr :uploads, :map, default: nil
 
   defp card(assigns) do
     idea = assigns.idea
@@ -1567,6 +1583,8 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           </ul>
         </section>
 
+        <.card_images :if={@uploads} idea={@idea} upload={@uploads.card_images} myself={@myself} />
+
         <section aria-label="Comments" class="space-y-1">
           <h5 class="font-semibold">Comments</h5>
           <ul class="space-y-1">
@@ -1645,6 +1663,56 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
     </article>
     """
   end
+
+  attr :idea, :any, required: true
+  attr :upload, :any, required: true
+  attr :myself, :any, required: true
+
+  # The card's images and the form that adds more. A card in Done has no
+  # images: they go when it reaches Done.
+  defp card_images(assigns) do
+    assigns = assign(assigns, :images, images(assigns.idea))
+
+    ~H"""
+    <section id={"card-#{@idea.id}-images"} aria-label="Images" class="space-y-1">
+      <h5 class="font-semibold">Images</h5>
+      <TeamImages.thumbnails images={@images} id={"card-#{@idea.id}-thumbs"} />
+      <form
+        :if={@idea.column != "done"}
+        id={"card-#{@idea.id}-image-form"}
+        phx-submit="add_images"
+        phx-change="validate_images"
+        phx-target={@myself}
+        phx-drop-target={@upload.ref}
+        phx-hook="ImageInput"
+        class="grid gap-2 rounded border border-dashed border-[var(--paper-rule)] p-2"
+      >
+        <input type="hidden" name="card_id" value={@idea.id} />
+        <TeamImages.picker upload={@upload} id={"card-#{@idea.id}-picker"} target={@myself} />
+        <label class="grid gap-1" for={"card-#{@idea.id}-image-note"}>
+          Note (optional). Paste or drop an image here, too.
+          <input
+            id={"card-#{@idea.id}-image-note"}
+            type="text"
+            name="note"
+            maxlength="2000"
+            class="w-full rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-2 py-1"
+          />
+        </label>
+        <button
+          type="submit"
+          disabled={@upload.entries == []}
+          class="min-h-11 justify-self-start rounded border px-3 disabled:opacity-50"
+        >
+          Add to card
+        </button>
+      </form>
+    </section>
+    """
+  end
+
+  defp images(%Idea{images: images}) when is_list(images), do: images
+  defp images(_idea), do: []
 
   defp who("bot:" <> bot), do: String.capitalize(bot)
   defp who(email) when is_binary(email), do: TalesForge.TeamOnline.name(email)

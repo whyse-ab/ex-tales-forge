@@ -81,6 +81,9 @@ defmodule TalesForgeWeb.Router do
       live "/team", TeamLive, :index
       live "/team/presentation", TeamPresentationLive, :index
     end
+
+    # Images on idea board cards and in the team chat (TalesForge.Images).
+    get "/team/images/:id", TeamImageController, :show
   end
 
   # The admin area, grouped by purpose (decision 2026-10-10; the nav and the
@@ -218,6 +221,10 @@ defmodule TalesForgeWeb.Router do
 
     get "/chat", ChatApiController, :index
     post "/chat", ChatApiController, :create
+
+    # The bots open the images on cards and in the chat with their board
+    # tokens; see TeamImageController.
+    get "/images/:id", TeamImageController, :api
   end
 
   # Swoosh mailbox preview in development (LiveDashboard lives at /admin/operate/telemetry)

@@ -40,6 +40,7 @@ defmodule TalesForge.Board.Idea do
     has_many :links, Link
     has_many :approvals, TalesForge.Board.Approval
     has_many :answers, TalesForge.Board.Answer
+    has_many :images, TalesForge.Images.Image
 
     timestamps(type: :utc_datetime)
   end
