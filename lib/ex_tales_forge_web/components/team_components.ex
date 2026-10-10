@@ -446,10 +446,18 @@ defmodule TalesForgeWeb.TeamComponents do
       <div class="flex gap-1">
         <div
           :for={day <- @days}
-          class="h-8 min-w-0 flex-1 rounded-sm bg-[var(--paper-accent)]"
-          style={"opacity: #{0.12 + share(day["count"], @max) / 100 * 0.88}"}
+          class="relative flex h-8 min-w-0 flex-1 items-center justify-center"
           title={"#{TeamPage.short_date(day["date"])}: #{number(day["count"])} commits"}
-        />
+        >
+          <span
+            class="absolute inset-0 rounded-sm bg-[var(--paper-accent)]"
+            style={"opacity: #{0.12 + share(day["count"], @max) / 100 * 0.88}"}
+            aria-hidden="true"
+          />
+          <span class="team-heat-num relative rounded bg-[var(--paper-panel)]/85 px-0.5 text-[0.6rem] font-semibold leading-none tabular-nums text-[var(--paper-ink)] sm:text-[0.7rem]">
+            {number(day["count"])}
+          </span>
+        </div>
       </div>
       <div class="flex justify-between text-[0.7rem] text-[var(--paper-muted)]">
         <span>{TeamPage.short_date(List.first(@days)["date"])}</span>

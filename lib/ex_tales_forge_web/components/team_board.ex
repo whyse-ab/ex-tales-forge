@@ -101,8 +101,7 @@ defmodule TalesForgeWeb.TeamBoard do
       assign(assigns,
         anchor: @anchor,
         columns: columns,
-        total_labels: @total_labels,
-        holder: TeamPage.approval_holder(assigns.d)
+        total_labels: @total_labels
       )
 
     ~H"""
@@ -125,9 +124,10 @@ defmodule TalesForgeWeb.TeamBoard do
       <div id="board-travel" class="space-y-3">
         <h3 class="font-serif text-xl font-bold sm:text-2xl">How a card travels</h3>
         <p class="text-sm text-[var(--paper-muted)]">
-          {count_word(length(@columns)) |> String.capitalize()} columns, from an idea to done.
-          A founder can also put a card on hold in <strong>Parked</strong>
-          and later send it back to Ideas.
+          {count_word(length(@columns) + 1) |> String.capitalize()} columns. A card goes through {count_word(
+            length(@columns)
+          )} of them, from an idea to done. The sixth, <strong>Parked</strong>,
+          holds a card for later; a founder can send it back to Ideas.
         </p>
         <ol class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <li
@@ -166,7 +166,7 @@ defmodule TalesForgeWeb.TeamBoard do
           <.icon name="hero-key" class="size-7 text-[var(--paper-accent)]" />
           <h3 class="font-semibold">Every founder decides.</h3>
           <p class="text-sm leading-snug">
-            Any founder can send a card to Building, and that move is the founder OK. Any founder also approves the PR on the card. {@holder} pushes the production releases of the normal lane.
+            Any founder can send a card to Building, and that move is the founder OK. Any founder also approves the PR on the card. The approved change goes to playtest, Gentry checks it, and then it ships to production by itself.
           </p>
         </li>
       </ul>

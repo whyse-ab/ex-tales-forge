@@ -142,9 +142,20 @@ defmodule TalesForgeWeb.TeamLive do
         data-anchors={@anchors}
         data-aliases={@aliases}
       />
+      <a
+        id="skip-to-content"
+        href="#team-main"
+        class="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-[var(--paper-panel)] focus:px-3 focus:py-2 focus:text-[var(--paper-ink)] focus:ring-2"
+      >
+        Skip to content
+      </a>
       <TeamLayout.header socket={assigns[:socket]} page={:landing} items={@nav} />
 
-      <main class="mx-auto max-w-6xl space-y-16 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
+      <main
+        id="team-main"
+        tabindex="-1"
+        class="mx-auto max-w-6xl space-y-16 px-4 pb-16 pt-8 sm:px-6 sm:pt-12"
+      >
         <TeamWorkspace.header stats={assigns[:stats]} />
         <.going_to_do
           board?={assigns[:board?] || false}

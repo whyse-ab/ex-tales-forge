@@ -39,7 +39,7 @@ defmodule TalesForgeWeb.TeamLayout do
     ~H"""
     <header
       id="team-header"
-      class="sticky top-0 z-30 border-b border-[var(--paper-rule)] bg-[var(--paper-panel)]/95 backdrop-blur"
+      class="z-30 border-b sm:sticky sm:top-0 border-[var(--paper-rule)] bg-[var(--paper-panel)]/95 backdrop-blur"
     >
       <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-3 py-2 sm:px-6">
         <.link navigate={~p"/"} class="font-serif text-base font-semibold sm:text-lg">Tales Forge</.link>

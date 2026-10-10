@@ -223,7 +223,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       assert has_element?(view, "#stat-source-prs[data-source=live]")
       assert has_element?(view, "#pace-source[data-source=live]")
       # PRs per day come from the same live count: the earlier month is one chip.
-      assert has_element?(view, "#prs-earlier-chip", "+5 PRs in September")
+      assert has_element?(view, "#prs-earlier-chip", "+5 PRs before")
 
       # A new feed broadcast updates both places at once.
       send(view.pid, {:pr_feed, snapshot([], pace: pace(%{prs_merged: 1200, commits: 4400}))})
@@ -333,14 +333,21 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       assert html =~ "tales-forge-v999"
     end
 
-    test "the approval holder comes from the data" do
+    test "no founder holds a special release step (no 'Fredrik pushes', no 'only Fredrik')" do
       data =
         put_in(@data, ["team", "members", Access.at(0), "approval_key", "holder_today"], "Ada")
 
       html = render_with(data)
-      assert html =~ "Every founder approves PRs on the idea board"
-      assert html =~ "Ada pushes the production releases of the normal lane."
-      assert html =~ "Release: Ada pushes it."
+
+      assert html =~
+               "Every founder can add ideas, vote, answer the open questions and approve PRs on the board."
+
+      assert html =~ "This is how we work today, and we shape it together."
+      assert html =~ "then it ships to production by itself."
+      assert html =~ "Changes that only touch admin pages ship straight away."
+      refute html =~ "Ada pushes"
+      refute html =~ ~r/Fredrik pushes/i
+      refute html =~ ~r/only Fredrik/i
       assert html =~ "Any founder, on the board."
       assert html =~ "The approval key: every founder, on the board"
 
@@ -834,7 +841,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
         ~s([data-approval="true"] img.team-seal[src="/images/team/founders-seal-192.jpg"][srcset*="founders-seal-96.jpg 96w"])
 
       assert has_element?(view, ~s(#flow-step-ok_merge#{seal}[loading="lazy"][width="192"]))
-      assert has_element?(view, "#flow-step-ok_prod#{seal}")
+      refute has_element?(view, "#flow-step-ok_prod#{seal}")
       refute has_element?(view, "#team-flow [data-approval] svg.team-seal")
     end
 
@@ -891,7 +898,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       assert has_element?(
                view,
                "#board-why",
-               "Fredrik pushes the production releases of the normal lane."
+               "Gentry checks it, and then it ships to production by itself."
              )
 
       assert has_element?(view, ~s(#board-small-print a[href="/admin/founders/decisions"]))
@@ -917,7 +924,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
              |> Enum.at(0)
              |> LazyHTML.attribute("id") == ["involve-board"]
 
-      assert has_element?(view, "#involve-approve h3", "Hold the approval key yourself.")
+      assert has_element?(view, "#involve-approve h3", "Approve on the board yourself.")
       refute has_element?(view, "#involve h3", "Soon")
       assert has_element?(view, "#involve-archive", "keeps the ideas from before the board")
     end
@@ -928,7 +935,8 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       for col <- @data["shared_board"]["columns"],
           do: assert(has_element?(view, "#board-step-#{col["id"]}", col["label"]))
 
-      assert has_element?(view, "#board-travel", "Five columns")
+      assert has_element?(view, "#board-travel", "Six columns")
+      assert has_element?(view, "#board-travel", "Parked")
     end
 
     test "the live board shows the real columns, counts and team totals", %{conn: conn} do
@@ -1005,7 +1013,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
                6
 
       assert doc |> LazyHTML.query("#board-why") |> LazyHTML.text() =~
-               "one founder pushes the production releases"
+               "then it ships to production by itself"
     end
   end
 
@@ -1283,6 +1291,35 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
              )
 
       refute html =~ "on this app"
+    end
+  end
+
+  describe "QA fixes (skip link, rule order, phone header, commit numbers)" do
+    setup %{conn: conn}, do: {:ok, conn: log_in_admin(conn)}
+
+    test "both team pages have a skip-to-content link to the main content", %{conn: conn} do
+      for path <- [~p"/team", ~p"/team/presentation"] do
+        {:ok, view, _html} = live(conn, path)
+        assert has_element?(view, ~s(a#skip-to-content[href="#team-main"]), "Skip to content")
+        assert has_element?(view, "main#team-main")
+      end
+    end
+
+    test "the section 2 rules are numbered 1, 2, 3, 4 in page order", %{conn: conn} do
+      {:ok, _view, html} = live(conn, ~p"/team/presentation")
+      numbers = Regex.scan(~r/>\s*([1-4])\. (?:Decisions|Docs|Code|The call-type)/, html)
+      assert Enum.map(numbers, &List.last/1) == ["1", "2", "3", "4"]
+    end
+
+    test "the header is sticky only from the sm breakpoint", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/team/presentation")
+      assert has_element?(view, ~s(#team-header[class*="sm:sticky"]))
+      refute has_element?(view, ~s(#team-header[class~="sticky"]))
+    end
+
+    test "the commits heat strip shows each day's number, not colour only", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/team/presentation")
+      assert has_element?(view, "#chart-commits .team-heat-num")
     end
   end
 end
