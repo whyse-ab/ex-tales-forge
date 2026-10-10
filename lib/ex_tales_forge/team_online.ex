@@ -4,8 +4,8 @@ defmodule TalesForge.TeamOnline do
   (`TalesForgeWeb.OnlineHeaderLive`, board card "Who's online right now"):
 
   - **Founders**: everyone with a page open on production or playtest right
-    now (`TalesForge.Online.founders/0`, Phoenix Presence plus playtest's
-    list), with the page name and the app.
+    now (`TalesForge.Online.people/1`, Phoenix Presence plus playtest's
+    list), one entry per person with each page and app once.
   - **Bots** (Case, Bobby, Gentry) do not keep a page open. Each shows their
     latest activity and when it was: a board API call (each wake-up reads the
     board), a comment, a card move or a link on the board, and for Bobby the
@@ -16,6 +16,7 @@ defmodule TalesForge.TeamOnline do
   import Ecto.Query
 
   alias TalesForge.AppRole
+  alias TalesForge.Board.Mentions
   alias TalesForge.Board.{Comment, Link, Transition}
   alias TalesForge.Online
   alias TalesForge.PrFeed
@@ -25,12 +26,14 @@ defmodule TalesForge.TeamOnline do
   @bots [{:case, "Case"}, {:bobby, "Bobby"}, {:gentry, "Gentry"}]
   @online_minutes 10
 
-  @typedoc "A founder as shown."
+  @typedoc "A founder as shown: `TalesForge.Online.person/0` plus the display name and @handle."
   @type founder :: %{
+          key: String.t(),
           name: String.t(),
+          handle: String.t() | nil,
           email: String.t(),
-          page: String.t(),
-          app: String.t(),
+          login: String.t() | nil,
+          locations: [String.t()],
           since: DateTime.t()
         }
 
@@ -54,7 +57,10 @@ defmodule TalesForge.TeamOnline do
   @spec snapshot(DateTime.t()) :: t()
   def snapshot(now \\ DateTime.utc_now()) do
     %{
-      founders: Online.founders() |> Enum.map(&Map.put(&1, :name, name(&1.email))),
+      founders:
+        Enum.map(Online.people(), fn p ->
+          Map.merge(p, %{name: name(p.email, p.login), handle: Mentions.handle_for(p.login)})
+        end),
       bots: bots(activity(), now)
     }
   end
@@ -95,21 +101,27 @@ defmodule TalesForge.TeamOnline do
   end
 
   @doc """
-  A founder's first name from their email: the matching founder name in the
-  team data (accents ignored), else the email's first part, capitalised.
+  A founder's display name from the team data (accents kept). First the
+  handle of their GitHub login (`TalesForge.Board.Mentions`, config
+  `:board_founder_handles`), so "Hawkan-Fredriksson" is "Håkan"; then the
+  first part of the email; else that first part, capitalised.
 
+      iex> TalesForge.TeamOnline.name("hawkan.fredriksson@gmail.com", "Hawkan-Fredriksson")
+      "Håkan"
       iex> TalesForge.TeamOnline.name("fredrik@whyse.se")
       "Fredrik"
-      iex> TalesForge.TeamOnline.name("hakan.x@whyse.se")
+      iex> TalesForge.TeamOnline.name("hakan.x@whyse.se", "unknown-login")
       "Håkan"
       iex> TalesForge.TeamOnline.name("sam@example.com")
       "Sam"
   """
-  @spec name(String.t()) :: String.t()
-  def name(email) do
+  @spec name(String.t(), String.t() | nil) :: String.t()
+  def name(email, login \\ nil) do
     first = email |> String.split(["@", ".", "+"]) |> hd() |> String.downcase()
+    handle = Mentions.handle_for(login) || plain(first)
 
-    Enum.find(founder_names(), String.capitalize(first), &(plain(&1) == first))
+    Enum.find(founder_names(), &(plain(&1) == handle)) ||
+      Enum.find(founder_names(), String.capitalize(first), &(plain(&1) == plain(first)))
   end
 
   defp founder_names do

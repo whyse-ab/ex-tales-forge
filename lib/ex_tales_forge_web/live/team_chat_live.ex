@@ -86,9 +86,15 @@ defmodule TalesForgeWeb.TeamChatLive do
     |> assign(:form, to_form(%{"body" => body}, as: :chat))
   end
 
-  # The handle to start a message with: a founder's email or "bot:<name>".
+  # The handle to start a message with: "bot:<name>", a founder's @handle
+  # (from their GitHub login) or, without one, their email.
   defp mention("bot:" <> bot), do: bot
-  defp mention(email), do: Chat.handle_for_email(email) || email |> String.split("@") |> hd()
+
+  defp mention(to) do
+    if String.contains?(to, "@"),
+      do: Chat.handle_for_email(to) || to |> String.split("@") |> hd(),
+      else: to
+  end
 
   @impl true
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
