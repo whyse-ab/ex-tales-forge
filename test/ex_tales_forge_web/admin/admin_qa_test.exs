@@ -131,8 +131,15 @@ defmodule TalesForgeWeb.AdminQaTest do
       assert html =~ "Decision log (doc)"
       assert html =~ "Decision queue (page)"
       assert html =~ "Logs (playtest)"
-      assert html =~ "Gentry (presentation) ↗"
-      assert html =~ "Founders&#39; page (/team) ↗"
+      assert html =~ "Founders&#39; page and PR feed ↗"
+      assert html =~ "Jev intent latency"
+    end
+
+    test "menu dedupe (admin split): the presentation and /team appear once each" do
+      items = Enum.flat_map(AdminSections.sections(), & &1.items)
+      assert Enum.count(items, &(&1.path == "/team/presentation")) == 1
+      assert Enum.count(items, &(&1.path == "/team")) == 1
+      refute Enum.any?(items, &String.contains?(&1.label, "(presentation)"))
     end
 
     test "breadcrumbs drop the label markers" do
