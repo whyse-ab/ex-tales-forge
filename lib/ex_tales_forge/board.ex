@@ -27,6 +27,8 @@ defmodule TalesForge.Board do
     Events,
     Idea,
     Link,
+    Mentions,
+    Ping,
     Ranking,
     Transition,
     Transitions,
@@ -227,17 +229,41 @@ defmodule TalesForge.Board do
 
   def vote(_idea, _founder, _value, _reason), do: {:error, "A vote is +1 or -1."}
 
-  @doc "Adds a comment by `author` (a founder email or `bot:<name>`); `@case`, `@bobby`, `@gentry` ping that bot."
+  @doc """
+  Adds a comment by `author` (a founder email or `bot:<name>`). `@case`,
+  `@bobby`, `@gentry` wake that bot. `@fredrik`, `@hakan`, ... and
+  `@founders` add an unread ping for each founder named, except the author
+  (see `TalesForge.Board.Mentions`).
+  """
   @spec add_comment(Idea.t(), String.t(), String.t()) :: {:ok, Idea.t()} | error()
   def add_comment(%Idea{} = idea, author, body) do
-    changeset =
-      Comment.changeset(%Comment{}, %{idea_id: idea.id, author: normalize(author), body: body})
+    author = normalize(author)
+    changeset = Comment.changeset(%Comment{}, %{idea_id: idea.id, author: author, body: body})
+    %{bots: bots, founders: founders} = Mentions.parse(body)
+    founders = founders -- [Mentions.handle_for(author)]
 
     Multi.new()
     |> Multi.insert(:comment, changeset)
+    |> Multi.run(:pings, fn repo, %{comment: comment} ->
+      now = DateTime.utc_now()
+
+      rows =
+        for h <- founders,
+            do: %{
+              id: Ecto.UUID.generate(),
+              idea_id: idea.id,
+              comment_id: comment.id,
+              handle: h,
+              author: author,
+              inserted_at: now
+            }
+
+      {n, _} = repo.insert_all(Ping, rows)
+      {:ok, n}
+    end)
     |> then(fn multi ->
-      Enum.reduce(mentions(body || ""), multi, fn bot, acc ->
-        Events.add(acc, :mention, idea, %{bot: bot, body: body, author: normalize(author)})
+      Enum.reduce(bots, multi, fn bot, acc ->
+        Events.add(acc, :mention, idea, %{bot: bot, body: body, author: author})
       end)
     end)
     |> run(idea.id)
@@ -250,11 +276,49 @@ defmodule TalesForge.Board do
       [:case, :gentry]
   """
   @spec mentions(String.t()) :: [:case | :bobby | :gentry]
-  def mentions(body) do
-    ~r/@(case|bobby|gentry)\b/i
-    |> Regex.scan(body)
-    |> Enum.map(fn [_, name] -> name |> String.downcase() |> String.to_existing_atom() end)
-    |> Enum.uniq()
+  def mentions(body), do: Mentions.parse(body, []).bots
+
+  @doc """
+  The unread pings of a founder (by email), one entry for each card, newest
+  first: `%{idea_id, title, count, from, at}`.
+  """
+  @spec unread_pings(String.t()) :: [map()]
+  def unread_pings(email) do
+    case Mentions.handle_for(email) do
+      nil ->
+        []
+
+      handle ->
+        from(p in Ping,
+          join: i in Idea,
+          on: i.id == p.idea_id,
+          where: p.handle == ^handle and is_nil(p.read_at),
+          order_by: [desc: p.inserted_at],
+          select: {i.id, i.title, p.author, p.inserted_at}
+        )
+        |> Repo.all()
+        |> Enum.group_by(&elem(&1, 0))
+        |> Enum.map(fn {id, [{_, title, from, at} | _] = all} ->
+          %{idea_id: id, title: title, count: length(all), from: from, at: at}
+        end)
+        |> Enum.sort_by(& &1.at, {:desc, DateTime})
+    end
+  end
+
+  @doc "Marks a founder's pings on a card as read (they opened the card)."
+  @spec read_pings(String.t(), String.t()) :: non_neg_integer()
+  def read_pings(idea_id, email) do
+    with handle when is_binary(handle) <- Mentions.handle_for(email),
+         {n, _} when n > 0 <-
+           from(p in Ping,
+             where: p.idea_id == ^idea_id and p.handle == ^handle and is_nil(p.read_at)
+           )
+           |> Repo.update_all(set: [read_at: DateTime.utc_now()]) do
+      broadcast()
+      n
+    else
+      _ -> 0
+    end
   end
 
   @doc """
@@ -408,18 +472,18 @@ defmodule TalesForge.Board do
       })
       |> run(idea.id)
     else
+      :unchanged -> {:ok, idea}
       {:error, nil} -> {:error, "That question is not on the card any more."}
       {:error, reason} -> {:error, reason}
     end
   end
 
-  defp answer_change(_current, founder, %{"deferred" => d}, now, question) do
-    if d in [true, "true"],
-      do:
-        {:ok, %{deferred: true, deferred_by: founder, deferred_at: now}, "Deferred: #{question}"},
-      else:
-        {:ok, %{deferred: false, deferred_by: nil, deferred_at: nil},
-         "Open again (not deferred): #{question}"}
+  defp answer_change(current, founder, %{"deferred" => d}, now, question) do
+    deferred = d in [true, "true"]
+
+    if current && current.deferred == deferred,
+      do: :unchanged,
+      else: defer_change(deferred, founder, now, question)
   end
 
   defp answer_change(current, founder, %{"answer" => text}, now, question) do
@@ -428,6 +492,9 @@ defmodule TalesForge.Board do
     cond do
       text == "" ->
         {:error, "Write an answer, or defer the question."}
+
+      current && current.answered_by == founder && current.answer == text ->
+        :unchanged
 
       current && current.answered_by not in [nil, founder] ->
         {:error,
@@ -441,6 +508,15 @@ defmodule TalesForge.Board do
 
   defp answer_change(_current, _founder, _attrs, _now, _question),
     do: {:error, "Write an answer, or defer the question."}
+
+  defp defer_change(deferred, founder, now, question) do
+    if deferred,
+      do:
+        {:ok, %{deferred: true, deferred_by: founder, deferred_at: now}, "Deferred: #{question}"},
+      else:
+        {:ok, %{deferred: false, deferred_by: nil, deferred_at: nil},
+         "Open again (not deferred): #{question}"}
+  end
 
   @doc """
   The card's PR number (links loaded): the one Bobby linked for approval,

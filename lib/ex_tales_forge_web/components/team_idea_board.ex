@@ -30,7 +30,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   use TalesForgeWeb, :live_component
 
   alias TalesForge.Board
-  alias TalesForge.Board.{Answer, Idea, Transitions}
+  alias TalesForge.Board.{Answer, Idea, Mentions, Transitions}
 
   @impl true
   def update(%{refresh: true}, socket), do: {:ok, load(socket)}
@@ -56,6 +56,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
     assign(socket,
       board: board,
       prs: prs(),
+      pings: Board.unread_pings(socket.assigns.founder),
       open: open
     )
   end
@@ -99,8 +100,10 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   end
 
   @impl true
-  def handle_event("open", %{"card_id" => id}, socket),
-    do: {:noreply, socket |> assign(:open_id, id) |> load()}
+  def handle_event("open", %{"card_id" => id}, socket) do
+    Board.read_pings(id, socket.assigns.founder)
+    {:noreply, socket |> assign(:open_id, id) |> load()}
+  end
 
   def handle_event("close", _params, socket),
     do:
@@ -226,6 +229,36 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   def render(assigns) do
     ~H"""
     <div id={@id} class="team-idea-board space-y-5" data-board-target={"##{@id}"}>
+      <section
+        :if={@pings != []}
+        id="board-pings"
+        aria-labelledby="board-pings-title"
+        class="team-card rounded-xl border border-[var(--paper-accent)] p-3"
+      >
+        <h3 id="board-pings-title" class="text-sm font-semibold">
+          Pings for you
+          <span class="badge badge-primary badge-sm ml-1" data-role="ping-count">
+            {Enum.sum(Enum.map(@pings, & &1.count))}
+          </span>
+        </h3>
+        <ul class="mt-1 flex flex-wrap gap-2">
+          <li :for={p <- @pings}>
+            <button
+              type="button"
+              id={"ping-#{p.idea_id}"}
+              phx-click="open"
+              phx-value-card_id={p.idea_id}
+              phx-target={@myself}
+              class="min-h-11 rounded border px-3 text-left text-sm"
+            >
+              <span class="font-semibold">{p.title}</span>
+              <span class="text-xs text-[var(--paper-muted)]">
+                from {who(p.from)}{if p.count > 1, do: " (#{p.count})"}
+              </span>
+            </button>
+          </li>
+        </ul>
+      </section>
       <form
         id="board-add"
         phx-submit="add"
@@ -1175,7 +1208,17 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           <ul class="space-y-1">
             <li :for={c <- @idea.comments} class="rounded bg-[var(--paper-margin)] px-2 py-1">
               <span class="text-xs font-semibold">{who(c.author)}</span>
-              <p class="whitespace-pre-line">{c.body}</p>
+              <p class="whitespace-pre-line">
+                <%= for {kind, s} <- Mentions.segments(c.body || "") do %>
+                  <mark
+                    :if={kind == :mention}
+                    class="rounded bg-[var(--paper-margin)] px-0.5 font-semibold text-[var(--paper-accent)]"
+                  >{s}</mark>
+                  <%= if kind == :text do %>
+                    {s}
+                  <% end %>
+                <% end %>
+              </p>
             </li>
           </ul>
           <form
@@ -1185,14 +1228,31 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
             id={"card-#{@idea.id}-comment"}
           >
             <input type="hidden" name="card_id" value={@idea.id} />
-            <label class="grid gap-1">
-              Comment (@case, @bobby or @gentry wakes that bot) <textarea
+            <label class="grid gap-1" for={"card-#{@idea.id}-comment-body"}>
+              Comment. Write @ and a name to ping a founder, or @founders to ping all founders. @case, @bobby or @gentry wakes that bot.
+            </label>
+            <div class="relative">
+              <textarea
+                id={"card-#{@idea.id}-comment-body"}
                 name="body"
                 rows="2"
                 required
-                class="rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-2 py-1"
+                phx-hook="MentionSuggest"
+                data-handles={Jason.encode!(Mentions.suggestions())}
+                aria-autocomplete="list"
+                aria-controls={"card-#{@idea.id}-mention-list"}
+                class="w-full rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-2 py-1"
               ></textarea>
-            </label>
+              <ul
+                id={"card-#{@idea.id}-mention-list"}
+                role="listbox"
+                aria-label="Names to mention"
+                phx-update="ignore"
+                hidden
+                class="absolute z-10 mt-1 rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] text-sm shadow"
+              >
+              </ul>
+            </div>
             <button type="submit" class="min-h-11 rounded border px-3">Comment</button>
           </form>
         </section>
