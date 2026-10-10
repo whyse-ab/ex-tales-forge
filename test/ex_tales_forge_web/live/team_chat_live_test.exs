@@ -10,6 +10,25 @@ defmodule TalesForgeWeb.TeamChatLiveTest do
     {:ok, conn: log_in_admin(conn, "fredrik@whyse.se", login: "fpahlen")}
   end
 
+  # The panel is a portal (rendered at the end of <body>), which LiveViewTest
+  # does not query: read the portal's <template> from the chat view's HTML,
+  # and send the panel's events to the chat view directly.
+  defp panel(chat) do
+    html = render(chat)
+
+    case Regex.run(~r{<template[^>]*>(.*)</template>}s, html) do
+      [_, inner] -> LazyHTML.from_fragment(inner)
+      _ -> LazyHTML.from_fragment("")
+    end
+  end
+
+  defp panel_has?(chat, selector, text \\ nil) do
+    chat
+    |> panel()
+    |> LazyHTML.query(selector)
+    |> Enum.any?(&(text == nil or LazyHTML.text(&1) =~ text))
+  end
+
   defp chat(view, prefix \\ "admin-online") do
     header = find_live_child(view, prefix)
     {header, find_live_child(header, prefix <> "-chat")}
@@ -26,16 +45,19 @@ defmodule TalesForgeWeb.TeamChatLiveTest do
 
     chat |> element("#admin-online-chat-button") |> render_click()
 
-    assert has_element?(chat, "#admin-online-chat-panel[role=dialog][aria-modal=true]")
-    assert has_element?(chat, "#admin-online-chat-title", "Team chat")
-    assert has_element?(chat, "label[for=admin-online-chat-body]", "Message")
+    assert panel_has?(chat, "#admin-online-chat-panel[role=dialog][aria-modal=true]")
+    assert panel_has?(chat, "#admin-online-chat-title", "Team chat")
+    assert panel_has?(chat, "label[for=admin-online-chat-body]", "Message")
+    assert panel_has?(chat, "#admin-online-chat-send[aria-label=Send]")
+    assert panel_has?(chat, "#admin-online-chat-empty", "No messages yet")
+    assert panel_has?(chat, "#admin-online-chat-body[rows='1'][phx-hook=MentionSuggest]")
 
-    render_keydown(element(chat, "#admin-online-chat-panel"), %{"key" => "Escape"})
-    refute has_element?(chat, "#admin-online-chat-panel")
+    render_keydown(chat, "close", %{"key" => "Escape"})
+    refute panel_has?(chat, "#admin-online-chat-panel")
 
     chat |> element("#admin-online-chat-button") |> render_click()
-    chat |> element("#admin-online-chat-close") |> render_click()
-    refute has_element?(chat, "#admin-online-chat-panel")
+    render_click(chat, "close", %{})
+    refute panel_has?(chat, "#admin-online-chat-panel")
   end
 
   test "sending a message shows it live with mentions highlighted", %{conn: conn} do
@@ -43,19 +65,20 @@ defmodule TalesForgeWeb.TeamChatLiveTest do
     {_header, chat} = chat(view, "team-online")
     chat |> element("#team-online-chat-button") |> render_click()
 
-    chat |> form("#team-online-chat-form", chat: %{body: "Hi @Case and @max"}) |> render_submit()
+    render_submit(chat, "send", %{"chat" => %{"body" => "Hi @Case and @max"}})
     html = render(chat)
     assert html =~ "Hi "
-    assert has_element?(chat, "#team-online-chat-messages span.font-semibold", "@Case")
-    assert has_element?(chat, "#team-online-chat-body", "")
+    assert panel_has?(chat, "#team-online-chat-messages span.font-semibold", "@Case")
+    refute panel_has?(chat, "#team-online-chat-empty")
+    assert_push_event(chat, "team_chat:sent", %{})
   end
 
   test "an empty message shows the reason", %{conn: conn} do
     {:ok, view, _html} = live(conn, "/admin")
     {_header, chat} = chat(view)
     chat |> element("#admin-online-chat-button") |> render_click()
-    chat |> form("#admin-online-chat-form", chat: %{body: "  "}) |> render_submit()
-    assert has_element?(chat, "[role=alert]", "Write a message first.")
+    render_submit(chat, "send", %{"chat" => %{"body" => "  "}})
+    assert panel_has?(chat, "[role=alert]", "Write a message first.")
   end
 
   test "a mention of you shows an unread badge until you open the chat", %{conn: conn} do
@@ -68,7 +91,7 @@ defmodule TalesForgeWeb.TeamChatLiveTest do
 
     chat |> element("#admin-online-chat-button") |> render_click()
     refute has_element?(chat, "#admin-online-chat-unread")
-    assert has_element?(chat, "#admin-online-chat-panel li", "Mentions you")
+    assert panel_has?(chat, "#admin-online-chat-messages li", "Mentions you")
   end
 
   test "Chat on a person in the online list opens the room with their @handle", %{conn: conn} do
@@ -78,7 +101,7 @@ defmodule TalesForgeWeb.TeamChatLiveTest do
     header |> element("#admin-online-toggle") |> render_click()
     header |> element("#admin-online-bot-gentry button", "Chat") |> render_click()
 
-    assert has_element?(chat, "#admin-online-chat-panel")
+    assert panel_has?(chat, "#admin-online-chat-panel")
     assert render(chat) =~ "@gentry </textarea>"
   end
 
@@ -95,5 +118,40 @@ defmodule TalesForgeWeb.TeamChatLiveTest do
              ~s(#admin-online-bot-case a[href="https://tales-forge.fly.dev/team"]),
              "Chat"
            )
+  end
+
+  test "messages are bubbles, newest at the bottom; your own sit on the right", %{conn: conn} do
+    {:ok, _} = Chat.post("max@example.com", "first from Max")
+    {:ok, _} = Chat.post("bot:case", "then Case")
+    {:ok, view, _html} = live(conn, "/admin")
+    {_header, chat} = chat(view)
+    chat |> element("#admin-online-chat-button") |> render_click()
+    render_submit(chat, "send", %{"chat" => %{"body" => "and me"}})
+
+    texts =
+      chat
+      |> panel()
+      |> LazyHTML.query("#admin-online-chat-messages > li")
+      |> Enum.map(&LazyHTML.text/1)
+
+    assert [a, b, c] = texts
+    assert a =~ "first from Max" and b =~ "then Case" and c =~ "and me"
+    assert panel_has?(chat, "#admin-online-chat-messages > li.flex-row-reverse", "and me")
+
+    assert panel_has?(
+             chat,
+             "#admin-online-chat-messages > li img[src='/images/team/case-avatar-96.jpg']"
+           )
+  end
+
+  test "message text is escaped and keeps its own line breaks only", %{conn: conn} do
+    {:ok, _} = Chat.post("max@example.com", "<b>hi</b> @fredrik\nnext")
+    {:ok, view, _html} = live(conn, "/admin")
+    {_header, chat} = chat(view)
+    chat |> element("#admin-online-chat-button") |> render_click()
+    html = render(chat)
+
+    assert html =~
+             "&lt;b&gt;hi&lt;/b&gt; <span class=\"font-semibold text-[var(--paper-accent)]\">@fredrik</span>\nnext</p>"
   end
 end
