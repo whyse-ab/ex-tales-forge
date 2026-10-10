@@ -25,7 +25,7 @@ defmodule TalesForgeWeb.TeamPrFeedLiveTest do
   end
 
   test "signed out, the feed LiveView can't be mounted on its own" do
-    assert {:error, {:redirect, %{to: "/admin/login"}}} =
+    assert {:error, {:redirect, %{to: "/admin/login" <> _}}} =
              live_isolated(build_conn(), TeamPrFeedLive)
   end
 

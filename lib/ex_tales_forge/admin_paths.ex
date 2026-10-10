@@ -26,6 +26,7 @@ defmodule TalesForge.AdminPaths do
     {"decisions", ["founders", "decisions"]},
     {"costs", ["operate", "costs"]},
     {"oban", ["operate", "telemetry"]},
+    {"telemetry", ["operate", "telemetry"]},
     {"npc-definitions", ["archive", "npc-definitions"]}
   ]
 
@@ -38,6 +39,42 @@ defmodule TalesForge.AdminPaths do
   @spec moves() :: [{String.t(), String.t()}]
   def moves do
     for {old, new} <- @moves, do: {"/admin/" <> old, "/admin/" <> Enum.join(new, "/")}
+  end
+
+  @section_roots [
+    {"founders", "section-founders"},
+    {"play", "section-play"},
+    {"operate", "section-operate"},
+    {"develop", "section-develop"},
+    {"archive", "section-archive"}
+  ]
+
+  @doc """
+  The section roots under `/admin` and their anchor on the admin home.
+
+      iex> TalesForge.AdminPaths.section_roots() |> hd()
+      {"founders", "section-founders"}
+  """
+  @spec section_roots() :: [{String.t(), String.t()}]
+  def section_roots, do: @section_roots
+
+  @doc """
+  Where a section root (`/admin/play`) goes: the admin home at that section, or
+  nil for any other path.
+
+      iex> TalesForge.AdminPaths.section_target("/admin/operate/")
+      "/admin#section-operate"
+      iex> TalesForge.AdminPaths.section_target("/admin/docs")
+      nil
+  """
+  @spec section_target(String.t()) :: String.t() | nil
+  def section_target(path) do
+    with ["admin", segment] <- split(path),
+         {_, anchor} <- List.keyfind(@section_roots, segment, 0) do
+      "/admin#" <> anchor
+    else
+      _ -> nil
+    end
   end
 
   @doc "The old first segments under `/admin` (for the router's redirect routes)."

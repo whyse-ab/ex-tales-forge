@@ -125,6 +125,9 @@ defmodule TalesForgeWeb.Router do
     # Operate: telemetry (LiveDashboard: metrics, processes, Oban, Ecto).
     live_dashboard "/operate/telemetry",
       metrics: TalesForgeWeb.Telemetry,
+      home_app: {"Tales Forge", :ex_tales_forge},
+      # The way back: a "← Admin" menu entry (the dashboard has no admin layout).
+      additional_pages: [admin: TalesForgeWeb.TelemetryBackPage],
       on_mount: [TalesForgeWeb.LiveAuth]
   end
 
@@ -134,6 +137,12 @@ defmodule TalesForgeWeb.Router do
   # sends the old path across first.
   scope "/admin", TalesForgeWeb do
     pipe_through :browser
+
+    # The section roots (/admin/play, ...) have no page of their own: they
+    # open that section on the admin home.
+    for {segment, _anchor} <- TalesForge.AdminPaths.section_roots() do
+      get "/#{segment}", AdminRedirectController, :section
+    end
 
     for old <- TalesForge.AdminPaths.old_segments() do
       get "/#{old}", AdminRedirectController, :show

@@ -29,13 +29,13 @@ defmodule TalesForgeWeb.TeamLiveTest do
       @path path
 
       test "signed out, #{path} redirects to the login page" do
-        assert redirected_to(get(build_conn(), @path)) == "/admin/login"
-        assert {:error, {:redirect, %{to: "/admin/login"}}} = live(build_conn(), @path)
+        assert redirected_to(get(build_conn(), @path)) =~ ~r{^/admin/login(\?|$)}
+        assert {:error, {:redirect, %{to: "/admin/login" <> _}}} = live(build_conn(), @path)
       end
 
       test "a GitHub user outside the team is refused at #{path}" do
         conn = log_in_non_member(build_conn())
-        assert redirected_to(get(conn, @path)) == "/admin/login"
+        assert redirected_to(get(conn, @path)) =~ ~r{^/admin/login(\?|$)}
       end
 
       test "a team member gets #{path}", %{conn: conn} do

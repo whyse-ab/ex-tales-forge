@@ -18,7 +18,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
   @tick_ms 60_000
 
   @impl true
-  def mount(%{"id" => id}, _session, socket) do
+  def mount(%{"id" => id} = params, _session, socket) do
     case Reports.get_run(id) do
       {:ok, run} ->
         if connected?(socket), do: :timer.send_interval(@tick_ms, :tick)
@@ -31,8 +31,10 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
          |> load(run)}
 
       {:error, :not_found} ->
-        {:ok,
-         socket |> put_flash(:error, "Run not found.") |> push_navigate(to: ~p"/admin/play/runs")}
+        # Back to the list, keeping the query (a cross-app link may carry one).
+        query = Map.delete(params, "id")
+        to = if query == %{}, do: ~p"/admin/play/runs", else: ~p"/admin/play/runs?#{query}"
+        {:ok, socket |> put_flash(:error, "Run not found.") |> push_navigate(to: to)}
     end
   end
 

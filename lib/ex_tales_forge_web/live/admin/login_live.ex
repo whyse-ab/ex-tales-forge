@@ -2,6 +2,8 @@ defmodule TalesForgeWeb.AdminLive.LoginLive do
   @moduledoc """
   The login page, the only page anyone may see signed out: "Sign in with
   GitHub" for members of the Tales Forge GitHub team (ADMIN_GITHUB_TEAM).
+  A `?return_to=` path (same-origin only) is passed on, so the sign-in lands
+  on the page that was asked for.
   """
 
   use TalesForgeWeb, :public_live_view
@@ -9,13 +11,24 @@ defmodule TalesForgeWeb.AdminLive.LoginLive do
   alias TalesForge.AdminAuth.GitHub
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
+    return_to = TalesForge.AdminAuth.safe_return_to(params["return_to"])
+
     if socket.assigns[:admin_email] do
-      {:ok, push_navigate(socket, to: ~p"/admin")}
+      {:ok, push_navigate(socket, to: return_to || ~p"/admin")}
     else
-      {:ok, assign(socket, page_title: "Sign in", github_enabled: GitHub.enabled?())}
+      {:ok,
+       assign(socket,
+         page_title: "Sign in",
+         github_enabled: GitHub.enabled?(),
+         login_href: login_href(return_to)
+       )}
     end
   end
+
+  # The sign-in button carries the page to return to (same-origin only).
+  defp login_href(nil), do: ~p"/admin/auth/github"
+  defp login_href(path), do: ~p"/admin/auth/github?#{[return_to: path]}"
 
   @impl true
   def render(assigns) do
@@ -34,7 +47,7 @@ defmodule TalesForgeWeb.AdminLive.LoginLive do
         <a
           :if={@github_enabled}
           id="github-login"
-          href={~p"/admin/auth/github"}
+          href={@login_href}
           class="flex w-full items-center justify-center gap-2 rounded border border-[var(--paper-ink)] bg-[var(--paper-ink)] px-3 py-2 font-medium text-[var(--paper-panel)]"
         >
           <svg viewBox="0 0 16 16" class="size-5 shrink-0" fill="currentColor" aria-hidden="true">

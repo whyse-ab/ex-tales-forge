@@ -90,7 +90,7 @@ defmodule TalesForgeWeb.AdminLive.AdminReorgTest do
 
     test "signed out, an old URL goes to the sign-in first, not to the page" do
       for {old, _new} <- @redirects do
-        assert build_conn() |> get(old) |> redirected_to() == "/admin/login",
+        assert build_conn() |> get(old) |> redirected_to() =~ ~r{^/admin/login(\?|$)},
                "#{old} skipped the sign-in"
       end
     end
@@ -144,7 +144,7 @@ defmodule TalesForgeWeb.AdminLive.AdminReorgTest do
 
       assert has_element?(view, "details#section-archive:not([open])", "NPC definitions")
       assert has_element?(view, "#at-a-glance", "Turns")
-      assert has_element?(view, ~s(#section-operate a[target="_blank"]), "Logs: production")
+      assert has_element?(view, ~s(#section-operate a[target="_blank"]), "Logs (production)")
 
       assert has_element?(
                view,

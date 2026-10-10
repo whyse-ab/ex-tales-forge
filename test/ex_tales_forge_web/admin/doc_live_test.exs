@@ -47,13 +47,13 @@ defmodule TalesForgeWeb.AdminLive.DocLiveTest do
     assert has_element?(view, "#doc-preview article.prose pre > code", "turns: 14")
   end
 
-  test "every doc has its own URL; an unknown one goes back to the list", %{conn: conn} do
+  test "every doc has its own URL; an unknown one says so on its own URL", %{conn: conn} do
     {:ok, view, html} = live(conn, ~p"/admin/docs/roadmap-2027.md")
     assert html =~ "Plans."
     assert has_element?(view, "#doc-preview h2#q1", "Q1")
 
-    assert {:error, {:live_redirect, %{to: "/admin/docs"}}} =
-             live(conn, ~p"/admin/docs/not-synced.md")
+    {:ok, missing, _html} = live(conn, ~p"/admin/docs/not-synced.md")
+    assert has_element?(missing, "#doc-missing", "docs/not-synced.md")
   end
 
   describe "links inside a doc" do
