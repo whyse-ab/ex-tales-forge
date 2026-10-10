@@ -53,6 +53,16 @@ defmodule TalesForgeWeb.AdminLive.CodeHeatLiveTest do
     refute html =~ "$"
   end
 
+  test "no sample yet: shows the first sample time in Stockholm time and disables the filters",
+       %{conn: conn} do
+    start_supervised!({TalesForge.CodeHeat.Sampler, force: true, modules: []})
+    {:ok, view, _html} = live(conn, ~p"/admin/operate/code-heat")
+
+    assert has_element?(view, "#code-heat-empty", "(Stockholm time)")
+    assert has_element?(view, "#code-heat-filters fieldset[disabled]")
+    refute has_element?(view, "#code-heat-legend")
+  end
+
   test "says off on production", %{conn: conn} do
     Application.put_env(:ex_tales_forge, CodeHeat, enabled: true)
     Application.put_env(:ex_tales_forge, :app_name, "tales-forge")
@@ -79,6 +89,11 @@ defmodule TalesForgeWeb.AdminLive.CodeHeatLiveTest do
     assert has_element?(view, "#tile-TalesForge-IntentJev[data-hot=true]", "AI")
     assert has_element?(view, "#code-heat-hot", "TalesForge.IntentJev")
     assert has_element?(view, "#ai-jev-intent", "1.5 s")
+    assert has_element?(view, "#ai-card-jev-intent", "1.5 s")
+    assert has_element?(view, "#code-heat-legend #legend-step-5", "Step 5")
+    assert has_element?(view, "#tile-TalesForge-IntentJev[data-step=\"5\"]", "2.5 s total")
+    assert has_element?(view, "#tile-TalesForge-IntentJev", "Hot")
+    refute has_element?(view, "#code-heat-filters fieldset[disabled]")
     refute html =~ "$"
     refute html =~ "0.12"
 

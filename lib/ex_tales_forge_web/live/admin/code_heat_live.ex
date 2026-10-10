@@ -10,6 +10,13 @@ defmodule TalesForgeWeb.AdminLive.CodeHeatLive do
   calls (Jev and LLM) of the last 24 hours show the number of calls and the
   time. The page shows no money.
 
+  Each tile shows its value as text and a heat step (1 to 5) next to the
+  color. The legend shows the color and the value range of each step. Hot
+  spots have a "Hot" label and a flame icon. While there is no sample, the
+  page shows the time of the first sample (Stockholm time) and the filters
+  are disabled. On a narrow screen, each AI call is a stacked card; on a wide
+  screen, the AI calls are a table.
+
   The filters are in the URL (`level`, `metric`, `module`, `min`).
   """
 
@@ -19,10 +26,12 @@ defmodule TalesForgeWeb.AdminLive.CodeHeatLive do
 
   alias TalesForge.AppRole
   alias TalesForge.CodeHeat
+  alias TalesForge.CodeHeat.Sampler
 
   @levels %{"app" => :app, "module" => :module, "function" => :function}
   @metrics %{"calls" => :calls, "total" => :total, "avg" => :avg}
   @max_tiles 300
+  @steps 5
 
   @impl true
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) :: {:ok, Phoenix.LiveView.Socket.t()}
@@ -35,6 +44,7 @@ defmodule TalesForgeWeb.AdminLive.CodeHeatLive do
      |> assign(:enabled, CodeHeat.enabled?())
      |> assign(:role, AppRole.role())
      |> assign(:snapshot, CodeHeat.latest())
+     |> assign(:next_sample_at, Sampler.next_sample_at())
      |> assign(:ai_calls, CodeHeat.ai_calls(DateTime.add(now, -24, :hour)))}
   end
 
@@ -57,6 +67,7 @@ defmodule TalesForgeWeb.AdminLive.CodeHeatLive do
      |> assign(:min, min)
      |> assign(:tile_count, length(tiles))
      |> assign(:tiles, Enum.take(tiles, @max_tiles))
+     |> assign(:legend, legend(tiles, metric))
      |> assign(:hot, Enum.filter(tiles, & &1.hot))}
   end
 
@@ -104,7 +115,7 @@ defmodule TalesForgeWeb.AdminLive.CodeHeatLive do
           )} functions.
         </p>
         <p :if={is_nil(@snapshot)} id="code-heat-empty" class="text-sm">
-          The first sample comes 24 hours after the app starts.
+          {empty_text(@next_sample_at)}
         </p>
 
         <form
@@ -113,67 +124,94 @@ defmodule TalesForgeWeb.AdminLive.CodeHeatLive do
           phx-submit="filter"
           class="grid grid-cols-1 gap-3 sm:grid-cols-4"
         >
-          <label class="form-control">
-            <span class="label-text text-sm">Level</span>
-            <select name="level" class="select select-bordered select-sm min-h-11 w-full">
-              <option
-                :for={{label, value} <- level_options()}
-                value={value}
-                selected={value == to_string(@level)}
-              >
-                {label}
-              </option>
-            </select>
-          </label>
-          <label class="form-control">
-            <span class="label-text text-sm">Color by</span>
-            <select name="metric" class="select select-bordered select-sm min-h-11 w-full">
-              <option
-                :for={{label, value} <- metric_options()}
-                value={value}
-                selected={value == to_string(@metric)}
-              >
-                {label}
-              </option>
-            </select>
-          </label>
-          <label class="form-control">
-            <span class="label-text text-sm">Module name</span>
-            <input
-              type="text"
-              name="module"
-              value={@module}
-              placeholder="for example Game.Intent"
-              phx-debounce="300"
-              class="input input-bordered input-sm min-h-11 w-full"
-            />
-          </label>
-          <label class="form-control">
-            <span class="label-text text-sm">Minimum {metric_unit(@metric)}</span>
-            <input
-              type="number"
-              name="min"
-              min="0"
-              step="any"
-              value={if @min > 0, do: @min}
-              phx-debounce="300"
-              class="input input-bordered input-sm min-h-11 w-full"
-            />
-          </label>
+          <fieldset disabled={is_nil(@snapshot)} class="contents">
+            <label class="form-control">
+              <span class="label-text text-sm">Level</span>
+              <select name="level" class="select select-bordered select-sm min-h-11 w-full">
+                <option
+                  :for={{label, value} <- level_options()}
+                  value={value}
+                  selected={value == to_string(@level)}
+                >
+                  {label}
+                </option>
+              </select>
+            </label>
+            <label class="form-control">
+              <span class="label-text text-sm">Color by</span>
+              <select name="metric" class="select select-bordered select-sm min-h-11 w-full">
+                <option
+                  :for={{label, value} <- metric_options()}
+                  value={value}
+                  selected={value == to_string(@metric)}
+                >
+                  {label}
+                </option>
+              </select>
+            </label>
+            <label class="form-control">
+              <span class="label-text text-sm">Module name</span>
+              <input
+                type="text"
+                name="module"
+                value={@module}
+                placeholder="for example Game.Intent"
+                phx-debounce="300"
+                class="input input-bordered input-sm min-h-11 w-full"
+              />
+            </label>
+            <label class="form-control">
+              <span class="label-text text-sm">Minimum {metric_unit(@metric)}</span>
+              <input
+                type="number"
+                name="min"
+                min="0"
+                step="any"
+                value={if @min > 0, do: @min}
+                phx-debounce="300"
+                class="input input-bordered input-sm min-h-11 w-full"
+              />
+            </label>
+          </fieldset>
+          <p :if={is_nil(@snapshot)} class="text-xs text-[var(--paper-muted)] sm:col-span-4">
+            The filters are available when the first sample is ready.
+          </p>
         </form>
 
         <div :if={@hot != []} id="code-heat-hot" class="space-y-1">
           <h3 class="font-semibold text-[var(--paper-ink)]">Hot spots</h3>
           <ol class="list-decimal pl-5 text-sm">
             <li :for={tile <- @hot} class="break-all">
+              <span aria-hidden="true">🔥</span>
               <span class="font-mono">{tile.label}</span>: {format_value(@metric, tile.value)}
             </li>
           </ol>
         </div>
 
-        <p class="text-xs text-[var(--paper-muted)]">
-          {@tile_count} tiles. The color uses a log scale. The darkest tile has the highest value.
+        <p :if={@snapshot} class="text-xs text-[var(--paper-muted)]">
+          {@tile_count} tiles. The color and the step use a log scale. Step 5 has the highest values.
         </p>
+
+        <div :if={@legend != []} id="code-heat-legend" class="space-y-1">
+          <h3 class="text-sm font-semibold text-[var(--paper-ink)]">
+            Legend: {metric_label(@metric)}
+          </h3>
+          <ol class="flex flex-wrap gap-1.5 text-xs">
+            <li
+              :for={step <- @legend}
+              id={"legend-step-#{step.step}"}
+              style={tile_style(step.heat)}
+              class="rounded-md px-2 py-1 tabular-nums"
+            >
+              <span class="font-semibold">Step {step.step}</span>: {step.range}
+            </li>
+          </ol>
+          <p class="text-xs text-[var(--paper-muted)]">
+            <span class="badge badge-error badge-xs">🔥 Hot</span>
+            marks a hot spot. <span class="badge badge-info badge-xs">AI</span>
+            marks a module that makes AI calls.
+          </p>
+        </div>
 
         <div
           id="code-heat-tiles"
@@ -183,6 +221,7 @@ defmodule TalesForgeWeb.AdminLive.CodeHeatLive do
             :for={tile <- @tiles}
             id={"tile-" <> tile_id(tile.key)}
             data-heat={tile.heat}
+            data-step={step(tile.heat)}
             data-hot={to_string(tile.hot)}
             title={tile_title(tile)}
             style={tile_style(tile.heat)}
@@ -195,10 +234,18 @@ defmodule TalesForgeWeb.AdminLive.CodeHeatLive do
               <span class="break-all font-mono font-semibold">{tile.label}</span>
               <span class="flex shrink-0 gap-1">
                 <span :if={tile.ai} class="badge badge-info badge-xs">AI</span>
-                <span :if={tile.hot} class="badge badge-error badge-xs">Hot</span>
+                <span class="badge badge-ghost badge-xs bg-white/70 text-[#1f1b16]">
+                  Step {step(tile.heat)}
+                </span>
+                <span :if={tile.hot} class="badge badge-error badge-xs">
+                  <span aria-hidden="true">🔥</span> Hot
+                </span>
               </span>
             </div>
-            <div class="mt-1 tabular-nums">
+            <div class="mt-1 font-semibold tabular-nums">
+              {format_value(@metric, tile.value)}
+            </div>
+            <div class="tabular-nums">
               {format_int(tile.calls)} calls · {format_us(tile.time_us)} total · {format_us(
                 tile.avg_us
               )} avg
@@ -212,28 +259,52 @@ defmodule TalesForgeWeb.AdminLive.CodeHeatLive do
           Jev and LLM calls on this app: the number of calls and the time.
         </p>
         <p :if={@ai_calls == []} class="text-sm">0 AI calls in the last 24 hours.</p>
-        <div :if={@ai_calls != []} class="overflow-x-auto">
-          <table class="table table-sm">
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th>Purpose</th>
-                <th class="text-right">Calls</th>
-                <th class="text-right">Total time</th>
-                <th class="text-right">Average</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr :for={line <- @ai_calls} id={"ai-#{line.call_type}-#{tile_id(line.purpose)}"}>
-                <td>{line.call_type}</td>
-                <td class="break-all font-mono">{line.purpose}</td>
-                <td class="text-right tabular-nums">{format_int(line.calls)}</td>
-                <td class="text-right tabular-nums">{format_ms(line.total_ms)}</td>
-                <td class="text-right tabular-nums">{format_ms(line.avg_ms)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <ul :if={@ai_calls != []} id="code-heat-ai-cards" class="space-y-2 sm:hidden">
+          <li
+            :for={line <- @ai_calls}
+            id={"ai-card-#{line.call_type}-#{tile_id(line.purpose)}"}
+            class="rounded-md border border-[var(--paper-margin)] p-2 text-sm"
+          >
+            <div class="flex items-baseline justify-between gap-2">
+              <span class="break-all font-mono">{line.purpose}</span>
+              <span class="badge badge-ghost badge-sm shrink-0">{line.call_type}</span>
+            </div>
+            <dl class="mt-1 grid grid-cols-3 gap-1 text-xs tabular-nums">
+              <div>
+                <dt class="text-[var(--paper-muted)]">Calls</dt>
+                <dd>{format_int(line.calls)}</dd>
+              </div>
+              <div>
+                <dt class="text-[var(--paper-muted)]">Total time</dt>
+                <dd>{format_ms(line.total_ms)}</dd>
+              </div>
+              <div>
+                <dt class="text-[var(--paper-muted)]">Average</dt>
+                <dd>{format_ms(line.avg_ms)}</dd>
+              </div>
+            </dl>
+          </li>
+        </ul>
+        <table :if={@ai_calls != []} id="code-heat-ai-table" class="table table-sm hidden sm:table">
+          <thead>
+            <tr>
+              <th>Type</th>
+              <th>Purpose</th>
+              <th class="text-right">Calls</th>
+              <th class="text-right">Total time</th>
+              <th class="text-right">Average</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr :for={line <- @ai_calls} id={"ai-#{line.call_type}-#{tile_id(line.purpose)}"}>
+              <td>{line.call_type}</td>
+              <td class="break-all font-mono">{line.purpose}</td>
+              <td class="text-right tabular-nums">{format_int(line.calls)}</td>
+              <td class="text-right tabular-nums">{format_ms(line.total_ms)}</td>
+              <td class="text-right tabular-nums">{format_ms(line.avg_ms)}</td>
+            </tr>
+          </tbody>
+        </table>
       </.section_card>
     </Layouts.admin>
     """
@@ -244,6 +315,42 @@ defmodule TalesForgeWeb.AdminLive.CodeHeatLive do
 
   defp off_text(_role),
     do: "The code heat map is off on this app. Set CODE_HEAT_MAP=on to turn it on."
+
+  defp empty_text(nil),
+    do: "There is no sample yet. The first sample comes 24 hours after the app starts."
+
+  defp empty_text(%DateTime{} = at),
+    do: "There is no sample yet. The first sample comes at #{format_time(at)} (Stockholm time)."
+
+  defp metric_label(:calls), do: "calls"
+  defp metric_label(:total), do: "total time"
+  defp metric_label(:avg), do: "average time"
+
+  # The heat step of a tile: 1 (cold) to 5 (hot).
+  defp step(heat), do: min(@steps, floor(heat * @steps) + 1)
+
+  # One legend line per step that has tiles: the step color and its value range.
+  defp legend([], _metric), do: []
+
+  defp legend(tiles, metric) do
+    tiles
+    |> Enum.group_by(&step(&1.heat))
+    |> Enum.sort_by(fn {step, _tiles} -> step end)
+    |> Enum.map(fn {step, in_step} ->
+      values = Enum.map(in_step, & &1.value)
+
+      %{
+        step: step,
+        heat: (step - 0.5) / @steps,
+        range: range_text(metric, Enum.min(values), Enum.max(values))
+      }
+    end)
+  end
+
+  defp range_text(metric, low, high) when low == high, do: format_value(metric, low)
+
+  defp range_text(metric, low, high),
+    do: "#{format_value(metric, low)} to #{format_value(metric, high)}"
 
   defp level_options, do: [{"App", "app"}, {"Module", "module"}, {"Function", "function"}]
 
