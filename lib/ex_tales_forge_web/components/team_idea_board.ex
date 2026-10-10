@@ -34,7 +34,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
 
   # The sort choices for the Ideas column: {URL value, label}.
   @sorts [
-    {"top", "Top ranked"},
+    {"top", "Most support"},
     {"newest", "Newest"},
     {"oldest", "Oldest"},
     {"votes", "Most votes"}
@@ -94,9 +94,67 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   defp sort_ideas(cards, "votes"), do: Enum.sort_by(cards, &length(&1.votes), :desc)
   defp sort_ideas(cards, _top), do: cards
 
+  @doc """
+  The "Written by" value of a card author: the first part of the email, in
+  lower case. Bots give nil.
+
+      iex> TalesForgeWeb.TeamIdeaBoard.author_key("Fredrik@whyse.se")
+      "fredrik"
+      iex> TalesForgeWeb.TeamIdeaBoard.author_key("bot:case")
+      nil
+  """
+  @spec author_key(String.t() | nil) :: String.t() | nil
+  def author_key("bot:" <> _), do: nil
+
+  def author_key(email) when is_binary(email),
+    do: email |> String.downcase() |> String.split(["@", ".", "+"]) |> hd()
+
+  def author_key(_), do: nil
+
+  # The "Written by" choices: each founder who wrote a card, {value, name}.
+  defp authors(board) do
+    board
+    |> Map.values()
+    |> List.flatten()
+    |> Enum.map(& &1.author)
+    |> Enum.uniq_by(&author_key/1)
+    |> Enum.flat_map(fn a ->
+      case author_key(a) do
+        nil -> []
+        key -> [{key, TalesForge.TeamOnline.name(a)}]
+      end
+    end)
+    |> Enum.sort_by(&elem(&1, 1))
+  end
+
+  # Keeps the Ideas cards of one author ("" or nil: all).
+  defp by_author(cards, by) when by in [nil, ""], do: cards
+  defp by_author(cards, by), do: Enum.filter(cards, &(author_key(&1.author) == by))
+
+  # Keeps the Ideas cards where a comment @mentions `handle` (only @mentions,
+  # as the card asks; `@founders` mentions every founder).
+  defp mentioning(cards, false, _handle), do: cards
+  defp mentioning(_cards, true, nil), do: []
+
+  defp mentioning(cards, true, handle) do
+    Enum.filter(cards, fn card ->
+      Enum.any?(card.comments, &(handle in Mentions.parse(&1.body).founders))
+    end)
+  end
+
   defp load(socket) do
     sort = sort_key(socket.assigns[:ideas_sort])
-    board = Board.board() |> Map.update("ideas", [], &sort_ideas(&1, sort))
+    by = socket.assigns[:ideas_by]
+    mine = socket.assigns[:ideas_mine] == true
+    me = Mentions.handle_for(socket.assigns[:login])
+    full = Board.board()
+
+    board =
+      Map.update(full, "ideas", [], fn cards ->
+        cards |> sort_ideas(sort) |> by_author(by) |> mentioning(mine, me)
+      end)
+
+    socket = assign(socket, :authors, authors(full))
     open_id = socket.assigns[:open_id]
     open = open_id && board |> Map.values() |> List.flatten() |> Enum.find(&(&1.id == open_id))
 
@@ -174,10 +232,17 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   end
 
   @impl true
-  def handle_event("sort", %{"sort" => key}, socket) do
-    key = sort_key(key)
-    query = if key == "top", do: "", else: "?" <> URI.encode_query(%{"sort" => key})
-    {:noreply, push_patch(socket, to: "/team" <> query)}
+  def handle_event("sort", params, socket) do
+    query =
+      [
+        {"sort", sort_key(params["sort"])},
+        {"by", params["by"]},
+        {"mine", if(params["mine"] == "true", do: "1")}
+      ]
+      |> Enum.reject(fn {k, v} -> v in [nil, ""] or {k, v} == {"sort", "top"} end)
+
+    path = if query == [], do: "/team", else: "/team?" <> URI.encode_query(query)
+    {:noreply, push_patch(socket, to: path)}
   end
 
   def handle_event("open", %{"card_id" => id}, socket) do
@@ -432,6 +497,9 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           column="ideas"
           sorts={@sorts}
           sort={sort_key(@ideas_sort)}
+          authors={@authors}
+          by={assigns[:ideas_by]}
+          mine={assigns[:ideas_mine] == true}
           size={:thin}
           prs={@prs}
           typing={@typing}
@@ -533,6 +601,9 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   attr :class, :string, default: nil
   attr :sorts, :list, default: nil
   attr :sort, :string, default: "top"
+  attr :authors, :list, default: []
+  attr :by, :string, default: nil
+  attr :mine, :boolean, default: false
 
   defp area(assigns) do
     assigns = assign(assigns, :cards, assigns.board[assigns.column])
@@ -556,8 +627,14 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
         {Transitions.label(@column)}
         <span class="font-sans text-xs font-normal text-[var(--paper-muted)]">{length(@cards)}</span>
       </h3>
-      <form :if={@sorts} id="ideas-sort" phx-change="sort" phx-target={@myself} class="px-1 pb-1">
-        <label class="flex items-center gap-2 text-xs text-[var(--paper-muted)]">
+      <form
+        :if={@sorts}
+        id="ideas-sort"
+        phx-change="sort"
+        phx-target={@myself}
+        class="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 pb-1 text-xs text-[var(--paper-muted)]"
+      >
+        <label class="flex min-w-0 flex-1 items-center gap-2">
           Sort
           <select
             name="sort"
@@ -565,6 +642,28 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           >
             <option :for={{key, label} <- @sorts} value={key} selected={key == @sort}>{label}</option>
           </select>
+        </label>
+        <label class="flex min-w-0 flex-1 items-center gap-2">
+          Written by
+          <select
+            id="ideas-by"
+            name="by"
+            class="min-h-11 flex-1 rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-2 text-sm"
+          >
+            <option value="">Everyone</option>
+            <option :for={{key, name} <- @authors} value={key} selected={key == @by}>{name}</option>
+          </select>
+        </label>
+        <label class="flex min-h-11 items-center gap-2">
+          <input type="hidden" name="mine" value="false" />
+          <input
+            id="ideas-mine"
+            type="checkbox"
+            name="mine"
+            value="true"
+            checked={@mine}
+            class="size-4"
+          /> Mentioning me
         </label>
       </form>
       <div
