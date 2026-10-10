@@ -2,7 +2,9 @@ defmodule TalesForgeWeb.TeamLive do
   @moduledoc """
   The founders' landing page at `/team`, top to bottom:
 
-  1. the hero with the painted crew (`hero/1`);
+  1. the compact shared-workspace header with quick stats
+     (`TalesForgeWeb.TeamWorkspace`; the crew picture and how we work live on
+     `/team/presentation`);
   2. **What we're going to do** (`#idea-board`): the founders' idea board
      (`TalesForgeWeb.TeamIdeaBoard`, live over `TalesForge.Board`'s PubSub) on
      production and locally. `/team` lives on production only
@@ -27,15 +29,13 @@ defmodule TalesForgeWeb.TeamLive do
 
   use TalesForgeWeb, :live_view
 
-  import TalesForge.TeamPage, only: [count_word: 1]
-
   alias TalesForge.PrFeed
   alias TalesForge.TeamPage
   alias TalesForgeWeb.Layouts
-  alias TalesForgeWeb.TeamArt
   alias TalesForgeWeb.TeamLayout
   alias TalesForgeWeb.TeamPresentationLive
   alias TalesForgeWeb.TeamPrFeed
+  alias TalesForgeWeb.TeamWorkspace
 
   @nav [
     {"idea-board", "Going to do"},
@@ -48,10 +48,10 @@ defmodule TalesForgeWeb.TeamLive do
   presentation anchor, so the redirect hook leaves them alone.
 
       iex> TalesForgeWeb.TeamLive.anchors()
-      ["idea-board", "live", "presentation-cta", "landing-hero"]
+      ["idea-board", "live", "presentation-cta", "workspace"]
   """
   @spec anchors() :: [String.t()]
-  def anchors, do: Enum.map(@nav, &elem(&1, 0)) ++ ~w(landing-hero)
+  def anchors, do: Enum.map(@nav, &elem(&1, 0)) ++ ~w(workspace)
 
   @doc """
   The old crew anchors of this page and where they land now: the crew on the
@@ -83,7 +83,18 @@ defmodule TalesForgeWeb.TeamLive do
      |> assign(:d, TeamPage.data())
      |> assign(:nav, @nav)
      |> assign(:anchors, Jason.encode!(TeamPresentationLive.anchors()))
-     |> assign(:aliases, Jason.encode!(aliases()))}
+     |> assign(:aliases, Jason.encode!(aliases()))
+     |> assign_stats()}
+  end
+
+  defp assign_stats(socket) do
+    founder = socket.assigns[:admin_email]
+
+    stats =
+      if board_here?() and is_binary(founder),
+        do: TeamWorkspace.stats(founder, socket.assigns[:admin_github_login])
+
+    assign(socket, :stats, stats)
   end
 
   # The board lives on production (and locally); playtest keeps the placeholder.
@@ -94,7 +105,7 @@ defmodule TalesForgeWeb.TeamLive do
           {:noreply, Phoenix.LiveView.Socket.t()}
   def handle_info({:board, :changed}, socket) do
     send_update(TalesForgeWeb.TeamIdeaBoard, id: "idea-board-live", refresh: true)
-    {:noreply, socket}
+    {:noreply, assign_stats(socket)}
   end
 
   def handle_info(_msg, socket), do: {:noreply, socket}
@@ -120,7 +131,7 @@ defmodule TalesForgeWeb.TeamLive do
       <TeamLayout.header socket={assigns[:socket]} page={:landing} items={@nav} />
 
       <main class="mx-auto max-w-6xl space-y-16 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
-        <.hero d={@d} />
+        <TeamWorkspace.header stats={assigns[:stats]} />
         <.going_to_do
           board?={assigns[:board?] || false}
           founder={assigns[:admin_email]}
@@ -133,47 +144,6 @@ defmodule TalesForgeWeb.TeamLive do
       <TeamLayout.footer d={@d} />
       <Layouts.flash_group flash={@flash} />
     </div>
-    """
-  end
-
-  attr :d, :map, required: true
-
-  defp hero(assigns) do
-    assigns = assign(assigns, :holder, TeamPage.approval_holder(assigns.d))
-
-    ~H"""
-    <section
-      id="landing-hero"
-      class="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
-      aria-labelledby="landing-title"
-    >
-      <div class="space-y-5">
-        <h1 id="landing-title" class="font-serif text-4xl font-bold leading-tight sm:text-5xl">
-          How Tales Forge gets built
-        </h1>
-        <p class="text-lg leading-relaxed text-[var(--paper-muted)]">
-          The founders and {count_word(TeamPage.bot_count(@d))} bots, one crew, taking a lot of small, careful steps.
-        </p>
-        <aside id="landing-starting-point" class="team-callout flex gap-3 p-4">
-          <TeamArt.seal class="size-10 shrink-0" />
-          <p class="text-sm leading-relaxed sm:text-base">
-            <strong>This is how we work today, and it's a starting point.</strong>
-            Right now {@holder} holds the approval key for merges and deploys. That's where we began, not where we stop.
-            Soon every founder will be able to do the same: approve changes, steer the bots and make decisions.
-          </p>
-        </aside>
-      </div>
-      <div class="team-card overflow-hidden p-3">
-        <TeamArt.picture
-          id="landing-hero-art"
-          name="hero"
-          sizes="(min-width: 1152px) 528px, (min-width: 1024px) calc(50vw - 3rem), calc(100vw - 3.5rem)"
-          loading="eager"
-          fetchpriority="high"
-          class="block aspect-video h-auto w-full rounded-lg object-cover"
-        />
-      </div>
-    </section>
     """
   end
 
