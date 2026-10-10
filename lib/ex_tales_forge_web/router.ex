@@ -40,6 +40,11 @@ defmodule TalesForgeWeb.Router do
     plug RequireTeamMember
   end
 
+  # LiveDashboard: keep the query on the bare URL, add the admin breadcrumbs.
+  pipeline :telemetry do
+    plug TalesForgeWeb.Plugs.TelemetryChrome
+  end
+
   pipeline :api do
     plug :accepts, ["json"]
   end
@@ -118,7 +123,7 @@ defmodule TalesForgeWeb.Router do
   end
 
   scope "/admin" do
-    pipe_through :browser
+    pipe_through [:browser, :telemetry]
 
     import Phoenix.LiveDashboard.Router
 
