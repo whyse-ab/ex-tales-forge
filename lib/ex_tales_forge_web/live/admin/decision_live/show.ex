@@ -1,6 +1,8 @@
 defmodule TalesForgeWeb.AdminLive.DecisionLive.Show do
   @moduledoc """
   Admin: one founder decision (from the decision queue), rendered from Markdown.
+  Read-only once the open items are imported into the idea board on `/team`
+  (`Collab.read_only?/0`): no interest, comments or recording.
   """
 
   use TalesForgeWeb, :live_view
@@ -22,6 +24,7 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Show do
      socket
      |> assign(:page_title, decision.title)
      |> assign(:decision, decision)
+     |> assign(:read_only, Collab.read_only?())
      |> assign(:comment_body, "")
      |> assign(:outcome_decision, decision.decision || "")
      |> assign(:outcome_rationale, decision.rationale || "")
@@ -60,6 +63,12 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Show do
     do: Collab.render_body(decision.body, Collab.decision_repo_path(decision))
 
   @impl true
+  def handle_event(event, _params, %{assigns: %{read_only: true}} = socket)
+      when event in ["toggle_interested", "add_comment", "record_decision"] do
+    {:noreply,
+     put_flash(socket, :error, TalesForgeWeb.AdminLive.DecisionLive.Index.read_only_message())}
+  end
+
   def handle_event("toggle_interested", _params, socket) do
     _ = Collab.toggle_interested(socket.assigns.decision, socket.assigns.admin_email)
     decision = Collab.get_decision_by_slug!(socket.assigns.decision.slug)
@@ -154,6 +163,7 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Show do
           Self-select only — never assign owners or tasks to people.
         </p>
         <button
+          :if={!@read_only}
           type="button"
           phx-click="toggle_interested"
           class="rounded bg-[var(--paper-accent)] px-3 py-1.5 text-sm text-[var(--paper-on-accent)]"
@@ -178,7 +188,7 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Show do
           </li>
         </ul>
 
-        <form phx-submit="add_comment" class="space-y-2">
+        <form :if={!@read_only} phx-submit="add_comment" class="space-y-2">
           <textarea
             name="body"
             rows="3"
@@ -210,7 +220,14 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Show do
               <dd>{@decision.decided_at && Calendar.strftime(@decision.decided_at, "%Y-%m-%d")}</dd>
             </div>
           </dl>
-        <% else %>
+        <% end %>
+        <p
+          :if={@read_only and @decision.status != "decided"}
+          class="text-sm text-[var(--paper-muted)]"
+        >
+          Read-only: this item continues on the founders' idea board on /team.
+        </p>
+        <%= if @decision.status != "decided" and !@read_only do %>
           <p class="text-sm text-[var(--paper-muted)] mb-2">
             Humans only. Agents must never mark a decision decided.
           </p>

@@ -2,7 +2,8 @@ defmodule TalesForge.AppRole do
   @moduledoc """
   Which app this is (production, playtest or local) and which app owns what.
 
-  Each thing lives in one place: founder surveys live only on production and
+  Each thing lives in one place: founder surveys and the idea board (on /team)
+  live only on production and
   playtest runs only on playtest. The other app redirects those admin pages
   (`TalesForgeWeb.Plugs.HomeApp`), links to
   them from the admin nav, and refuses to store that data
@@ -21,7 +22,7 @@ defmodule TalesForge.AppRole do
   @type role :: :production | :playtest | :local
 
   @typedoc "Data that lives on exactly one app."
-  @type area :: :surveys | :playtest_runs
+  @type area :: :surveys | :playtest_runs | :board
 
   @default_production_url "https://tales-forge.fly.dev"
   @default_playtest_url "https://tales-forge-playtest.fly.dev"
@@ -85,15 +86,19 @@ defmodule TalesForge.AppRole do
   end
 
   @doc """
-  The app that owns `area`: surveys live on production, playtest runs on playtest.
+  The app that owns `area`: surveys and the founders' idea board live on
+  production, playtest runs on playtest.
 
       iex> TalesForge.AppRole.home(:surveys)
       :production
       iex> TalesForge.AppRole.home(:playtest_runs)
       :playtest
+      iex> TalesForge.AppRole.home(:board)
+      :production
   """
   @spec home(area()) :: :production | :playtest
   def home(:surveys), do: :production
+  def home(:board), do: :production
   def home(:playtest_runs), do: :playtest
 
   @doc "True when `area`'s data lives on this app (always on `:local`)."

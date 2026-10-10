@@ -25,6 +25,19 @@ defmodule TalesForge.Collab do
 
   def decision_topic(slug), do: "collab:decision:#{slug}"
 
+  @doc """
+  True once the open decisions have been imported into the founders' idea board
+  (a `board_ideas` row points at a Collab decision; decision 2026-10-10). From
+  then on `/admin/founders/decisions` is read-only: ranking, interest, comments
+  and recording happen on the board on `/team`. Reads the table by name, so this
+  shared module does not depend on the board's (admin) code.
+  """
+  @spec read_only?() :: boolean()
+  def read_only? do
+    from(i in "board_ideas", where: not is_nil(i.collab_decision_id), select: 1, limit: 1)
+    |> Repo.exists?()
+  end
+
   def list_decisions do
     Decision
     |> order_by([d], asc: d.rank, asc: d.slug)

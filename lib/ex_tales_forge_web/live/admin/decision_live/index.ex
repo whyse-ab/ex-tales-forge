@@ -1,6 +1,8 @@
 defmodule TalesForgeWeb.AdminLive.DecisionLive.Index do
   @moduledoc """
-  Admin: the founder decision queue; updates live.
+  Admin: the founder decision queue; updates live. Read-only once the open
+  items are imported into the idea board on `/team` (`Collab.read_only?/0`):
+  no reordering, a notice links to the board.
   """
 
   use TalesForgeWeb, :live_view
@@ -17,6 +19,7 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Index do
      socket
      |> assign(:page_title, "Decision queue")
      |> assign(:decisions, Collab.list_decisions())
+     |> assign(:read_only, Collab.read_only?())
      |> assign(:syncing, false)}
   end
 
@@ -30,6 +33,11 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Index do
   end
 
   @impl true
+  def handle_event(event, _params, %{assigns: %{read_only: true}} = socket)
+      when event in ["move_up", "move_down"] do
+    {:noreply, put_flash(socket, :error, read_only_message())}
+  end
+
   def handle_event("move_up", %{"slug" => slug}, socket) do
     _ = Collab.move_decision(slug, :up)
     {:noreply, assign(socket, :decisions, Collab.list_decisions())}
@@ -58,6 +66,11 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Index do
 
     {:noreply, assign(socket, :decisions, Collab.list_decisions())}
   end
+
+  @doc false
+  @spec read_only_message() :: String.t()
+  def read_only_message,
+    do: "The decision queue is read-only: its open items moved to the idea board on /team."
 
   defp do_sync do
     cond do
@@ -95,6 +108,17 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Index do
         </button>
       </header>
 
+      <p
+        :if={@read_only}
+        id="decisions-read-only"
+        class="rounded border border-[var(--paper-rule)] bg-[var(--paper-info-bg)] p-3 text-sm text-[var(--paper-info-ink)]"
+      >
+        Read-only: the open items now live on the <.link
+          navigate={~p"/team#idea-board"}
+          class="underline"
+        >founders' idea board</.link>.
+      </p>
+
       <.section_card title="Queue">
         <%= if @decisions == [] do %>
           <p class="text-sm text-[var(--paper-muted)]">
@@ -110,6 +134,7 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Index do
             >
               <div class="flex items-center gap-1">
                 <button
+                  :if={!@read_only}
                   type="button"
                   phx-click="move_up"
                   phx-value-slug={d.slug}
@@ -119,6 +144,7 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Index do
                   ↑
                 </button>
                 <button
+                  :if={!@read_only}
                   type="button"
                   phx-click="move_down"
                   phx-value-slug={d.slug}
