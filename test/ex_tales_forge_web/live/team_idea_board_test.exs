@@ -418,6 +418,9 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
       {:ok, view, _} = live(conn, "/team")
       assert has_element?(view, ~s(#ideas-by option[value="hawkan"]), "Håkan")
       refute has_element?(view, "#ideas-by option", "Hawkan")
+      assert has_element?(view, ~s(label[for="ideas-by"]), "Author")
+      assert has_element?(view, ~s(label[for="ideas-mine"]), "Mentioning me")
+      refute render(view) =~ ~r/id="ideas-sort"[^>]*absolute/
     end
 
     test "Mentioning me keeps the cards where a comment @mentions you", %{conn: conn} do
@@ -713,6 +716,29 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     assert has_element?(view, "#card-#{idea.id}-comment-body[phx-hook=MentionSuggest]")
     refute has_element?(view, "#board-pings")
     assert Board.unread_pings("Hawkan-Fredriksson") == []
+  end
+
+  test "a comment shows the display name, a time, inline mentions and the author's line breaks",
+       %{conn: conn} do
+    {:ok, idea} = Board.create_idea("fredrik@whyse.se", %{"title" => "Fishing"})
+
+    {:ok, _} =
+      Board.add_comment(
+        idea,
+        "hawkan.fredriksson@gmail.com",
+        "\n  First line @fredrik ok\nSecond line  \n"
+      )
+
+    {:ok, view, _} = live(log_in_admin(conn, "fredrik@whyse.se", login: "fpahlen"), "/team")
+    view |> element("#tile-#{idea.id} button[aria-haspopup]") |> render_click()
+
+    html = view |> element("#board-modal li[id^=comment-]") |> render()
+    assert html =~ "Håkan"
+    refute html =~ "hawkan"
+    assert has_element?(view, "#board-modal li[id^=comment-] time[datetime]")
+    assert has_element?(view, "#board-modal li[id^=comment-] p mark", "@fredrik")
+    assert [_, body] = Regex.run(~r{<p[^>]*>(.*?)</p>}s, html)
+    assert body =~ ~r/^First line <mark[^>]*>@fredrik<\/mark> ok\nSecond line$/
   end
 
   test "answers: a move saves all boxes together and passes the gate; close saves too",
