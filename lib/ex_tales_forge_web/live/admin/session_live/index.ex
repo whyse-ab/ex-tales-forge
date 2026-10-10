@@ -29,7 +29,7 @@ defmodule TalesForgeWeb.AdminLive.SessionLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.admin flash={@flash} active="sessions">
+    <Layouts.admin flash={@flash} active="sessions" other_app_path="/admin/play/sessions">
       <header class="flex items-center justify-between gap-4">
         <div>
           <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Sessions</h2>

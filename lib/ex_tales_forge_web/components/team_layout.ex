@@ -40,6 +40,7 @@ defmodule TalesForgeWeb.TeamLayout do
       <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-3 py-2 sm:px-6">
         <.link navigate={~p"/"} class="font-serif text-base font-semibold sm:text-lg">Tales Forge</.link>
         <div class="flex items-center gap-3">
+          <TalesForgeWeb.AppComponents.env_badge id="team-env-badge" />
           <.link
             href={~p"/admin"}
             class="text-sm text-[var(--paper-muted)] hover:text-[var(--paper-accent)] hover:underline"
