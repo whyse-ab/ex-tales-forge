@@ -10,9 +10,13 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
   doctest TalesForgeWeb.TeamPeek
 
   alias TalesForge.PrFeed
+  alias TalesForge.PrFeed.Extras
+  alias TalesForge.Repo
+  alias TalesForge.Schemas.{AICall, PlaytestRun, PlaytestScore}
   alias TalesForge.TeamPage
   alias TalesForgeWeb.TeamBoard
   alias TalesForgeWeb.TeamCallTypes
+  alias TalesForgeWeb.TeamLiveNumbers
   alias TalesForgeWeb.TeamPresentationLive
 
   # The file the page is built from, read independently of TalesForge.TeamPage.
@@ -195,7 +199,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       %{
         headline: %{
           merged: text.("#stat-prs-merged > span:first-child"),
-          source: text.("#stat-source")
+          source: text.("#stat-source-prs")
         },
         section: %{merged: text.("#pace-prs-merged"), source: text.("#pace-source")},
         total: text.("#pace-prs > span:first-child"),
@@ -214,7 +218,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       assert n.headline.merged == "1,111"
       assert n.headline.source == "Pull request and commit numbers: live from GitHub."
       assert {n.total, n.open, n.commits} == {"1,234", "77", "4,321"}
-      assert has_element?(view, "#stat-source[data-source=live]")
+      assert has_element?(view, "#stat-source-prs[data-source=live]")
       assert has_element?(view, "#pace-source[data-source=live]")
       # PRs per day come from the same live count: the earlier month is one chip.
       assert has_element?(view, "#prs-earlier-chip", "+5 PRs in September")
@@ -238,7 +242,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       assert n.headline.source == as_of
       assert n.total == TeamPage.number(@data["pace"]["prs_total"])
       assert n.commits == TeamPage.number(@data["pace"]["commits_main_ex_tales_forge"])
-      assert has_element?(view, "#stat-source[data-source=fallback]")
+      assert has_element?(view, "#stat-source-prs[data-source=fallback]")
       assert has_element?(view, "#pace-source[data-source=fallback]")
 
       # The feed going down after a live count drops both back together.
@@ -1113,5 +1117,162 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
   test "no secret values on the page", %{conn: conn} do
     {:ok, _view, html} = live(log_in_admin(conn), ~p"/team/presentation")
     refute html =~ ~r/xai-[A-Za-z0-9]{10,}|ghp_|API_KEY=/
+  end
+
+  describe "live numbers everywhere, data.json as a labelled fallback per group" do
+    doctest TalesForgeWeb.TeamLiveNumbers
+
+    setup %{conn: conn} do
+      on_exit(fn -> :ets.delete(PrFeed.Poller, :extras) end)
+      {:ok, conn: log_in_admin(conn)}
+    end
+
+    defp text(html, selector) do
+      html
+      |> LazyHTML.from_document()
+      |> LazyHTML.query(selector)
+      |> LazyHTML.text()
+      |> String.trim()
+    end
+
+    defp source(html, selector) do
+      html
+      |> LazyHTML.from_document()
+      |> LazyHTML.query(selector)
+      |> LazyHTML.attribute("data-source")
+      |> List.first()
+    end
+
+    test "nothing live: every group says 'as of' its date and charts name their window", %{
+      conn: conn
+    } do
+      {:ok, _view, html} = live(conn, ~p"/team/presentation")
+      d = TeamPage.data()
+
+      for id <- ~w(stat-source-tests stat-source-decisions pace-source-tests pace-source-decisions
+                   decisions-source spend-days-source latency-source persona-scores-source
+                   eval-source shadow-source spend-batches-source personas-series-source) do
+        assert source(html, "#" <> id) == "fallback", "#{id} is not marked fallback"
+        assert text(html, "#" <> id) =~ "as of ", "#{id} has no 'as of' label"
+      end
+
+      assert text(html, "#stat-decisions") =~ to_string(d["decisions"]["total"])
+      assert text(html, "#pace-decisions") =~ to_string(d["decisions"]["total"])
+      assert text(html, "#chart-prs-window") == "since 2026-10-07"
+      assert text(html, "#chart-commits-window") == "since 2026-10-07"
+      assert text(html, "#chart-decisions-window") =~ "since 2026-10-07"
+      assert text(html, "#chart-spend-days-window") == "last 7 days"
+      assert text(html, "#chart-latency-window") == "shadow test"
+      assert text(html, "#persona-scores-window") == "last batch"
+    end
+
+    test "GitHub groups go live from the feed's extras, headline and section agree", %{
+      conn: conn
+    } do
+      Extras.store(%{
+        tests: %{
+          tests: 1234,
+          doctests: 171,
+          failures: 0,
+          coverage_pct: 87.6,
+          run_id: 1,
+          sha: "f7f3abdc3785621a9ab94196eed222b2b59c0f7e",
+          at: "2026-10-10T02:57:00Z"
+        },
+        decisions: %{
+          total: 97,
+          by_date: [
+            %{"date" => "2026-10-06", "count" => 4},
+            %{"date" => "2026-10-10", "count" => 5}
+          ],
+          etag: nil,
+          fetched_at: ~U[2026-10-10 03:00:00Z]
+        },
+        refreshed_at: ~U[2026-10-10 03:00:00Z]
+      })
+
+      {:ok, view, html} = live(conn, ~p"/team/presentation")
+
+      assert text(html, "#stat-tests") =~ "1,405"
+      assert text(html, "#pace-tests") =~ "1,234 + 171"
+      assert text(html, "#pace-tests") =~ "87.6% coverage"
+      assert text(html, "#stat-decisions") =~ "97"
+      assert text(html, "#pace-decisions") =~ "97"
+      assert source(html, "#stat-source-tests") == "live"
+      assert text(html, "#stat-source-tests") =~ "live from CI on main (f7f3abd)"
+      assert text(html, "#stat-source-decisions") =~ "live from decisions.md on GitHub"
+      # The decisions chart is since 2026-10-07: the 6 Oct entries are counted as earlier.
+      assert text(html, "#chart-decisions-window") =~ "(4 earlier)"
+
+      # A new feed snapshot re-reads the extras.
+      Extras.store(%{Extras.current() | decisions: %{Extras.current().decisions | total: 98}})
+      PrFeed.publish(PrFeed.empty(:ok, DateTime.utc_now()))
+      assert render(view) |> text("#pace-decisions") =~ "98"
+    end
+
+    test "database groups go live: costs (last 7 days), intent latency (last 7 days), persona scores",
+         %{conn: conn} do
+      now = DateTime.utc_now()
+
+      for {ms, cost} <- [{200, 1_500_000}, {300, 500_000}, {900, 0}] do
+        Repo.insert!(%AICall{
+          purpose: "intent",
+          status: "ok",
+          call_type: "jev",
+          model: "jev",
+          latency_ms: ms,
+          cost_micro_usd: cost,
+          started_at: now
+        })
+      end
+
+      {:ok, session} =
+        TalesForge.GameSessions.create_session(%{name: "Live", adventure_id: "tin_valley"})
+
+      run =
+        Repo.insert!(%PlaytestRun{
+          game_session_id: session.id,
+          persona: "hawk",
+          module: "tin_valley",
+          build: "x",
+          status: "finished",
+          turn_limit: 2,
+          started_at: DateTime.truncate(now, :second)
+        })
+
+      for {turn, score, conf} <- [{1, 4.0, 0.8}, {2, 2.0, 0.8}] do
+        Repo.insert!(%PlaytestScore{
+          playtest_run_id: run.id,
+          kind: "turn_affect",
+          turn_number: turn,
+          overall: score,
+          confidence: conf,
+          model: "jev",
+          rubric_version: "x"
+        })
+      end
+
+      {:ok, _view, html} = live(conn, ~p"/team/presentation")
+
+      assert source(html, "#spend-days-source") == "live"
+      assert text(html, "#spend-days-source") =~ "live · last 7 days"
+      assert text(html, "#chart-spend-days") =~ "$2.00"
+      assert source(html, "#latency-source") == "live"
+      assert text(html, "#chart-latency-window") == "last 7 days"
+      assert text(html, "#latency-source") =~ "live · last 7 days"
+      assert source(html, "#persona-scores-source") == "live"
+      assert text(html, "#persona-scores-window") == "since 2026-10-07"
+      assert text(html, "#persona-now-hawk") =~ "3.00/5"
+      # No live source for the eval set: still labelled.
+      assert source(html, "#eval-source") == "fallback"
+    end
+
+    test "every group has a source, an as_of and a window" do
+      for {name, group} <- TeamLiveNumbers.fallback(TeamPage.data()) do
+        assert group.source == :fallback, "#{name}"
+        assert is_binary(group.as_of), "#{name} has no as_of"
+        assert group.window in [:last_7_days, :since_inception, :snapshot]
+      end
+    end
   end
 end
