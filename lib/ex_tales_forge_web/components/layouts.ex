@@ -181,7 +181,7 @@ defmodule TalesForgeWeb.Layouts do
 
   def play(assigns) do
     ~H"""
-    <div class="play-shell flex h-dvh flex-col overflow-hidden">
+    <div class="play-shell flex h-dvh flex-col overflow-y-auto lg:overflow-hidden">
       {render_slot(@inner_block)}
       <.flash_group flash={@flash} />
     </div>

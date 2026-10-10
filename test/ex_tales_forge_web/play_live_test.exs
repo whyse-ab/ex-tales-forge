@@ -195,6 +195,22 @@ defmodule TalesForgeWeb.PlayLiveTest do
     assert has_element?(view, "#act-button:not([disabled])", "Act")
   end
 
+  test "the story fills the phone screen and has a New text below button", %{conn: conn} do
+    {:ok, session} =
+      GameSessions.create_session(%{name: "Scroll Tin Valley", adventure_id: "tin_valley"})
+
+    {:ok, view, _html} = live(conn, ~p"/play/#{session.id}")
+
+    assert has_element?(view, "#story-column[class*='100dvh']")
+    assert has_element?(view, "#story-scroll[phx-hook=StoryScroll]")
+
+    assert has_element?(
+             view,
+             ~s(#story-new-text-region[phx-update="ignore"][aria-live="polite"] #story-new-text[hidden][aria-controls="story-scroll"]),
+             "New text below"
+           )
+  end
+
   defp clarifying_intent do
     %{
       "overall_intent" => "go somewhere",
