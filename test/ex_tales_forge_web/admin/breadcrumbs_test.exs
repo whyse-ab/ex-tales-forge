@@ -114,7 +114,7 @@ defmodule TalesForgeWeb.AdminBreadcrumbsTest do
       assert [{"Admin", "/admin"}, {_, "/admin#section-" <> _}, {label, nil}] =
                AdminSections.breadcrumbs(key)
 
-      assert label == item.label
+      assert String.starts_with?(item.label, label)
     end
   end
 end

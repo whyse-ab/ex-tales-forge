@@ -86,6 +86,13 @@ defmodule TalesForgeWeb.Layouts do
     ~H"""
     <%!-- .admin-shell opts the page into the theme toggle (paper palettes in app.css) --%>
     <div class="admin-shell paper-home min-h-dvh">
+      <a
+        id="skip-to-content"
+        href="#admin-main"
+        class="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-[var(--paper-panel)] focus:px-3 focus:py-2 focus:text-[var(--paper-ink)] focus:ring-2"
+      >
+        Skip to content
+      </a>
       <header class="border-b border-[var(--paper-rule)] bg-[var(--paper-panel)] px-3 py-3 sm:px-6">
         <div class={["mx-auto flex items-center justify-between", admin_width(@wide)]}>
           <div>
@@ -104,7 +111,7 @@ defmodule TalesForgeWeb.Layouts do
         <aside class="min-w-0 rounded-lg border border-[var(--paper-rule)] bg-[var(--paper-panel)] p-1.5 lg:sticky lg:top-4 lg:self-start lg:p-3">
           <.nav active={@active} />
         </aside>
-        <main class="min-w-0 space-y-4">
+        <main id="admin-main" tabindex="-1" class="min-w-0 space-y-4">
           <.admin_breadcrumbs active={@active} page={@page} />
           {render_slot(@inner_block)}
         </main>

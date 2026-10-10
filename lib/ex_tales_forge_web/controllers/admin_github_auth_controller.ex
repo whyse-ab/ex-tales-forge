@@ -18,7 +18,13 @@ defmodule TalesForgeWeb.AdminGithubAuthController do
 
   @doc "Starts the OAuth flow: redirects to GitHub."
   @spec request(Plug.Conn.t(), map()) :: Plug.Conn.t()
-  def request(conn, _params) do
+  def request(conn, params) do
+    conn =
+      case AdminAuth.safe_return_to(params["return_to"]) do
+        nil -> conn
+        path -> put_session(conn, "admin_return_to", path)
+      end
+
     case GitHub.authorize_url() do
       {:ok, %{url: url, state: state}} ->
         conn
@@ -39,7 +45,7 @@ defmodule TalesForgeWeb.AdminGithubAuthController do
 
     case GitHub.callback(params, state) do
       {:ok, %{login: login} = identity} ->
-        return_to = get_session(conn, "admin_return_to") || ~p"/admin"
+        return_to = AdminAuth.safe_return_to(get_session(conn, "admin_return_to")) || ~p"/admin"
 
         conn
         |> AdminAuth.put_github_session(identity)

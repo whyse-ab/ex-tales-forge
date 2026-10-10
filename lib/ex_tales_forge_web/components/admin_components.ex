@@ -44,9 +44,12 @@ defmodule TalesForgeWeb.AdminComponents do
     </style>
     <nav id="admin-nav" aria-label="Admin sections" class="admin-nav text-sm">
       <details id="admin-nav-menu" class="group/menu">
-        <summary class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded px-2.5 py-1.5 text-[var(--paper-ink)] hover:bg-[var(--paper-bg)] [&::-webkit-details-marker]:hidden">
+        <summary
+          aria-label="Admin menu"
+          class="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded px-2.5 py-1.5 text-[var(--paper-ink)] hover:bg-[var(--paper-bg)] [&::-webkit-details-marker]:hidden"
+        >
           <span class="font-semibold">Menu</span>
-          <span class="min-w-0 truncate text-[var(--paper-muted)]">
+          <span class="min-w-0 truncate text-[var(--paper-muted)]" aria-hidden="true">
             {@current}
             <span aria-hidden="true" class="ml-1 inline-block group-open/menu:rotate-180">▾</span>
           </span>
@@ -149,6 +152,7 @@ defmodule TalesForgeWeb.AdminComponents do
       target={@new_tab && "_blank"}
       rel={@new_tab && "noopener noreferrer"}
       aria-current={@active && "page"}
+      aria-label={@label}
       class={[
         "block min-h-11 rounded px-2.5 py-2.5 leading-snug lg:min-h-0 lg:px-3 lg:py-1.5",
         @active && "bg-[var(--paper-accent)] text-[var(--paper-on-accent)]",

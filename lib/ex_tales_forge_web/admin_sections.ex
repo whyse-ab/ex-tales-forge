@@ -47,8 +47,8 @@ defmodule TalesForgeWeb.AdminSections do
       title: "Founders",
       line: "Who we are, the founder survey, and what we have decided.",
       items: [
-        %{label: "Founders' page", path: "/team", kind: :page, key: "team", nav: true},
-        %{label: "Presentation", path: "/team/presentation", kind: :page, nav: true},
+        %{label: "Founders' page (/team) ↗", path: "/team", kind: :page, key: "team", nav: true},
+        %{label: "Presentation (/team) ↗", path: "/team/presentation", kind: :page, nav: true},
         %{
           label: "Founder survey",
           path: "/admin/founders/survey",
@@ -58,13 +58,13 @@ defmodule TalesForgeWeb.AdminSections do
           nav: true
         },
         %{
-          label: "Decision queue",
+          label: "Decision queue (page)",
           path: "/admin/founders/decisions",
           kind: :live,
           key: "decisions",
           nav: true
         },
-        %{label: "Decision log", path: "/admin/docs/decisions.md", kind: :live},
+        %{label: "Decision log (doc)", path: "/admin/docs/decisions.md", kind: :live},
         %{label: "Roadmap 2027", path: "/admin/docs/roadmap-2027.md", kind: :live}
       ]
     },
@@ -91,12 +91,17 @@ defmodule TalesForgeWeb.AdminSections do
         %{label: "Personas", path: "/admin/docs/personas.md", kind: :live},
         %{label: "Jev scoring", path: "/admin/docs/jev-scoring.md", kind: :live},
         %{
-          label: "Eval and intent results",
+          label: "Eval and intent results (presentation) ↗",
           path: "/team/presentation",
           fragment: "intent-compare",
           kind: :page
         },
-        %{label: "Gentry", path: "/team/presentation", fragment: "gentry", kind: :page},
+        %{
+          label: "Gentry (presentation) ↗",
+          path: "/team/presentation",
+          fragment: "gentry",
+          kind: :page
+        },
         %{
           label: "Game sessions",
           path: "/admin/play/sessions",
@@ -119,15 +124,20 @@ defmodule TalesForgeWeb.AdminSections do
           key: "oban",
           nav: true
         },
-        %{label: "Live PR and deploy feed", path: "/team", fragment: "live", kind: :page},
+        %{
+          label: "Live PR and deploy feed (/team) ↗",
+          path: "/team",
+          fragment: "live",
+          kind: :page
+        },
         %{label: "Health check", path: "/health", kind: :page},
         %{
-          label: "Logs: production",
+          label: "Logs (production)",
           path: "https://fly.io/apps/tales-forge/monitoring",
           kind: :external
         },
         %{
-          label: "Logs: playtest",
+          label: "Logs (playtest)",
           path: "https://fly.io/apps/tales-forge-playtest/monitoring",
           kind: :external
         }
@@ -152,7 +162,7 @@ defmodule TalesForgeWeb.AdminSections do
         },
         %{label: "Call types", path: "/admin/docs/call-types.md", kind: :live},
         %{
-          label: "Call-type metrics",
+          label: "Call-type metrics (presentation) ↗",
           path: "/team/presentation",
           fragment: "rule-call-types",
           kind: :page
@@ -259,6 +269,7 @@ defmodule TalesForgeWeb.AdminSections do
 
       {section, page} ->
         item = Enum.find(section.items, &(&1[:key] == active))
+        item = %{item | label: crumb_label(item.label)}
         head = [{"Admin", "/admin"}, {section.title, "/admin#section-#{section.id}"}]
 
         if page in [nil, item.label],
@@ -266,6 +277,10 @@ defmodule TalesForgeWeb.AdminSections do
           else: head ++ [{item.label, href(item, role)}, {page, nil}]
     end
   end
+
+  # A nav label without its "(page)" / "↗" markers, for the breadcrumbs.
+  defp crumb_label(label),
+    do: label |> String.replace(~r/\s*\([^)]*\)|\s*↗/u, "") |> String.trim()
 
   @doc """
   The URL of `item` on this app: its path (and `#fragment`), or for a page

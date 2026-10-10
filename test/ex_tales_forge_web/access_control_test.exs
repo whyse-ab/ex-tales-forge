@@ -57,7 +57,7 @@ defmodule TalesForgeWeb.AccessControlTest do
             "/admin/code-docs/index.html"
           ] do
         conn = get(build_conn(), path)
-        assert redirected_to(conn) == "/admin/login", "#{path} is reachable logged out"
+        assert redirected_to(conn) =~ ~r{^/admin/login(\?|$)}, "#{path} is reachable logged out"
       end
     end
 
@@ -73,7 +73,7 @@ defmodule TalesForgeWeb.AccessControlTest do
       for %{verb: verb, path: path} <- routes do
         conn = dispatch(build_conn(), @endpoint, verb, concrete(path), %{})
 
-        assert redirected_to(conn) == "/admin/login",
+        assert redirected_to(conn) =~ ~r{^/admin/login(\?|$)},
                "#{verb |> to_string() |> String.upcase()} #{path} is reachable logged out"
       end
     end
@@ -92,7 +92,7 @@ defmodule TalesForgeWeb.AccessControlTest do
             "/admin",
             "/admin/operate/costs"
           ] do
-        assert {:error, {:redirect, %{to: "/admin/login"}}} = live(build_conn(), path)
+        assert {:error, {:redirect, %{to: "/admin/login" <> _}}} = live(build_conn(), path)
       end
     end
 
@@ -100,13 +100,13 @@ defmodule TalesForgeWeb.AccessControlTest do
     # themselves (and the live_session hooks) must refuse.
     test "a LiveView mounted without the router plugs still refuses" do
       for view <- [TalesForgeWeb.HomeLive, TalesForgeWeb.AdminLive.CostsLive] do
-        assert {:error, {:redirect, %{to: "/admin/login"}}} =
+        assert {:error, {:redirect, %{to: "/admin/login" <> _}}} =
                  live_isolated(build_conn(), view, session: %{})
       end
 
       socket = %Socket{endpoint: @endpoint}
 
-      assert {:halt, %Socket{redirected: {:redirect, %{to: "/admin/login"}}}} =
+      assert {:halt, %Socket{redirected: {:redirect, %{to: "/admin/login" <> _}}}} =
                Hooks.on_mount(:require_team_member, %{}, %{}, socket)
 
       assert {:halt, _} = TalesForgeWeb.LiveAuth.on_mount(:default, %{}, %{}, socket)
@@ -117,7 +117,9 @@ defmodule TalesForgeWeb.AccessControlTest do
         {:ok, session} = GameSessions.create_session(%{name: "Gate", adventure_id: "tin_valley"})
         jobs_before = Repo.aggregate(Oban.Job, :count)
 
-        assert build_conn() |> get(~p"/play/#{session.id}") |> redirected_to() == "/admin/login"
+        assert build_conn() |> get(~p"/play/#{session.id}") |> redirected_to() =~
+                 ~r{^/admin/login(\?|$)}
+
         assert {:error, {:redirect, _}} = live(build_conn(), ~p"/play/#{session.id}")
 
         assert Repo.aggregate(Oban.Job, :count) == jobs_before
@@ -160,10 +162,10 @@ defmodule TalesForgeWeb.AccessControlTest do
       conn = log_in_non_member(build_conn())
 
       for path <- ["/", "/play/#{@id}", "/admin", "/admin/code-docs/"] do
-        assert conn |> get(path) |> redirected_to() == "/admin/login"
+        assert conn |> get(path) |> redirected_to() =~ ~r{^/admin/login(\?|$)}
       end
 
-      assert {:error, {:redirect, %{to: "/admin/login"}}} = live(conn, "/")
+      assert {:error, {:redirect, %{to: "/admin/login" <> _}}} = live(conn, "/")
     end
   end
 

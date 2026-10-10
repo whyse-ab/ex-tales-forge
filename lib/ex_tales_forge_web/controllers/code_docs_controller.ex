@@ -58,6 +58,13 @@ defmodule TalesForgeWeb.CodeDocsController do
           "Code docs are not built here. Run `mix docs -f html -o priv/code_docs`."
         )
 
+      File.regular?(file) and Path.extname(file) == ".html" ->
+        conn
+        |> allow_js()
+        |> put_resp_content_type("text/html")
+        |> put_resp_header("cache-control", "private, max-age=300")
+        |> send_resp(200, with_back_link(File.read!(file)))
+
       File.regular?(file) ->
         conn
         |> allow_js()
@@ -67,6 +74,25 @@ defmodule TalesForgeWeb.CodeDocsController do
 
       true ->
         not_found(conn, "Not Found")
+    end
+  end
+
+  @back_link ~s|<nav id="admin-back" aria-label="Breadcrumb" style="position:fixed;right:.75rem;bottom:.75rem;z-index:1000;padding:.4rem .75rem;border-radius:999px;background:#3b2a1a;color:#fff;font:600 13px/1.3 system-ui,sans-serif;box-shadow:0 2px 6px rgba(0,0,0,.25)"><a href="/admin" style="color:#fff">Admin</a> › <a href="/admin#section-develop" style="color:#fff">Develop</a> › <span aria-current="page">Code docs</span></nav>|
+
+  @doc """
+  ExDoc's HTML with a small fixed "Admin › Develop › Code docs" breadcrumb
+  added right after `<body ...>`, the way back to the admin area (ExDoc has no
+  admin layout). HTML without a body tag is returned unchanged.
+  """
+  @spec with_back_link(String.t()) :: String.t()
+  def with_back_link(html) do
+    case Regex.run(~r/<body[^>]*>/i, html, return: :index) do
+      [{start, len}] ->
+        {head, rest} = String.split_at(html, start + len)
+        head <> @back_link <> rest
+
+      nil ->
+        html
     end
   end
 

@@ -25,6 +25,7 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
      |> assign(:docs, docs)
      |> assign(:query, "")
      |> assign(:selected, nil)
+     |> assign(:missing, nil)
      |> assign(:body_html, nil)}
   end
 
@@ -32,17 +33,18 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
   def handle_params(%{"path" => segments}, _uri, socket) do
     path = "docs/" <> Enum.join(segments, "/")
 
-    case Collab.get_doc_by_path(path) do
+    case Collab.get_or_fetch_doc(path) do
       nil ->
+        # Stay on the doc's URL and say so in the doc's place, never the list.
         {:noreply,
          socket
-         |> put_flash(:error, "#{path} is not in the docs index. Sync from the decision queue.")
-         |> push_patch(to: ~p"/admin/docs")}
+         |> assign(page_title: "Doc not found", selected: nil, body_html: nil, missing: path)}
 
       doc ->
         {:noreply,
          socket
          |> assign(:page_title, doc.title)
+         |> assign(:missing, nil)
          |> assign(:selected, doc)
          # The card heading already shows the title; don't repeat the doc's own H1.
          |> assign(
@@ -54,7 +56,8 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
   end
 
   def handle_params(_params, _uri, socket),
-    do: {:noreply, assign(socket, page_title: "Docs", selected: nil, body_html: nil)}
+    do:
+      {:noreply, assign(socket, page_title: "Docs", selected: nil, body_html: nil, missing: nil)}
 
   @impl true
   def handle_event("search", %{"q" => q}, socket) do
@@ -69,10 +72,20 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.admin flash={@flash} active="docs" wide>
+    <Layouts.admin
+      flash={@flash}
+      active="docs"
+      page={(@selected && @selected.title) || (@missing && "Not found")}
+      wide
+    >
       <header class="space-y-1">
-        <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Shared docs</h2>
-        <p class="text-[var(--paper-muted)]">Indexed from the tales-forge-docs repo.</p>
+        <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">
+          {(@selected && @selected.title) || "Shared docs"}
+        </h2>
+        <p class="text-[var(--paper-muted)]">
+          <span :if={@selected} class="font-mono text-xs">{@selected.path} · </span>
+          Indexed from the tales-forge-docs repo.
+        </p>
       </header>
 
       <form id="doc-search" phx-change="search" phx-submit="search" class="max-w-md">
@@ -90,7 +103,7 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
         <details
           id="doc-files-mobile"
           class="min-w-0 rounded-lg border border-[var(--paper-rule)] bg-[var(--paper-panel)] lg:hidden"
-          open={is_nil(@selected)}
+          open={is_nil(@selected) and is_nil(@missing)}
         >
           <summary class="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-sm">
             <span class="font-serif font-semibold text-[var(--paper-ink)]">
@@ -115,10 +128,14 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
           <.doc_list docs={@docs} selected={@selected} />
         </.section_card>
 
+        <%!-- On a phone the doc comes first, the file list after it --%>
         <.section_card
           id="doc-preview"
           title={(@selected && @selected.title) || "Preview"}
-          class="-mx-3 scroll-mt-2 rounded-none border-x-0 px-4 py-5 sm:mx-0 sm:rounded-lg sm:border-x sm:px-6"
+          class={[
+            "-mx-3 scroll-mt-2 rounded-none border-x-0 px-4 py-5 sm:mx-0 sm:rounded-lg sm:border-x sm:px-6",
+            (@selected || @missing) && "max-lg:order-first"
+          ]}
         >
           <%= if @selected do %>
             <%!-- id changes per doc + phx-update="ignore": LiveView swaps the whole
@@ -132,7 +149,19 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
               {@body_html}
             </article>
           <% else %>
-            <p class="text-sm text-[var(--paper-muted)]">Select a document.</p>
+            <div :if={@missing} id="doc-missing" class="space-y-2 text-sm">
+              <p class="text-[var(--paper-ink)]">
+                <span class="font-mono">{@missing}</span>
+                isn't in the docs index, and GitHub doesn't have it either.
+              </p>
+              <a
+                href={"https://github.com/whyse-ab/tales-forge-docs/blob/main/" <> @missing}
+                class="text-[var(--paper-accent)] underline"
+              >
+                Look for it on GitHub ↗
+              </a>
+            </div>
+            <p :if={!@missing} class="text-sm text-[var(--paper-muted)]">Select a document.</p>
           <% end %>
         </.section_card>
       </div>

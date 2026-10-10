@@ -178,6 +178,27 @@ defmodule TalesForge.Collab do
   def get_doc_by_path(path), do: Repo.get_by(Doc, path: path)
 
   @doc """
+  The doc at `path` (`docs/<name>.md`): from the index, or, when it isn't
+  indexed yet, fetched from GitHub with GITHUB_DOCS_TOKEN (config
+  `:github_docs_token`) and indexed. nil when neither has it.
+  """
+  @spec get_or_fetch_doc(String.t()) :: Ecto.Schema.t() | nil
+  def get_or_fetch_doc(path) do
+    with nil <- get_doc_by_path(path),
+         token when is_binary(token) and token != "" <-
+           Application.get_env(:ex_tales_forge, :github_docs_token),
+         true <-
+           String.match?(path, ~r{\Adocs/[A-Za-z0-9._/-]+\.md\z}) and
+             not String.contains?(path, ".."),
+         {:ok, _} <- Importer.import_doc_from_github(token, path) do
+      get_doc_by_path(path)
+    else
+      %Doc{} = doc -> doc
+      _ -> nil
+    end
+  end
+
+  @doc """
   The docs and decisions in the database, for `TalesForge.Collab.Links.rewrite/3`
   (which links in a doc can open in the admin).
   """

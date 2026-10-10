@@ -21,6 +21,34 @@ defmodule TalesForge.AdminAuth do
   @spec session_key() :: String.t()
   def session_key, do: @session_key
 
+  @doc """
+  `path` when it is a safe place to return to after sign-in: a path on this
+  app (starts with one `/`, no scheme, host, backslash or control
+  characters), with its query. Anything else is nil.
+
+      iex> TalesForge.AdminAuth.safe_return_to("/admin/play/runs?x=1")
+      "/admin/play/runs?x=1"
+      iex> TalesForge.AdminAuth.safe_return_to("//evil.example/x")
+      nil
+      iex> TalesForge.AdminAuth.safe_return_to("https://evil.example/")
+      nil
+      iex> TalesForge.AdminAuth.safe_return_to("/admin/login")
+      nil
+  """
+  @spec safe_return_to(term()) :: String.t() | nil
+  def safe_return_to("/" <> rest = path) do
+    cond do
+      String.starts_with?(rest, ["/", "\\"]) -> nil
+      String.contains?(path, ["\\", "\r", "\n", "\t"]) -> nil
+      String.length(path) > 2000 -> nil
+      String.starts_with?(path, ["/admin/login", "/admin/auth/"]) -> nil
+      URI.parse(path).host != nil -> nil
+      true -> path
+    end
+  end
+
+  def safe_return_to(_path), do: nil
+
   @doc "Session key holding the signed-in user's GitHub login."
   @spec github_login_key() :: String.t()
   def github_login_key, do: @github_login_key

@@ -81,6 +81,23 @@ defmodule TalesForge.Collab.Importer do
     end
   end
 
+  @doc """
+  Fetches one doc (`docs/<name>.md`) from GitHub and upserts it into the docs
+  index, for a doc that is linked but not indexed yet. `{:error, reason}` when
+  GitHub doesn't have it or can't be reached.
+  """
+  @spec import_doc_from_github(String.t(), String.t(), keyword()) ::
+          {:ok, term()} | {:error, term()}
+  def import_doc_from_github(token, "docs/" <> _ = path, opts \\ []) when is_binary(token) do
+    owner = Keyword.get(opts, :owner, @github_owner)
+    repo = Keyword.get(opts, :repo, @github_repo)
+    ref = Keyword.get(opts, :ref, "main")
+
+    with {:ok, content} <- fetch_github_file(token, owner, repo, path, ref) do
+      upsert_doc_markdown(content, path)
+    end
+  end
+
   defp import_github_file({token, owner, repo, ref}, file, upsert) do
     case fetch_github_file(token, owner, repo, file["path"], ref) do
       {:ok, content} -> upsert.(content, file["path"])
