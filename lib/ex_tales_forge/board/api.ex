@@ -104,7 +104,7 @@ defmodule TalesForge.Board.Api do
 
   defp images(_idea), do: []
 
-  @doc "A card as JSON (everything loaded), with its image links (`images`)."
+  @doc "A card as JSON (everything loaded), with its tags (`tags`: the founder tag and the free-text tags; `free_tags`: only the free-text tags) and its image links (`images`)."
   @spec card(Idea.t()) :: map()
   def card(%Idea{} = idea) do
     %{
@@ -114,6 +114,8 @@ defmodule TalesForge.Board.Api do
       "column" => idea.column,
       "column_label" => Transitions.label(idea.column),
       "author" => idea.author,
+      "tags" => TalesForge.Board.Tags.of(idea),
+      "free_tags" => idea.tags || [],
       "score" => Float.round(idea.score * 1.0, 3),
       "net_votes" => Board.net_votes(idea),
       "downvoted" => Board.downvoted?(idea),

@@ -30,6 +30,7 @@ defmodule TalesForge.Board do
     Mentions,
     Ping,
     Ranking,
+    Tags,
     Transition,
     Transitions,
     Vote
@@ -402,6 +403,43 @@ defmodule TalesForge.Board do
 
   def add_link(%Idea{}, _added_by, _attrs),
     do: {:error, "Bots add the links: Bobby the PR, Gentry or Bobby the playtest run."}
+
+  @doc """
+  Adds a free-text tag to a card (`TalesForge.Board.Tags`: trimmed, lower
+  case, at most 24 characters). Only founders add tags. A tag that the card
+  has already, or its founder tag, changes nothing.
+  """
+  @spec add_tag(Idea.t(), String.t(), String.t()) :: {:ok, Idea.t()} | error()
+  def add_tag(%Idea{}, "bot:" <> _, _text), do: {:error, "Founders add the tags."}
+
+  def add_tag(%Idea{} = idea, _founder, text) do
+    with {:ok, tag} <- Tags.normalize(text) do
+      if tag in Tags.of(idea),
+        do: {:ok, idea},
+        else:
+          idea
+          |> Idea.update_changeset(%{tags: idea.tags ++ [tag]})
+          |> Repo.update()
+          |> after_update()
+    end
+  end
+
+  @doc """
+  Removes a free-text tag from a card. Only founders remove tags. The
+  founder tag stays: it comes from the author.
+  """
+  @spec remove_tag(Idea.t(), String.t(), String.t()) :: {:ok, Idea.t()} | error()
+  def remove_tag(%Idea{}, "bot:" <> _, _tag), do: {:error, "Founders remove the tags."}
+
+  def remove_tag(%Idea{} = idea, _founder, tag) do
+    if tag in idea.tags,
+      do:
+        idea
+        |> Idea.update_changeset(%{tags: List.delete(idea.tags, tag)})
+        |> Repo.update()
+        |> after_update(),
+      else: {:ok, idea}
+  end
 
   @doc """
   Adds images to a card (`TalesForge.Images`): `images` is a list of image
