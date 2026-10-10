@@ -99,6 +99,7 @@ defmodule TalesForgeWeb.Router do
       live "/play/sessions/:id/turns", TurnLive.Index, :index
       # Operate
       live "/operate/costs", CostsLive, :index
+      live "/operate/code-heat", CodeHeatLive, :index
       # Archive
       live "/archive/npc-definitions", NpcDefinitionLive.Index, :index
       live "/archive/npc-definitions/:id", NpcDefinitionLive.Show, :show

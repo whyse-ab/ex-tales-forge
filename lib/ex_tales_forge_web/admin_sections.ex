@@ -127,6 +127,13 @@ defmodule TalesForgeWeb.AdminSections do
           key: "oban",
           nav: true
         },
+        %{
+          label: "Code heat map",
+          path: "/admin/operate/code-heat",
+          kind: :live,
+          key: "code_heat",
+          nav: true
+        },
         %{label: "Health check", path: "/health", kind: :page},
         %{
           label: "Logs",
