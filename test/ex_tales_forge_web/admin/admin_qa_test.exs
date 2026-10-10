@@ -81,11 +81,11 @@ defmodule TalesForgeWeb.AdminQaTest do
 
   describe "doc links open the doc" do
     setup %{conn: conn} do
-      for path <- ~w(decisions.md roadmap-2027.md personas.md jev-scoring.md call-types.md
-                     coding-standards.md environments.md architecture-baseline-2026-10-09.md
-                     design-skills-economy.md design-stateful-world.md) do
-        {:ok, _} =
-          Importer.upsert_doc_markdown("# T #{path}\n\nBody of #{path}.", "docs/" <> path)
+      for section <- AdminSections.sections(),
+          item <- section.items,
+          String.starts_with?(item.path, "/admin/docs/") do
+        path = "docs/" <> String.replace_prefix(item.path, "/admin/docs/", "")
+        {:ok, _} = Importer.upsert_doc_markdown("# T #{path}\n\nBody of #{path}.", path)
       end
 
       {:ok, conn: log_in_admin(conn)}

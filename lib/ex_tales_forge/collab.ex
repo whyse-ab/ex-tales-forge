@@ -182,7 +182,7 @@ defmodule TalesForge.Collab do
   indexed yet, fetched from GitHub with GITHUB_DOCS_TOKEN (config
   `:github_docs_token`) and indexed. nil when neither has it.
   """
-  @spec get_or_fetch_doc(String.t()) :: Doc.t() | nil
+  @spec get_or_fetch_doc(String.t()) :: %Doc{} | nil
   def get_or_fetch_doc(path) do
     with nil <- get_doc_by_path(path),
          token when is_binary(token) and token != "" <-
