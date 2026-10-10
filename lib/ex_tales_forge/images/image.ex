@@ -3,7 +3,7 @@ defmodule TalesForge.Images.Image do
   One image in the shared image store (`TalesForge.Images`). The image
   belongs to one idea board card (`idea_id`) or to one team chat message
   (`message_id`). The bytes are in `data`. A normal query does not load
-  `data`, so lists of images stay small; `TalesForge.Images.data/1` reads it.
+  `data`, so lists of images stay small; `TalesForge.Images.get_with_data/1` reads it.
   """
 
   use Ecto.Schema
