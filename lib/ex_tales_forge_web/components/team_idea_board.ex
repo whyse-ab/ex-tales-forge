@@ -42,6 +42,9 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
      |> assign_new(:errors, fn -> %{} end)
      |> assign_new(:form_error, fn -> nil end)
      |> assign_new(:open_id, fn -> nil end)
+     |> assign_new(:comment_for, fn -> nil end)
+     |> assign_new(:downvote_for, fn -> nil end)
+     |> assign_new(:editing, fn -> nil end)
      |> load()}
   end
 
@@ -75,6 +78,18 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
     |> Enum.map_join("; ", fn {k, v} -> "#{k} #{Enum.join(v, ", ")}" end)
   end
 
+  # A refused move (for example a drag that needs a comment) opens the card,
+  # so the founder sees the reason; a done move closes the comment box.
+  defp move(socket, id, to, note) do
+    case with_idea(socket, id, &Board.move(&1, actor(socket), to, note)) do
+      {:noreply, %{assigns: %{errors: %{^id => _}}} = s} ->
+        {:noreply, s |> assign(:open_id, id) |> load()}
+
+      {:noreply, s} ->
+        {:noreply, s |> assign(:comment_for, nil) |> load()}
+    end
+  end
+
   defp with_idea(socket, id, fun) do
     case Board.get_idea(id) do
       %Idea{} = idea -> result(socket, id, fun.(idea))
@@ -87,7 +102,35 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
     do: {:noreply, socket |> assign(:open_id, id) |> load()}
 
   def handle_event("close", _params, socket),
-    do: {:noreply, assign(socket, open_id: nil, open: nil)}
+    do:
+      {:noreply,
+       assign(socket, open_id: nil, open: nil, comment_for: nil, downvote_for: nil, editing: nil)}
+
+  # Back / Forward / On hold. A move that needs a comment opens the comment box.
+  def handle_event("step", %{"card_id" => id, "to" => to} = params, socket) do
+    if params["needs_comment"] == "true",
+      do: {:noreply, socket |> assign(comment_for: {id, to}) |> load()},
+      else: move(socket, id, to, nil)
+  end
+
+  def handle_event("cancel_comment", _params, socket),
+    do: {:noreply, socket |> assign(:comment_for, nil) |> load()}
+
+  def handle_event("downvote", %{"card_id" => id, "reason" => reason}, socket) do
+    case with_idea(socket, id, &Board.vote(&1, socket.assigns.founder, -1, reason)) do
+      {:noreply, %{assigns: %{errors: %{^id => _}}}} = answer -> answer
+      {:noreply, s} -> {:noreply, s |> assign(:downvote_for, nil) |> load()}
+    end
+  end
+
+  def handle_event("cancel_downvote", _params, socket),
+    do: {:noreply, socket |> assign(:downvote_for, nil) |> load()}
+
+  def handle_event("edit_refinement", %{"card_id" => id}, socket),
+    do: {:noreply, socket |> assign(:editing, id) |> load()}
+
+  def handle_event("cancel_refinement", _params, socket),
+    do: {:noreply, socket |> assign(:editing, nil) |> load()}
 
   def handle_event("add", %{"idea" => attrs}, socket) do
     case Board.create_idea(socket.assigns.founder, attrs) do
@@ -100,8 +143,20 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   # (empty) value attribute overrides phx-value-value in the browser.
   def handle_event("vote", %{"card_id" => id, "vote" => vote}, socket) do
     case Integer.parse(to_string(vote)) do
-      {v, ""} when v in [1, -1] ->
-        with_idea(socket, id, &Board.vote(&1, socket.assigns.founder, v))
+      # A new -1 needs a reason: open the card with the reason box.
+      {-1, ""} ->
+        case Board.get_idea(id) do
+          %Idea{} = idea ->
+            if Board.vote_of(idea, socket.assigns.founder) == -1,
+              do: with_idea(socket, id, &Board.vote(&1, socket.assigns.founder, -1)),
+              else: {:noreply, socket |> assign(open_id: id, downvote_for: id) |> load()}
+
+          nil ->
+            result(socket, id, {:error, "That card is gone."})
+        end
+
+      {1, ""} ->
+        with_idea(socket, id, &Board.vote(&1, socket.assigns.founder, 1))
 
       _ ->
         result(socket, id, {:error, "A vote is +1 or -1."})
@@ -110,20 +165,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
 
   def handle_event("move", %{"card_id" => id, "to" => to} = params, socket) do
     note = params["note"] |> to_string() |> String.trim()
-
-    case with_idea(
-           socket,
-           id,
-           &Board.move(&1, actor(socket), to, if(note == "", do: nil, else: note))
-         ) do
-      # A refused move (for example a drag that needs a comment) opens the
-      # card, so the founder sees the reason and the comment box.
-      {:noreply, %{assigns: %{errors: %{^id => _}}} = s} ->
-        {:noreply, s |> assign(:open_id, id) |> load()}
-
-      other ->
-        other
-    end
+    move(socket, id, to, if(note == "", do: nil, else: note))
   end
 
   def handle_event("answer_pr", %{"card_id" => id, "answer" => answer} = params, socket) do
@@ -164,7 +206,11 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
     }
 
     attrs = Map.reject(attrs, fn {_k, v} -> v in [nil, ""] end)
-    with_idea(socket, id, &Board.refine(&1, attrs))
+
+    case with_idea(socket, id, &Board.refine(&1, attrs)) do
+      {:noreply, %{assigns: %{errors: %{^id => _}}}} = answer -> answer
+      {:noreply, s} -> {:noreply, s |> assign(:editing, nil) |> load()}
+    end
   end
 
   @impl true
@@ -272,6 +318,9 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
             founder={@founder}
             myself={@myself}
             error={@errors[@open.id]}
+            comment_for={@comment_for}
+            downvote_for={@downvote_for}
+            editing={@editing}
           />
         </.focus_wrap>
       </div>
@@ -438,6 +487,14 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
     """
   end
 
+  defp step_label(%{kind: :back, to: to}), do: "Back to #{Transitions.label(to)}"
+  defp step_label(%{kind: :hold}), do: "On hold"
+  defp step_label(%{kind: :forward, to: to}), do: "Forward to #{Transitions.label(to)}"
+
+  defp comment_prompt("check", "building"), do: "Answer or defer the open questions"
+  defp comment_prompt(_from, "refining"), do: "What must change? (necessary)"
+  defp comment_prompt(_from, _to), do: "Comment for the move log"
+
   # How a tile looks and where it may go: faded with no votes (in Ideas), a
   # "needs work" border with a downvote, the reason it cannot take its next
   # step, and the columns the founder may drop it on (all from
@@ -509,6 +566,9 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   attr :founder, :string, required: true
   attr :myself, :any, required: true
   attr :error, :string, default: nil
+  attr :comment_for, :any, default: nil
+  attr :downvote_for, :any, default: nil
+  attr :editing, :any, default: nil
 
   defp card(assigns) do
     idea = assigns.idea
@@ -518,7 +578,13 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
         net: Board.net_votes(idea),
         mine: Board.vote_of(idea, assigns.founder),
         facts: Board.facts(idea),
-        options: Transitions.options(Board.facts(idea), idea.column, {:founder, assigns.founder}),
+        buttons: Transitions.buttons(Board.facts(idea), idea.column, {:founder, assigns.founder}),
+        downvotes: Enum.filter(idea.votes, &(&1.value == -1)),
+        comment_to:
+          case assigns.comment_for do
+            {id, to} when id == idea.id -> to
+            _ -> nil
+          end,
         r: idea.refinement || %{}
       )
 
@@ -545,7 +611,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
               id={"card-#{@idea.id}-blocked"}
               class="badge badge-warning badge-sm"
             >
-              Needs work: a founder voted -1
+              Needs work
             </span>
             <span
               :if={Transitions.blocker(@facts, @idea.column)}
@@ -556,6 +622,16 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
             </span>
             <span :if={@idea.decision_sha} class="badge badge-ghost badge-sm">Decision logged</span>
           </p>
+          <ul
+            :if={@downvotes != []}
+            id={"card-#{@idea.id}-downvote-reasons"}
+            class="mt-1 space-y-0.5 text-xs"
+            aria-label="Why it needs work"
+          >
+            <li :for={v <- @downvotes}>
+              <span class="font-semibold">{who(v.founder)}:</span> {v.reason}
+            </li>
+          </ul>
         </div>
         <div
           class="flex shrink-0 items-center gap-1"
@@ -584,10 +660,43 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
             phx-target={@myself}
             aria-pressed={to_string(@mine == -1)}
             aria-label={if @mine == -1, do: "Take back your -1", else: "Vote -1"}
+            aria-expanded={to_string(@downvote_for == @idea.id)}
+            aria-controls={"card-#{@idea.id}-downvote"}
             class={["min-h-11 min-w-11 rounded border px-2", @mine == -1 && "bg-red-700 text-white"]}
           >-1</button>
         </div>
       </div>
+
+      <form
+        :if={@downvote_for == @idea.id}
+        id={"card-#{@idea.id}-downvote"}
+        phx-submit="downvote"
+        phx-target={@myself}
+        class="grid gap-1 rounded-lg border-2 border-warning p-2"
+      >
+        <input type="hidden" name="card_id" value={@idea.id} />
+        <label class="grid gap-1 font-semibold">
+          What needs work? (necessary for a -1) <textarea
+            id={"card-#{@idea.id}-downvote-reason"}
+            name="reason"
+            rows="2"
+            required
+            phx-mounted={JS.focus()}
+            class="rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-2 py-1 font-normal"
+          ></textarea>
+        </label>
+        <div class="flex flex-wrap gap-2">
+          <button type="submit" class="min-h-11 rounded border px-3 font-semibold">Save -1 and reason</button>
+          <button
+            type="button"
+            phx-click="cancel_downvote"
+            phx-target={@myself}
+            class="min-h-11 rounded px-3"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
 
       <p
         :if={@error}
@@ -601,40 +710,77 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
       <div class="space-y-3 pt-1">
         <p :if={@idea.body != ""} class="whitespace-pre-line">{@idea.body}</p>
 
-        <form
-          :if={@options != []}
-          phx-submit="move"
-          phx-target={@myself}
-          class="grid gap-1"
-          id={"card-#{@idea.id}-move"}
+        <div
+          :if={@buttons != []}
+          id={"card-#{@idea.id}-moves"}
+          role="group"
+          aria-label="Move the card"
+          class="space-y-1"
         >
-          <input type="hidden" name="card_id" value={@idea.id} />
-          <label class="grid gap-1 font-semibold">
-            Move to
-            <select
-              name="to"
-              class="min-h-11 rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-2"
+          <div class="flex flex-wrap gap-2">
+            <button
+              :for={b <- @buttons}
+              type="button"
+              id={"card-#{@idea.id}-#{b.kind}"}
+              phx-click="step"
+              phx-value-card_id={@idea.id}
+              phx-value-to={b.to}
+              phx-value-needs_comment={to_string(b.needs_comment)}
+              phx-target={@myself}
+              disabled={b.answer != :ok}
+              aria-describedby={b.answer != :ok && "card-#{@idea.id}-#{b.kind}-why"}
+              aria-expanded={b.needs_comment && to_string(@comment_to == b.to)}
+              class={[
+                "min-h-11 rounded-full border px-4 font-semibold disabled:cursor-not-allowed disabled:opacity-50",
+                b.kind == :forward && "team-cta"
+              ]}
             >
-              <option
-                :for={{t, answer} <- @options}
-                value={t}
-                disabled={answer != :ok}
+              {step_label(b)}
+            </button>
+          </div>
+          <p
+            :for={b <- @buttons}
+            :if={b.answer != :ok}
+            id={"card-#{@idea.id}-#{b.kind}-why"}
+            class="text-xs text-[var(--paper-muted)]"
+          >
+            {step_label(b)}: {elem(b.answer, 1)}
+          </p>
+          <form
+            :if={@comment_to}
+            id={"card-#{@idea.id}-move"}
+            phx-submit="move"
+            phx-target={@myself}
+            class="grid gap-1"
+          >
+            <input type="hidden" name="card_id" value={@idea.id} />
+            <input type="hidden" name="to" value={@comment_to} />
+            <label class="grid gap-1 font-semibold">
+              {comment_prompt(@idea.column, @comment_to)}
+              <textarea
+                id={"card-#{@idea.id}-move-note"}
+                name="note"
+                rows="2"
+                required
+                phx-mounted={JS.focus()}
+                class="rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-2 py-1 font-normal"
+              ></textarea>
+            </label>
+            <div class="flex flex-wrap gap-2">
+              <button type="submit" class="min-h-11 rounded border px-3 font-semibold">
+                Move to {Transitions.label(@comment_to)}
+              </button>
+              <button
+                type="button"
+                phx-click="cancel_comment"
+                phx-target={@myself}
+                class="min-h-11 rounded px-3"
               >
-                {Transitions.label(t)}{if answer != :ok, do: ": " <> elem(answer, 1)}
-              </option>
-            </select>
-          </label>
-          <ul id={"card-#{@idea.id}-closed-moves"} class="text-xs text-[var(--paper-muted)]">
-            <li :for={{t, {:error, why}} <- @options}>{Transitions.label(t)}: {why}</li>
-          </ul>
-          <input
-            name="note"
-            placeholder="Comment for the move log (some moves need one)"
-            aria-label="Comment for the move log"
-            class="rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-2 py-1.5"
-          />
-          <button type="submit" class="min-h-11 rounded border px-3 font-semibold">Move</button>
-        </form>
+                Cancel
+              </button>
+            </div>
+          </form>
+        </div>
 
         <section
           :if={@idea.pr_number}
@@ -711,8 +857,29 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
         </section>
 
         <section aria-label="Case's refinement" class="space-y-1">
-          <h5 class="font-semibold">Case's refinement</h5>
-          <dl :if={@r != %{}} class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 text-xs">
+          <div class="flex items-center justify-between gap-2">
+            <h5 class="font-semibold">Case's refinement</h5>
+            <button
+              :if={@idea.column == "refining" and @editing != @idea.id}
+              type="button"
+              id={"card-#{@idea.id}-edit-refinement"}
+              phx-click="edit_refinement"
+              phx-value-card_id={@idea.id}
+              phx-target={@myself}
+              aria-label="Edit Case's refinement"
+              class="min-h-11 rounded border px-3 text-xs font-semibold"
+            >
+              Edit
+            </button>
+          </div>
+          <p :if={@r == %{}} class="text-xs text-[var(--paper-muted)]">
+            Case has not written it yet.
+          </p>
+          <dl
+            :if={@r != %{} and @editing != @idea.id}
+            id={"card-#{@idea.id}-refinement"}
+            class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-2 text-xs"
+          >
             <dt>Details</dt><dd class="whitespace-pre-line">{@r["details"] || "-"}</dd>
             <dt>Open questions</dt><dd>
               {Enum.join(@r["open_questions"] || [], " · ") |> blank("-")}
@@ -721,7 +888,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
             <dt>Verdict</dt><dd>{(@r["verdict"] || "-") |> String.replace("_", " ")}</dd>
           </dl>
           <form
-            :if={@idea.column == "refining"}
+            :if={@idea.column == "refining" and @editing == @idea.id}
             phx-submit="refine"
             phx-target={@myself}
             class="grid gap-1"
@@ -772,7 +939,17 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
                 </select>
               </label>
             </div>
-            <button type="submit" class="min-h-11 rounded border px-3 font-semibold">Save refinement</button>
+            <div class="flex flex-wrap gap-2">
+              <button type="submit" class="min-h-11 rounded border px-3 font-semibold">Save refinement</button>
+              <button
+                type="button"
+                phx-click="cancel_refinement"
+                phx-target={@myself}
+                class="min-h-11 rounded px-3"
+              >
+                Cancel
+              </button>
+            </div>
           </form>
         </section>
 

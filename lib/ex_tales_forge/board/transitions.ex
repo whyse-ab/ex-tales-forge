@@ -46,6 +46,8 @@ defmodule TalesForge.Board.Transitions do
     * `pr`: `nil` (no PR waits), `:awaiting` (a PR waits for a founder's OK)
       or `:approved` (a founder pressed Approve)
     * `pr_linked`: the card has a linked PR
+    * `pr_on_prod`: `:ok` when the PR's merge commit is in the running prod
+      release, `{:error, reason}` when not (nil: not checked)
   """
   @type card :: %{
           optional(:up) => non_neg_integer(),
@@ -54,7 +56,8 @@ defmodule TalesForge.Board.Transitions do
           optional(:open_questions) => non_neg_integer(),
           optional(:comment) => String.t() | nil,
           optional(:pr) => nil | :awaiting | :approved,
-          optional(:pr_linked) => boolean()
+          optional(:pr_linked) => boolean(),
+          optional(:pr_on_prod) => :ok | {:error, String.t()} | nil
         }
 
   @states ~w(ideas refining check building done parked)
@@ -172,14 +175,17 @@ defmodule TalesForge.Board.Transitions do
       iex> T.allowed?(%{pr: :awaiting, open_questions: 0}, "check", "building", {:founder, "a@x"})
       {:error, "Approve the PR to move this card to Building."}
 
-  Building → Done: Bobby, when the linked PR is on prod (Bobby moves it after
-  the deploy).
+  Building → Done: Bobby, when the linked PR is on prod: its merge commit is
+  in the running prod release (`pr_on_prod`, checked by
+  `TalesForge.Board.OnProd` when Bobby moves the card).
 
       iex> alias TalesForge.Board.Transitions, as: T
       iex> T.allowed?(%{pr_linked: true}, "building", "done", {:bot, :bobby})
       :ok
       iex> T.allowed?(%{pr_linked: false}, "building", "done", {:bot, :bobby})
       {:error, "Link the PR that is on prod first."}
+      iex> T.allowed?(%{pr_linked: true, pr_on_prod: {:error, "PR #7 is not in the prod release yet."}}, "building", "done", {:bot, :bobby})
+      {:error, "PR #7 is not in the prod release yet."}
       iex> T.allowed?(%{pr_linked: true}, "building", "done", {:founder, "a@x"})
       {:error, "Bobby moves this card when its PR is on prod."}
 
@@ -272,8 +278,13 @@ defmodule TalesForge.Board.Transitions do
 
   def allowed?(_card, "building", "check", _actor), do: {:error, "Bobby moves this card."}
 
-  def allowed?(card, "building", "done", {:bot, :bobby}),
-    do: need(card[:pr_linked] == true, "Link the PR that is on prod first.")
+  def allowed?(card, "building", "done", {:bot, :bobby}) do
+    case {card[:pr_linked], card[:pr_on_prod]} do
+      {true, {:error, reason}} -> {:error, reason}
+      {true, _} -> :ok
+      _ -> {:error, "Link the PR that is on prod first."}
+    end
+  end
 
   def allowed?(_card, "building", "done", _actor),
     do: {:error, "Bobby moves this card when its PR is on prod."}
@@ -333,6 +344,71 @@ defmodule TalesForge.Board.Transitions do
       {to, allowed?(card, from, to, actor)}
     end
   end
+
+  @steps %{
+    "ideas" => %{back: nil, forward: "refining", hold: "parked"},
+    "refining" => %{back: "ideas", forward: "check", hold: nil},
+    "check" => %{back: "refining", forward: "building", hold: "parked"},
+    "building" => %{back: "refining", forward: "done", hold: nil},
+    "parked" => %{back: nil, forward: "ideas", hold: nil},
+    "done" => %{back: nil, forward: nil, hold: nil}
+  }
+
+  @typedoc "A move button on the full card."
+  @type button :: %{
+          kind: :back | :forward | :hold,
+          to: String.t(),
+          answer: :ok | {:error, String.t()},
+          needs_comment: boolean()
+        }
+
+  @doc """
+  The Back, Forward and On hold buttons of a card in `from` for `actor`. Back
+  is the previous state, Forward the next one, On hold is Parked (from
+  Parked, Forward goes back to Ideas). Only the moves the actor may make are
+  in the list. `answer` is `allowed?/4` for the card as it is (a failed gate
+  disables the button and shows the reason). `needs_comment` is true when the
+  move needs a comment: the button opens a comment box, and the gate is
+  checked again with the comment.
+
+      iex> alias TalesForge.Board.Transitions, as: T
+      iex> T.buttons(%{up: 0}, "ideas", {:founder, "a@x"})
+      [%{kind: :forward, to: "refining", answer: {:error, "Needs an upvote."}, needs_comment: false},
+       %{kind: :hold, to: "parked", answer: :ok, needs_comment: false}]
+      iex> T.buttons(%{open_questions: 0}, "check", {:founder, "a@x"}) |> Enum.map(&{&1.kind, &1.to, &1.needs_comment})
+      [{:back, "refining", true}, {:forward, "building", false}, {:hold, "parked", false}]
+      iex> T.buttons(%{}, "refining", {:founder, "a@x"}) |> Enum.map(&{&1.kind, &1.to})
+      [{:back, "ideas"}]
+      iex> T.buttons(%{}, "building", {:founder, "a@x"}) |> Enum.map(&{&1.kind, &1.to, &1.needs_comment})
+      [{:back, "refining", true}]
+      iex> T.buttons(%{}, "parked", {:founder, "a@x"}) |> Enum.map(&{&1.kind, &1.to})
+      [{:forward, "ideas"}]
+      iex> T.buttons(%{}, "done", {:founder, "a@x"})
+      []
+  """
+  @spec buttons(card(), String.t(), actor()) :: [button()]
+  def buttons(card, from, actor) do
+    steps = Map.get(@steps, from, %{})
+
+    for kind <- [:back, :forward, :hold],
+        to = steps[kind],
+        to != nil,
+        row?(from, to, actor) do
+      plain = Map.put(card, :comment, nil)
+      answer = allowed?(Map.merge(card, %{comment: card[:comment]}), from, to, actor)
+
+      needs_comment =
+        allowed?(plain, from, to, actor) != :ok and
+          allowed?(Map.put(card, :comment, "(comment)"), from, to, actor) == :ok and
+          comment_gate?(allowed?(plain, from, to, actor))
+
+      answer = if needs_comment, do: :ok, else: answer
+      %{kind: kind, to: to, answer: answer, needs_comment: needs_comment}
+    end
+  end
+
+  defp comment_gate?({:error, reason}), do: reason =~ "comment"
+  defp comment_gate?(_), do: false
 
   # The actor may make this move when its gate is met.
   defp row?(from, to, actor) do

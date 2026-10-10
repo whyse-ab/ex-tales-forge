@@ -9,6 +9,11 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
 
   setup %{conn: conn}, do: {:ok, conn: log_in_admin(conn)}
 
+  defp downvote(view, id, reason) do
+    view |> element("#tile-#{id}-down") |> render_click(%{"value" => ""})
+    view |> form("#card-#{id}-downvote", %{reason: reason}) |> render_submit()
+  end
+
   defp open(view, idea),
     do: view |> element("#tile-#{idea.id} button[aria-haspopup]") |> render_click()
 
@@ -71,8 +76,15 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     {:ok, view, _} = live(conn, "/team")
     open(view, idea)
 
-    view |> form("#card-#{idea.id}-move", %{to: "refining"}) |> render_submit()
+    assert has_element?(view, "#card-#{idea.id}-hold", "On hold")
+    refute has_element?(view, "#card-#{idea.id}-back")
+    view |> element("#card-#{idea.id}-forward", "Forward to Refining (Case)") |> render_click()
     assert has_element?(view, "#board-col-refining #tile-#{idea.id}")
+
+    # Case's refinement: read-only, with an Edit button that opens the form.
+    assert has_element?(view, "p", "Case has not written it yet.")
+    refute has_element?(view, "#card-#{idea.id}-refine")
+    view |> element("#card-#{idea.id}-edit-refinement") |> render_click()
 
     view
     |> form("#card-#{idea.id}-refine", %{
@@ -83,12 +95,20 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     })
     |> render_submit()
 
-    assert render(view) =~ "Where? · Bait?"
+    refute has_element?(view, "#card-#{idea.id}-refine")
+    assert has_element?(view, "#card-#{idea.id}-refinement", "Where? · Bait?")
+    assert render(view) |> String.split("Where? · Bait?") |> length() == 2
+
     {:ok, _} = Board.move(Board.get_idea!(idea.id), {:bot, :case}, "check")
     send(view.pid, {:board, :changed})
+    refute has_element?(view, "#card-#{idea.id}-edit-refinement")
 
-    view |> form("#card-#{idea.id}-move", %{to: "building"}) |> render_submit()
-    assert has_element?(view, "#card-#{idea.id}-error", "Answer or defer the 2 open questions")
+    # Forward needs the open questions answered: it opens a comment box.
+    assert has_element?(view, "#card-#{idea.id}-back", "Back to Refining (Case)")
+    view |> element("#card-#{idea.id}-forward") |> render_click()
+    assert has_element?(view, "#card-#{idea.id}-move textarea[required]")
+    view |> element("#card-#{idea.id}-move button", "Cancel") |> render_click()
+    refute has_element?(view, "#card-#{idea.id}-move")
     assert has_element?(view, "#board-col-check #tile-#{idea.id}")
 
     # A drag that needs a comment opens the card with the reason.
@@ -102,9 +122,8 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
              "Write a comment that says what to change."
            )
 
-    view
-    |> form("#card-#{idea.id}-move", %{to: "refining", note: "Cheaper, please."})
-    |> render_submit()
+    view |> element("#card-#{idea.id}-back") |> render_click()
+    view |> form("#card-#{idea.id}-move", %{note: "Cheaper, please."}) |> render_submit()
 
     assert has_element?(view, "#board-col-refining #tile-#{idea.id}")
 
@@ -130,18 +149,20 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
       assert has_element?(view, ~s(#tile-#{idea.id}[data-moves="parked"]))
 
       open(view, idea)
+      assert has_element?(view, "#card-#{idea.id}-forward[disabled]")
 
       assert has_element?(
                view,
-               "#card-#{idea.id}-move option[value=refining][disabled]",
-               "Needs an upvote."
+               ~s(#card-#{idea.id}-forward[aria-describedby="card-#{idea.id}-forward-why"])
              )
 
       assert has_element?(
                view,
-               "#card-#{idea.id}-closed-moves",
-               "Refining (Case): Needs an upvote."
+               "#card-#{idea.id}-forward-why",
+               "Forward to Refining (Case): Needs an upvote."
              )
+
+      refute has_element?(view, "#card-#{idea.id}-hold[disabled]")
 
       view
       |> with_target("#idea-board-live")
@@ -150,7 +171,8 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
       assert has_element?(view, "#card-#{idea.id}-error", "Needs an upvote.")
       assert has_element?(view, "#board-col-ideas #tile-#{idea.id}")
 
-      view |> element("#tile-#{idea.id}-down") |> render_click()
+      downvote(view, idea.id, "Too big for now")
+      assert has_element?(view, "#card-#{idea.id}-downvote-reasons", "Too big for now")
       assert has_element?(view, ~s(#tile-#{idea.id}.border-warning[data-needs-work="true"]))
       assert has_element?(view, "#tile-#{idea.id} .badge-warning", "Needs work")
       assert has_element?(view, "#tile-#{idea.id}-reason", "Has a downvote.")
@@ -162,7 +184,8 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
       assert has_element?(view, ~s(#tile-#{idea.id}[data-moves="refining parked"]))
 
       open(view, idea)
-      view |> form("#card-#{idea.id}-move", %{to: "refining"}) |> render_submit()
+      refute has_element?(view, "#card-#{idea.id}-downvote-reasons")
+      view |> element("#card-#{idea.id}-forward") |> render_click()
       assert has_element?(view, "#board-col-refining #tile-#{idea.id}")
       assert has_element?(view, "#tile-#{idea.id}-reason", "Waits for Case's refinement")
     end
@@ -178,7 +201,7 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
           {:ok, idea} = Board.create_idea("bo@example.com", %{"title" => title})
 
           for {v, n} <- Enum.with_index(votes),
-              do: {:ok, _} = Board.vote(idea, "f#{n}@x", v)
+              do: {:ok, _} = Board.vote(idea, "f#{n}@x", v, "Needs work")
 
           {title, idea.id}
         end
@@ -233,10 +256,33 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
       assert net(view, thin.id) == "1"
       refute has_element?(view, "#board-modal")
 
-      click(view, "#tile-#{thin.id}-down")
-      assert has_element?(view, ~s(#tile-#{thin.id}-down [data-role="down"]), "1")
-      assert has_element?(view, ~s(#tile-#{thin.id}-up [data-role="up"]), "0")
+      click(view, "#tile-#{thin.id}-up")
+      assert net(view, thin.id) == "0"
       refute has_element?(view, "#board-modal")
+    end
+
+    test "a -1 on a thin card opens the full card with the reason box (focused); the vote and reason save together",
+         %{conn: conn, thin: thin} do
+      {:ok, view, _} = live(conn, "/team")
+      click(view, "#tile-#{thin.id}-down")
+      assert has_element?(view, "#board-modal")
+      assert has_element?(view, "#card-#{thin.id}-downvote-reason[required][phx-mounted]")
+      assert net(view, thin.id) == "0"
+
+      view |> form("#card-#{thin.id}-downvote", %{reason: " "}) |> render_submit()
+      assert has_element?(view, "#card-#{thin.id}-error", "A downvote needs a reason.")
+      assert net(view, thin.id) == "0"
+
+      view |> form("#card-#{thin.id}-downvote", %{reason: "Bait is unclear"}) |> render_submit()
+      refute has_element?(view, "#card-#{thin.id}-downvote")
+      assert net(view, thin.id) == "-1"
+      assert has_element?(view, ~s(#tile-#{thin.id}-down [data-role="down"]), "1")
+      assert has_element?(view, "#card-#{thin.id}-downvote-reasons", "Bait is unclear")
+
+      # Taking the -1 back clears its reason (no reason box this time).
+      click(view, "#card-#{thin.id} button[phx-value-vote='-1']")
+      refute has_element?(view, "#card-#{thin.id}-downvote-reasons")
+      assert [] = Board.get_idea!(thin.id).votes
     end
 
     test "on every thin card: up, toggle off, down, toggle off", %{
@@ -255,12 +301,14 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
         assert has_element?(view, ~s(#tile-#{card.id}-up[aria-pressed="true"]))
         click(view, "#tile-#{card.id}-up")
         assert net(view, card.id) == "0"
-        click(view, "#tile-#{card.id}-down")
+        refute has_element?(view, "#board-modal"), "a vote must not open the card"
+        downvote(view, card.id, "Unclear")
         assert net(view, card.id) == "-1"
         assert has_element?(view, "#tile-#{card.id} .badge-warning", "Needs work")
+        view |> element("#board-modal-close") |> render_click()
         click(view, "#tile-#{card.id}-down")
         assert net(view, card.id) == "0"
-        refute has_element?(view, "#board-modal"), "a vote must not open the card"
+        refute has_element?(view, "#board-modal"), "taking back a -1 does not open the card"
       end
     end
 
@@ -279,6 +327,7 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
       click(view, up)
       assert has_element?(view, ~s(#card-#{small.id} [aria-label="Net votes 0"]))
       click(view, down)
+      view |> form("#card-#{small.id}-downvote", %{reason: "Too big"}) |> render_submit()
       assert has_element?(view, "#card-#{small.id}-blocked")
       assert net(view, small.id) == "-1"
       assert has_element?(view, "#board-modal")
