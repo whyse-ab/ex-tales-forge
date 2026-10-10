@@ -30,10 +30,20 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   use TalesForgeWeb, :live_component
 
   alias TalesForge.Board
-  alias TalesForge.Board.{Idea, Mentions, Transitions}
+  alias TalesForge.Board.{Idea, Mentions, Transitions, Typing}
 
   @impl true
   def update(%{refresh: true}, socket), do: {:ok, load(socket)}
+
+  # A few seconds after the last keystroke the typing hint goes.
+  def update(%{typing_expire: {id, at}}, socket) do
+    if socket.assigns.typed[id] == at do
+      Typing.stop(id, socket.assigns.founder)
+      {:ok, assign(socket, :typed, Map.delete(socket.assigns.typed, id))}
+    else
+      {:ok, socket}
+    end
+  end
 
   def update(assigns, socket) do
     {:ok,
@@ -46,6 +56,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
      |> assign_new(:downvote_for, fn -> nil end)
      |> assign_new(:editing, fn -> nil end)
      |> assign_new(:drafts, fn -> %{} end)
+     |> assign_new(:typed, fn -> %{} end)
      |> load()}
   end
 
@@ -58,6 +69,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
       board: board,
       prs: prs(),
       pings: Board.unread_pings(socket.assigns[:login]),
+      typing: Typing.who(),
       open: open
     )
   end
@@ -133,6 +145,8 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   end
 
   def handle_event("close", _params, socket) do
+    if id = socket.assigns.open_id, do: Typing.stop(id, socket.assigns.founder)
+
     socket =
       case socket.assigns.open_id && save_drafts(socket, socket.assigns.open_id) do
         {:error, s, _msg} -> s
@@ -254,13 +268,35 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
     end
   end
 
-  def handle_event("comment", %{"card_id" => id, "body" => body}, socket),
-    do:
-      with_idea(
-        socket,
-        id,
-        &Board.add_comment(&1, socket.assigns.founder, body, login: socket.assigns[:login])
+  def handle_event("comment", %{"card_id" => id, "body" => body}, socket) do
+    Typing.stop(id, socket.assigns.founder)
+
+    with_idea(
+      assign(socket, :typed, Map.delete(socket.assigns.typed, id)),
+      id,
+      &Board.add_comment(&1, socket.assigns.founder, body, login: socket.assigns[:login])
+    )
+  end
+
+  # Typing in the comment box: the others see "<name> is typing…" (a hint,
+  # not a lock). It goes 5 seconds after the last keystroke.
+  def handle_event("typing", %{"card_id" => id} = params, socket) do
+    if String.trim(to_string(params["body"])) == "" do
+      Typing.stop(id, socket.assigns.founder)
+      {:noreply, assign(socket, :typed, Map.delete(socket.assigns.typed, id))}
+    else
+      at = System.monotonic_time()
+      Typing.start(id, socket.assigns.founder)
+
+      send_update_after(
+        __MODULE__,
+        [id: socket.assigns.id, typing_expire: {id, at}],
+        Application.get_env(:ex_tales_forge, :board_typing_ms, 5_000)
       )
+
+      {:noreply, assign(socket, :typed, Map.put(socket.assigns.typed, id, at))}
+    end
+  end
 
   def handle_event("refine", %{"card_id" => id} = params, socket) do
     attrs = %{
@@ -355,6 +391,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           column="ideas"
           size={:thin}
           prs={@prs}
+          typing={@typing}
           board={@board}
           founder={@founder}
           myself={@myself}
@@ -366,6 +403,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
             column={c}
             size={:thin}
             prs={@prs}
+            typing={@typing}
             board={@board}
             founder={@founder}
             myself={@myself}
@@ -375,6 +413,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           column="parked"
           size={:thin}
           prs={@prs}
+          typing={@typing}
           board={@board}
           founder={@founder}
           myself={@myself}
@@ -384,6 +423,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           column="done"
           size={:thin}
           prs={@prs}
+          typing={@typing}
           board={@board}
           founder={@founder}
           myself={@myself}
@@ -427,6 +467,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
             downvote_for={@downvote_for}
             editing={@editing}
             drafts={@drafts}
+            typing={@typing}
           />
         </.focus_wrap>
       </div>
@@ -444,6 +485,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   attr :size, :atom, required: true
   attr :board, :map, required: true
   attr :prs, :map, default: %{}
+  attr :typing, :map, default: %{}
   attr :myself, :any, required: true
   attr :class, :string, default: nil
 
@@ -512,6 +554,16 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
                 >
                   {look.blocker}
                 </span>
+              </span>
+              <span
+                :if={hint = Typing.hint(@typing[idea.id] || [], @founder)}
+                id={"tile-#{idea.id}-typing"}
+                class="shrink-0"
+                role="img"
+                aria-label={hint}
+                title={hint}
+              >
+                <.icon name="hero-pencil-square" class="size-4 motion-safe:animate-pulse" />
               </span>
               <span
                 :if={look.needs_work}
@@ -944,6 +996,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   attr :downvote_for, :any, default: nil
   attr :editing, :any, default: nil
   attr :drafts, :map, default: %{}
+  attr :typing, :map, default: %{}
 
   defp card(assigns) do
     idea = assigns.idea
@@ -1372,6 +1425,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           </ul>
           <form
             phx-submit="comment"
+            phx-change="typing"
             phx-target={@myself}
             class="grid gap-1"
             id={"card-#{@idea.id}-comment"}
@@ -1390,6 +1444,8 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
                 data-handles={Jason.encode!(Mentions.suggestions())}
                 aria-autocomplete="list"
                 aria-controls={"card-#{@idea.id}-mention-list"}
+                aria-describedby={"card-#{@idea.id}-typing"}
+                phx-throttle="1000"
                 class="w-full rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-2 py-1"
               ></textarea>
               <ul
@@ -1402,6 +1458,13 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
               >
               </ul>
             </div>
+            <p
+              id={"card-#{@idea.id}-typing"}
+              aria-live="polite"
+              class="min-h-5 text-xs italic text-[var(--paper-muted)]"
+            >
+              {Typing.hint(@typing[@idea.id] || [], @founder)}
+            </p>
             <button type="submit" class="min-h-11 rounded border px-3">Comment</button>
           </form>
         </section>
