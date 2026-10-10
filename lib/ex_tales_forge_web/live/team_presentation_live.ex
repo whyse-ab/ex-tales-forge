@@ -245,7 +245,6 @@ defmodule TalesForgeWeb.TeamPresentationLive do
     <section
       id="hero"
       class="grid items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
-      data-reveal
     >
       <div class="space-y-5">
         <h1 class="font-serif text-4xl font-bold leading-tight sm:text-5xl">
@@ -360,7 +359,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
           <strong>Fast lane:</strong>
           a change that only touches admin pages goes on to production by itself.
           <strong>Normal lane:</strong>
-          Gentry and the persona bots play it first, and a founder gives the OK to ship.
+          a founder gives the OK twice on the board: the move to Building, then Approve on the PR before the merge. After the merge, Gentry and the persona bots play it on playtest, and then it ships to production by itself.
         </p>
         <.flow steps={@steps} d={@d} />
         <p class="text-xs text-[var(--paper-muted)]">
@@ -1112,6 +1111,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
         </li>
         <li>Cost: <span class="italic text-[var(--paper-muted)]">{usd(@batch["cost_usd"])}</span></li>
       </ul>
+      <p :if={@batch["summary"]} id="full-batch-summary" class="mt-2">{@batch["summary"]}</p>
     </div>
     """
   end
@@ -1616,7 +1616,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
           link="The idea board"
         >
           The idea board on /team is the first place to take part. Add a card in Ideas, vote on the others and comment.
-          A card with an upvote goes to Case for refining.
+          A card needs an upvote before it can move. Then a founder moves it to Refining, and Case refines it.
         </.involve>
         <.involve
           id="involve-approve"

@@ -361,11 +361,12 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
   describe "'not measured yet'" do
     setup %{conn: conn}, do: {:ok, conn: log_in_admin(conn)}
 
-    test "the empty values in data.json (full batch, holdout) say so", %{conn: conn} do
+    test "the full batch is filled in; the empty holdout says so", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/team/presentation")
-      assert @data["playtest_series"]["full_batch"]["weighted"]["paul"] == nil
-      assert has_element?(view, "#full-batch", "Paul: not measured yet")
-      assert has_element?(view, "#full-batch", "Cost: not measured yet")
+      assert @data["playtest_series"]["full_batch"]["weighted"]["paul"] == 4.54
+      assert has_element?(view, "#full-batch", ~r/Paul:\s+4.5\/5/)
+      assert has_element?(view, "#full-batch", ~r/Runs:\s+25/)
+      refute has_element?(view, "#full-batch", "Running")
       assert @data["intent_eval_set"]["holdout_results"] == nil
       assert has_element?(view, "#eval-holdout", "not measured yet")
     end
@@ -1375,6 +1376,31 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       assert html =~ ~s(href="#team-main")
       assert html =~ "Six columns."
       refute html =~ ~r/PRs in [A-Z][a-z]+/
+    end
+  end
+
+  describe "Gentry on prod 0415def (wording)" do
+    test "the starting-point callout shows at once in the hero, not hidden behind a reveal" do
+      html = render_with(@data)
+      doc = LazyHTML.from_fragment(html)
+      assert doc |> LazyHTML.query("#hero[data-reveal]") |> Enum.count() == 0
+
+      assert doc |> LazyHTML.query("#hero #starting-point") |> LazyHTML.text() =~
+               "This is how we work today, and we shape it together."
+    end
+
+    test "the flow intro puts the founder's OK on the board, before the merge" do
+      html = render_with(@data)
+      refute html =~ "gives the OK to ship"
+      assert html =~ "the move to Building, then Approve on the PR before the merge"
+    end
+
+    test "section 7 says a founder moves an upvoted card" do
+      html = render_with(@data)
+      refute html =~ "A card with an upvote goes to Case"
+
+      assert html =~
+               "A card needs an upvote before it can move. Then a founder moves it to Refining"
     end
   end
 end
