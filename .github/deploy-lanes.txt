@@ -29,6 +29,13 @@
 # migrations, config, AICalls, mix.exs/deps, the router, CI, this file).
 
 [admin]
+# The founders' idea board (production only; design-idea-board.md). The shared
+# contract (TalesForge.BoardApi), its controller, route and the board tables'
+# migrations are [wiring]/shared, not here.
+lib/ex_tales_forge/board.ex
+lib/ex_tales_forge/board/
+test/ex_tales_forge/board_test.exs
+test/ex_tales_forge/board/
 # Founder surveys (production only): /admin/founders/survey, /admin/founders/surveys/*
 lib/ex_tales_forge/surveys.ex
 lib/ex_tales_forge/survey/
