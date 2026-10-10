@@ -26,12 +26,14 @@ export const TeamPage = {
 
   apply() {
     const reduce = this.mq.matches || !("IntersectionObserver" in window)
-    this.el.dataset.motion = reduce ? "reduce" : "full"
+    this.motion = reduce ? "reduce" : "full"
+    this.el.dataset.motion = this.motion
+    this.revealed ||= new Set()
     this.observer?.disconnect()
     const sections = this.el.querySelectorAll("[data-reveal]")
 
     if (reduce) {
-      sections.forEach(s => s.classList.add("is-visible"))
+      sections.forEach(s => { s.classList.add("is-visible"); this.revealed.add(s.id) })
       return
     }
 
@@ -39,11 +41,22 @@ export const TeamPage = {
       for (const entry of entries) {
         if (!entry.isIntersecting) continue
         entry.target.classList.add("is-visible")
+        this.revealed.add(entry.target.id)
         this.observer.unobserve(entry.target)
       }
     }, {rootMargin: "0px 0px -8% 0px", threshold: 0.02})
 
     sections.forEach(s => s.classList.contains("is-visible") || this.observer.observe(s))
+  },
+
+  // A LiveView patch (the live feed's numbers change about once a minute)
+  // resets the attributes this hook set to what the server rendered:
+  // data-motion back to "auto" and the revealed sections' class. Without
+  // this, CSS stops every animation (the Replay buttons seemed dead) and
+  // revealed sections fade out again. Put them back.
+  updated() {
+    if (this.motion) this.el.dataset.motion = this.motion
+    this.revealed?.forEach(id => document.getElementById(id)?.classList.add("is-visible"))
   },
 
   destroyed() {
