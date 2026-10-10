@@ -8,7 +8,7 @@ defmodule TalesForge.PrFeed.Extras do
     latest successful CI run on main, read from its "Test" job log
     (`GITHUB_FEED_TOKEN`, which has Actions: read). Fetched again only when a
     newer run appears.
-  - **Decisions** (`:decisions`): the `## YYYY-MM-DD` entries of
+  - **Decisions** (`:decisions`): the dated entries (second-level headings) of
     tales-forge-docs `docs/decisions.md` on GitHub (`GITHUB_DOCS_TOKEN`, the
     token the docs sync already uses), total and per Stockholm day. Sent with
     the last ETag, so an unchanged file costs no rate limit.
@@ -204,10 +204,11 @@ defmodule TalesForge.PrFeed.Extras do
   end
 
   @doc """
-  The decision log's entries: every `## YYYY-MM-DD` heading, total and per
-  day (oldest first).
+  The decision log's entries: every dated second-level heading (two hashes,
+  then YYYY-MM-DD), total and per day (oldest first).
 
-      iex> md = "# Decisions\\n\\n## 2026-10-07: A\\n\\nx\\n\\n## 2026-10-07: B\\n\\n## 2026-10-09: C\\n"
+      iex> h = String.duplicate("#", 2)
+      iex> md = Enum.join(["# Decisions", h <> " 2026-10-07: A", "x", h <> " 2026-10-07: B", h <> " 2026-10-09: C"], "\\n")
       iex> TalesForge.PrFeed.Extras.parse_decisions(md)
       %{total: 3, by_date: [%{"date" => "2026-10-07", "count" => 2}, %{"date" => "2026-10-09", "count" => 1}]}
   """
