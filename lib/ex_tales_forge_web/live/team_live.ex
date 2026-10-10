@@ -5,8 +5,8 @@ defmodule TalesForgeWeb.TeamLive do
   1. the hero with the painted crew (`hero/1`);
   2. **What we're going to do** (`#idea-board`): the founders' idea board
      (`TalesForgeWeb.TeamIdeaBoard`, live over `TalesForge.Board`'s PubSub) on
-     production and locally; on playtest the "coming soon" placeholder
-     (`#board-soon`, `data-slot="shared-board"`) in the same slot;
+     production and locally. `/team` lives on production only
+     (`TalesForge.AppRole`, area `:board`): playtest redirects it there;
   3. **What we're doing now** (`#live`): the live GitHub PR, CI and deploy feed,
      the nested `TalesForgeWeb.TeamPrFeedLive` (`TalesForge.PrFeed`, polled on
      the server and pushed over PubSub);
@@ -33,7 +33,6 @@ defmodule TalesForgeWeb.TeamLive do
   alias TalesForge.TeamPage
   alias TalesForgeWeb.Layouts
   alias TalesForgeWeb.TeamArt
-  alias TalesForgeWeb.TeamBoard
   alias TalesForgeWeb.TeamLayout
   alias TalesForgeWeb.TeamPresentationLive
   alias TalesForgeWeb.TeamPrFeed
@@ -227,14 +226,12 @@ defmodule TalesForgeWeb.TeamLive do
   end
 
   # "What we're going to do": the idea board (`TalesForgeWeb.TeamIdeaBoard`)
-  # where it lives (production, local); elsewhere the "coming soon"
-  # placeholder (#board-soon).
+  # where it lives (production, local). Playtest redirects /team to
+  # production (TalesForgeWeb.Plugs.HomeApp), so there is no placeholder.
   attr :board?, :boolean, default: false
   attr :founder, :string, default: nil
 
   defp going_to_do(assigns) do
-    assigns = assign(assigns, :board, TeamBoard.anchor())
-
     ~H"""
     <section id="idea-board" class="space-y-5" aria-labelledby="idea-board-title">
       <header class="max-w-3xl space-y-2">
@@ -251,26 +248,6 @@ defmodule TalesForgeWeb.TeamLive do
         id="idea-board-live"
         founder={@founder}
       />
-      <div
-        :if={not (@board? and is_binary(@founder))}
-        id="board-soon"
-        class="team-board-soon space-y-3 rounded-xl border-2 border-dashed border-[var(--paper-rule)] p-5 text-center sm:p-8"
-        data-slot="shared-board"
-      >
-        <p class="team-badge team-soon mx-auto">
-          <.icon name="hero-sparkles-micro" class="size-4" /> Coming soon. Not built yet.
-        </p>
-        <h3 class="font-serif text-xl font-bold">One shared board</h3>
-        <p class="mx-auto max-w-2xl text-sm leading-relaxed text-[var(--paper-muted)] sm:text-base">
-          One board, the whole crew, from idea to done. This is where it will live.
-        </p>
-        <.link
-          navigate={"/team/presentation##{@board}"}
-          class="inline-block text-sm font-semibold text-[var(--paper-accent)] underline"
-        >
-          How it will work →
-        </.link>
-      </div>
     </section>
     """
   end

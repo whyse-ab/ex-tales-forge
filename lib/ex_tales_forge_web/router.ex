@@ -71,8 +71,13 @@ defmodule TalesForgeWeb.Router do
       live "/", HomeLive, :index
       live "/new/:adventure", CreateCharacterLive, :new
       live "/play/:id", PlayLive, :show
-      # The founders' page: a light landing page (TeamLive) and the full
-      # presentation (TeamPresentationLive), same team sign-in.
+    end
+
+    # The founders' page: a light landing page (TeamLive) and the full
+    # presentation (TeamPresentationLive), same team sign-in. Production only
+    # (TalesForge.AppRole area :board): their own live_session, so reaching
+    # them is a full page load through HomeApp, which sends playtest there.
+    live_session :team, on_mount: [{Hooks, :require_team_member}] do
       live "/team", TeamLive, :index
       live "/team/presentation", TeamPresentationLive, :index
     end
@@ -86,9 +91,6 @@ defmodule TalesForgeWeb.Router do
 
     live_session :admin, on_mount: [{Hooks, :require_team_member}] do
       live "/", DashboardLive, :index
-      # Founders
-      live "/founders/decisions", DecisionLive.Index, :index
-      live "/founders/decisions/:slug", DecisionLive.Show, :show
       # Play and test
       live "/play/sessions", SessionLive.Index, :index
       live "/play/sessions/:id", SessionLive.Show, :show
@@ -97,21 +99,26 @@ defmodule TalesForgeWeb.Router do
       live "/play/sessions/:id/turns", TurnLive.Index, :index
       # Operate
       live "/operate/costs", CostsLive, :index
-      # Docs
-      live "/docs", DocLive.Index, :index
-      live "/docs/*path", DocLive.Index, :show
       # Archive
       live "/archive/npc-definitions", NpcDefinitionLive.Index, :index
       live "/archive/npc-definitions/:id", NpcDefinitionLive.Show, :show
     end
 
     # Pages that live on one app only (TalesForge.AppRole): playtest runs on
-    # playtest, surveys on production. Their own live_sessions, so navigating to
+    # playtest; surveys, decisions and docs on production. Their own live_sessions, so navigating to
     # them is a full page load through the :browser pipeline, where HomeApp
     # sends them to the other app when they don't live here.
     live_session :admin_playtest, on_mount: [{Hooks, :require_team_member}] do
       live "/play/runs", PlaytestLive.Index, :index
       live "/play/runs/:id", PlaytestLive.Show, :show
+    end
+
+    # Founders' decisions and the docs: production only (area :collab).
+    live_session :admin_collab, on_mount: [{Hooks, :require_team_member}] do
+      live "/founders/decisions", DecisionLive.Index, :index
+      live "/founders/decisions/:slug", DecisionLive.Show, :show
+      live "/docs", DocLive.Index, :index
+      live "/docs/*path", DocLive.Index, :show
     end
 
     live_session :admin_surveys, on_mount: [{Hooks, :require_team_member}] do

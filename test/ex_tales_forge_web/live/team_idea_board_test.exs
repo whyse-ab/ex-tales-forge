@@ -534,11 +534,9 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     end
   end
 
-  test "on playtest the placeholder stays", %{conn: conn} do
+  test "on playtest /team goes to the board on production", %{conn: conn} do
     Application.put_env(:ex_tales_forge, :app_name, "tales-forge-playtest")
     on_exit(fn -> Application.delete_env(:ex_tales_forge, :app_name) end)
-    {:ok, view, _} = live(conn, "/team")
-    assert has_element?(view, "#board-soon")
-    refute has_element?(view, "#idea-board-live")
+    assert {:error, {:redirect, %{to: "https://tales-forge.fly.dev/team"}}} = live(conn, "/team")
   end
 end

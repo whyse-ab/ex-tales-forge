@@ -104,24 +104,17 @@ defmodule TalesForgeWeb.TeamLiveTest do
       assert html =~ "6. How we work together: one shared board"
     end
 
-    test "what we're going to do: the idea board's slot, coming soon on playtest", %{conn: conn} do
+    test "no placeholder: playtest redirects /team to production", %{conn: conn} do
       Application.put_env(:ex_tales_forge, :app_name, "tales-forge-playtest")
       on_exit(fn -> Application.delete_env(:ex_tales_forge, :app_name) end)
-      {:ok, view, _html} = live(conn, ~p"/team")
 
-      assert has_element?(view, "section#idea-board h2", "What we're going to do")
-      assert has_element?(view, ~s(#idea-board #board-soon[data-slot="shared-board"]))
-      assert has_element?(view, "#board-soon", "Coming soon. Not built yet.")
-      assert has_element?(view, "#board-soon h3", "One shared board")
+      assert {:error, {:redirect, %{to: "https://tales-forge.fly.dev/team"}}} =
+               live(conn, ~p"/team")
 
-      assert has_element?(
-               view,
-               ~s(#board-soon a[href="/team/presentation##{TeamBoard.anchor()}"]),
-               "How it will work"
-             )
-
-      # A placeholder, not a board.
-      refute has_element?(view, "#board-soon #team-board")
+      Application.delete_env(:ex_tales_forge, :app_name)
+      {:ok, _view, html} = live(conn, ~p"/team")
+      refute html =~ "board-soon"
+      refute html =~ "Coming soon. Not built yet."
     end
 
     test "what we're doing now: the live PR, CI and deploy feed", %{conn: conn} do

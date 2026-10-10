@@ -3,7 +3,8 @@ defmodule TalesForgeWeb.Plugs.HomeApp do
   Sends requests for pages that live on the other app there
   (`TalesForge.AppRole.redirect_url/3`): on playtest, `/admin/survey`,
   `/admin/surveys` and everything below them (including the result
-  downloads) redirect to the same path on production; on production,
+  downloads), `/team` and `/team/presentation`, the founders' decisions and
+  the docs redirect to the same path on production; on production,
   `/admin/playtest` and below redirect to playtest. The query string is kept.
   Runs before the sign-in check, so the other app does its own sign-in.
   Those pages have their own live_sessions in the router, so reaching them
