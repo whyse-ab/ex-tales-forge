@@ -300,7 +300,7 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
       assert has_element?(view, "#tile-#{idea.id}-reason", "Waits for Case's refinement")
     end
 
-    test "the backlog is sorted by net votes, then total votes", %{conn: conn} do
+    test "the board ranks the backlog by net votes, then total votes", _ctx do
       ids =
         for {title, votes} <- [
               {"None", []},
@@ -317,20 +317,17 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
         end
         |> Map.new()
 
-      {:ok, view, _} = live(conn, "/team")
-      html = view |> element("#board-col-ideas") |> render()
-
       order =
-        ~r/id="tile-([0-9a-f-]{36})"/
-        |> Regex.scan(html)
-        |> Enum.map(fn [_, id] -> Enum.find_value(ids, fn {t, i} -> i == id && t end) end)
+        Enum.map(Board.board()["ideas"], fn card ->
+          Enum.find_value(ids, fn {t, i} -> i == card.id && t end)
+        end)
 
       # "Two up one down": net 2, 4 votes; "Two up": net 2, 2 votes.
       assert order == ["Two up one down", "Two up", "One up", "None"]
     end
   end
 
-  describe "sort the Ideas column (card b18fc8dc)" do
+  describe "sort the Ideas column: newest or oldest (one toggle button)" do
     defp ideas_order(view, ids) do
       html = view |> element("#board-col-ideas") |> render()
 
@@ -341,65 +338,50 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
 
     setup do
       ids =
-        for {title, votes, days_ago} <- [
-              {"Old", [1], 3},
-              {"Middle", [1, -1, 1], 2},
-              {"New", [1, 1], 1}
-            ],
-            into: %{} do
+        for {title, days_ago} <- [{"Old", 3}, {"Middle", 2}, {"New", 1}], into: %{} do
           {:ok, idea} = Board.create_idea("bo@example.com", %{"title" => title})
-
-          for {v, n} <- Enum.with_index(votes),
-              do: {:ok, _} = Board.vote(idea, "f#{n}@x", v, "Needs work")
-
           at = DateTime.utc_now() |> DateTime.add(-days_ago, :day) |> DateTime.truncate(:second)
-
-          idea
-          |> Ecto.Changeset.change(inserted_at: at)
-          |> TalesForge.Repo.update!()
-
+          idea |> Ecto.Changeset.change(inserted_at: at) |> TalesForge.Repo.update!()
           {title, idea.id}
         end
 
       {:ok, ids: ids}
     end
 
-    test "the control changes the order and writes it to the URL", %{conn: conn, ids: ids} do
+    test "the toggle changes the order, its label and the URL", %{conn: conn, ids: ids} do
       {:ok, view, _} = live(conn, "/team")
-      assert has_element?(view, ~s(#ideas-sort option[value="top"][selected]))
       assert ideas_order(view, ids) == ["New", "Middle", "Old"]
 
-      view |> form("#ideas-sort", %{sort: "oldest"}) |> render_change()
+      assert has_element?(
+               view,
+               ~s(#ideas-sort[aria-label="Sorted newest first. Sort oldest first"])
+             )
+
+      assert has_element?(view, "#ideas-sort .hero-bars-arrow-down")
+      refute has_element?(view, "#ideas-sort-select")
+
+      view |> element("#ideas-sort") |> render_click()
       assert_patch(view, "/team?sort=oldest")
       assert ideas_order(view, ids) == ["Old", "Middle", "New"]
+      assert has_element?(view, ~s(#ideas-sort[aria-label^="Sorted oldest first"]))
+      assert has_element?(view, "#ideas-sort .hero-bars-arrow-up")
 
-      view |> form("#ideas-sort", %{sort: "votes"}) |> render_change()
-      assert_patch(view, "/team?sort=votes")
-      assert ideas_order(view, ids) == ["Middle", "New", "Old"]
-
-      view |> form("#ideas-sort", %{sort: "top"}) |> render_change()
+      view |> element("#ideas-sort") |> render_click()
       assert_patch(view, "/team")
     end
 
     test "the URL query sets the order on load", %{conn: conn, ids: ids} do
-      {:ok, view, _} = live(conn, "/team?sort=newest")
-      assert has_element?(view, ~s(#ideas-sort option[value="newest"][selected]))
-      assert ideas_order(view, ids) == ["New", "Middle", "Old"]
-
       {:ok, view, _} = live(conn, "/team?sort=oldest")
       assert ideas_order(view, ids) == ["Old", "Middle", "New"]
 
-      {:ok, view, _} = live(conn, "/team?sort=unknown")
-      assert has_element?(view, ~s(#ideas-sort option[value="top"][selected]))
-    end
-
-    test "the default sort is called Most support", %{conn: conn} do
-      {:ok, view, _} = live(conn, "/team")
-      assert has_element?(view, ~s(#ideas-sort option[value="top"]), "Most support")
+      for q <- ["newest", "top", "votes"] do
+        {:ok, view, _} = live(conn, "/team?sort=#{q}")
+        assert ideas_order(view, ids) == ["New", "Middle", "Old"]
+      end
     end
   end
 
-  describe "filter the Ideas column: Written by and Mentioning me (card b18fc8dc)" do
+  describe "tags in the Ideas lane" do
     defp idea_titles(view) do
       html = view |> element("#board-col-ideas") |> render()
       for t <- ~w(Fishing Boats Maps), html =~ t, do: t
@@ -407,55 +389,92 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
 
     setup %{conn: conn} do
       {:ok, a} = Board.create_idea("fredrik@whyse.se", %{"title" => "Fishing"})
-      {:ok, _} = Board.create_idea("max@example.com", %{"title" => "Boats"})
+      {:ok, b} = Board.create_idea("max@example.com", %{"title" => "Boats"})
       {:ok, c} = Board.create_idea("max@example.com", %{"title" => "Maps"})
-      {:ok, _} = Board.add_comment(a, "bot:case", "@fredrik a question for you.")
-      {:ok, _} = Board.add_comment(c, "bot:case", "@max over to you.")
-      {:ok, conn: log_in_admin(conn, "fredrik@whyse.se", login: "fpahlen")}
+      {:ok, _} = Board.add_tag(a, "fredrik@whyse.se", "  Sea ")
+      {:ok, _} = Board.add_tag(b, "max@example.com", "sea")
+      {:ok, _} = Board.add_tag(c, "max@example.com", "world")
+      {:ok, conn: log_in_admin(conn, "fredrik@whyse.se", login: "fpahlen"), a: a, b: b}
     end
 
-    test "Written by keeps one founder's cards and writes it to the URL", %{conn: conn} do
+    test "the tag cloud lists every tag in use, with the founder tags", %{conn: conn} do
       {:ok, view, _} = live(conn, "/team")
-      assert idea_titles(view) == ~w(Fishing Boats Maps)
-      assert has_element?(view, ~s(#ideas-by option[value="max"]), "Max")
-      assert has_element?(view, ~s(#ideas-by option[value="fredrik"]), "Fredrik")
 
-      view |> form("#ideas-sort", %{by: "max"}) |> render_change()
-      assert_patch(view, "/team?by=max")
-      assert idea_titles(view) == ~w(Boats Maps)
-      assert has_element?(view, ~s(#ideas-by option[value="max"][selected]))
+      for tag <- ~w(fredrik max sea world),
+          do:
+            assert(
+              has_element?(view, ~s(#ideas-tags button[data-tag="#{tag}"][aria-pressed="false"]))
+            )
 
-      view |> form("#ideas-sort", %{by: ""}) |> render_change()
+      refute has_element?(view, "#ideas-by")
+      refute has_element?(view, "#ideas-mine")
+      refute has_element?(view, "#ideas-tags-hint")
+    end
+
+    test "the founder tag is the display name (Håkan, not Hawkan)", %{conn: conn} do
+      {:ok, _} = Board.create_idea("hawkan.fredriksson@gmail.com", %{"title" => "Lanterns"})
+      {:ok, view, _} = live(conn, "/team")
+      assert has_element?(view, ~s(#ideas-tags button[data-tag="håkan"]))
+      refute has_element?(view, ~s(#ideas-tags button[data-tag="hawkan"]))
+    end
+
+    test "selected tags filter with AND, go to the URL, and Clear resets", %{conn: conn} do
+      {:ok, view, _} = live(conn, "/team")
+      view |> element(~s(#ideas-tags button[data-tag="sea"])) |> render_click()
+      assert_patch(view, "/team?tags=sea")
+      assert idea_titles(view) == ~w(Fishing Boats)
+      assert has_element?(view, ~s(#ideas-tags button[data-tag="sea"][aria-pressed="true"]))
+      assert has_element?(view, "#ideas-tags-hint", "Showing cards with all selected tags")
+
+      view |> element(~s(#ideas-tags button[data-tag="max"])) |> render_click()
+      assert_patch(view, "/team?tags=sea%2Cmax")
+      assert idea_titles(view) == ~w(Boats)
+
+      view |> element("#ideas-tags-clear") |> render_click()
       assert_patch(view, "/team")
       assert idea_titles(view) == ~w(Fishing Boats Maps)
     end
 
-    test "Written by shows the founder name from the team data (Håkan, not Hawkan)", %{
-      conn: conn
-    } do
-      {:ok, _} = Board.create_idea("hawkan.fredriksson@gmail.com", %{"title" => "Lanterns"})
-      {:ok, view, _} = live(conn, "/team")
-      assert has_element?(view, ~s(#ideas-by option[value="hawkan"]), "Håkan")
-      refute has_element?(view, "#ideas-by option", "Hawkan")
-      assert has_element?(view, ~s(label[for="ideas-by"]), "Author")
-      assert has_element?(view, ~s(label[for="ideas-mine"]), "Mentioning me")
-      refute render(view) =~ ~r/id="ideas-sort"[^>]*absolute/
-    end
-
-    test "Mentioning me keeps the cards where a comment @mentions you", %{conn: conn} do
-      {:ok, view, _} = live(conn, "/team")
-      view |> form("#ideas-sort", %{mine: "true"}) |> render_change()
-      assert_patch(view, "/team?mine=1")
-      assert idea_titles(view) == ~w(Fishing)
-      assert has_element?(view, "#ideas-mine[checked]")
-    end
-
-    test "the URL sets all three on load", %{conn: conn} do
-      {:ok, view, _} = live(conn, "/team?sort=oldest&by=max&mine=1")
+    test "the URL sets the sort and the tags on load", %{conn: conn} do
+      {:ok, view, _} = live(conn, "/team?sort=oldest&tags=world,max")
+      assert idea_titles(view) == ~w(Maps)
+      {:ok, view, _} = live(conn, "/team?tags=world,fredrik")
       assert idea_titles(view) == []
-      {:ok, view, _} = live(conn, "/team?by=fredrik&mine=1")
-      assert idea_titles(view) == ~w(Fishing)
-      assert has_element?(view, ~s(#ideas-sort option[value="top"][selected]))
+      assert has_element?(view, ~s(#ideas-tags button[data-tag="fredrik"][aria-pressed="true"]))
+    end
+
+    test "thin cards show their tags as chips", %{conn: conn, a: a} do
+      {:ok, view, _} = live(conn, "/team")
+      assert has_element?(view, "#tile-#{a.id}-tags", "fredrik")
+      assert has_element?(view, "#tile-#{a.id}-tags", "sea")
+    end
+
+    test "founders add and remove tags on the full card", %{conn: conn, a: a} do
+      {:ok, view, _} = live(conn, "/team")
+      open(view, a)
+      view |> form("#card-#{a.id}-tag-form", %{tag: " Big   Idea "}) |> render_submit()
+      assert has_element?(view, ~s(#card-#{a.id}-tags li[data-tag="big idea"]))
+      assert Board.get_idea(a.id).tags == ["sea", "big idea"]
+
+      # The founder tag comes from the author: it has no remove button.
+      refute has_element?(view, ~s(#card-#{a.id}-tags button[aria-label="Remove tag fredrik"]))
+
+      view
+      |> element(~s(#card-#{a.id}-tags button[aria-label="Remove tag sea"]))
+      |> render_click()
+
+      assert Board.get_idea(a.id).tags == ["big idea"]
+    end
+
+    test "a too long tag shows a message", %{conn: conn, a: a} do
+      {:ok, view, _} = live(conn, "/team")
+      open(view, a)
+
+      view
+      |> form("#card-#{a.id}-tag-form", %{tag: String.duplicate("x", 25)})
+      |> render_submit()
+
+      assert render(view) =~ "A tag has 24 characters or fewer."
     end
   end
 

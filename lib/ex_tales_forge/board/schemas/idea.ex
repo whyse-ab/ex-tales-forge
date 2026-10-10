@@ -1,7 +1,7 @@
 defmodule TalesForge.Board.Idea do
   @moduledoc """
   A card on the founders' idea board (`board_ideas`): an idea with its column,
-  Case's refinement, the cached ranking score and, once a founder has OK'd it,
+  Case's refinement, the founders' free-text tags (`tags`), the cached ranking score and, once a founder has OK'd it,
   the decision log entry it wrote (`decision_slug`, `decision_sha`). A card
   imported from the Collab decision queue points back at it
   (`collab_decision_id`).
@@ -33,6 +33,7 @@ defmodule TalesForge.Board.Idea do
     field :pr_url, :string
     field :pr_head_sha, :string
     field :player_note, :string
+    field :tags, {:array, :string}, default: []
 
     has_many :votes, Vote
     has_many :comments, Comment
@@ -75,7 +76,8 @@ defmodule TalesForge.Board.Idea do
       :pr_number,
       :pr_url,
       :pr_head_sha,
-      :player_note
+      :player_note,
+      :tags
     ])
     |> validate_inclusion(:column, @columns)
   end

@@ -21,6 +21,12 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   own; on a phone the areas stack. A card's avatar is a 5×5 identicon seeded
   from its id (`avatar_spec/1`, aria-hidden).
 
+  The Ideas lane has a sort toggle (newest or oldest first, `?sort=`) and a
+  tag cloud of toggle buttons (`TalesForge.Board.Tags`, `?tags=a,b`): the
+  lane shows the cards with all the selected tags. Each thin card shows its
+  tags as small chips; founders add and remove free-text tags on the full
+  card.
+
   Clicking a card opens it in full in a modal dialog (`role="dialog"`, focus
   trapped by `focus_wrap`, Esc or clicking outside closes it, focus returns to
   the card): votes, the open -1 block, Move to, Case's refinement, links,
@@ -31,17 +37,8 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   use TalesForgeWeb, :live_component
 
   alias TalesForge.Board
-  alias TalesForge.Board.{Idea, Mentions, Transitions, Typing}
+  alias TalesForge.Board.{Idea, Mentions, Tags, Transitions, Typing}
   alias TalesForgeWeb.TeamImages
-
-  # The sort choices for the Ideas column: {URL value, label}.
-  @sorts [
-    {"top", "Most support"},
-    {"newest", "Newest"},
-    {"oldest", "Oldest"},
-    {"votes", "Most votes"}
-  ]
-  @sort_keys Enum.map(@sorts, &elem(&1, 0))
 
   @impl true
   def update(%{refresh: true}, socket), do: {:ok, load(socket)}
@@ -67,97 +64,66 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
      |> assign_new(:downvote_for, fn -> nil end)
      |> assign_new(:editing, fn -> nil end)
      |> assign_new(:drafts, fn -> %{} end)
-     |> assign(:sorts, @sorts)
      |> assign_new(:typed, fn -> %{} end)
      |> TeamImages.allow(:card_images)
      |> load()}
   end
 
   @doc """
-  The sort key for the Ideas column from the `sort` URL query value.
-  An unknown or missing value gives `"top"` (the board's ranking).
+  The sort key for the Ideas column from the `sort` URL query value:
+  `"newest"` or `"oldest"`. An unknown or missing value gives `"newest"`.
 
-      iex> TalesForgeWeb.TeamIdeaBoard.sort_key("newest")
-      "newest"
+      iex> TalesForgeWeb.TeamIdeaBoard.sort_key("oldest")
+      "oldest"
       iex> TalesForgeWeb.TeamIdeaBoard.sort_key("other")
-      "top"
+      "newest"
   """
   @spec sort_key(term()) :: String.t()
-  def sort_key(key) when key in @sort_keys, do: key
-  def sort_key(_key), do: "top"
+  def sort_key("oldest"), do: "oldest"
+  def sort_key(_key), do: "newest"
 
-  # Puts the Ideas cards in the selected order. "top" keeps the board's ranking.
-  # Equal values keep the ranking order (Enum.sort_by is stable).
-  defp sort_ideas(cards, "newest"),
-    do: Enum.sort_by(cards, & &1.inserted_at, {:desc, DateTime})
+  @doc """
+  The URL of the board for an Ideas sort key and selected tags. The default
+  order (newest) and an empty tag list stay out of the URL.
 
+      iex> TalesForgeWeb.TeamIdeaBoard.ideas_path("newest", [])
+      "/team"
+      iex> TalesForgeWeb.TeamIdeaBoard.ideas_path("oldest", ["ui", "håkan"])
+      "/team?sort=oldest&tags=ui%2Ch%C3%A5kan"
+  """
+  @spec ideas_path(String.t(), [String.t()]) :: String.t()
+  def ideas_path(sort, tags) do
+    query =
+      Enum.reject(
+        [{"sort", sort_key(sort)}, {"tags", Enum.join(tags, ",")}],
+        fn {k, v} -> v == "" or {k, v} == {"sort", "newest"} end
+      )
+
+    if query == [], do: "/team", else: "/team?" <> URI.encode_query(query)
+  end
+
+  # Puts the Ideas cards in the selected order. Equal times keep the board's
+  # ranking order (Enum.sort_by is stable).
   defp sort_ideas(cards, "oldest"),
     do: Enum.sort_by(cards, & &1.inserted_at, {:asc, DateTime})
 
-  defp sort_ideas(cards, "votes"), do: Enum.sort_by(cards, &length(&1.votes), :desc)
-  defp sort_ideas(cards, _top), do: cards
-
-  @doc """
-  The "Written by" value of a card author: the first part of the email, in
-  lower case. Bots give nil.
-
-      iex> TalesForgeWeb.TeamIdeaBoard.author_key("Fredrik@whyse.se")
-      "fredrik"
-      iex> TalesForgeWeb.TeamIdeaBoard.author_key("bot:case")
-      nil
-  """
-  @spec author_key(String.t() | nil) :: String.t() | nil
-  def author_key("bot:" <> _), do: nil
-
-  def author_key(email) when is_binary(email),
-    do: email |> String.downcase() |> String.split(["@", ".", "+"]) |> hd()
-
-  def author_key(_), do: nil
-
-  # The "Written by" choices: each founder who wrote a card, {value, name}.
-  defp authors(board) do
-    board
-    |> Map.values()
-    |> List.flatten()
-    |> Enum.map(& &1.author)
-    |> Enum.uniq_by(&author_key/1)
-    |> Enum.flat_map(fn a ->
-      case author_key(a) do
-        nil -> []
-        key -> [{key, TalesForge.TeamOnline.name(a)}]
-      end
-    end)
-    |> Enum.sort_by(&elem(&1, 1))
-  end
-
-  # Keeps the Ideas cards of one author ("" or nil: all).
-  defp by_author(cards, by) when by in [nil, ""], do: cards
-  defp by_author(cards, by), do: Enum.filter(cards, &(author_key(&1.author) == by))
-
-  # Keeps the Ideas cards where a comment @mentions `handle` (only @mentions,
-  # as the card asks; `@founders` mentions every founder).
-  defp mentioning(cards, false, _handle), do: cards
-  defp mentioning(_cards, true, nil), do: []
-
-  defp mentioning(cards, true, handle) do
-    Enum.filter(cards, fn card ->
-      Enum.any?(card.comments, &(handle in Mentions.parse(&1.body).founders))
-    end)
-  end
+  defp sort_ideas(cards, _newest),
+    do: Enum.sort_by(cards, & &1.inserted_at, {:desc, DateTime})
 
   defp load(socket) do
     sort = sort_key(socket.assigns[:ideas_sort])
-    by = socket.assigns[:ideas_by]
-    mine = socket.assigns[:ideas_mine] == true
-    me = Mentions.handle_for(socket.assigns[:login])
+    selected = socket.assigns[:ideas_tags] || []
     full = Board.board()
 
     board =
       Map.update(full, "ideas", [], fn cards ->
-        cards |> sort_ideas(sort) |> by_author(by) |> mentioning(mine, me)
+        cards |> sort_ideas(sort) |> Tags.filter(selected)
       end)
 
-    socket = assign(socket, :authors, authors(full))
+    # The tag cloud: every tag in use on an Ideas card, and the selected ones.
+    socket =
+      assign(socket, :tag_cloud, Enum.uniq(Tags.in_use(full["ideas"] || []) ++ selected))
+
     open_id = socket.assigns[:open_id]
     open = open_id && board |> Map.values() |> List.flatten() |> Enum.find(&(&1.id == open_id))
 
@@ -235,18 +201,24 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   end
 
   @impl true
-  def handle_event("sort", params, socket) do
-    query =
-      [
-        {"sort", sort_key(params["sort"])},
-        {"by", params["by"]},
-        {"mine", if(params["mine"] == "true", do: "1")}
-      ]
-      |> Enum.reject(fn {k, v} -> v in [nil, ""] or {k, v} == {"sort", "top"} end)
-
-    path = if query == [], do: "/team", else: "/team?" <> URI.encode_query(query)
-    {:noreply, push_patch(socket, to: path)}
+  def handle_event("toggle_sort", _params, socket) do
+    sort = if sort_key(socket.assigns[:ideas_sort]) == "newest", do: "oldest", else: "newest"
+    {:noreply, push_patch(socket, to: ideas_path(sort, socket.assigns[:ideas_tags] || []))}
   end
+
+  def handle_event("toggle_tag", %{"tag" => tag}, socket) do
+    tags = Tags.toggle(socket.assigns[:ideas_tags] || [], tag)
+    {:noreply, push_patch(socket, to: ideas_path(socket.assigns[:ideas_sort], tags))}
+  end
+
+  def handle_event("clear_tags", _params, socket),
+    do: {:noreply, push_patch(socket, to: ideas_path(socket.assigns[:ideas_sort], []))}
+
+  def handle_event("add_tag", %{"card_id" => id, "tag" => text}, socket),
+    do: with_idea(socket, id, &Board.add_tag(&1, socket.assigns.founder, text))
+
+  def handle_event("remove_tag", %{"card_id" => id, "tag" => tag}, socket),
+    do: with_idea(socket, id, &Board.remove_tag(&1, socket.assigns.founder, tag))
 
   def handle_event("open", %{"card_id" => id}, socket) do
     Board.read_pings(id, socket.assigns[:login])
@@ -509,11 +481,9 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
       >
         <.area
           column="ideas"
-          sorts={@sorts}
-          sort={sort_key(@ideas_sort)}
-          authors={@authors}
-          by={assigns[:ideas_by]}
-          mine={assigns[:ideas_mine] == true}
+          sort={sort_key(assigns[:ideas_sort])}
+          tag_cloud={@tag_cloud}
+          selected_tags={assigns[:ideas_tags] || []}
           size={:thin}
           prs={@prs}
           typing={@typing}
@@ -607,6 +577,10 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   defp portrait("building"), do: "/images/team/bobby-640.webp"
   defp portrait(_column), do: nil
 
+  # The accessible name of the sort toggle: the current order and the action.
+  defp sort_label("oldest"), do: "Sorted oldest first. Sort newest first"
+  defp sort_label(_newest), do: "Sorted newest first. Sort oldest first"
+
   defp close_js(myself), do: JS.push("close", target: myself) |> JS.pop_focus()
 
   defp open_js(myself, id),
@@ -620,11 +594,9 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   attr :typing, :map, default: %{}
   attr :myself, :any, required: true
   attr :class, :string, default: nil
-  attr :sorts, :list, default: nil
-  attr :sort, :string, default: "top"
-  attr :authors, :list, default: []
-  attr :by, :string, default: nil
-  attr :mine, :boolean, default: false
+  attr :sort, :string, default: nil
+  attr :tag_cloud, :list, default: []
+  attr :selected_tags, :list, default: []
 
   defp area(assigns) do
     assigns = assign(assigns, :cards, assigns.board[assigns.column])
@@ -658,52 +630,67 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
         {Transitions.label(@column)}
         <span class="font-sans text-xs font-normal text-[var(--paper-muted)]">{length(@cards)}</span>
       </h3>
-      <%!-- The Ideas toolbar: labels sit outside the controls; the row wraps
+      <%!-- The Ideas toolbar: the sort toggle, then the tag cloud. It wraps
            in a narrow column, with no absolute positioning. --%>
-      <form
-        :if={@sorts}
-        id="ideas-sort"
-        phx-change="sort"
-        phx-target={@myself}
-        class="flex flex-wrap items-end gap-2 px-1 pb-2 text-xs text-[var(--paper-muted)]"
-      >
-        <div class="flex min-w-[7rem] flex-1 flex-col gap-0.5">
-          <label for="ideas-sort-select">Sort</label>
-          <select
-            id="ideas-sort-select"
-            name="sort"
-            class="select select-sm w-full min-w-0 bg-[var(--paper-panel)] text-[var(--paper-ink)]"
+      <div :if={@sort} id="ideas-toolbar" class="space-y-1 px-1 pb-2 text-xs">
+        <div class="flex items-center justify-between gap-2 text-[var(--paper-muted)]">
+          <span id="ideas-sort-state">{if @sort == "oldest", do: "Oldest first", else: "Newest first"}</span>
+          <button
+            type="button"
+            id="ideas-sort"
+            data-sort={@sort}
+            phx-click="toggle_sort"
+            phx-target={@myself}
+            aria-label={sort_label(@sort)}
+            title={sort_label(@sort)}
+            class="btn btn-ghost btn-sm btn-square min-h-11 min-w-11 text-[var(--paper-ink)]"
           >
-            <option :for={{key, label} <- @sorts} value={key} selected={key == @sort}>{label}</option>
-          </select>
+            <.icon
+              name={if @sort == "oldest", do: "hero-bars-arrow-up", else: "hero-bars-arrow-down"}
+              class="size-5"
+            />
+          </button>
         </div>
-        <div class="flex min-w-[7rem] flex-1 flex-col gap-0.5">
-          <label for="ideas-by">Author</label>
-          <select
-            id="ideas-by"
-            name="by"
-            class="select select-sm w-full min-w-0 bg-[var(--paper-panel)] text-[var(--paper-ink)]"
-          >
-            <option value="">Everyone</option>
-            <option :for={{key, name} <- @authors} value={key} selected={key == @by}>{name}</option>
-          </select>
-        </div>
-        <input type="hidden" name="mine" value="false" />
-        <input
-          id="ideas-mine"
-          type="checkbox"
-          name="mine"
-          value="true"
-          checked={@mine}
-          class="peer sr-only"
-        />
-        <label
-          for="ideas-mine"
-          class="badge badge-outline badge-sm h-7 text-xs cursor-pointer select-none px-3 peer-checked:badge-primary peer-focus-visible:outline peer-focus-visible:outline-2"
+        <ul
+          :if={@tag_cloud != []}
+          id="ideas-tags"
+          aria-label="Filter by tags"
+          class="flex flex-wrap gap-1"
         >
-          Mentioning me
-        </label>
-      </form>
+          <li :for={tag <- @tag_cloud}>
+            <button
+              type="button"
+              data-tag={tag}
+              phx-click="toggle_tag"
+              phx-value-tag={tag}
+              phx-target={@myself}
+              aria-pressed={to_string(tag in @selected_tags)}
+              class={[
+                "badge badge-sm h-auto min-h-7 cursor-pointer px-2",
+                if(tag in @selected_tags, do: "badge-primary", else: "badge-outline")
+              ]}
+            >
+              {tag}
+            </button>
+          </li>
+        </ul>
+        <div
+          :if={@selected_tags != []}
+          id="ideas-tags-hint"
+          class="flex flex-wrap items-center gap-2 text-[var(--paper-muted)]"
+        >
+          <span role="status">Showing cards with all selected tags</span>
+          <button
+            type="button"
+            id="ideas-tags-clear"
+            phx-click="clear_tags"
+            phx-target={@myself}
+            class="btn btn-ghost btn-xs min-h-7 underline"
+          >
+            Clear
+          </button>
+        </div>
+      </div>
       <div
         class="min-h-0 flex-1 overflow-y-auto pr-1"
         tabindex="0"
@@ -746,6 +733,19 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
                   class="block break-words text-xs leading-tight text-[var(--paper-muted)]"
                 >
                   {look.blocker}
+                </span>
+                <span
+                  :if={(tags = Tags.of(idea)) != []}
+                  id={"tile-#{idea.id}-tags"}
+                  data-role="tags"
+                  class="mt-0.5 flex flex-wrap gap-0.5"
+                >
+                  <span
+                    :for={tag <- tags}
+                    class="badge badge-ghost badge-xs h-auto max-w-full break-all"
+                  >
+                    {tag}
+                  </span>
                 </span>
               </span>
               <span
@@ -1557,6 +1557,49 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
                 Cancel
               </button>
             </div>
+          </form>
+        </section>
+
+        <section id={"card-#{@idea.id}-tags"} aria-label="Tags" class="space-y-1">
+          <h5 class="font-semibold">Tags</h5>
+          <ul class="flex flex-wrap gap-1">
+            <li
+              :for={tag <- Tags.of(@idea)}
+              data-tag={tag}
+              class="badge badge-outline gap-1 h-auto min-h-7"
+            >
+              {tag}
+              <button
+                :if={tag in @idea.tags}
+                type="button"
+                phx-click="remove_tag"
+                phx-value-card_id={@idea.id}
+                phx-value-tag={tag}
+                phx-target={@myself}
+                aria-label={"Remove tag #{tag}"}
+                class="-mr-1 min-h-7 min-w-7 rounded-full"
+              >
+                <.icon name="hero-x-mark" class="size-3" />
+              </button>
+            </li>
+          </ul>
+          <form
+            id={"card-#{@idea.id}-tag-form"}
+            phx-submit="add_tag"
+            phx-target={@myself}
+            class="flex flex-wrap items-center gap-2"
+          >
+            <input type="hidden" name="card_id" value={@idea.id} />
+            <label for={"card-#{@idea.id}-tag"} class="sr-only">New tag</label>
+            <input
+              id={"card-#{@idea.id}-tag"}
+              name="tag"
+              required
+              maxlength={Tags.max_length()}
+              placeholder="Add a tag"
+              class="input input-sm w-40 bg-[var(--paper-panel)]"
+            />
+            <button type="submit" class="btn btn-sm min-h-11">Add tag</button>
           </form>
         </section>
 
