@@ -12,7 +12,7 @@ defmodule TalesForgeWeb.SurveyExportController do
   alias TalesForge.Surveys
   alias TalesForgeWeb.TimeAgo
 
-  @doc "GET /admin/surveys/:id/results.csv"
+  @doc "GET /admin/founders/surveys/:id/results.csv"
   @spec csv(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def csv(conn, %{"id" => id}) do
     with_definition(conn, id, fn definition, responses ->
@@ -23,7 +23,7 @@ defmodule TalesForgeWeb.SurveyExportController do
     end)
   end
 
-  @doc "GET /admin/surveys/:id/results.md"
+  @doc "GET /admin/founders/surveys/:id/results.md"
   @spec markdown(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def markdown(conn, %{"id" => id}) do
     with_definition(conn, id, fn definition, responses ->

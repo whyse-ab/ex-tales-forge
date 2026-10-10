@@ -162,7 +162,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLiveTest do
   test "results page for the founder survey with no answers", %{conn: conn} do
     {:ok, _view, html} = live(conn, ~p"/admin/founders/surveys/founder-survey-3/results")
     assert html =~ "No answers yet."
-    assert html =~ ~s(href="/admin/surveys/founder-survey-3")
+    assert html =~ ~s(href="/admin/founders/surveys/founder-survey-3")
     assert html =~ "an open tab"
   end
 
@@ -256,7 +256,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLiveTest do
            |> element("#survey-row-closed-survey [data-status=not_started]")
            |> has_element?()
 
-    assert html =~ ~s(href="/admin/surveys/closed-survey/results.csv")
+    assert html =~ ~s(href="/admin/founders/surveys/closed-survey/results.csv")
     assert render_click(view, "reload") =~ "Founder surveys"
   end
 

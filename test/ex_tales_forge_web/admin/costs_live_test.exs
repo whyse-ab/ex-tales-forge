@@ -305,4 +305,9 @@ defmodule TalesForgeWeb.AdminLive.CostsLiveTest do
       game_session_id: session_id
     })
   end
+
+  test "the page names its admin section and links back to it", %{conn: conn} do
+    {:ok, view, _html} = live(log_in_admin(conn), ~p"/admin/operate/costs")
+    assert has_element?(view, ~s(#section-crumb[href="/admin#section-operate"]), "Operate")
+  end
 end

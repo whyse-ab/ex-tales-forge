@@ -365,7 +365,7 @@
     "release_source": "decisions.md 2026-10-09 'Jev intent on for playtest and production' (playtest v76, prod v85)",
     "login": "GitHub team sign-in only (whyse-ab/tales-forge team), every page, prod and playtest",
     "keys": "Separate AI keys per environment (prod and playtest), stored as Fly secrets. Values never shown.",
-    "costs_pages": "/admin/costs on each app; prod shows all costs plus a live Playtest section (PR #90, live since 2026-10-09)",
+    "costs_pages": "/admin/operate/costs on each app; prod shows all costs plus a live Playtest section (PR #90, live since 2026-10-09)",
     "hosting_usd_per_month": [
       {
         "item": "Production app + DB (Fly)",
@@ -947,7 +947,7 @@
       "post_rework": 0.114
     },
     "gaps": [
-      "Production AI spend not in docs (see /admin/costs)",
+      "Production AI spend not in docs (see /admin/operate/costs)",
       "Coding/agent bot spend not documented",
       "Today's fresh full batch (full-2026-10-09): not analysed yet"
     ]
@@ -963,7 +963,7 @@
   "shared_board": {
     "as_of": "2026-10-09",
     "status": "coming soon, not built",
-    "source": "Fredrik's idea 2026-10-09; docs/future-ideas.md 'Founder kanban on /team'; builds on Collab decision queue (ex-tales-forge lib/ex_tales_forge/collab.ex, /admin/decisions)",
+    "source": "Fredrik's idea 2026-10-09; docs/future-ideas.md 'Founder kanban on /team'; builds on Collab decision queue (ex-tales-forge lib/ex_tales_forge/collab.ex, /admin/founders/decisions)",
     "columns": [
       {
         "id": "ideas",

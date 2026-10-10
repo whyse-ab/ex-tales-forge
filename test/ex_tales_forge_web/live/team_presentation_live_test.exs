@@ -845,7 +845,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       assert has_element?(view, "#board-why", "Moving a card pings the right bot.")
       assert has_element?(view, "#board-why", "One place for each thing.")
       assert has_element?(view, "#board-why", "not just Fredrik as today")
-      assert has_element?(view, ~s(#board-small-print a[href="/admin/decisions"]))
+      assert has_element?(view, ~s(#board-small-print a[href="/admin/founders/decisions"]))
       assert has_element?(view, "#board-small-print", "Founder kanban on /team")
       assert has_element?(view, "#board-step-founder_check", "That drag is the founder's OK.")
 

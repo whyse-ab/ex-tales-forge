@@ -22,8 +22,8 @@ defmodule TalesForge.Survey.Definition do
   label objects (`option_labels`); see `TalesForge.Survey.Question`.
 
   Tabs: a survey with `"active": true` (and not `closed`) is one of the tabs on
-  `/admin/survey` (`active?/1`), labelled with `tab` or else the title. An
-  inactive survey stays reachable at `/admin/surveys/<id>` and its results.
+  `/admin/founders/survey` (`active?/1`), labelled with `tab` or else the title. An
+  inactive survey stays reachable at `/admin/founders/surveys/<id>` and its results.
   """
 
   alias TalesForge.Survey.Question

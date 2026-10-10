@@ -1,6 +1,6 @@
 # Playtest summary (admin playtest page)
 
-The founder-readable summary on top of `/admin/playtest` comes from two files here
+The founder-readable summary on top of `/admin/play/runs` comes from two files here
 (`TalesForge.Playtest.Summary`):
 
 - `summary.md`: plain-language Markdown. Above the `<!-- batches -->` line: what we test

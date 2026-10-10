@@ -1,9 +1,9 @@
 defmodule TalesForgeWeb.AdminLive.SurveyLive.Show do
   @moduledoc """
-  The founder survey page. `/admin/survey` shows one tab per active survey
+  The founder survey page. `/admin/founders/survey` shows one tab per active survey
   (`TalesForge.Surveys.active/1`, from each docs file's `active` flag) with
   the signed-in founder's status on each (not started, in progress, done) and
-  opens the first; `/admin/surveys/:id` opens any survey, active or not.
+  opens the first; `/admin/founders/surveys/:id` opens any survey, active or not.
   Questions come from the survey file in
   tales-forge-docs (`TalesForge.Survey.Source`); answers autosave per section
   into the signed-in user's response (`TalesForge.Surveys`), keyed by their
@@ -168,17 +168,24 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Show do
         This survey is not one of the open tabs right now. You can still read it here, and its results stay available.
       </p>
       <header class="space-y-2">
+        <.link
+          id="section-crumb"
+          href="/admin#section-founders"
+          class="play-label text-[var(--paper-accent)] hover:underline"
+        >
+          Founders
+        </.link>
         <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">{@definition.title}</h2>
         <p class="text-sm text-[var(--paper-muted)]">
           About {@definition.estimated_minutes || "?"} minutes · version {@definition.version} ·
           <.link
-            navigate={~p"/admin/surveys/#{@definition.id}/results"}
+            navigate={~p"/admin/founders/surveys/#{@definition.id}/results"}
             class="text-[var(--paper-accent)] underline"
           >
             Results
           </.link>
           ·
-          <.link navigate={~p"/admin/surveys"} class="text-[var(--paper-accent)] underline">
+          <.link navigate={~p"/admin/founders/surveys"} class="text-[var(--paper-accent)] underline">
             All surveys
           </.link>
         </p>

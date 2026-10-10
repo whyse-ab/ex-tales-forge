@@ -78,7 +78,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
 
     case Runner.start(persona, module, opts) do
       {:ok, run_id} ->
-        {:noreply, push_navigate(socket, to: ~p"/admin/playtest/#{run_id}")}
+        {:noreply, push_navigate(socket, to: ~p"/admin/play/runs/#{run_id}")}
 
       {:error, reason} ->
         {:noreply, put_flash(socket, :error, "Could not start the run: #{inspect(reason)}")}
@@ -90,6 +90,13 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
     ~H"""
     <Layouts.admin flash={@flash} active="playtest">
       <header>
+        <.link
+          id="section-crumb"
+          href="/admin#section-play"
+          class="play-label text-[var(--paper-accent)] hover:underline"
+        >
+          Play and test
+        </.link>
         <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Playtest runs</h2>
         <p class="text-sm text-[var(--paper-muted)]">
           A plain-language summary first; every run in detail <a
@@ -153,7 +160,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
             <tr :for={row <- @rows} id={"run-#{row.run.id}"}>
               <td class="px-3 py-2">
                 <.link
-                  navigate={~p"/admin/playtest/#{row.run.id}"}
+                  navigate={~p"/admin/play/runs/#{row.run.id}"}
                   class="font-medium text-[var(--paper-accent)]"
                 >
                   {row.run.persona}

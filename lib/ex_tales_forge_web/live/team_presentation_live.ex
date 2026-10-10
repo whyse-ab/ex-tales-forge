@@ -779,7 +779,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
             <.icon name="hero-banknotes" class="size-5 text-[var(--paper-accent)]" /> Costs pages
           </h3>
           <p class="text-sm">
-            <.link href={~p"/admin/costs"} class="underline">/admin/costs</.link>
+            <.link href={~p"/admin/operate/costs"} class="underline">/admin/operate/costs</.link>
             shows AI spend per day and month. Production shows everything, with playtest's costs read live from the playtest app.
           </p>
         </div>
@@ -1388,7 +1388,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
   defp together_section(assigns) do
     assigns =
       assign(assigns,
-        survey_url: AppRole.link(:surveys, "/admin/survey"),
+        survey_url: AppRole.link(:surveys, "/admin/founders/survey"),
         playtest_url: AppRole.base_url(:playtest)
       )
 
@@ -1405,7 +1405,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
           href={@survey_url}
           link="Open the survey"
         >
-          Founder surveys are on production at <code>/admin/survey</code>. Your answers set how the game reads players and what we test for.
+          Founder surveys are on production at <code>/admin/founders/survey</code>. Your answers set how the game reads players and what we test for.
         </.involve>
         <.involve
           icon="hero-puzzle-piece"

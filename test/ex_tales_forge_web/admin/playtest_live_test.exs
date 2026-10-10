@@ -168,8 +168,8 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     refute has_element?(view, "#{batch}-paul", "4.77")
 
     [best, worst | _] = runs
-    assert has_element?(view, ~s(#{batch}-hawk a[href="/admin/playtest/#{best.id}"]), "4.20")
-    assert has_element?(view, ~s(#{batch}-hawk a[href="/admin/playtest/#{worst.id}"]), "1.80")
+    assert has_element?(view, ~s(#{batch}-hawk a[href="/admin/play/runs/#{best.id}"]), "4.20")
+    assert has_element?(view, ~s(#{batch}-hawk a[href="/admin/play/runs/#{worst.id}"]), "1.80")
   end
 
   test "a running batch counts up to its plan", %{conn: conn} do
@@ -346,7 +346,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     |> render_submit()
 
     run = Repo.one!(PlaytestRun)
-    assert_redirect(view, ~p"/admin/playtest/#{run.id}")
+    assert_redirect(view, ~p"/admin/play/runs/#{run.id}")
     assert %{persona: "lars", turn_limit: 2} = run
     await(run.id)
   end
@@ -385,7 +385,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     assert html =~ "The bluff landed."
     assert html =~ "12.3 s"
     assert html =~ "Wall clock, incl. bot"
-    assert html =~ ~p"/admin/sessions/#{run.game_session_id}"
+    assert html =~ ~p"/admin/play/sessions/#{run.game_session_id}"
     refute html =~ "Re-score"
   end
 

@@ -32,7 +32,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
 
       {:error, :not_found} ->
         {:ok,
-         socket |> put_flash(:error, "Run not found.") |> push_navigate(to: ~p"/admin/playtest")}
+         socket |> put_flash(:error, "Run not found.") |> push_navigate(to: ~p"/admin/play/runs")}
     end
   end
 
@@ -96,7 +96,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
     ~H"""
     <Layouts.admin flash={@flash} active="playtest">
       <header class="space-y-2">
-        <.link navigate={~p"/admin/playtest"} class="text-sm text-[var(--paper-accent)]">← Playtest runs</.link>
+        <.link navigate={~p"/admin/play/runs"} class="text-sm text-[var(--paper-accent)]">← Playtest runs</.link>
         <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">
           <span class="capitalize">{@run.persona}</span> · {@run.module}
         </h2>
@@ -105,7 +105,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Show do
           <.time_ago id="run-started" at={@run.started_at} now={@now} />
           ({TimeAgo.stockholm(@run.started_at)}) ·
           <.link
-            navigate={~p"/admin/sessions/#{@run.game_session_id}"}
+            navigate={~p"/admin/play/sessions/#{@run.game_session_id}"}
             class="text-[var(--paper-accent)]"
           >session</.link>
         </p>
