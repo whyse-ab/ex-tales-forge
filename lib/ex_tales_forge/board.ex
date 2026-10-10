@@ -9,7 +9,7 @@ defmodule TalesForge.Board do
   `TalesForge.Board.Ranking`. Case refines, founders check and comment, a
   founder moves the card to Building (the OK, which writes the decision log
   entry), Bobby builds, Gentry checks and Bobby moves it to Done. Who may move
-  what is `TalesForge.Board.Rules`; every move is a `board_transitions` row,
+  what is `TalesForge.Board.Transitions`; every move is a `board_transitions` row,
   and what it sets off (bot pings, the decision commit) is queued in the same
   transaction (`TalesForge.Board.Events`).
 
@@ -19,15 +19,27 @@ defmodule TalesForge.Board do
   import Ecto.Query
 
   alias Ecto.Multi
-  alias TalesForge.Board.{Approval, Comment, Events, Idea, Link, Ranking, Rules, Transition, Vote}
+
+  alias TalesForge.Board.{
+    Approval,
+    Comment,
+    Events,
+    Idea,
+    Link,
+    Ranking,
+    Transition,
+    Transitions,
+    Vote
+  }
+
   alias TalesForge.Collab.Schemas.Decision
   alias TalesForge.Repo
 
   @topic "board:ideas"
   @gentry_pass "Gentry check: pass"
 
-  @typedoc "Who acts (see `TalesForge.Board.Rules`)."
-  @type actor :: Rules.actor()
+  @typedoc "Who acts (see `TalesForge.Board.Transitions`)."
+  @type actor :: Transitions.actor()
 
   @typedoc "An error for the UI or a bot: a sentence or a changeset."
   @type error :: {:error, String.t() | Ecto.Changeset.t()}
@@ -65,13 +77,16 @@ defmodule TalesForge.Board do
     |> then(&order("ideas", &1, now))
   end
 
+  # The backlog: net votes, then total votes, both descending; then the
+  # oldest card first.
   defp order("ideas", cards, now) do
     cards
     |> Enum.map(fn idea ->
-      score = Ranking.score(net_votes(idea), Ranking.age_days(idea.inserted_at, now))
-      {score, idea.inserted_at, %{idea | score: score}}
+      %{idea | score: Ranking.score(net_votes(idea), Ranking.age_days(idea.inserted_at, now))}
     end)
-    |> Ranking.sort()
+    |> Enum.sort_by(fn idea ->
+      {-net_votes(idea), -length(idea.votes), DateTime.to_unix(idea.inserted_at, :microsecond)}
+    end)
   end
 
   defp order(_column, cards, _now), do: Enum.sort_by(cards, &entered_at/1, {:asc, DateTime})
@@ -174,8 +189,6 @@ defmodule TalesForge.Board do
     founder = normalize(founder)
 
     if idea.column in ~w(ideas refining check) do
-      before = pullable_ids()
-
       result =
         case Repo.get_by(Vote, idea_id: idea.id, founder: founder) do
           %Vote{value: ^value} = vote ->
@@ -191,36 +204,15 @@ defmodule TalesForge.Board do
         end
 
       with {:ok, _} <- result do
-        :ok = ping_newly_pullable(before)
         broadcast()
         {:ok, get_idea!(idea.id)}
       end
     else
-      {:error, "Votes are closed once a card is in #{Rules.label(idea.column)}."}
+      {:error, "Votes are closed once a card is in #{Transitions.label(idea.column)}."}
     end
   end
 
   def vote(_idea, _founder, _value), do: {:error, "A vote is +1 or -1."}
-
-  @doc "The ids of the ideas Case may pull now (see `TalesForge.Board.Ranking.pullable?/2`)."
-  @spec pullable_ids(DateTime.t()) :: MapSet.t(Ecto.UUID.t())
-  def pullable_ids(now \\ DateTime.utc_now()) do
-    now
-    |> ranked_ideas()
-    |> Enum.with_index(1)
-    |> Enum.filter(fn {idea, pos} -> Ranking.pullable?(idea.score, pos) end)
-    |> MapSet.new(fn {idea, _} -> idea.id end)
-  end
-
-  # Pings Case once for each idea that has just become pullable.
-  defp ping_newly_pullable(before) do
-    pullable_ids()
-    |> MapSet.difference(before)
-    |> Enum.each(fn id ->
-      idea = get_idea!(id)
-      {:ok, _} = Multi.new() |> Events.add(:idea_pullable, idea, %{}) |> Repo.transaction()
-    end)
-  end
 
   @doc "Adds a comment by `author` (a founder email or `bot:<name>`); `@case`, `@bobby`, `@gentry` ping that bot."
   @spec add_comment(Idea.t(), String.t(), String.t()) :: {:ok, Idea.t()} | error()
@@ -268,11 +260,6 @@ defmodule TalesForge.Board do
 
     Multi.new()
     |> Multi.insert(:link, changeset)
-    |> then(fn multi ->
-      if attrs["kind"] == "pr" and idea.column == "building",
-        do: Events.add(multi, :pr_link_added, idea, %{url: attrs["url"]}),
-        else: multi
-    end)
     |> run(idea.id)
   end
 
@@ -313,15 +300,45 @@ defmodule TalesForge.Board do
     end
   end
 
-  @doc "True when the refinement has details, open questions (a list, may be empty), a rough cost and a verdict."
+  @doc "True when the refinement has a verdict, a rough cost and its open questions (a list, may be empty)."
   @spec refined?(Idea.t()) :: boolean()
   def refined?(%Idea{refinement: r}) do
-    is_binary(r["details"]) and String.trim(r["details"]) != "" and is_list(r["open_questions"]) and
-      r["rough_cost"] in @costs and r["verdict"] in @verdicts
+    is_list(r["open_questions"]) and r["rough_cost"] in @costs and r["verdict"] in @verdicts
   end
 
   @doc """
-  Moves a card to `to` for `actor`, if `TalesForge.Board.Rules` allows it,
+  The facts about a card that `TalesForge.Board.Transitions` needs (votes,
+  links, approvals and refinement loaded), with the move's `comment`.
+  """
+  @spec facts(Idea.t(), String.t() | nil) :: Transitions.card()
+  def facts(%Idea{} = idea, comment \\ nil) do
+    %{
+      up: Enum.count(idea.votes, &(&1.value == 1)),
+      down: Enum.count(idea.votes, &(&1.value == -1)),
+      refined: refined?(idea),
+      open_questions: length(List.wrap((idea.refinement || %{})["open_questions"])),
+      comment: comment,
+      pr: pr_state(idea),
+      pr_linked: idea.pr_number != nil or Enum.any?(idea.links, &(&1.kind == "pr"))
+    }
+  end
+
+  # :awaiting while the card's PR (at its current head sha) has no Approve.
+  defp pr_state(%Idea{pr_number: nil}), do: nil
+
+  defp pr_state(idea) do
+    approved? =
+      Enum.any?(
+        idea.approvals,
+        &(&1.decision == "approved" and &1.pr_number == idea.pr_number and
+            &1.head_sha == idea.pr_head_sha)
+      )
+
+    if approved?, do: :approved, else: :awaiting
+  end
+
+  @doc """
+  Moves a card to `to` for `actor`, if `TalesForge.Board.Transitions` allows it,
   with an optional `note` for the history. Writes the transition and queues
   what the move sets off in the same transaction.
   """
@@ -329,16 +346,9 @@ defmodule TalesForge.Board do
   def move(%Idea{} = idea, actor, to, note \\ nil) do
     idea = get_idea!(idea.id)
 
-    facts = %{
-      pullable: MapSet.member?(pullable_ids(), idea.id),
-      refined: refined?(idea),
-      downvoted: downvoted?(idea),
-      pr_and_playtest:
-        Enum.all?(~w(pr playtest), fn k -> Enum.any?(idea.links, &(&1.kind == k)) end),
-      gentry_ok: gentry_ok?(idea)
-    }
+    facts = facts(idea, note)
 
-    with :ok <- Rules.check(actor, idea.column, to, facts) do
+    with :ok <- Transitions.allowed?(facts, idea.column, to, actor) do
       Multi.new()
       |> Multi.update(:idea, Idea.update_changeset(idea, %{column: to}))
       |> Multi.insert(
@@ -347,7 +357,7 @@ defmodule TalesForge.Board do
           idea_id: idea.id,
           from: idea.column,
           to: to,
-          actor: Rules.actor_name(actor),
+          actor: Transitions.actor_name(actor),
           note: note
         })
       )
@@ -357,11 +367,11 @@ defmodule TalesForge.Board do
   end
 
   defp add_move_events(multi, idea, to, actor) do
-    extra = %{from: idea.column, to: to, actor: Rules.actor_name(actor)}
+    extra = %{from: idea.column, to: to, actor: Transitions.actor_name(actor)}
 
     case {idea.column, to} do
-      {"check", "refining"} -> Events.add(multi, :idea_back_to_refining, idea, extra)
-      {_, "refining"} -> Events.add(multi, :idea_to_refining, idea, extra)
+      {"ideas", "refining"} -> Events.add(multi, :idea_to_refining, idea, extra)
+      {_, "refining"} -> Events.add(multi, :idea_back_to_refining, idea, extra)
       {_, "check"} -> Events.add(multi, :idea_to_check, idea, extra)
       {_, "building"} -> Events.add(multi, :idea_to_building, idea, extra)
       {_, "done"} -> Events.add(multi, :idea_to_done, idea, extra)
@@ -481,10 +491,11 @@ defmodule TalesForge.Board do
   Bobby puts a PR up for a founder's merge OK (decision 2026-10-10; only
   normal-lane PRs, fast-lane PRs need no OK). `attrs`: `number`, `url`,
   `head_sha`, `player_note` (one line: what changes for players), and either
-  `idea_id` (an existing card) or `title` (a new card, made by Bobby). The
-  card gets the PR fields and a `pr` link and goes to Founder check (from
-  any column but Done), with a line in its history. Linking the same PR again
-  updates the head sha and note.
+  `idea_id` (an existing card) or `title` (a new card, which Bobby makes in
+  Building). The card gets the PR fields and a `pr` link and moves Building →
+  Founder check (`TalesForge.Board.Transitions`), with a line in the move log.
+  Linking the same PR again while the card is in Founder check updates the head
+  sha and note; a new head sha needs a new Approve.
   """
   @spec link_pr(map()) :: {:ok, Idea.t()} | error()
   def link_pr(attrs) do
@@ -529,21 +540,53 @@ defmodule TalesForge.Board do
       nil ->
         title = attrs["title"] |> to_string() |> String.trim()
         title = if title == "", do: "PR ##{number}", else: title
-        create_idea("bot:bobby", %{"title" => title, "body" => attrs["player_note"]})
+        create_building_card(title, attrs["player_note"])
     end
   end
 
-  defp put_pr(%Idea{column: "done"}, _number, _attrs),
-    do: {:error, "That card is Done; put the PR on a new card."}
+  # Bobby builds a PR that has no card yet: a new card, made in Building.
+  defp create_building_card(title, body) do
+    Multi.new()
+    |> Multi.insert(
+      :idea,
+      Idea.create_changeset(%Idea{}, %{"title" => title, "body" => body, "author" => "bot:bobby"})
+    )
+    |> Multi.update(:building, fn %{idea: idea} ->
+      Idea.update_changeset(idea, %{column: "building"})
+    end)
+    |> Multi.insert(:transition, fn %{idea: idea} ->
+      Transition.changeset(%Transition{}, %{
+        idea_id: idea.id,
+        to: "building",
+        actor: "bot:bobby",
+        note: "Bobby made this card for a PR."
+      })
+    end)
+    |> run()
+  end
 
-  defp put_pr(idea, number, attrs) do
+  defp put_pr(%Idea{column: "check", pr_number: number} = idea, number, attrs),
+    do: write_pr(idea, number, attrs, nil)
+
+  defp put_pr(%Idea{column: "building"} = idea, number, attrs) do
+    with :ok <-
+           Transitions.allowed?(%{pr: :awaiting}, "building", "check", {:bot, :bobby}),
+         do: write_pr(idea, number, attrs, "check")
+  end
+
+  defp put_pr(idea, _number, _attrs),
+    do:
+      {:error,
+       "Bobby links a PR to a card in Building. This card is in #{Transitions.label(idea.column)}."}
+
+  defp write_pr(idea, number, attrs, to) do
     note = String.trim(attrs["player_note"])
 
     Multi.new()
     |> Multi.update(
       :idea,
       Idea.update_changeset(idea, %{
-        column: "check",
+        column: to || idea.column,
         pr_number: number,
         pr_url: attrs["url"],
         pr_head_sha: String.trim(attrs["head_sha"]),
@@ -556,8 +599,14 @@ defmodule TalesForge.Board do
         from: idea.column,
         to: "check",
         actor: "bot:bobby",
-        note: "PR ##{number} waits for a founder's OK: #{note}"
+        note: "PR ##{number} (#{short(attrs["head_sha"])}) waits for a founder's OK: #{note}"
       })
+    end)
+    |> then(fn multi ->
+      if to,
+        do:
+          Events.add(multi, :idea_to_check, idea, %{from: idea.column, to: to, actor: "bot:bobby"}),
+        else: multi
     end)
     |> then(fn multi ->
       if Enum.any?(idea.links, &(&1.kind == "pr" and &1.url == attrs["url"])),
@@ -583,7 +632,8 @@ defmodule TalesForge.Board do
   an optional `comment`. Records who, when, the PR number and its head sha
   (`TalesForge.Board.Approval`), writes a line in the history and wakes Bobby
   (`pr.approved` / `pr.changes_requested`). Approving also moves the card from
-  Founder check to Building, so the open -1 block applies.
+  Founder check to Building (`TalesForge.Board.Transitions`: Approve is the
+  gate). Request changes keeps the card in Founder check.
   """
   @spec answer_pr(Idea.t(), String.t(), :approve | :request_changes, String.t() | nil) ::
           {:ok, Idea.t()} | error()
@@ -655,10 +705,14 @@ defmodule TalesForge.Board do
         {:error, "Only a founder can answer a PR."}
 
       idea.column != "check" ->
-        {:error, "The PR waits in Founder check; this card is in #{Rules.label(idea.column)}."}
+        {:error,
+         "The PR waits in Founder check; this card is in #{Transitions.label(idea.column)}."}
 
       approve? ->
-        Rules.check({:founder, founder}, "check", "building", %{downvoted: downvoted?(idea)})
+        idea
+        |> facts()
+        |> Map.put(:pr, :approved)
+        |> Transitions.allowed?("check", "building", {:founder, founder})
 
       true ->
         :ok
@@ -666,6 +720,7 @@ defmodule TalesForge.Board do
   end
 
   defp short(nil), do: "no sha"
+  defp short(sha) when not is_binary(sha), do: "no sha"
   defp short(sha), do: String.slice(sha, 0, 7)
 
   defp run(multi, idea_id \\ nil) do

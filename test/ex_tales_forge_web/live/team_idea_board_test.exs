@@ -21,6 +21,7 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
         "body" => String.duplicate("long task ", 40)
       })
 
+    {:ok, b} = Board.vote(b, "bo@example.com", 1)
     {:ok, _} = Board.move(b, {:founder, "bo@example.com"}, "refining")
     {:ok, view, _} = live(conn, "/team")
 
@@ -63,8 +64,9 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     refute has_element?(view, "#board-modal")
   end
 
-  test "Move to, refinement, the open -1 block, drag, comments and links", %{conn: conn} do
+  test "Move to, refinement, comment gates, drag, comments and links", %{conn: conn} do
     {:ok, idea} = Board.create_idea("bo@example.com", %{"title" => "Fishing"})
+    {:ok, idea} = Board.vote(idea, "bo@example.com", 1)
     {:ok, view, _} = live(conn, "/team")
     open(view, idea)
 
@@ -81,19 +83,27 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     |> render_submit()
 
     assert render(view) =~ "Where? · Bait?"
-    {:ok, idea} = Board.move(Board.get_idea!(idea.id), {:bot, :case}, "check")
-    {:ok, _} = Board.vote(idea, "bo@example.com", -1)
+    {:ok, _} = Board.move(Board.get_idea!(idea.id), {:bot, :case}, "check")
     send(view.pid, {:board, :changed})
-    assert has_element?(view, "#card-#{idea.id}-blocked")
-    assert has_element?(view, "#tile-#{idea.id}", "−1")
 
     view |> form("#card-#{idea.id}-move", %{to: "building"}) |> render_submit()
-    assert has_element?(view, "#card-#{idea.id}-error", "voted -1")
+    assert has_element?(view, "#card-#{idea.id}-error", "Answer or defer the 2 open questions")
     assert has_element?(view, "#board-col-check #tile-#{idea.id}")
 
+    # A drag that needs a comment opens the card with the reason.
     view
     |> with_target("#idea-board-live")
     |> render_hook("move", %{"card_id" => idea.id, "to" => "refining"})
+
+    assert has_element?(
+             view,
+             "#card-#{idea.id}-error",
+             "Write a comment that says what to change."
+           )
+
+    view
+    |> form("#card-#{idea.id}-move", %{to: "refining", note: "Cheaper, please."})
+    |> render_submit()
 
     assert has_element?(view, "#board-col-refining #tile-#{idea.id}")
 
@@ -105,6 +115,85 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     |> render_submit()
 
     assert has_element?(view, ~s(#card-#{idea.id} a[href="https://example.com/d"]))
+  end
+
+  describe "card states (design-board-states.md)" do
+    test "vote gates and reasons: no vote, a downvote, then an upvote opens Refining", %{
+      conn: conn
+    } do
+      {:ok, idea} = Board.create_idea("bo@example.com", %{"title" => "Fishing"})
+      {:ok, view, _} = live(conn, "/team")
+
+      assert has_element?(view, ~s(#tile-#{idea.id}[data-faded="true"].opacity-50))
+      assert has_element?(view, "#tile-#{idea.id}-reason", "Needs an upvote.")
+      assert has_element?(view, ~s(#tile-#{idea.id}[data-moves="parked"]))
+
+      open(view, idea)
+
+      assert has_element?(
+               view,
+               "#card-#{idea.id}-move option[value=refining][disabled]",
+               "Needs an upvote."
+             )
+
+      assert has_element?(
+               view,
+               "#card-#{idea.id}-closed-moves",
+               "Refining (Case): Needs an upvote."
+             )
+
+      view
+      |> with_target("#idea-board-live")
+      |> render_hook("move", %{"card_id" => idea.id, "to" => "refining"})
+
+      assert has_element?(view, "#card-#{idea.id}-error", "Needs an upvote.")
+      assert has_element?(view, "#board-col-ideas #tile-#{idea.id}")
+
+      view |> element("#tile-#{idea.id}-down") |> render_click()
+      assert has_element?(view, ~s(#tile-#{idea.id}[data-needs-work="true"] .border-warning))
+      assert has_element?(view, "#tile-#{idea.id} .badge-warning", "Needs work")
+      assert has_element?(view, "#tile-#{idea.id}-reason", "Has a downvote.")
+      refute has_element?(view, ~s(#tile-#{idea.id}[data-faded="true"]))
+
+      view |> element("#tile-#{idea.id}-up") |> render_click()
+      refute has_element?(view, ~s(#tile-#{idea.id}[data-needs-work="true"]))
+      refute has_element?(view, "#tile-#{idea.id}-reason")
+      assert has_element?(view, ~s(#tile-#{idea.id}[data-moves="refining parked"]))
+
+      open(view, idea)
+      view |> form("#card-#{idea.id}-move", %{to: "refining"}) |> render_submit()
+      assert has_element?(view, "#board-col-refining #tile-#{idea.id}")
+      assert has_element?(view, "#tile-#{idea.id}-reason", "Waits for Case's refinement")
+    end
+
+    test "the backlog is sorted by net votes, then total votes", %{conn: conn} do
+      ids =
+        for {title, votes} <- [
+              {"None", []},
+              {"Two up", [1, 1]},
+              {"Two up one down", [1, 1, -1, 1]},
+              {"One up", [1]}
+            ] do
+          {:ok, idea} = Board.create_idea("bo@example.com", %{"title" => title})
+
+          for {v, n} <- Enum.with_index(votes),
+              do: {:ok, _} = Board.vote(idea, "f#{n}@x", v)
+
+          {title, idea.id}
+        end
+        |> Map.new()
+
+      {:ok, view, _} = live(conn, "/team")
+      html = view |> element("#board-col-ideas") |> render()
+
+      order =
+        ~r/id="tile-([0-9a-f-]{36})"/
+        |> Regex.scan(html)
+        |> Enum.map(fn [_, id] -> Enum.find_value(ids, fn {t, i} -> i == id && t end) end)
+
+      # "Two up one down": net 2, 4 votes; "Two up": net 2, 2 votes.
+      assert order == ["Two up one down", "Two up", "One up", "None"]
+    end
   end
 
   describe "voting (Fredrik's report 2026-10-10: the browser sends the button's empty value)" do
@@ -125,7 +214,9 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     setup do
       {:ok, thin} = Board.create_idea("bo@example.com", %{"title" => "Thin one"})
       {:ok, small} = Board.create_idea("bo@example.com", %{"title" => "Small one"})
+      {:ok, small} = Board.vote(small, "ada@example.com", 1)
       {:ok, small} = Board.move(small, {:founder, "bo@example.com"}, "refining")
+      {:ok, small} = Board.vote(small, "ada@example.com", 1)
       {:ok, thin: thin, small: small}
     end
 
@@ -147,7 +238,7 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
         assert net(view, card.id) == "0"
         click(view, "#tile-#{card.id}-down")
         assert net(view, card.id) == "-1"
-        assert has_element?(view, "#tile-#{card.id}", "−1")
+        assert has_element?(view, "#tile-#{card.id} .badge-warning", "Needs work")
         click(view, "#tile-#{card.id}-down")
         assert net(view, card.id) == "0"
         refute has_element?(view, "#board-modal"), "a vote must not open the card"

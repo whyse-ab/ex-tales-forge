@@ -122,9 +122,10 @@ fly secrets set -a tales-forge \
 - `BOARD_BOT_TOKEN_<BOT>`: the bearer token the bot uses on
   `https://<host>/internal/board/…` (ideas, refine, move, comments, links).
 
-Events: `idea.to_refining`, `idea.back_to_refining`, `idea.pullable` (Case),
-`idea.to_building` (Bobby), `pr.link_added` (Gentry), `mention` (whoever is
-@mentioned). Failed deliveries retry up to 8 times (1 min doubling to 4 h).
+Events: `idea.to_refining`, `idea.back_to_refining` (Case), `idea.to_building`,
+`pr.approved`, `pr.changes_requested` (Bobby), `mention` (whoever is
+@mentioned). Only moves and @mentions wake bots; votes never do
+(`TalesForge.Board.Transitions`). Failed deliveries retry up to 8 times (1 min doubling to 4 h).
 
 ## 4. Deploy
 

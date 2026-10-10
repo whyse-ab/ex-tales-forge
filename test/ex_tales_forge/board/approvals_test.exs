@@ -57,7 +57,12 @@ defmodule TalesForge.Board.ApprovalsTest do
       assert [%{"kind" => "pr", "url" => "https://github.com/whyse-ab/ex-tales-forge/pull/125"}] =
                card["links"]
 
-      assert List.last(card["history"])["note"] =~ "PR #125 waits for a founder's OK"
+      assert List.last(card["history"])["note"] =~ "PR #125 (abc1234) waits for a founder's OK"
+
+      assert Enum.map(card["history"], &{&1["from"], &1["to"]}) == [
+               {nil, "building"},
+               {"building", "check"}
+             ]
     end
 
     test "the same PR again updates the card instead of making a second one; an existing card can be named" do
@@ -68,11 +73,21 @@ defmodule TalesForge.Board.ApprovalsTest do
       assert length(again["links"]) == 1
 
       {:ok, idea} = Board.create_idea("ada@example.com", %{"title" => "Fishing"})
+      named = Map.merge(@pr, %{"number" => 126, "idea_id" => idea.id})
 
-      {200, named} =
-        Api.handle(:pr, :bobby, Map.merge(@pr, %{"number" => 126, "idea_id" => idea.id}))
+      assert {422, %{"error" => "Bobby links a PR to a card in Building. This card is in Ideas."}} =
+               Api.handle(:pr, :bobby, named)
 
-      assert named["id"] == idea.id and named["column"] == "check"
+      {:ok, idea} = Board.vote(idea, "ada@example.com", 1)
+      {:ok, idea} = Board.move(idea, {:founder, "ada@example.com"}, "refining")
+
+      {:ok, _} =
+        Board.refine(idea, %{"open_questions" => [], "rough_cost" => "S", "verdict" => "feasible"})
+
+      {:ok, idea} = Board.move(idea, {:bot, :case}, "check")
+      {:ok, _} = Board.move(idea, {:founder, "ada@example.com"}, "building")
+      assert {200, %{"id" => id, "column" => "check"}} = Api.handle(:pr, :bobby, named)
+      assert id == idea.id
     end
 
     test "missing fields are refused" do
@@ -155,17 +170,20 @@ defmodule TalesForge.Board.ApprovalsTest do
       assert payload["pr"]["number"] == 125
     end
 
-    test "permissions: bots can't answer, an open -1 blocks Approve, only in Founder check, only with a PR",
+    test "permissions: bots can't answer, only in Founder check, only with a PR; a new sha needs a new Approve",
          %{idea: idea} do
       assert {:error, "Only a founder can answer a PR."} =
                Board.answer_pr(idea, "bot:bobby", :approve, "")
 
-      {:ok, idea} = Board.vote(idea, "bo@example.com", -1)
-
-      assert {:error, "A founder has voted -1" <> _} =
-               Board.answer_pr(idea, "ada@example.com", :approve, "")
+      assert {:error, "Approve the PR to move this card to Building."} =
+               Board.move(idea, {:founder, "ada@example.com"}, "building", "x")
 
       assert {:ok, _} = Board.answer_pr(idea, "ada@example.com", :request_changes, "Let's talk")
+      assert {:ok, idea} = Board.answer_pr(idea, "ada@example.com", :approve, "")
+      assert idea.column == "building"
+
+      assert {:error, "The PR waits in Founder check" <> _} =
+               Board.answer_pr(idea, "ada@example.com", :approve, "")
 
       {:ok, plain} = Board.create_idea("ada@example.com", %{"title" => "No PR"})
 

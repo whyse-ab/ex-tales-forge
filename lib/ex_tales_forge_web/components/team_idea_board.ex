@@ -8,8 +8,8 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
 
   Moving: drag a card onto a column (the `TeamPage` hook, `assets/js/team_hooks.js`),
   or, with a keyboard or on a phone, the card's "Move to" form, which lists only
-  the moves `TalesForge.Board.Rules` allows a founder. The rules are checked
-  again on every move; a refusal (for example the open -1 block on Building)
+  the moves `TalesForge.Board.Transitions` allows a founder (with the reason for the others). The gates are checked
+  again on every move; a refusal (for example "Needs an upvote.")
   shows as a message on the card.
 
   Layout: Ideas (the backlog) on the left, the three active columns (Refining,
@@ -29,7 +29,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   use TalesForgeWeb, :live_component
 
   alias TalesForge.Board
-  alias TalesForge.Board.{Idea, Link, Rules}
+  alias TalesForge.Board.{Idea, Link, Transitions}
 
   @impl true
   def update(%{refresh: true}, socket), do: {:ok, load(socket)}
@@ -51,7 +51,6 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
 
     assign(socket,
       board: board,
-      pullable: Board.pullable_ids(),
       open: open
     )
   end
@@ -110,7 +109,20 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
 
   def handle_event("move", %{"card_id" => id, "to" => to} = params, socket) do
     note = params["note"] |> to_string() |> String.trim()
-    with_idea(socket, id, &Board.move(&1, actor(socket), to, if(note == "", do: nil, else: note)))
+
+    case with_idea(
+           socket,
+           id,
+           &Board.move(&1, actor(socket), to, if(note == "", do: nil, else: note))
+         ) do
+      # A refused move (for example a drag that needs a comment) opens the
+      # card, so the founder sees the reason and the comment box.
+      {:noreply, %{assigns: %{errors: %{^id => _}}} = s} ->
+        {:noreply, s |> assign(:open_id, id) |> load()}
+
+      other ->
+        other
+    end
   end
 
   def handle_event("answer_pr", %{"card_id" => id, "answer" => answer} = params, socket) do
@@ -198,7 +210,6 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           board={@board}
           founder={@founder}
           myself={@myself}
-          pullable={@pullable}
           class="lg:row-span-2"
         />
         <div class="grid min-w-0 gap-3 lg:col-start-2 lg:row-start-1 lg:grid-cols-3">
@@ -209,7 +220,6 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
             board={@board}
             founder={@founder}
             myself={@myself}
-            pullable={@pullable}
           />
         </div>
         <.area
@@ -218,7 +228,6 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           board={@board}
           founder={@founder}
           myself={@myself}
-          pullable={@pullable}
           class="lg:col-start-2 lg:row-start-2"
         />
         <.area
@@ -227,7 +236,6 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           board={@board}
           founder={@founder}
           myself={@myself}
-          pullable={@pullable}
           class="lg:col-start-3 lg:row-start-1 lg:row-span-2"
         />
       </div>
@@ -262,7 +270,6 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
             idea={@open}
             founder={@founder}
             myself={@myself}
-            pullable={MapSet.member?(@pullable, @open.id)}
             error={@errors[@open.id]}
           />
         </.focus_wrap>
@@ -281,7 +288,6 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   attr :size, :atom, required: true
   attr :board, :map, required: true
   attr :myself, :any, required: true
-  attr :pullable, :any, required: true
   attr :class, :string, default: nil
 
   defp area(assigns) do
@@ -294,7 +300,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
       aria-labelledby={"board-col-#{@column}-title"}
       class={[
         "team-board-column flex min-h-0 min-w-0 flex-col rounded-xl border border-[var(--paper-rule)] bg-[var(--paper-margin)] p-2",
-        "h-[22rem] lg:h-auto [&.is-drop-target]:ring-2 [&.is-drop-target]:ring-[var(--paper-accent)]",
+        "h-[22rem] lg:h-auto [&.is-drop-target]:ring-2 [&.is-drop-target]:ring-[var(--paper-accent)] [&[data-accepts=false]]:opacity-50",
         @column == "parked" && "h-[12rem]",
         @class
       ]}
@@ -303,30 +309,37 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
         id={"board-col-#{@column}-title"}
         class="flex items-baseline justify-between px-1 pb-1 font-serif text-base font-bold"
       >
-        {Rules.label(@column)}
+        {Transitions.label(@column)}
         <span class="font-sans text-xs font-normal text-[var(--paper-muted)]">{length(@cards)}</span>
       </h3>
       <div
         class="min-h-0 flex-1 overflow-y-auto pr-1"
         tabindex="0"
-        aria-label={"#{Rules.label(@column)} cards"}
+        aria-label={"#{Transitions.label(@column)} cards"}
       >
         <p :if={@cards == []} class="px-1 text-sm text-[var(--paper-muted)]">Nothing here yet.</p>
         <ul class={["grid min-w-0 grid-cols-1 gap-1.5", @size == :small && "gap-2"]}>
           <li
-            :for={idea <- @cards}
+            :for={{idea, look} <- Enum.map(@cards, &{&1, look(&1, @founder)})}
             id={"tile-#{idea.id}"}
             draggable="true"
             data-board-card={idea.id}
+            data-moves={Enum.join(look.moves, " ")}
             data-size={@size}
-            class="flex min-w-0 items-stretch gap-1"
+            data-faded={to_string(look.faded)}
+            data-needs-work={to_string(look.needs_work)}
+            class={["flex min-w-0 items-stretch gap-1", look.faded && "opacity-50"]}
           >
             <button
               type="button"
               phx-click={open_js(@myself, idea.id)}
               aria-haspopup="dialog"
               class={[
-                "flex min-w-0 flex-1 overflow-hidden items-start gap-2 rounded-lg border border-[var(--paper-rule)] bg-[var(--paper-panel)] text-left text-sm hover:border-[var(--paper-accent)]",
+                "card card-border flex min-w-0 flex-1 flex-row overflow-hidden items-start gap-2 rounded-lg bg-[var(--paper-panel)] text-left text-sm hover:border-[var(--paper-accent)]",
+                if(look.needs_work,
+                  do: "border-2 border-warning",
+                  else: "border-[var(--paper-rule)]"
+                ),
                 @size == :thin && "min-h-11 items-center px-2 py-1.5",
                 @size == :small && "h-24 overflow-hidden p-2"
               ]}
@@ -347,14 +360,17 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
                 >
                   {task(idea)}
                 </span>
-              </span>
-              <span class="flex shrink-0 flex-col items-end gap-0.5 text-xs">
                 <span
-                  :if={Board.downvoted?(idea)}
-                  class="rounded bg-red-100 px-1 text-red-800"
-                  title="Open -1"
-                >−1</span>
-                <span :if={MapSet.member?(@pullable, idea.id)} class="sr-only">Case may pull</span>
+                  :if={look.blocker}
+                  id={"tile-#{idea.id}-reason"}
+                  data-role="reason"
+                  class="mt-0.5 block truncate text-xs text-[var(--paper-muted)]"
+                >
+                  {look.blocker}
+                </span>
+              </span>
+              <span :if={look.needs_work} class="badge badge-warning badge-sm shrink-0">
+                Needs work
               </span>
             </button>
             <.tile_votes idea={idea} founder={@founder} myself={@myself} />
@@ -417,6 +433,22 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
     """
   end
 
+  # How a tile looks and where it may go: faded with no votes (in Ideas), a
+  # "needs work" border with a downvote, the reason it cannot take its next
+  # step, and the columns the founder may drop it on (all from
+  # TalesForge.Board.Transitions).
+  defp look(idea, founder) do
+    facts = Board.facts(idea)
+
+    %{
+      faded: idea.column == "ideas" and idea.votes == [],
+      needs_work: facts.down > 0,
+      blocker: Transitions.blocker(facts, idea.column),
+      moves:
+        for({to, :ok} <- Transitions.options(facts, idea.column, {:founder, founder}), do: to)
+    }
+  end
+
   # The abbreviated task on a small card: Case's details, else the body.
   defp task(idea) do
     text = (idea.refinement || %{})["details"] || idea.body || ""
@@ -431,7 +463,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
     assigns = assign(assigns, :a, avatar_spec(assigns.id))
 
     ~H"""
-    <svg
+    <span class="avatar shrink-0"><svg
       viewBox="0 0 5 5"
       class={["shrink-0 rounded", @size]}
       aria-hidden="true"
@@ -446,7 +478,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
         height="1"
         fill={"hsl(#{@a.hue} 55% 42%)"}
       />
-    </svg>
+    </svg></span>
     """
   end
 
@@ -477,7 +509,6 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   attr :idea, :any, required: true
   attr :founder, :string, required: true
   attr :myself, :any, required: true
-  attr :pullable, :boolean, default: false
   attr :error, :string, default: nil
 
   defp card(assigns) do
@@ -487,8 +518,8 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
       assign(assigns,
         net: Board.net_votes(idea),
         mine: Board.vote_of(idea, assigns.founder),
-        blocked: Board.downvoted?(idea),
-        targets: Rules.targets({:founder, assigns.founder}, idea.column),
+        facts: Board.facts(idea),
+        options: Transitions.options(Board.facts(idea), idea.column, {:founder, assigns.founder}),
         r: idea.refinement || %{}
       )
 
@@ -511,17 +542,20 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           </p>
           <p class="mt-1 flex flex-wrap gap-1">
             <span
-              :if={@blocked}
+              :if={@facts.down > 0}
               id={"card-#{@idea.id}-blocked"}
-              class="team-badge rounded bg-red-100 px-1.5 text-xs text-red-800"
+              class="badge badge-warning badge-sm"
             >
-              Open -1: talk it through before Building
+              Needs work: a founder voted -1
             </span>
-            <span :if={@pullable} class="team-badge rounded bg-[var(--paper-bg)] px-1.5 text-xs">Case may pull</span>
             <span
-              :if={@idea.decision_sha}
-              class="team-badge rounded bg-[var(--paper-bg)] px-1.5 text-xs"
-            >Decision logged</span>
+              :if={Transitions.blocker(@facts, @idea.column)}
+              id={"card-#{@idea.id}-reason"}
+              class="badge badge-ghost badge-sm h-auto"
+            >
+              {Transitions.blocker(@facts, @idea.column)}
+            </span>
+            <span :if={@idea.decision_sha} class="badge badge-ghost badge-sm">Decision logged</span>
           </p>
         </div>
         <div
@@ -569,7 +603,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
         <p :if={@idea.body != ""} class="whitespace-pre-line">{@idea.body}</p>
 
         <form
-          :if={@targets != []}
+          :if={@options != []}
           phx-submit="move"
           phx-target={@myself}
           class="grid gap-1"
@@ -582,13 +616,22 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
               name="to"
               class="min-h-11 rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-2"
             >
-              <option :for={t <- @targets} value={t}>{Rules.label(t)}</option>
+              <option
+                :for={{t, answer} <- @options}
+                value={t}
+                disabled={answer != :ok}
+              >
+                {Transitions.label(t)}{if answer != :ok, do: ": " <> elem(answer, 1)}
+              </option>
             </select>
           </label>
+          <ul id={"card-#{@idea.id}-closed-moves"} class="text-xs text-[var(--paper-muted)]">
+            <li :for={{t, {:error, why}} <- @options}>{Transitions.label(t)}: {why}</li>
+          </ul>
           <input
             name="note"
-            placeholder="Note for the history (optional)"
-            aria-label="Note for the history"
+            placeholder="Comment for the move log (some moves need one)"
+            aria-label="Comment for the move log"
             class="rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-2 py-1.5"
           />
           <button type="submit" class="min-h-11 rounded border px-3 font-semibold">Move</button>
@@ -803,9 +846,9 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           <h5 class="font-semibold">History</h5>
           <ol>
             <li :for={t <- @idea.transitions}>
-              {if t.from, do: Rules.label(t.from) <> " → ", else: "Added to "}{Rules.label(t.to)} by {who(
-                t.actor
-              )}<span :if={t.note}>: {t.note}</span>
+              {if t.from, do: Transitions.label(t.from) <> " → ", else: "Added to "}{Transitions.label(
+                t.to
+              )} by {who(t.actor)}<span :if={t.note}>: {t.note}</span>
             </li>
           </ol>
         </section>

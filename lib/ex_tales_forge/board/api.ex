@@ -8,8 +8,8 @@ defmodule TalesForge.Board.Api do
   - `GET /ideas/:id`: one card with refinement, votes, comments, links, history.
   - `POST /ideas/:id/refinement` (Case): `details`, `open_questions`,
     `rough_cost` (S/M/L), `verdict`.
-  - `POST /ideas/:id/move`: `to` (a column), optional `note`. Rules as in
-    `TalesForge.Board.Rules`.
+  - `POST /ideas/:id/move`: `to` (a column), optional `note`. Gates as in
+    `TalesForge.Board.Transitions`.
   - `POST /ideas/:id/links`: `kind` (pr, playtest, doc, other), `url`, `label`.
   - `POST /ideas/:id/comments`: `body`. Gentry passes a card with
     `"verdict": "pass"` (the comment then starts "Gentry check: pass").
@@ -27,7 +27,7 @@ defmodule TalesForge.Board.Api do
   @behaviour TalesForge.BoardApi
 
   alias TalesForge.Board
-  alias TalesForge.Board.{Idea, Rules}
+  alias TalesForge.Board.{Idea, Transitions}
 
   @impl TalesForge.BoardApi
   @spec handle(TalesForge.BoardApi.action(), TalesForge.BoardApi.bot(), map()) ::
@@ -98,7 +98,7 @@ defmodule TalesForge.Board.Api do
       "title" => idea.title,
       "body" => idea.body,
       "column" => idea.column,
-      "column_label" => Rules.label(idea.column),
+      "column_label" => Transitions.label(idea.column),
       "author" => idea.author,
       "score" => Float.round(idea.score * 1.0, 3),
       "net_votes" => Board.net_votes(idea),

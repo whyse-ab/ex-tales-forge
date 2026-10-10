@@ -5,12 +5,14 @@ defmodule TalesForge.Board.Events do
 
   | Event | Job |
   |---|---|
-  | `:idea_to_refining`, `:idea_back_to_refining`, `:idea_pullable` | wake Case |
+  | `:idea_to_refining`, `:idea_back_to_refining` | wake Case |
   | `:idea_to_building` | write the decision log entry, wake Bobby |
-  | `:pr_link_added` (on a Building card) | wake Gentry to check the playtest |
   | `:mention` (`@case`, `@bobby`, `@gentry` in a comment) | wake that bot |
   | `:pr_approved`, `:pr_changes_requested` (a founder answers a PR) | wake Bobby |
   | `:idea_to_check`, `:idea_to_done` | nothing (founders see the board) |
+
+  Only moves (the "Wakes" column of `TalesForge.Board.Transitions`) and
+  `@mentions` wake bots. Votes and links wake nobody.
 
   Bot wake-ups are `TalesForge.Board.Workers.Notify` jobs (signed webhook
   POSTs); the decision log entry is `TalesForge.Board.Workers.LogDecision`.
@@ -24,11 +26,9 @@ defmodule TalesForge.Board.Events do
   @type event ::
           :idea_to_refining
           | :idea_back_to_refining
-          | :idea_pullable
           | :idea_to_check
           | :idea_to_building
           | :idea_to_done
-          | :pr_link_added
           | :mention
           | :pr_approved
           | :pr_changes_requested
@@ -67,11 +67,10 @@ defmodule TalesForge.Board.Events do
   """
   @spec bots(event(), map()) :: [TalesForge.BoardApi.bot()]
   def bots(event, _extra)
-      when event in [:idea_to_refining, :idea_back_to_refining, :idea_pullable],
+      when event in [:idea_to_refining, :idea_back_to_refining],
       do: [:case]
 
   def bots(:idea_to_building, _extra), do: [:bobby]
-  def bots(:pr_link_added, _extra), do: [:gentry]
   def bots(:mention, %{bot: bot}), do: [bot]
   def bots(event, _extra) when event in [:pr_approved, :pr_changes_requested], do: [:bobby]
   def bots(_event, _extra), do: []

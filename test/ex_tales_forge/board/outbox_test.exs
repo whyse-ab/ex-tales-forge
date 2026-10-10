@@ -64,6 +64,7 @@ defmodule TalesForge.Board.OutboxTest do
   defp header(headers, name), do: headers |> List.keyfind(name, 0) |> elem(1)
 
   defp refined!(idea) do
+    {:ok, idea} = Board.vote(idea, @ada, 1)
     {:ok, idea} = Board.move(idea, {:founder, @ada}, "refining")
 
     {:ok, idea} =
@@ -92,6 +93,7 @@ defmodule TalesForge.Board.OutboxTest do
 
   test "moving a card to Refining wakes Case with a signed POST" do
     {:ok, idea} = Board.create_idea(@ada, %{"title" => "Brenna remembers regulars"})
+    {:ok, idea} = Board.vote(idea, @ada, 1)
     {:ok, _} = Board.move(idea, {:founder, @ada}, "refining")
 
     assert_receive {:request, "POST", "/hook", headers, body}
@@ -129,6 +131,19 @@ defmodule TalesForge.Board.OutboxTest do
     assert Notify.backoff(%Oban.Job{attempt: 20}) == 4 * 3600
   end
 
+  test "votes and links wake nobody (no idea.pullable): only moves and @mentions do" do
+    ideas =
+      for n <- 1..4 do
+        {:ok, idea} = Board.create_idea(@ada, %{"title" => "Idea #{n}"})
+        idea
+      end
+
+    for idea <- ideas, f <- ~w(a@x b@x c@x), do: {:ok, _} = Board.vote(idea, f, 1)
+    {:ok, _} = Board.add_link(hd(ideas), "bot:bobby", %{"kind" => "pr", "url" => "https://x/1"})
+    refute_receive {:request, _, _, _, _}
+    refute :idea_pullable in TalesForge.Board.Events.__info__(:functions)
+  end
+
   test "a @mention wakes that bot" do
     {:ok, idea} = Board.create_idea(@ada, %{"title" => "Brenna remembers regulars"})
     {:ok, _} = Board.add_comment(idea, @ada, "@bobby how big is this?")
@@ -148,7 +163,7 @@ defmodule TalesForge.Board.OutboxTest do
 
     idea = refined!(idea)
     {:ok, idea} = Board.move(idea, {:bot, :case}, "check")
-    {:ok, _} = Board.move(idea, {:founder, "bo@example.com"}, "building")
+    {:ok, _} = Board.move(idea, {:founder, "bo@example.com"}, "building", "1: after two visits.")
 
     assert_receive {:request, "POST", "/app/installations/456/access_tokens", headers, _}
     "Bearer " <> jwt = header(headers, "authorization")
