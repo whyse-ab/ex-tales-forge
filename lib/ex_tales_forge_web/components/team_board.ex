@@ -1,37 +1,34 @@
 defmodule TalesForgeWeb.TeamBoard do
   @moduledoc """
   Section 6 of the founders' presentation (`/team/presentation`,
-  `TalesForgeWeb.TeamPresentationLive`): "How we'll work together: one shared
-  board". The real idea board is live on `/team` (`#idea-board`, since
-  2026-10-10). This section explains how a card travels, with an animated mock
-  board. The mock has nothing to drag and sends no events. The rules follow
-  tales-forge-docs `docs/design-board-states.md` (approved 2026-10-10).
+  `TalesForgeWeb.TeamPresentationLive`): "How we work together: one shared
+  board". The idea board is live on `/team` (`#idea-board`, since
+  2026-10-10), and founders and bots use it every day. This section explains
+  how a card travels and shows the live board: the real columns with their
+  card counts, and the team totals (cards, votes, founder comments, PR
+  approvals and how many founders take part) from `TalesForge.Board.stats/0`.
+  It shows team totals only, with no founder names (board card
+  "update presentation after shared workarea", answered 2026-10-10). The
+  section reads; it has nothing to drag and sends no events.
 
-  Copy follows tales-forge-docs `docs/team-page/content.md` section 6 (commits
-  a590abc and d118917). The columns come from `shared_board.columns` in
-  `data.json` (`id`, `label`, `owner`, `on_enter`), the card from
-  `shared_board.sample_card`; a column the data doesn't name keeps the label
-  from the brief. A missing or `null` value reads "not measured yet", except
-  `on_enter`, where `null` means nothing fires when a card lands there (Ideas
-  and Done), so no ping is shown.
-
-  The mock board is server-rendered as the static board the brief asks for
-  with `prefers-reduced-motion`: one card in each column, labelled.
-  `assets/js/team_hooks.js` (`TeamBoard`) plays the ~8 s story once on
-  scroll-in, with a Replay button: the card is dropped into Ideas, Case is
-  pinged, the founders comment, a founder's OK stamps the seal and logs the
-  decision, Bobby builds it (PR, playtest, Gentry's ✓) and it lands in Done
-  with a few d20s. Each column stacks under the one before on a phone (two per
-  row from 640 px, all five from 1024 px), so nothing scrolls sideways.
+  The rules follow tales-forge-docs `docs/design-board-states.md` (approved
+  2026-10-10), and the copy follows `docs/team-page/content.md` section 6.
+  The "How a card travels" steps come from `shared_board.columns` in
+  `data.json` (`id`, `label`, `owner`); a column that the data does not name
+  keeps the label from the brief. Without stats (where the board is not, or a
+  render with data only), each count reads "not measured yet", never a zero.
+  The columns stack two per row on a phone (three from 640 px, all six from
+  1024 px), so nothing scrolls sideways.
   """
 
   use TalesForgeWeb, :html
 
-  import TalesForge.TeamPage, only: [get: 2, date_label: 1, count_word: 1]
+  import TalesForge.TeamPage, only: [get: 2, count_word: 1]
   import TalesForgeWeb.TeamComponents, only: [section_head: 1]
 
+  alias TalesForge.Board.Idea
+  alias TalesForge.Board.Transitions
   alias TalesForge.TeamPage
-  alias TalesForgeWeb.TeamArt
 
   @anchor "board"
 
@@ -44,15 +41,14 @@ defmodule TalesForgeWeb.TeamBoard do
     %{"id" => "done", "label" => "Done", "owner" => "crew"}
   ]
 
-  # The step of the animation at which the card reaches each column, and the
-  # last step it stays there (Building holds it for the PR and playtest step).
-  @steps %{
-    "ideas" => {1, 1},
-    "refining" => {2, 2},
-    "founder_check" => {3, 3},
-    "building" => {4, 5},
-    "done" => {6, nil}
-  }
+  # The team totals under the live board, in order.
+  @total_labels [
+    cards: "Cards",
+    votes: "Votes",
+    comments: "Founder comments",
+    approvals: "PR approvals",
+    founders: "Founders taking part"
+  ]
 
   @doc """
   The anchor (element id) of the section.
@@ -90,20 +86,22 @@ defmodule TalesForgeWeb.TeamBoard do
 
   defp fill_column(_other), do: %{}
 
-  @doc "The whole section: badge, intro, how a card travels, the mock board and why it works."
+  @doc "The whole section: badge, intro, how a card travels, the live board and why it works."
   attr :d, :map, required: true
+
+  attr :live, :map,
+    default: nil,
+    doc: "`TalesForge.Board.stats/0`, or `nil` where the board is not"
 
   @spec section(map()) :: Phoenix.LiveView.Rendered.t()
   def section(assigns) do
-    board = get(assigns.d, ["shared_board"]) || %{}
     columns = columns(assigns.d)
 
     assigns =
       assign(assigns,
         anchor: @anchor,
         columns: columns,
-        title: get(board, ["sample_card", "title"]) || TeamPage.not_measured(),
-        as_of: get(board, ["as_of"]),
+        total_labels: @total_labels,
         holder: TeamPage.approval_holder(assigns.d)
       )
 
@@ -145,7 +143,7 @@ defmodule TalesForgeWeb.TeamBoard do
         </ol>
       </div>
 
-      <.mock_board columns={@columns} title={@title} as_of={@as_of} />
+      <.live_board live={@live} total_labels={@total_labels} />
 
       <ul id="board-why" class="grid gap-3 lg:grid-cols-3" aria-label="Three things that make it work">
         <li class="team-card flex flex-col gap-2 p-4">
@@ -219,198 +217,84 @@ defmodule TalesForgeWeb.TeamBoard do
 
   defp travel(assigns), do: ~H""
 
-  attr :columns, :list, required: true
-  attr :title, :string, required: true
-  attr :as_of, :any, default: nil
+  attr :live, :map, default: nil
+  attr :total_labels, :list, required: true
 
-  defp mock_board(assigns) do
+  defp live_board(assigns) do
     ~H"""
-    <figure
-      id="team-board"
-      class="team-board team-card space-y-4 p-4 sm:p-6"
-      phx-hook="TeamBoard"
-      data-board="static"
-    >
-      <p class="sr-only">
-        A mock of the shared board (the real one is on /team): one card, “{@title}”, travels through the columns {Enum.map_join(
-          @columns,
-          ", ",
-          &(&1["label"] || TeamPage.not_measured())
-        )}.
-      </p>
-      <ol id="team-board-columns" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <figure id="team-board" class="team-board team-card space-y-4 p-4 sm:p-6">
+      <ol
+        id="team-board-columns"
+        class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6"
+        aria-label="Cards in each column of the idea board now"
+      >
         <li
-          :for={{col, i} <- Enum.with_index(@columns, 1)}
-          id={"board-col-#{col["id"]}"}
-          class="team-board-col flex flex-col gap-2 rounded-lg p-2.5"
-          data-column={col["id"]}
+          :for={col <- columns_now(@live)}
+          id={"board-col-#{col.id}"}
+          class="team-board-col flex flex-col justify-between gap-1 rounded-lg p-3"
+          data-column={col.id}
         >
-          <header class="flex min-h-9 items-center justify-between gap-2">
-            <p class="text-sm font-semibold leading-tight">
-              <span class="team-board-num">{i}</span> {col["label"] || TeamPage.not_measured()}
-            </p>
-            <.owner_chip column={col} />
-          </header>
-          <p :if={is_binary(col["on_enter"])} class="team-board-enter text-[0.7rem] leading-snug">
-            <.icon name="hero-bell-micro" class="size-3" /> {col["on_enter"]}
+          <p class="text-sm font-semibold leading-tight">{col.label}</p>
+          <p class="team-board-count font-serif text-3xl font-bold" data-count={col.count}>
+            {count_text(col.count)}
           </p>
-          <.card column={col} title={@title} />
         </li>
       </ol>
+      <div id="board-totals" class="space-y-2">
+        <h3 class="font-serif text-lg font-bold">What we did together on the board</h3>
+        <dl class="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <div
+            :for={{key, label} <- @total_labels}
+            id={"board-total-#{key}"}
+            class="team-board-col rounded-lg p-3"
+          >
+            <dt class="text-xs text-[var(--paper-muted)]">{label}</dt>
+            <dd class="font-serif text-2xl font-bold">{count_text(total(@live, key))}</dd>
+          </div>
+        </dl>
+        <p class="text-xs text-[var(--paper-muted)]">
+          Team totals since the board opened. We count what the team does together, not who does it.
+        </p>
+      </div>
       <figcaption class="flex flex-wrap items-center justify-between gap-3">
         <span id="board-caption" class="font-serif text-lg">
           One board, the whole crew, from idea to done.
         </span>
-        <span class="flex items-center gap-3">
-          <span id="board-as-of" class="text-xs text-[var(--paper-muted)]">
-            Board rules as of {date_label(@as_of)}
-          </span>
-          <button
-            type="button"
-            id="replay-board"
-            aria-label="Replay the animation of the shared board"
-            class="team-replay-btn min-h-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--paper-accent)] inline-flex items-center gap-1.5 rounded-full border border-[var(--paper-rule)] px-3 py-1 text-sm hover:bg-[var(--paper-bg)]"
-            data-board-replay
-          >
-            <.icon name="hero-arrow-path-micro" class="size-4" /> Replay
-          </button>
+        <span id="board-live-note" class="text-xs text-[var(--paper-muted)]">
+          {if @live,
+            do: "Live from the idea board. It updates when a card changes.",
+            else: "Live counts show on production."}
         </span>
+        <.link
+          href="/team#idea-board"
+          class="text-sm font-semibold text-[var(--paper-accent)] underline"
+        >
+          Open the idea board →
+        </.link>
       </figcaption>
     </figure>
     """
   end
 
-  attr :column, :map, required: true
+  @doc """
+  The columns of the live board: the columns of `TalesForge.Board.stats/0`,
+  or the board's columns with no count (`nil`) when there are no stats.
 
-  defp owner_chip(assigns) do
-    assigns =
-      assign(assigns,
-        avatar: avatar_for(assigns.column["owner"]),
-        ping: at(assigns.column["id"])
-      )
+      iex> TalesForgeWeb.TeamBoard.columns_now(nil) |> Enum.map(& &1.count) |> Enum.uniq()
+      [nil]
+      iex> TalesForgeWeb.TeamBoard.columns_now(%{columns: [%{id: "ideas", label: "Ideas", count: 3}]})
+      [%{id: "ideas", label: "Ideas", count: 3}]
+  """
+  @spec columns_now(TalesForge.Board.stats() | nil) :: [map()]
+  def columns_now(%{columns: columns}), do: columns
 
-    ~H"""
-    <span
-      :if={@avatar}
-      class="team-board-owner relative shrink-0"
-      data-at={@ping}
-      data-move="pop"
-      title={@column["owner"]}
-    >
-      <TeamArt.avatar id={@avatar} class="size-7" label={owner_label(@avatar)} />
-      <span :if={@avatar in ~w(case bobby)} class="team-board-ping">pinged</span>
-    </span>
-    <span :if={!@avatar && @column["owner"]} class="text-[0.7rem] italic text-[var(--paper-muted)]">
-      {@column["owner"]}
-    </span>
-    """
+  def columns_now(_none) do
+    Enum.map(Idea.columns(), &%{id: &1, label: Transitions.label(&1), count: nil})
   end
 
-  attr :column, :map, required: true
-  attr :title, :string, required: true
+  defp total(%{totals: totals}, key), do: Map.get(totals, key)
+  defp total(_none, _key), do: nil
 
-  defp card(assigns) do
-    {at, until} = Map.get(@steps, assigns.column["id"], {nil, nil})
-    assigns = assign(assigns, at: at, until: until)
-
-    ~H"""
-    <div
-      class="team-board-card relative space-y-1.5 rounded-md p-2.5 text-xs"
-      data-at={@at}
-      data-until={@until}
-      data-move="slide"
-    >
-      <p class="font-serif text-sm font-bold leading-tight">{@title}</p>
-      <.card_body id={@column["id"]} />
-    </div>
-    """
-  end
-
-  attr :id, :string, default: nil
-
-  defp card_body(%{id: "ideas"} = assigns) do
-    ~H"""
-    <p class="text-[var(--paper-muted)]">Added by a founder.</p>
-    <svg
-      viewBox="0 0 24 24"
-      class="team-board-cursor absolute -right-1 -top-2 size-6"
-      aria-hidden="true"
-      fill="var(--paper-panel)"
-      stroke="currentColor"
-      stroke-width="1.6"
-      stroke-linejoin="round"
-    >
-      <path d="M4.5 3.2 C5 8 5.6 13 6.1 18.4 L9.3 14.6 L12.4 20.6 L15 19.3 L11.9 13.4 L17.1 13.1 C13 9.6 8.9 6.4 4.5 3.2 Z" />
-    </svg>
-    """
-  end
-
-  defp card_body(%{id: "refining"} = assigns) do
-    ~H"""
-    <ul class="team-board-lines space-y-0.5">
-      <li>details</li>
-      <li>2 questions</li>
-      <li>rough cost: small</li>
-    </ul>
-    """
-  end
-
-  defp card_body(%{id: "founder_check"} = assigns) do
-    ~H"""
-    <ul class="space-y-1" aria-label="Founders' comments">
-      <li
-        :for={text <- ["Yes, exactly!", "Only after the second visit?", "👍"]}
-        class="flex items-start gap-1.5"
-      >
-        <TeamArt.avatar id="founders" class="size-5" label="A founder" />
-        <span class="team-board-bubble">{text}</span>
-      </li>
-    </ul>
-    """
-  end
-
-  defp card_body(%{id: "building"} = assigns) do
-    ~H"""
-    <div class="flex items-center gap-2">
-      <TeamArt.picture
-        name="founders-seal"
-        sizes="40px"
-        alt="The founders' seal"
-        class="team-board-seal size-10 rounded-full object-cover"
-      />
-      <span class="font-semibold text-[var(--team-seal)]">Founder OK</span>
-    </div>
-    <p class="flex items-center gap-1.5">
-      <span class="team-board-chip team-board-fly">decision logged</span>
-      <.icon name="hero-document-text" class="size-4 text-[var(--paper-muted)]" />
-    </p>
-    <p class="flex flex-wrap items-center gap-1" data-at="5" data-move="pop">
-      <span class="team-board-chip">PR</span>
-      <span class="team-board-chip">playtest</span>
-      <span class="team-board-chip inline-flex items-center gap-1">
-        <TeamArt.avatar id="gentry" class="size-4" label="Gentry" /> ✓
-      </span>
-    </p>
-    """
-  end
-
-  defp card_body(%{id: "done"} = assigns) do
-    ~H"""
-    <p class="team-board-shipped font-semibold">Shipped</p>
-    <p class="text-[var(--paper-muted)]">The card keeps the whole story.</p>
-    <span class="team-board-confetti pointer-events-none absolute inset-0" aria-hidden="true">
-      <TeamArt.d20 :for={n <- 1..4} class={"team-board-d20 team-board-d20-#{n} absolute size-4"} />
-    </span>
-    """
-  end
-
-  defp card_body(assigns), do: ~H""
-
-  defp at(id), do: @steps |> Map.get(id, {nil, nil}) |> elem(0)
-
-  defp avatar_for(owner) when owner in ~w(case bobby founders), do: owner
-  defp avatar_for(_owner), do: nil
-
-  defp owner_label("founders"), do: "The founders"
-  defp owner_label(id), do: String.capitalize(id)
+  defp count_text(n) when is_integer(n), do: Integer.to_string(n)
+  defp count_text(_none), do: TeamPage.not_measured()
 end

@@ -71,6 +71,59 @@ defmodule TalesForge.Board do
     end)
   end
 
+  @typedoc "Team totals of the board (`stats/0`): no names, only counts."
+  @type stats :: %{
+          columns: [%{id: String.t(), label: String.t(), count: non_neg_integer()}],
+          totals: %{
+            cards: non_neg_integer(),
+            votes: non_neg_integer(),
+            comments: non_neg_integer(),
+            approvals: non_neg_integer(),
+            founders: non_neg_integer()
+          }
+        }
+
+  @doc """
+  The board as team totals, for the founders' presentation: the card count
+  of every column (in board order, with its label) and the team's totals of
+  cards, votes, founder comments and PR approvals, plus how many founders
+  took part (added, voted, commented or approved). Bot comments
+  (`bot:` authors) do not count. It gives counts only, never a name.
+  """
+  @spec stats() :: stats()
+  def stats do
+    counts =
+      from(i in Idea, group_by: i.column, select: {i.column, count(i.id)})
+      |> Repo.all()
+      |> Map.new()
+
+    founder_comments = from(c in Comment, where: not like(c.author, "bot:%"))
+
+    founders =
+      [
+        from(i in Idea, where: not like(i.author, "bot:%"), select: i.author),
+        from(v in Vote, select: v.founder),
+        select(founder_comments, [c], c.author),
+        from(a in Approval, select: a.founder)
+      ]
+      |> Enum.flat_map(&Repo.all(distinct(&1, true)))
+      |> MapSet.new()
+
+    %{
+      columns:
+        Enum.map(Idea.columns(), fn column ->
+          %{id: column, label: Transitions.label(column), count: Map.get(counts, column, 0)}
+        end),
+      totals: %{
+        cards: counts |> Map.values() |> Enum.sum(),
+        votes: Repo.aggregate(Vote, :count),
+        comments: Repo.aggregate(founder_comments, :count),
+        approvals: Repo.aggregate(Approval, :count),
+        founders: MapSet.size(founders)
+      }
+    }
+  end
+
   @doc "The ranked Ideas column (best first), with fresh scores."
   @spec ranked_ideas(DateTime.t()) :: [Idea.t()]
   def ranked_ideas(now \\ DateTime.utc_now()) do

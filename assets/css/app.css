@@ -819,10 +819,8 @@
 .team-page[data-motion="full"] .pr-feed-dot { animation: team-feed-pulse 2.4s ease-in-out infinite; }
 
 
-/* One shared board (TalesForgeWeb.TeamBoard): a mock, not a working board.
-   Static (and with reduced motion): one card in each column. Playing
-   (team_hooks.js TeamBoard): the steps not reached yet are hidden, a card
-   that has moved on fades out, and when done it is left as a faint trail. */
+/* One shared board (TalesForgeWeb.TeamBoard): the live board's columns and
+   team totals, and the numbered steps of "How a card travels". No motion. */
 .team-board-num {
   display: inline-flex;
   align-items: center;
@@ -841,90 +839,6 @@
   border: 1px solid var(--paper-rule);
   min-width: 0;
 }
-.team-board-enter { color: var(--paper-muted); }
-.team-board-card {
-  background: var(--paper-panel);
-  border: 1px solid var(--paper-rule);
-  border-left: 3px solid var(--paper-accent);
-  box-shadow: 0 1px 2px rgb(61 47 36 / 10%);
-  overflow-wrap: anywhere;
-}
-.team-board-lines > li::before { content: "· "; color: var(--paper-accent); }
-.team-board-bubble {
-  background: var(--paper-margin);
-  border: 1px solid var(--paper-rule);
-  border-radius: 0.6rem 0.6rem 0.6rem 0.15rem;
-  padding: 0.05rem 0.4rem;
-}
-.team-board-chip {
-  display: inline-block;
-  border-radius: 9999px;
-  border: 1px solid var(--paper-rule);
-  background: var(--paper-margin);
-  padding: 0 0.4rem;
-  font-size: 0.68rem;
-  font-weight: 600;
-}
-.team-board-ping {
-  position: absolute;
-  left: 50%;
-  top: 100%;
-  transform: translateX(-50%);
-  margin-top: 0.1rem;
-  border-radius: 9999px;
-  background: var(--paper-accent);
-  color: var(--paper-panel);
-  padding: 0 0.3rem;
-  font-size: 0.55rem;
-  font-weight: 700;
-  line-height: 1.3;
-  white-space: nowrap;
-}
-.team-board-owner { margin-bottom: 0.6rem; }
-.team-board-cursor { color: var(--paper-ink); }
-.team-board-shipped { color: var(--paper-ok-ink); }
-.team-board-d20 { opacity: 0; }
-.team-board-d20-1 { left: 8%; top: -0.4rem; }
-.team-board-d20-2 { left: 38%; top: -0.6rem; }
-.team-board-d20-3 { left: 64%; top: -0.3rem; }
-.team-board-d20-4 { left: 86%; top: -0.5rem; }
-
-.team-page[data-motion="full"] .team-board [data-at] { transition: opacity 0.5s ease, transform 0.6s cubic-bezier(0.34, 1.3, 0.64, 1); }
-.team-page[data-motion="full"] .team-board[data-board="playing"] [data-at]:not([data-shown]) { opacity: 0; }
-.team-page[data-motion="full"] .team-board[data-board="playing"] [data-move="slide"]:not([data-shown]) { transform: translateX(-28px); }
-.team-page[data-motion="full"] .team-board[data-board="playing"] [data-move="pop"]:not([data-shown]) { transform: scale(0.6); }
-.team-page[data-motion="full"] .team-board[data-board="playing"] [data-gone] { opacity: 0; transform: translateX(24px); }
-.team-page[data-motion="full"] .team-board[data-board="done"] [data-gone] { opacity: 0.35; }
-.team-page[data-motion="full"] .team-board[data-board="playing"] [data-shown] .team-board-cursor { animation: team-cursor 1.1s ease-out both; }
-.team-page[data-motion="full"] .team-board[data-board="playing"] [data-shown] .team-board-ping { animation: team-ping 0.9s 0.2s ease-out 2 both; }
-.team-page[data-motion="full"] .team-board[data-board="playing"] [data-shown] .team-board-lines > li { animation: team-write 0.45s ease-out both; }
-.team-page[data-motion="full"] .team-board[data-board="playing"] [data-shown] .team-board-bubble { animation: team-pop 0.4s ease-out both; }
-.team-page[data-motion="full"] .team-board[data-board="playing"] [data-shown] .team-board-seal { animation: team-stamp 0.7s 0.3s ease-out both; }
-.team-page[data-motion="full"] .team-board[data-board="playing"] [data-shown] .team-board-fly { animation: team-fly 1.2s 0.9s ease-in-out both; }
-.team-page[data-motion="full"] .team-board[data-board="playing"] [data-shown] .team-board-d20 { animation: team-confetti 1.3s ease-out both; }
-.team-page[data-motion="full"] .team-board[data-board="playing"] [data-shown] .team-board-d20-2 { animation-delay: 0.15s; }
-.team-page[data-motion="full"] .team-board[data-board="playing"] [data-shown] .team-board-d20-3 { animation-delay: 0.3s; }
-.team-page[data-motion="full"] .team-board[data-board="playing"] [data-shown] .team-board-d20-4 { animation-delay: 0.45s; }
-
-@keyframes team-cursor {
-  0% { opacity: 0; transform: translate(-30px, -24px); }
-  60% { opacity: 1; transform: translate(0, 0); }
-  100% { opacity: 1; transform: translate(0, 0); }
-}
-@keyframes team-ping {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--paper-accent) 55%, transparent); }
-  100% { box-shadow: 0 0 0 8px transparent; }
-}
-@keyframes team-fly {
-  0% { opacity: 1; transform: none; }
-  60% { opacity: 1; transform: translate(10px, -6px); }
-  100% { opacity: 0.85; transform: none; }
-}
-@keyframes team-confetti {
-  0% { opacity: 0; transform: translateY(-14px) rotate(-120deg); }
-  40% { opacity: 1; }
-  100% { opacity: 0; transform: translateY(26px) rotate(160deg); }
-}
 
 @media (prefers-reduced-motion: reduce) {
   .team-page *,
@@ -937,5 +851,4 @@
   .team-page [data-reveal] { opacity: 1 !important; transform: none !important; }
   .team-flow-token, .team-replay { display: none !important; }
   .team-lanes [data-at] { opacity: 1 !important; transform: none !important; }
-  .team-board [data-at], .team-board [data-gone] { opacity: 1 !important; transform: none !important; }
 }

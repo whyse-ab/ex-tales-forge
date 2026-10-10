@@ -3,8 +3,9 @@ defmodule TalesForgeWeb.TeamPresentationLive do
   The founders' full presentation at `/team/presentation`: who the crew is
   (the founders and three bots), how a change gets from an idea to the game,
   how we work, what the game runs on, what the persona playtests and Gentry
-  found, the pace and cost so far, the shared board that is coming (section 6,
-  a mock, not a working board) and how to get involved. Fredrik presents from
+  found, the pace and cost so far, the shared board that founders and bots use
+  every day (section 6, live columns, card counts and team totals) and how to
+  take part, with the board first (section 7). Fredrik presents from
   it. `/team` (`TalesForgeWeb.TeamLive`) is the light landing page that links
   here.
 
@@ -13,8 +14,10 @@ defmodule TalesForgeWeb.TeamPresentationLive do
 
   Behind the GitHub team sign-in like every page (router `:browser` pipeline
   plus the `:require_team_member` mount hook, the same `:play` live session as
-  `/team`). Read-only: no events, no AI calls, no database, no GitHub calls
-  (it only subscribes to the PR feed's PubSub topic).
+  `/team`). Read-only: no events, no AI calls, no GitHub calls. It subscribes
+  to the PR feed's PubSub topic and, where the board is
+  (`TalesForge.AppRole.here?(:board)`), to `TalesForge.Board`'s topic: each
+  board change reloads the counts of `TalesForge.Board.stats/0`.
 
   Copy follows tales-forge-docs `docs/team-page/content.md` (commit d118917,
   2026-10-09). The pace numbers (pull requests, merged, open, per day, and
@@ -27,8 +30,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
   `TalesForgeWeb.TeamComponents`, pictures `TalesForgeWeb.TeamArt`, the header
   and footer `TalesForgeWeb.TeamLayout`. The animations (sections fading in,
   bars growing, the d20 rolling through the change flow, the three call-type
-  lanes of `TalesForgeWeb.TeamCallTypes`, the mock board of
-  `TalesForgeWeb.TeamBoard`) run
+  lanes of `TalesForgeWeb.TeamCallTypes`) run
   in `assets/js/team_hooks.js` and are off with
   `prefers-reduced-motion`: the root then carries `data-motion="reduce"` and
   the static diagram is shown. The page follows the header theme toggle
@@ -158,12 +160,16 @@ defmodule TalesForgeWeb.TeamPresentationLive do
      |> assign(:d, d)
      |> assign(:pace, TeamPace.current(PrFeed.snapshot(), d))
      |> assign(:live, TeamLiveNumbers.all(d, Extras.current()))
+     |> assign(:board_live, board_live(socket))
      |> assign(:sections, @sections)}
   end
 
   # Each new feed snapshot (about once a minute) refreshes every live group:
   # the PR pace, the GitHub extras and this app's database numbers.
   @impl true
+  def handle_info({:board, :changed}, socket),
+    do: {:noreply, assign(socket, :board_live, TalesForge.Board.stats())}
+
   def handle_info({:pr_feed, snapshot}, socket) do
     d = socket.assigns.d
 
@@ -180,6 +186,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
     # numbers of `d` itself, as the fallback.
     assigns = Map.put_new_lazy(assigns, :pace, fn -> TeamPace.from_data(assigns.d) end)
     assigns = Map.put_new_lazy(assigns, :live, fn -> TeamLiveNumbers.fallback(assigns.d) end)
+    assigns = Map.put_new(assigns, :board_live, nil)
 
     ~H"""
     <div
@@ -197,7 +204,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
         <.infra_section d={@d} />
         <.playtests_section d={@d} live={@live} />
         <.pace_section d={@d} pace={@pace} live={@live} />
-        <TeamBoard.section d={@d} />
+        <TeamBoard.section d={@d} live={@board_live} />
         <.together_section d={@d} />
       </main>
 
@@ -205,6 +212,14 @@ defmodule TalesForgeWeb.TeamPresentationLive do
       <Layouts.flash_group flash={@flash} />
     </div>
     """
+  end
+
+  # The live board's team totals where the board is, else `nil`.
+  defp board_live(socket) do
+    if AppRole.here?(:board) do
+      if connected?(socket), do: TalesForge.Board.subscribe()
+      TalesForge.Board.stats()
+    end
   end
 
   # ── 0. Hero ────────────────────────────────────────────────────────────────
@@ -1581,10 +1596,29 @@ defmodule TalesForgeWeb.TeamPresentationLive do
     ~H"""
     <section id="together" class="team-section space-y-8" aria-labelledby="together-title" data-reveal>
       <.section_head id="together" title="7. Where we go from here, together">
-        What you've seen is where we started. The best part is still ahead, and it gets better with every founder who jumps in.
-        Together we can make something awesome.
+        Several founders already add, vote, comment and approve on the shared board. The best part is still ahead,
+        and it gets better with every founder who joins in. Together we can make something awesome.
       </.section_head>
       <ul id="involve" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <.involve
+          id="involve-board"
+          icon="hero-view-columns"
+          title="Start on the board."
+          href="/team#idea-board"
+          link="The idea board"
+        >
+          The idea board on /team is the first place to take part. Add a card in Ideas, vote on the others and comment.
+          A card with an upvote goes to Case for refining.
+        </.involve>
+        <.involve
+          id="involve-approve"
+          icon="hero-key"
+          title="Hold the approval key yourself."
+          href="/team#idea-board"
+          link="Approve on the board"
+        >
+          You approve on the board today. Send a card to Building to give the founder OK, and approve its PR on the card.
+        </.involve>
         <.involve
           icon="hero-clipboard-document-check"
           title="Answer the surveys."
@@ -1602,24 +1636,13 @@ defmodule TalesForgeWeb.TeamPresentationLive do
           Sign in with GitHub and play a few turns. Your sessions show up next to the persona bots'.
         </.involve>
         <.involve
-          icon="hero-light-bulb"
-          title="Suggest ideas."
+          id="involve-archive"
+          icon="hero-archive-box"
+          title="Read the idea archive."
           href="/admin/docs/future-ideas.md"
           link="docs/future-ideas.md"
         >
-          Anything you'd love to see goes in the future-ideas list. Tell Case, or add it yourself, since docs go straight to main.
-        </.involve>
-        <.involve icon="hero-key" title="Soon: hold the approval key yourself.">
-          Approve merges and deploys, steer the bots and make decisions, just like {holder(@d)} does today. We'll set that up together.
-        </.involve>
-        <.involve
-          id="involve-board"
-          icon="hero-view-columns"
-          title="Put your ideas on the board."
-          href="/team#idea-board"
-          link="The idea board"
-        >
-          Add a card in Ideas on /team and vote on the others. A card with an upvote can go to Case for refining.
+          The future-ideas list keeps the ideas from before the board. Put a new idea on the board.
         </.involve>
       </ul>
       <div class="team-callout flex flex-col items-center gap-3 p-6 text-center sm:flex-row sm:text-left">
