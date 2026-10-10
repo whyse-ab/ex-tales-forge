@@ -1296,4 +1296,30 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       end
     end
   end
+
+  describe "admin split: live numbers name their app" do
+    setup %{conn: conn} do
+      on_exit(fn -> Application.delete_env(:ex_tales_forge, :app_name) end)
+      {:ok, conn: log_in_admin(conn)}
+    end
+
+    test "on production, persona scores link to playtest runs and latency to each app's costs page",
+         %{conn: conn} do
+      Application.put_env(:ex_tales_forge, :app_name, "tales-forge")
+      {:ok, view, html} = live(conn, ~p"/team/presentation")
+
+      assert has_element?(
+               view,
+               ~s(#persona-scores-live-link a[href="https://tales-forge-playtest.fly.dev/admin/playtest"]),
+               "playtest runs ↗"
+             )
+
+      assert has_element?(
+               view,
+               ~s(#latency-per-app a[href="/admin/operate/costs#costs-intent-latency"])
+             )
+
+      refute html =~ "on this app"
+    end
+  end
 end

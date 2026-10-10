@@ -311,4 +311,58 @@ defmodule TalesForgeWeb.AdminLive.CostsLiveTest do
     assert has_element?(view, ~s(#admin-breadcrumbs a[href="/admin#section-operate"]), "Operate")
     assert has_element?(view, ~s(#admin-breadcrumbs [aria-current="page"]), "Costs")
   end
+
+  describe "admin split: cross links and Jev intent latency" do
+    test "production links to playtest's run details and the same page there", %{conn: conn} do
+      Application.put_env(:ex_tales_forge, :app_name, "tales-forge")
+      {:ok, view, _html} = live(conn, ~p"/admin/operate/costs")
+
+      assert has_element?(
+               view,
+               ~s(#costs-playtest-details[href="https://tales-forge-playtest.fly.dev/admin/operate/costs"]),
+               "Playtest run details on playtest ↗"
+             )
+
+      assert has_element?(
+               view,
+               ~s(#other-app-link[href="https://tales-forge-playtest.fly.dev/admin/operate/costs"])
+             )
+
+      refute has_element?(view, "#costs-total-on-production")
+    end
+
+    test "playtest links to the total on production", %{conn: conn} do
+      Application.put_env(:ex_tales_forge, :app_name, "tales-forge-playtest")
+      {:ok, view, _html} = live(conn, ~p"/admin/operate/costs")
+
+      assert has_element?(
+               view,
+               ~s(#costs-total-on-production[href="https://tales-forge.fly.dev/admin/operate/costs"]),
+               "Total and all costs on production ↗"
+             )
+
+      assert has_element?(view, "#costs-intent-latency")
+    end
+
+    test "Jev intent latency of this app, last 7 days", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/admin/operate/costs")
+      assert has_element?(view, "#latency-none", "no Jev intent reads in the last 7 days")
+
+      for ms <- [100, 200, 300, 400] do
+        Repo.insert!(%AICall{
+          purpose: "intent",
+          call_type: "jev",
+          model: "jev-1.13.0",
+          status: "ok",
+          latency_ms: ms,
+          cost_micro_usd: 100
+        })
+      end
+
+      {:ok, view, _html} = live(conn, ~p"/admin/operate/costs")
+      assert has_element?(view, "#latency-reads", "4")
+      assert has_element?(view, "#latency-max", "400 ms")
+      refute has_element?(view, "#latency-none")
+    end
+  end
 end

@@ -1121,7 +1121,17 @@ defmodule TalesForgeWeb.TeamPresentationLive do
         </li>
       </ul>
       <p :if={@scores.source == :live} class="text-xs text-[var(--paper-muted)]">
-        {number(@scores.runs)} scored runs on this app.
+        {number(@scores.runs)} scored runs on {app_word()}.
+      </p>
+      <p :if={@scores.source != :live} id="persona-scores-live-link" class="text-xs">
+        Playtest runs live on playtest. Live scores per run:
+        <a
+          href={TalesForge.AppRole.link(:playtest_runs, "/admin/play/runs")}
+          data-cross-app
+          class="font-semibold text-[var(--paper-accent)] underline"
+        >
+          playtest runs{if TalesForge.AppRole.here?(:playtest_runs), do: "", else: " ↗"}
+        </a>
       </p>
       <.group_source id="persona-scores-source" what="Persona scores" group={@scores} />
     </div>
@@ -1203,7 +1213,16 @@ defmodule TalesForgeWeb.TeamPresentationLive do
             timeout={@latency.timeout_ms || @s["timeout_ms"]}
           />
           <p :if={@latency.source == :live} class="text-xs text-[var(--paper-muted)]">
-            {number(@latency.reads)} Jev intent reads on this app.
+            {number(@latency.reads)} Jev intent reads on {app_word()}.
+          </p>
+          <p id="latency-per-app" class="text-xs">
+            Each app's latency, live:
+            <a
+              href="/admin/operate/costs#costs-intent-latency"
+              class="font-semibold text-[var(--paper-accent)] underline"
+            >
+              Admin › Operate › Costs
+            </a>
           </p>
           <.group_source id="latency-source" what="Latency" group={@latency} />
         </div>
@@ -1519,7 +1538,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
         />
         <p class="text-xs text-[var(--paper-muted)]">
           {usd(@costs.total_usd)} in the last 7 days{if @costs.source == :live,
-            do: " on this app",
+            do: " on " <> app_word(),
             else: " of playtest runs"}. Today is a partial day.
         </p>
         <.group_source id="spend-days-source" what="Spend per day" group={@costs} />
@@ -1938,5 +1957,15 @@ defmodule TalesForgeWeb.TeamPresentationLive do
       |> Enum.join(" and ")
 
     "+#{number(total)} PRs in #{months}"
+  end
+
+  # The app a live number comes from, by name: the presentation lives on
+  # production (admin split 2026-10-10), so its own database is production's.
+  defp app_word do
+    case TalesForge.AppRole.role() do
+      :production -> "production"
+      :playtest -> "playtest"
+      :local -> "this local app"
+    end
   end
 end
