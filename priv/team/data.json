@@ -29,7 +29,7 @@
         "does": [
           "Shape what we build: ideas, surveys, playtesting",
           "Make the decisions, written down in one shared log",
-          "Approve merges and deploys (today Fredrik holds the approval key; soon every founder)"
+          "Approve PRs on the board (every founder; Fredrik pushes the normal-lane production releases)"
         ],
         "schedule": null,
         "approval_key": {
@@ -84,7 +84,7 @@
       "source": "gh api orgs/whyse-ab/teams/tales-forge/members (count only)",
       "note": "Members of the GitHub team, not the number of founders (team.members[0].people.count)"
     },
-    "framing": "Current setup, a starting point. Founders and bots are one crew. Later every founder can approve merges and deploys, steer the bots and make decisions; today Fredrik holds the approval key."
+    "framing": "Current setup, a starting point. Founders and bots are one crew. Every founder approves PRs on the board; Fredrik pushes the normal-lane production releases."
   },
   "change_flow": {
     "as_of": "2026-10-10",

@@ -26,13 +26,13 @@ import {hooks as colocatedHooks} from "phoenix-colocated/ex_tales_forge"
 import topbar from "../vendor/topbar"
 import {Mermaid} from "./mermaid_hook"
 import {StoryScroll} from "./story_scroll"
-import {MentionSuggest, TeamAnchorRedirect, TeamBoard, ImageInput, TeamChat, TeamFlow, TeamLanes, TeamPage} from "./team_hooks"
+import {MentionSuggest, TeamAnchorRedirect, ImageInput, TeamChat, TeamFlow, TeamLanes, TeamPage} from "./team_hooks"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, Mermaid, TeamPage, TeamFlow, TeamLanes, TeamBoard, TeamAnchorRedirect, MentionSuggest, TeamChat, ImageInput, StoryScroll},
+  hooks: {...colocatedHooks, Mermaid, TeamPage, TeamFlow, TeamLanes, TeamAnchorRedirect, MentionSuggest, TeamChat, ImageInput, StoryScroll},
 })
 
 // Show progress bar on live navigation and form submits

@@ -9,6 +9,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
   doctest TalesForgeWeb.TeamBoard
   doctest TalesForgeWeb.TeamPeek
 
+  alias TalesForge.Board
   alias TalesForge.PrFeed
   alias TalesForge.PrFeed.Extras
   alias TalesForge.Repo
@@ -135,9 +136,10 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
 
     test "every replay button is always shown, labelled and reachable by keyboard", %{doc: doc} do
       buttons =
-        LazyHTML.query(doc, "[data-flow-replay], [data-lanes-replay], [data-board-replay]")
+        LazyHTML.query(doc, "[data-flow-replay], [data-lanes-replay]")
 
-      assert Enum.count(buttons) == 3
+      # The flow and the call-type lanes; the live board has no animation.
+      assert Enum.count(buttons) == 2
 
       for button <- buttons do
         [label] = LazyHTML.attribute(button, "aria-label")
@@ -336,8 +338,16 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
         put_in(@data, ["team", "members", Access.at(0), "approval_key", "holder_today"], "Ada")
 
       html = render_with(data)
-      assert html =~ "Right now Ada holds the approval key"
-      assert html =~ "Today: Ada · Soon: any founder."
+      assert html =~ "Every founder approves PRs on the idea board"
+      assert html =~ "Ada pushes the production releases of the normal lane."
+      assert html =~ "Release: Ada pushes it."
+      assert html =~ "Any founder, on the board."
+      assert html =~ "The approval key: every founder, on the board"
+
+      # Founders already approve on the board: no "soon", no single key holder.
+      refute html =~ ~r/\bsoon\b/i
+      refute html =~ "Ada holds the approval key"
+      refute html =~ "Today: Ada"
     end
   end
 
@@ -877,7 +887,13 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
 
       assert has_element?(view, "#board-why", "Moving a card pings the right bot.")
       assert has_element?(view, "#board-why", "One place for each thing.")
-      assert has_element?(view, "#board-why", "which Fredrik holds today")
+
+      assert has_element?(
+               view,
+               "#board-why",
+               "Fredrik pushes the production releases of the normal lane."
+             )
+
       assert has_element?(view, ~s(#board-small-print a[href="/admin/founders/decisions"]))
       assert has_element?(view, "#board-small-print", "docs/design-board-states.md")
       assert has_element?(view, "#board-step-founder_check", "That move is the founder's OK.")
@@ -890,160 +906,106 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
                "The idea board"
              )
 
-      assert has_element?(view, "#involve-board", "Put your ideas on the board.")
-      refute has_element?(view, "#involve-board", "Soon")
+      assert has_element?(view, "#involve-board", "Start on the board.")
+      assert has_element?(view, "#involve-board", "the first place to take part")
+
+      # The board comes first in section 7, and the approval key is live.
+      assert view
+             |> render()
+             |> LazyHTML.from_document()
+             |> LazyHTML.query("#involve > li")
+             |> Enum.at(0)
+             |> LazyHTML.attribute("id") == ["involve-board"]
+
+      assert has_element?(view, "#involve-approve h3", "Hold the approval key yourself.")
+      refute has_element?(view, "#involve h3", "Soon")
+      assert has_element?(view, "#involve-archive", "keeps the ideas from before the board")
     end
 
-    test "the columns, owners and pings come from shared_board in data.json", %{conn: conn} do
+    test "the steps of a card's travel come from shared_board in data.json", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/team/presentation")
-      board = @data["shared_board"]
 
-      for col <- board["columns"] do
-        assert has_element?(view, "#board-col-#{col["id"]}", col["label"])
-        assert has_element?(view, "#board-step-#{col["id"]}", col["label"])
-
-        if col["on_enter"],
-          do:
-            assert(
-              has_element?(view, "#board-col-#{col["id"]} .team-board-enter", col["on_enter"])
-            ),
-          else: refute(has_element?(view, "#board-col-#{col["id"]} .team-board-enter"))
-      end
+      for col <- @data["shared_board"]["columns"],
+          do: assert(has_element?(view, "#board-step-#{col["id"]}", col["label"]))
 
       assert has_element?(view, "#board-travel", "Five columns")
-      assert has_element?(view, ~s(#board-col-refining img[data-avatar="case"][alt="Case"]))
-      assert has_element?(view, ~s(#board-col-building img[data-avatar="bobby"][alt="Bobby"]))
-
-      # Every bot avatar is the painted portrait; no drawn SVG is left for a bot.
-      assert has_element?(
-               view,
-               ~s(img[data-avatar="gentry"][alt="Gentry"][src="/images/team/gentry-avatar-192.jpg"])
-             )
-
-      refute has_element?(view, ~s(svg.team-avatar[aria-label="Gentry"]))
-      refute has_element?(view, ~s(svg.team-avatar[aria-label="Case"]))
-      refute has_element?(view, ~s(svg.team-avatar[aria-label="Bobby"]))
-
-      assert has_element?(
-               view,
-               ~s(#board-col-founder_check svg.team-avatar[aria-label="The founders"])
-             )
-
-      assert has_element?(view, "#board-as-of", "Board rules as of 10 Oct 2026")
-
-      # The static board: the sample card once in every column, labelled.
-      for col <- board["columns"] do
-        assert has_element?(
-                 view,
-                 "#board-col-#{col["id"]} .team-board-card",
-                 board["sample_card"]["title"]
-               )
-      end
-
-      assert has_element?(view, "#board-col-refining", "rough cost: small")
-      assert has_element?(view, "#board-col-founder_check", "Only after the second visit?")
-      assert has_element?(view, "#board-col-building", "Founder OK")
-      assert has_element?(view, "#board-col-building", "decision logged")
-      assert has_element?(view, "#board-col-building [data-at='5']", "playtest")
-      assert has_element?(view, "#board-col-done", "Shipped")
     end
 
-    test "a mock, not a board: static until the hook plays it, and nothing to drag", %{conn: conn} do
+    test "the live board shows the real columns, counts and team totals", %{conn: conn} do
+      {:ok, a} = Board.create_idea("ada@example.com", %{"title" => "Fishing"})
+      {:ok, _b} = Board.create_idea("bo@example.com", %{"title" => "Weather"})
+      {:ok, a} = Board.vote(a, "bo@example.com", 1)
+      {:ok, _a} = Board.add_comment(a, "ada@example.com", "Yes, please")
+      {:ok, _a} = Board.add_comment(a, "bot:case", "Refined")
+
       {:ok, view, _html} = live(conn, ~p"/team/presentation")
 
-      assert has_element?(view, ~s(#team-board[phx-hook="TeamBoard"][data-board="static"]))
-      assert has_element?(view, "#team-board [data-board-replay].team-replay-btn")
-      refute has_element?(view, "#team-board [data-shown]")
-      refute has_element?(view, "#team-board [data-gone]")
+      for col <- TalesForge.Board.Idea.columns() do
+        assert has_element?(view, "#board-col-#{col}", TalesForge.Board.Transitions.label(col))
+      end
+
+      assert has_element?(view, ~s(#board-col-ideas [data-count="2"]), "2")
+      assert has_element?(view, ~s(#board-col-done [data-count="0"]), "0")
+      assert has_element?(view, "#board-total-cards dd", "2")
+      assert has_element?(view, "#board-total-votes dd", "1")
+      # Bot comments do not count.
+      assert has_element?(view, "#board-total-comments dd", "1")
+      assert has_element?(view, "#board-total-founders dd", "2")
+
+      # Team totals only: no founder names or addresses on the board.
+      board_text = view |> element("#team-board") |> render()
+      refute board_text =~ "ada@example.com"
+      refute board_text =~ "bo@example.com"
+
+      assert has_element?(view, "#board-live-note", "Live from the idea board.")
+      assert has_element?(view, ~s(#team-board a[href="/team#idea-board"]))
+
+      # A board change reloads the counts.
+      {:ok, _c} = Board.create_idea("cy@example.com", %{"title" => "Boats"})
+      assert render(view) =~ ~s(data-count="3")
+      assert has_element?(view, "#board-total-founders dd", "3")
+    end
+
+    test "a live board, not a mock: nothing to drag and no animation", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/team/presentation")
+
+      refute has_element?(view, "#team-board[phx-hook]")
+      refute has_element?(view, "#team-board [data-board-replay]")
       refute has_element?(view, "#team-board [draggable]")
       refute has_element?(view, "#team-board [phx-click]")
       refute has_element?(view, "#team-board form")
+      refute render(view) =~ "mock"
 
-      steps =
-        view
-        |> render()
-        |> LazyHTML.from_document()
-        |> LazyHTML.query("#team-board .team-board-card")
-        |> Enum.map(&(&1 |> LazyHTML.attribute("data-at") |> hd()))
-
-      assert steps == ~w(1 2 3 4 6)
-
-      # Stacked on a phone, five across from 1024 px: no sideways scroll.
-      assert has_element?(view, "#team-board-columns.grid.sm\\:grid-cols-2.lg\\:grid-cols-5")
+      # Stacked on a phone, six across from 1024 px: no sideways scroll.
+      assert has_element?(view, "#team-board-columns.grid.grid-cols-2.lg\\:grid-cols-6")
+      refute File.read!("assets/js/app.js") =~ "TeamBoard"
     end
 
-    test "null and missing board values read 'not measured yet', never a zero" do
-      data =
-        @data
-        |> put_in(["shared_board", "as_of"], nil)
-        |> put_in(["shared_board", "sample_card", "title"], nil)
-        |> update_in(["shared_board", "columns"], fn cols ->
-          Enum.map(cols, fn
-            %{"id" => "refining"} = col -> Map.merge(col, %{"label" => nil, "on_enter" => nil})
-            %{"id" => "done"} = col -> Map.delete(col, "label")
-            col -> col
-          end)
-        end)
-
-      doc = data |> render_with() |> LazyHTML.from_document()
+    test "without board stats every count reads 'not measured yet', never a zero" do
+      doc = @data |> render_with() |> LazyHTML.from_document()
       text = &(doc |> LazyHTML.query(&1) |> LazyHTML.text())
 
-      assert text.("#board-as-of") =~ "Board rules as of not measured yet"
-      refute text.("#board-as-of") =~ ~r/\b0\b/
-
-      for col <- ~w(ideas refining founder_check building done) do
-        assert text.("#board-col-#{col} .team-board-card") =~ "not measured yet"
+      for col <- TalesForge.Board.Idea.columns() do
+        assert text.("#board-col-#{col}") =~ "not measured yet"
+        refute text.("#board-col-#{col}") =~ ~r/\b0\b/
       end
 
-      # A missing label falls back to the brief's name for the column.
-      assert text.("#board-col-refining header") =~ "Refining (Case)"
-      assert text.("#board-col-done header") =~ "Done"
-      refute doc |> LazyHTML.query("#board-col-refining .team-board-enter") |> Enum.any?()
+      assert text.("#board-total-cards") =~ "not measured yet"
+      assert text.("#board-live-note") =~ "Live counts show on production."
     end
 
-    test "without any board data the section still renders the brief's five columns" do
+    test "without any board data the section still renders the brief's five steps" do
       html = render_with(%{})
       doc = LazyHTML.from_document(html)
 
       assert html =~ "6. How we work together: one shared board"
-      assert doc |> LazyHTML.query("#team-board .team-board-col") |> Enum.count() == 5
-      assert doc |> LazyHTML.query("#board-as-of") |> LazyHTML.text() =~ "not measured yet"
+      assert doc |> LazyHTML.query("#board-travel li") |> Enum.count() == 5
+
+      assert doc |> LazyHTML.query("#team-board .team-board-col[data-column]") |> Enum.count() ==
+               6
 
       assert doc |> LazyHTML.query("#board-why") |> LazyHTML.text() =~
-               "which one founder holds today"
-    end
-
-    test "the board's motion is client-side, off with reduced motion" do
-      css = File.read!("assets/css/app.css")
-
-      [motion_css, block] =
-        String.split(css, "@media (prefers-reduced-motion: reduce) {\n  .team-page *", parts: 2)
-
-      board_rules =
-        ~r/^[^\n{]*\.team-board[^\n{]*\{[^}]*(?:opacity: 0;|transform: |animation: team-)[^}]*\}/m
-        |> Regex.scan(motion_css)
-        |> List.flatten()
-        # Static layout, not motion: the "pinged" tag is centred under its
-        # avatar, and the d20 confetti only ever shows while playing.
-        |> Enum.reject(&String.starts_with?(&1, [".team-board-ping {", ".team-board-d20 {"]))
-
-      assert length(board_rules) >= 8
-
-      for rule <- board_rules,
-          do: assert(rule =~ ~s(.team-page[data-motion="full"] .team-board[data-board=), rule)
-
-      assert block =~
-               ".team-board [data-at], .team-board [data-gone] { opacity: 1 !important; transform: none !important; }"
-
-      js = File.read!("assets/js/team_hooks.js")
-      [_, board_js] = String.split(js, "export const TeamBoard = {", parts: 2)
-      assert board_js =~ "this.mq = reducedMotion()"
-
-      assert board_js =~
-               "if (this.mq.matches || !(\"IntersectionObserver\" in window)) return this.settle()"
-
-      assert board_js =~ ~s{this.el.dataset.board = "static"}
-      assert File.read!("assets/js/app.js") =~ "TeamBoard"
+               "one founder pushes the production releases"
     end
   end
 
