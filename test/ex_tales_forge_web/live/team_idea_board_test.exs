@@ -62,7 +62,12 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     assert has_element?(view, "#board-modal-title", "Brenna remembers regulars")
 
     view |> element("#card-#{idea.id} button[phx-value-vote='1']") |> render_click()
-    assert has_element?(view, ~s(#card-#{idea.id} button[aria-pressed="true"]), "+1")
+
+    assert has_element?(
+             view,
+             ~s(#card-#{idea.id}-up[aria-pressed="true"][aria-label="Upvote: 1"])
+           )
+
     view |> element("#card-#{idea.id} button[phx-value-vote='1']") |> render_click()
     refute has_element?(view, ~s(#card-#{idea.id} button[aria-pressed="true"]))
 
@@ -287,13 +292,13 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
 
     defp click(view, selector), do: view |> element(selector) |> render_click(@browser)
 
-    defp net(view, id),
-      do:
-        view
-        |> element("#tile-#{id}-net")
-        |> render()
-        |> then(&Regex.run(~r/>(-?\d+)</, &1))
-        |> List.last()
+    # {upvotes, downvotes} on a thin card, read from the buttons' aria-labels.
+    defp counts(view, id) do
+      html = view |> element("#tile-#{id}") |> render()
+      [_, up] = Regex.run(~r/aria-label="Upvote: (\d+)"/, html)
+      [_, down] = Regex.run(~r/aria-label="Downvote: (\d+)"/, html)
+      {String.to_integer(up), String.to_integer(down)}
+    end
 
     setup do
       {:ok, thin} = Board.create_idea("bo@example.com", %{"title" => "Thin one"})
@@ -307,17 +312,27 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     test "a vote on a thin card is inside its border, changes the count and does not open the card",
          %{conn: conn, thin: thin} do
       {:ok, view, _} = live(conn, "/team")
-      assert has_element?(view, ~s(#tile-#{thin.id} button[aria-label="Upvote Thin one"]))
-      assert has_element?(view, ~s(#tile-#{thin.id} button[aria-label="Downvote Thin one"]))
+
+      assert has_element?(
+               view,
+               ~s(#tile-#{thin.id}-up[aria-label="Upvote: 0"] .hero-hand-thumb-up)
+             )
+
+      assert has_element?(
+               view,
+               ~s(#tile-#{thin.id}-down[aria-label="Downvote: 0"] .hero-hand-thumb-down)
+             )
+
+      refute has_element?(view, "#tile-#{thin.id}-net")
       refute has_element?(view, ~s(#tile-#{thin.id} button[aria-haspopup] #tile-#{thin.id}-up))
 
       click(view, "#tile-#{thin.id}-up")
       assert has_element?(view, ~s(#tile-#{thin.id}-up [data-role="up"]), "1")
-      assert net(view, thin.id) == "1"
+      assert counts(view, thin.id) == {1, 0}
       refute has_element?(view, "#board-modal")
 
       click(view, "#tile-#{thin.id}-up")
-      assert net(view, thin.id) == "0"
+      assert counts(view, thin.id) == {0, 0}
       refute has_element?(view, "#board-modal")
     end
 
@@ -327,15 +342,15 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
       click(view, "#tile-#{thin.id}-down")
       assert has_element?(view, "#board-modal")
       assert has_element?(view, "#card-#{thin.id}-downvote-reason[required][phx-mounted]")
-      assert net(view, thin.id) == "0"
+      assert counts(view, thin.id) == {0, 0}
 
       view |> form("#card-#{thin.id}-downvote", %{reason: " "}) |> render_submit()
       assert has_element?(view, "#card-#{thin.id}-error", "A downvote needs a reason.")
-      assert net(view, thin.id) == "0"
+      assert counts(view, thin.id) == {0, 0}
 
       view |> form("#card-#{thin.id}-downvote", %{reason: "Bait is unclear"}) |> render_submit()
       refute has_element?(view, "#card-#{thin.id}-downvote")
-      assert net(view, thin.id) == "-1"
+      assert counts(view, thin.id) == {0, 1}
       assert has_element?(view, ~s(#tile-#{thin.id}-down [data-role="down"]), "1")
       assert has_element?(view, "#card-#{thin.id}-downvote-reasons", "Bait is unclear")
 
@@ -355,19 +370,19 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
       assert has_element?(view, ~s(#tile-#{small.id}[data-size="thin"]))
 
       for card <- [thin, small] do
-        assert net(view, card.id) == "0"
+        assert counts(view, card.id) == {0, 0}
         click(view, "#tile-#{card.id}-up")
-        assert net(view, card.id) == "1"
+        assert counts(view, card.id) == {1, 0}
         assert has_element?(view, ~s(#tile-#{card.id}-up[aria-pressed="true"]))
         click(view, "#tile-#{card.id}-up")
-        assert net(view, card.id) == "0"
+        assert counts(view, card.id) == {0, 0}
         refute has_element?(view, "#board-modal"), "a vote must not open the card"
         downvote(view, card.id, "Unclear")
-        assert net(view, card.id) == "-1"
+        assert counts(view, card.id) == {0, 1}
         assert has_element?(view, "#tile-#{card.id} .badge-warning", "Needs work")
         view |> element("#board-modal-close") |> render_click()
         click(view, "#tile-#{card.id}-down")
-        assert net(view, card.id) == "0"
+        assert counts(view, card.id) == {0, 0}
         refute has_element?(view, "#board-modal"), "taking back a -1 does not open the card"
       end
     end
@@ -382,15 +397,73 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
       down = "#card-#{small.id} button[phx-value-vote='-1']"
 
       click(view, up)
-      assert has_element?(view, ~s(#card-#{small.id} [aria-label="Net votes 1"]))
-      assert net(view, small.id) == "1"
+
+      assert has_element?(
+               view,
+               ~s(#card-#{small.id}-up[aria-label="Upvote: 1"][aria-pressed="true"])
+             )
+
+      assert counts(view, small.id) == {1, 0}
       click(view, up)
-      assert has_element?(view, ~s(#card-#{small.id} [aria-label="Net votes 0"]))
+
+      assert has_element?(
+               view,
+               ~s(#card-#{small.id}-up[aria-label="Upvote: 0"][aria-pressed="false"])
+             )
+
       click(view, down)
       view |> form("#card-#{small.id}-downvote", %{reason: "Too big"}) |> render_submit()
       assert has_element?(view, "#card-#{small.id}-blocked")
-      assert net(view, small.id) == "-1"
+      assert counts(view, small.id) == {0, 1}
       assert has_element?(view, "#board-modal")
+    end
+
+    test "thumbs with separate counts, no net number, and the founder's own vote highlighted",
+         %{conn: conn, thin: thin} do
+      {:ok, thin} = Board.vote(thin, "ada@example.com", 1)
+      {:ok, _thin} = Board.vote(thin, "cy@example.com", -1, "Too vague")
+      {:ok, view, _} = live(conn, "/team")
+
+      # Another founder's votes count, but nothing is highlighted for me.
+      assert has_element?(
+               view,
+               ~s(#tile-#{thin.id}-up[aria-label="Upvote: 1"][aria-pressed="false"])
+             )
+
+      assert has_element?(
+               view,
+               ~s(#tile-#{thin.id}-down[aria-label="Downvote: 1"][aria-pressed="false"])
+             )
+
+      refute has_element?(view, "#tile-#{thin.id} [data-mine]")
+      refute render(view) =~ ~r/[Nn]et votes/
+
+      click(view, "#tile-#{thin.id}-up")
+
+      assert has_element?(
+               view,
+               ~s(#tile-#{thin.id}-up[aria-label="Upvote: 2"][aria-pressed="true"][data-mine])
+             )
+
+      assert has_element?(view, ~s{#tile-#{thin.id}-up[class*="bg-[var(--paper-accent)]"]})
+      refute has_element?(view, "#tile-#{thin.id}-down[data-mine]")
+      refute has_element?(view, "#board-modal"), "a vote must not open the card"
+
+      # The same highlight in the full card.
+      view |> element("#tile-#{thin.id} button[aria-haspopup]") |> render_click()
+
+      assert has_element?(
+               view,
+               ~s(#card-#{thin.id}-up[aria-label="Upvote: 2"][aria-pressed="true"][data-mine])
+             )
+
+      assert has_element?(
+               view,
+               ~s(#card-#{thin.id}-down[aria-label="Downvote: 1"][aria-pressed="false"])
+             )
+
+      assert has_element?(view, "#card-#{thin.id}-up .hero-hand-thumb-up")
+      assert has_element?(view, "#card-#{thin.id}-down .hero-hand-thumb-down")
     end
 
     test "a bad vote value is refused on the card, not a crash", %{conn: conn, thin: thin} do
@@ -403,7 +476,7 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
       assert Process.alive?(view.pid)
       view |> element("#tile-#{thin.id} button[aria-haspopup]") |> render_click()
       assert has_element?(view, "#card-#{thin.id}-error", "A vote is +1 or -1.")
-      assert net(view, thin.id) == "0"
+      assert counts(view, thin.id) == {0, 0}
     end
   end
 
