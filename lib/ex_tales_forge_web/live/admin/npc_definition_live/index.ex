@@ -18,7 +18,7 @@ defmodule TalesForgeWeb.AdminLive.NpcDefinitionLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.admin flash={@flash} active="npc_definitions">
+    <Layouts.admin socket={@socket} flash={@flash} active="npc_definitions">
       <header class="space-y-1">
         <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">NPC definitions</h2>
         <p class="text-sm text-[var(--paper-muted)]">

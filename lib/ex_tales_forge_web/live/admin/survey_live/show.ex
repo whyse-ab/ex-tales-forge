@@ -141,7 +141,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Show do
   @impl true
   def render(%{definition: nil} = assigns) do
     ~H"""
-    <Layouts.admin flash={@flash} active="survey">
+    <Layouts.admin socket={@socket} flash={@flash} active="survey">
       <.survey_tabs tabs={@tabs} current={@survey_id} />
       <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Survey</h2>
       <.problems problems={@problems} source={Source.describe(@survey_id)} />
@@ -158,7 +158,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Show do
       )
 
     ~H"""
-    <Layouts.admin flash={@flash} active="survey" page={@definition.title}>
+    <Layouts.admin socket={@socket} flash={@flash} active="survey" page={@definition.title}>
       <.survey_tabs tabs={@tabs} current={@survey_id} />
       <p
         :if={not Definition.active?(@definition)}

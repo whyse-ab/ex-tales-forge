@@ -7,13 +7,10 @@ defmodule TalesForgeWeb.TeamLive do
      (`TalesForgeWeb.TeamIdeaBoard`, live over `TalesForge.Board`'s PubSub) on
      production and locally. `/team` lives on production only
      (`TalesForge.AppRole`, area `:board`): playtest redirects it there;
-  3. **Online now** (`#online`): founders with a page open on either app and
-     the bots' latest activity (`TalesForgeWeb.TeamOnline`, live over
-     `TalesForge.Online`'s Presence and a 30 s refresh);
-  4. **What we're doing now** (`#live`): the live GitHub PR, CI and deploy feed,
+  3. **What we're doing now** (`#live`): the live GitHub PR, CI and deploy feed,
      the nested `TalesForgeWeb.TeamPrFeedLive` (`TalesForge.PrFeed`, polled on
      the server and pushed over PubSub);
-  5. the one link to the full presentation (`#presentation-cta`).
+  4. the one link to the full presentation (`#presentation-cta`).
 
   The crew cards moved to the presentation (decision 2026-10-10). Old links
   still work: the `TeamAnchorRedirect` hook (`assets/js/team_hooks.js`)
@@ -37,15 +34,11 @@ defmodule TalesForgeWeb.TeamLive do
   alias TalesForgeWeb.Layouts
   alias TalesForgeWeb.TeamArt
   alias TalesForgeWeb.TeamLayout
-  alias TalesForgeWeb.TeamOnline
   alias TalesForgeWeb.TeamPresentationLive
   alias TalesForgeWeb.TeamPrFeed
 
-  @online_refresh_ms 30_000
-
   @nav [
     {"idea-board", "Going to do"},
-    {"online", "Online now"},
     {"live", "Doing now"},
     {"presentation-cta", "Presentation"}
   ]
@@ -55,7 +48,7 @@ defmodule TalesForgeWeb.TeamLive do
   presentation anchor, so the redirect hook leaves them alone.
 
       iex> TalesForgeWeb.TeamLive.anchors()
-      ["idea-board", "online", "live", "presentation-cta", "landing-hero"]
+      ["idea-board", "live", "presentation-cta", "landing-hero"]
   """
   @spec anchors() :: [String.t()]
   def anchors, do: Enum.map(@nav, &elem(&1, 0)) ++ ~w(landing-hero)
@@ -88,8 +81,6 @@ defmodule TalesForgeWeb.TeamLive do
      |> assign(:board?, board_here?())
      |> tap(fn s -> if connected?(s) and board_here?(), do: TalesForge.Board.subscribe() end)
      |> assign(:d, TeamPage.data())
-     |> tap(fn s -> if connected?(s), do: start_online() end)
-     |> assign_online()
      |> assign(:nav, @nav)
      |> assign(:anchors, Jason.encode!(TeamPresentationLive.anchors()))
      |> assign(:aliases, Jason.encode!(aliases()))}
@@ -106,27 +97,7 @@ defmodule TalesForgeWeb.TeamLive do
     {:noreply, socket}
   end
 
-  def handle_info(:online_tick, socket) do
-    Process.send_after(self(), :online_tick, @online_refresh_ms)
-    {:noreply, assign_online(socket)}
-  end
-
-  def handle_info({:online, :changed}, socket), do: {:noreply, assign_online(socket)}
-
-  def handle_info(%Phoenix.Socket.Broadcast{event: "presence_diff"}, socket),
-    do: {:noreply, assign_online(socket)}
-
   def handle_info(_msg, socket), do: {:noreply, socket}
-
-  defp start_online do
-    TalesForge.Online.subscribe()
-    Process.send_after(self(), :online_tick, @online_refresh_ms)
-  end
-
-  defp assign_online(socket) do
-    now = DateTime.utc_now()
-    socket |> assign(:online, TalesForge.TeamOnline.snapshot(now)) |> assign(:now, now)
-  end
 
   @impl true
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
@@ -146,12 +117,11 @@ defmodule TalesForgeWeb.TeamLive do
         data-anchors={@anchors}
         data-aliases={@aliases}
       />
-      <TeamLayout.header page={:landing} items={@nav} />
+      <TeamLayout.header socket={assigns[:socket]} page={:landing} items={@nav} />
 
       <main class="mx-auto max-w-6xl space-y-16 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
         <.hero d={@d} />
         <.going_to_do board?={assigns[:board?] || false} founder={assigns[:admin_email]} />
-        <TeamOnline.section :if={assigns[:online]} online={@online} now={@now} />
         <.live_section socket={assigns[:socket]} />
         <.presentation />
       </main>

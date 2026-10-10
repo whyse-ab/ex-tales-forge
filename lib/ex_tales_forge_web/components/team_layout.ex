@@ -30,6 +30,10 @@ defmodule TalesForgeWeb.TeamLayout do
   attr :page, :atom, required: true, values: [:landing, :presentation]
   attr :items, :list, required: true, doc: "`{anchor, label}` pairs"
 
+  attr :socket, :any,
+    default: nil,
+    doc: "with it, who is online (`TalesForgeWeb.OnlineHeaderLive`)"
+
   @spec header(map()) :: Phoenix.LiveView.Rendered.t()
   def header(assigns) do
     ~H"""
@@ -39,7 +43,12 @@ defmodule TalesForgeWeb.TeamLayout do
     >
       <div class="mx-auto flex max-w-6xl items-center justify-between gap-3 px-3 py-2 sm:px-6">
         <.link navigate={~p"/"} class="font-serif text-base font-semibold sm:text-lg">Tales Forge</.link>
-        <div class="flex items-center gap-3">
+        <div class="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+          {@socket &&
+            live_render(@socket, TalesForgeWeb.OnlineHeaderLive,
+              id: "team-online",
+              session: %{"id_prefix" => "team-online"}
+            )}
           <TalesForgeWeb.AppComponents.env_badge id="team-env-badge" />
           <.link
             href={~p"/admin"}

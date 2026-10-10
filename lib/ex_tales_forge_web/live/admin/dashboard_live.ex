@@ -30,7 +30,7 @@ defmodule TalesForgeWeb.AdminLive.DashboardLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.admin flash={@flash} active="dashboard">
+    <Layouts.admin socket={@socket} flash={@flash} active="dashboard">
       <header class="space-y-1">
         <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Admin home</h2>
         <p class="text-[var(--paper-muted)]">

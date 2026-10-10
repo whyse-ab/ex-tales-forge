@@ -73,6 +73,7 @@ defmodule TalesForgeWeb.AdminLive.DocLive.Index do
   def render(assigns) do
     ~H"""
     <Layouts.admin
+      socket={@socket}
       flash={@flash}
       active="docs"
       page={(@selected && @selected.title) || (@missing && "Not found")}

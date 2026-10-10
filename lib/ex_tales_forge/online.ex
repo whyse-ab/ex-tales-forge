@@ -176,4 +176,34 @@ defmodule TalesForge.Online do
   @doc "The time of each bot's latest board API call since this app started."
   @spec bot_calls() :: %{optional(atom()) => DateTime.t()}
   def bot_calls, do: Peer.bot_calls()
+
+  @doc """
+  Everyone online for the header counter (`TalesForgeWeb.OnlineHeaderLive`):
+  `%{founders: [...], bots: [...]}` from the module in config
+  `:online_snapshot` (`TalesForge.TeamOnline`, which also reads the board and
+  the PR feed). Through config, so this shared module does not depend on admin
+  code. Without that module: the founders only, and no bots.
+  """
+  @spec snapshot(DateTime.t()) :: %{founders: [map()], bots: [map()]}
+  def snapshot(now \\ DateTime.utc_now()) do
+    case Application.get_env(:ex_tales_forge, :online_snapshot) do
+      mod when is_atom(mod) and not is_nil(mod) ->
+        if Code.ensure_loaded?(mod) and function_exported?(mod, :snapshot, 1),
+          do: mod.snapshot(now),
+          else: fallback()
+
+      _ ->
+        fallback()
+    end
+  end
+
+  defp fallback, do: %{founders: Enum.map(founders(), &Map.put(&1, :name, &1.email)), bots: []}
+
+  @doc """
+  True when the "Chat" button shows (a disabled placeholder until team chat
+  exists). Config `:team_chat_placeholder`, default true.
+  """
+  @spec chat_placeholder?() :: boolean()
+  def chat_placeholder?,
+    do: Application.get_env(:ex_tales_forge, :team_chat_placeholder, true) == true
 end

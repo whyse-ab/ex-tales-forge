@@ -231,45 +231,4 @@ defmodule TalesForgeWeb.TeamLiveTest do
       assert File.read!("assets/js/app.js") =~ "TeamAnchorRedirect"
     end
   end
-
-  describe "online now" do
-    setup %{conn: conn}, do: {:ok, conn: log_in_admin(conn, "fredrik@example.com")}
-
-    test "lists the founder on this page and the three bots", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/team")
-      _ = render(view)
-
-      assert has_element?(view, "#online h2", "Online now")
-
-      assert has_element?(
-               view,
-               "#online-founders li[id^=online-founder-local-fredrik]",
-               "Fredrik"
-             )
-
-      assert has_element?(view, "#online-founders li", "Team page on local")
-
-      for bot <- ~w(case bobby gentry), do: assert(has_element?(view, "#online-bot-#{bot}"))
-    end
-
-    test "a founder on playtest shows up live", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/team")
-
-      TalesForge.Online.Peer.put(
-        [
-          %{
-            email: "max@example.com",
-            page: "Playtest runs",
-            app: "playtest",
-            since: DateTime.utc_now()
-          }
-        ],
-        DateTime.utc_now()
-      )
-
-      on_exit(fn -> TalesForge.Online.Peer.put([], ~U[2000-01-01 00:00:00Z]) end)
-      assert render(view) =~ "Playtest runs on playtest"
-      assert has_element?(view, "#online-founder-playtest-max-example-com", "Max")
-    end
-  end
 end

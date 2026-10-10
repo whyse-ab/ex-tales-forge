@@ -1,6 +1,7 @@
 defmodule TalesForge.TeamOnline do
   @moduledoc """
-  The data of "Online now" on `/team` (board card "Who's online right now"):
+  The data of the "who is online" counter in the admin and /team header
+  (`TalesForgeWeb.OnlineHeaderLive`, board card "Who's online right now"):
 
   - **Founders**: everyone with a page open on production or playtest right
     now (`TalesForge.Online.founders/0`, Phoenix Presence plus playtest's

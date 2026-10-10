@@ -35,7 +35,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.admin flash={@flash} active="survey">
+    <Layouts.admin socket={@socket} flash={@flash} active="survey">
       <header class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0 space-y-1">
           <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Founder surveys</h2>

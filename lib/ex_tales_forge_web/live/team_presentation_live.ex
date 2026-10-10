@@ -188,7 +188,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
       phx-hook="TeamPage"
       data-motion="auto"
     >
-      <TeamLayout.header page={:presentation} items={@sections} />
+      <TeamLayout.header socket={assigns[:socket]} page={:presentation} items={@sections} />
 
       <main class="mx-auto max-w-6xl space-y-20 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
         <.hero d={@d} pace={@pace} live={@live} />

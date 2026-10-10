@@ -100,7 +100,12 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(%{role: :playtest} = assigns) do
     ~H"""
-    <Layouts.admin flash={@flash} active="costs" other_app_path="/admin/operate/costs">
+    <Layouts.admin
+      socket={@socket}
+      flash={@flash}
+      active="costs"
+      other_app_path="/admin/operate/costs"
+    >
       <.page_header rate={@rate}>
         This is the playtest app: only the AI spend of playtest runs (persona bot sessions) is
         counted here. Production's page shows all costs, this app's included. Manual play on
@@ -131,7 +136,12 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
 
   def render(assigns) do
     ~H"""
-    <Layouts.admin flash={@flash} active="costs" other_app_path="/admin/operate/costs">
+    <Layouts.admin
+      socket={@socket}
+      flash={@flash}
+      active="costs"
+      other_app_path="/admin/operate/costs"
+    >
       <.page_header rate={@rate}>
         All AI spend: this app's own calls and, read live from the playtest app, its playtest
         runs and other calls. Nothing is copied between the apps.

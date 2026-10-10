@@ -87,7 +87,7 @@ defmodule TalesForgeWeb.AdminLive.SessionLive.Show do
     assigns = assign(assigns, :character, character)
 
     ~H"""
-    <Layouts.admin flash={@flash} active="sessions">
+    <Layouts.admin socket={@socket} flash={@flash} active="sessions">
       <header class="space-y-2">
         <.link navigate={~p"/admin/play/sessions"} class="text-sm text-[var(--paper-accent)]">← Sessions</.link>
         <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">{@session.name}</h2>

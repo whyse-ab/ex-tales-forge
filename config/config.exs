@@ -26,6 +26,11 @@ config :ex_tales_forge, Oban,
 # this module; until it is deployed the API answers 404.
 config :ex_tales_forge, :board_api, TalesForge.Board.Api
 
+# Who's online (header counter on admin and /team): the module that adds the
+# bots' activity, and the disabled "Chat" placeholder (until team chat exists).
+config :ex_tales_forge, :online_snapshot, TalesForge.TeamOnline
+config :ex_tales_forge, :team_chat_placeholder, true
+
 # LLM prices in USD per 1M tokens, used when a response carries no billed cost.
 # Source: https://docs.x.ai/developers/pricing (fetched 2026-10-06). Prompts at or
 # above long_context.threshold tokens are billed at long_context rates for all tokens.
