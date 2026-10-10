@@ -338,7 +338,8 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
         put_in(@data, ["team", "members", Access.at(0), "approval_key", "holder_today"], "Ada")
 
       html = render_with(data)
-      assert html =~ "Every founder can add ideas, vote, answer the open questions and approve PRs on the board."
+      assert html =~
+               "Every founder can add ideas, vote, answer the open questions and approve PRs on the board."
       assert html =~ "This is how we work today, and we shape it together."
       assert html =~ "then it ships to production by itself."
       assert html =~ "Changes that only touch admin pages ship straight away."
