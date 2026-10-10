@@ -1,7 +1,8 @@
 defmodule TalesForgeWeb.AdminLive.CostsLive do
   @moduledoc """
   Admin costs page (`/admin/operate/costs`), read-only, USD with SEK alongside at the
-  configured rate. Scope: AI calls only (xAI/Grok, TypeSafe Jev). What it shows
+  configured rate. The Jev intent latency of this app's last 7 days is at the
+  bottom (`TalesForgeWeb.TeamLiveNumbers.intent_latency/2`). Scope: AI calls only (xAI/Grok, TypeSafe Jev). What it shows
   depends on the app's role (`TalesForge.AppRole`):
 
   - **Playtest:** only playtest-run spend (`TalesForge.Costs.PlaytestRuns`):
@@ -28,6 +29,8 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
   alias TalesForge.Costs
   alias TalesForge.Costs.Peer
   alias TalesForge.Costs.PlaytestRuns
+  alias TalesForge.TeamPage
+  alias TalesForgeWeb.TeamLiveNumbers
 
   @line_labels %{
     "gm" => "GM",
@@ -45,7 +48,12 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
       |> assign(:page_title, "Costs")
       |> assign(:rate, Costs.usd_sek())
 
-    {:ok, mount_role(socket, AppRole.role(), DateTime.utc_now())}
+    now = DateTime.utc_now()
+
+    {:ok,
+     socket
+     |> assign(:latency, TeamLiveNumbers.intent_latency(TeamPage.data(), now))
+     |> mount_role(AppRole.role(), now)}
   end
 
   defp mount_role(socket, :playtest, now) do
@@ -92,11 +100,22 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
   def render(%{role: :playtest} = assigns) do
     ~H"""
-    <Layouts.admin flash={@flash} active="costs">
+    <Layouts.admin flash={@flash} active="costs" other_app_path="/admin/operate/costs">
       <.page_header rate={@rate}>
         This is the playtest app: only the AI spend of playtest runs (persona bot sessions) is
-        counted here. Production's page shows all costs, this app's included.
+        counted here. Production's page shows all costs, this app's included. Manual play on
+        playtest shows there as "Playtest: other calls".
       </.page_header>
+      <p>
+        <a
+          id="costs-total-on-production"
+          href={AppRole.base_url(:production) <> "/admin/operate/costs"}
+          data-cross-app
+          class="inline-flex min-h-11 items-center font-semibold text-[var(--paper-accent)] underline"
+        >
+          Total and all costs on production ↗
+        </a>
+      </p>
 
       <.runs_section
         id="costs-runs"
@@ -104,13 +123,15 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
         summary={@runs}
         rate={@rate}
       />
+
+      <.latency_card latency={@latency} />
     </Layouts.admin>
     """
   end
 
   def render(assigns) do
     ~H"""
-    <Layouts.admin flash={@flash} active="costs">
+    <Layouts.admin flash={@flash} active="costs" other_app_path="/admin/operate/costs">
       <.page_header rate={@rate}>
         All AI spend: this app's own calls and, read live from the playtest app, its playtest
         runs and other calls. Nothing is copied between the apps.
@@ -169,6 +190,14 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
           Playtest AI spend is not included ({playtest_short(@playtest)}).
         </p>
         <.playtest_line check={@report.playtest} rate={@rate} />
+        <a
+          id="costs-playtest-details"
+          href={AppRole.base_url(:playtest) <> "/admin/operate/costs"}
+          data-cross-app
+          class="inline-flex min-h-11 items-center text-sm font-semibold text-[var(--paper-accent)] underline"
+        >
+          Playtest run details on playtest ↗
+        </a>
       </.section_card>
 
       <.env_section
@@ -334,6 +363,8 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
           SEK yearly ones are converted at the rate above and shown as yearly and as monthly share (÷ 12).
         </p>
       </.section_card>
+
+      <.latency_card latency={@latency} />
     </Layouts.admin>
     """
   end
@@ -758,5 +789,40 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
     else
       _ -> iso
     end
+  end
+
+  attr :latency, :map, required: true, doc: "`TalesForgeWeb.TeamLiveNumbers.intent_latency/2`"
+
+  # Jev intent latency on this app, last 7 days (moved here from the founders'
+  # presentation, admin split 2026-10-10: it is a property of each app's calls).
+  defp latency_card(assigns) do
+    ~H"""
+    <.section_card title="Jev intent latency · last 7 days (this app)" id="costs-intent-latency">
+      <%= if @latency.source == :live do %>
+        <dl class="grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-4">
+          <div>
+            <dt class="text-[var(--paper-muted)]">Reads</dt>
+            <dd id="latency-reads" class="font-semibold tabular-nums">{@latency.reads}</dd>
+          </div>
+          <div>
+            <dt class="text-[var(--paper-muted)]">Median (p50)</dt>
+            <dd id="latency-p50" class="font-semibold tabular-nums">{@latency.p50_ms} ms</dd>
+          </div>
+          <div>
+            <dt class="text-[var(--paper-muted)]">p95</dt>
+            <dd id="latency-p95" class="font-semibold tabular-nums">{@latency.p95_ms} ms</dd>
+          </div>
+          <div>
+            <dt class="text-[var(--paper-muted)]">Slowest</dt>
+            <dd id="latency-max" class="font-semibold tabular-nums">{@latency.max_ms} ms</dd>
+          </div>
+        </dl>
+      <% else %>
+        <p id="latency-none" class="text-sm text-[var(--paper-muted)]">
+          This app made no Jev intent reads in the last 7 days.
+        </p>
+      <% end %>
+    </.section_card>
+    """
   end
 end
