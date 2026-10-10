@@ -236,7 +236,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
 
   defp summary(assigns) do
     ~H"""
-    <section id="playtest-summary" class="space-y-4">
+    <section id="playtest-summary" class="min-w-0 space-y-4">
       <article
         id="summary-intro"
         class="prose prose-sm max-w-[80ch] rounded-lg border border-[var(--paper-rule)] bg-[var(--paper-panel)] p-4 text-[var(--paper-ink)]"
@@ -244,7 +244,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
         {Markdown.to_html(@summary.intro)}
       </article>
 
-      <section id="summary-batches" class="space-y-3">
+      <section id="summary-batches" class="min-w-0 space-y-3">
         <h2 class="font-serif text-xl font-bold text-[var(--paper-ink)]">The batches so far</h2>
         <p class="max-w-[80ch] text-sm text-[var(--paper-muted)]">
           <strong>Score:</strong>
@@ -276,7 +276,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
     ~H"""
     <article
       id={"batch-#{@batch.id}"}
-      class="space-y-2 rounded-lg border border-[var(--paper-rule)] bg-[var(--paper-panel)] p-4"
+      class="min-w-0 max-w-full space-y-2 rounded-lg border border-[var(--paper-rule)] bg-[var(--paper-panel)] p-4"
     >
       <h3 class="font-serif text-lg font-semibold text-[var(--paper-ink)]">{@batch.title}</h3>
       <p class="text-xs text-[var(--paper-muted)]">
@@ -314,9 +314,11 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
         No numbers yet: none of this batch's runs have finished on this server.
       </p>
 
+      <%!-- Scrolls inside its own box on a phone (320 px), never the page --%>
       <div
         :if={@batch.personas != []}
-        class="overflow-x-auto rounded border border-[var(--paper-rule)]"
+        id={"batch-#{@batch.id}-personas"}
+        class="w-full max-w-full overflow-x-auto rounded border border-[var(--paper-rule)]"
       >
         <table class="min-w-full divide-y divide-[var(--paper-rule)] text-sm">
           <thead class="bg-[var(--paper-bg)] text-left text-[var(--paper-muted)]">

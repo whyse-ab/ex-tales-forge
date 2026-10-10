@@ -11,6 +11,18 @@ defmodule TalesForgeWeb.AdminRedirectController do
 
   alias TalesForge.AdminPaths
 
+  @doc """
+  Redirects a section root (`/admin/play`, `/admin/founders`, ...) to that
+  section on the admin home (`/admin#section-play`). The query is kept
+  before the anchor.
+  """
+  @spec section(Plug.Conn.t(), map()) :: Plug.Conn.t()
+  def section(conn, _params) do
+    "/admin#" <> anchor = AdminPaths.section_target(conn.request_path)
+    query = if conn.query_string == "", do: "", else: "?" <> conn.query_string
+    redirect(conn, to: "/admin" <> query <> "#" <> anchor)
+  end
+
   @doc "Redirects an old admin path to its new one."
   @spec show(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def show(conn, _params) do

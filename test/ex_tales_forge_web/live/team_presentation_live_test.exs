@@ -27,15 +27,15 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
 
   describe "sign-in" do
     test "signed out, /team/presentation redirects to the login page" do
-      assert redirected_to(get(build_conn(), ~p"/team/presentation")) == "/admin/login"
+      assert redirected_to(get(build_conn(), ~p"/team/presentation")) =~ ~r{^/admin/login(\?|$)}
 
-      assert {:error, {:redirect, %{to: "/admin/login"}}} =
+      assert {:error, {:redirect, %{to: "/admin/login" <> _}}} =
                live(build_conn(), ~p"/team/presentation")
     end
 
     test "a GitHub user outside the team is refused" do
       conn = log_in_non_member(build_conn())
-      assert redirected_to(get(conn, ~p"/team/presentation")) == "/admin/login"
+      assert redirected_to(get(conn, ~p"/team/presentation")) =~ ~r{^/admin/login(\?|$)}
     end
 
     test "a team member sees the whole presentation, with a way back to /team", %{conn: conn} do

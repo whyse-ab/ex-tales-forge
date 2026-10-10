@@ -103,6 +103,7 @@ defmodule TalesForgeWeb.AdminLive.DashboardLive do
           }
           target={item.kind == :external && "_blank"}
           rel={item.kind == :external && "noopener noreferrer"}
+          aria-label={link_label(item, @role)}
           class="inline-flex min-h-11 items-center rounded px-1 text-[var(--paper-accent)] underline-offset-2 hover:underline"
         >
           {link_label(item, @role)}

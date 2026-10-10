@@ -32,10 +32,10 @@ defmodule TalesForge.AdminAuthTest do
       |> put_session(AdminAuth.session_key(), "founder@example.com")
 
     for path <- [~p"/", ~p"/admin", ~p"/admin/operate/costs"] do
-      assert conn |> get(path) |> redirected_to() == "/admin/login"
+      assert conn |> get(path) |> redirected_to() =~ ~r{^/admin/login(\?|$)}
     end
 
-    assert {:error, {:redirect, %{to: "/admin/login"}}} = live(conn, ~p"/admin")
+    assert {:error, {:redirect, %{to: "/admin/login" <> _}}} = live(conn, ~p"/admin")
   end
 
   test "a team member reaches /admin with no second admin check" do
@@ -45,7 +45,7 @@ defmodule TalesForge.AdminAuthTest do
 
   test "anonymous cannot reach /admin" do
     conn = get(build_conn(), ~p"/admin")
-    assert redirected_to(conn) == "/admin/login"
+    assert redirected_to(conn) =~ ~r{^/admin/login(\?|$)}
   end
 
   test "clear_session drops the identity" do

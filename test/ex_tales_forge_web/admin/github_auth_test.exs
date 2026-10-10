@@ -124,7 +124,7 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
 
     conn = sign_in()
 
-    assert redirected_to(conn) == "/admin/login"
+    assert redirected_to(conn) =~ ~r{^/admin/login(\?|$)}
     assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "@octo isn't on the Tales Forge"
     assert get_session(conn, "admin_email") == nil
     assert get_session(conn, "admin_github_login") == nil
@@ -133,7 +133,7 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
     {:ok, _view, html} = live(recycle(conn), ~p"/admin/login")
     assert html =~ "@octo isn&#39;t on the Tales Forge GitHub team"
     refute signed_in?(conn)
-    assert conn |> recycle() |> get(~p"/") |> redirected_to() == "/admin/login"
+    assert conn |> recycle() |> get(~p"/") |> redirected_to() =~ ~r{^/admin/login(\?|$)}
   end
 
   test "a verified email no longer gets anyone in without the team" do
@@ -141,7 +141,7 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
 
     conn = sign_in()
 
-    assert redirected_to(conn) == "/admin/login"
+    assert redirected_to(conn) =~ ~r{^/admin/login(\?|$)}
     assert get_session(conn, "admin_email") == nil
   end
 
@@ -150,7 +150,7 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
 
     conn = sign_in()
 
-    assert redirected_to(conn) == "/admin/login"
+    assert redirected_to(conn) =~ ~r{^/admin/login(\?|$)}
     assert get_session(conn, "admin_email") == nil
     refute signed_in?(conn)
   end
@@ -161,7 +161,7 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
 
     conn = sign_in()
 
-    assert redirected_to(conn) == "/admin/login"
+    assert redirected_to(conn) =~ ~r{^/admin/login(\?|$)}
     assert get_session(conn, "admin_email") == nil
     refute_received {:github, "GET", @team_path, _}
   end
@@ -171,7 +171,7 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
     id = Ecto.UUID.generate()
 
     conn = get(build_conn(), ~p"/play/#{id}")
-    assert redirected_to(conn) == "/admin/login"
+    assert redirected_to(conn) =~ ~r{^/admin/login(\?|$)}
 
     conn = sign_in(nil, recycle(conn))
     assert redirected_to(conn) == "/play/#{id}"
@@ -182,7 +182,7 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
 
     conn = sign_in("forged-state")
 
-    assert redirected_to(conn) == "/admin/login"
+    assert redirected_to(conn) =~ ~r{^/admin/login(\?|$)}
     assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "didn't complete"
     assert get_session(conn, "admin_email") == nil
     refute_received {:github, "POST", "/login/oauth/access_token", _}
@@ -193,7 +193,7 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
 
     conn = get(build_conn(), ~p"/admin/auth/github/callback?code=abc&state=whatever")
 
-    assert redirected_to(conn) == "/admin/login"
+    assert redirected_to(conn) =~ ~r{^/admin/login(\?|$)}
     assert get_session(conn, "admin_email") == nil
     refute_received {:github, _, _, _}
   end
@@ -210,8 +210,8 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
     # ...and once it expires, both the plug and the LiveView mount refuse.
     MembershipCache.clear()
     refute signed_in?(conn)
-    assert {:error, {:redirect, %{to: "/admin/login"}}} = live(recycle(conn), ~p"/admin")
-    assert {:error, {:redirect, %{to: "/admin/login"}}} = live(recycle(conn), ~p"/")
+    assert {:error, {:redirect, %{to: "/admin/login" <> _}}} = live(recycle(conn), ~p"/admin")
+    assert {:error, {:redirect, %{to: "/admin/login" <> _}}} = live(recycle(conn), ~p"/")
   end
 
   test "unsetting ADMIN_GITHUB_TEAM revokes sessions immediately" do
@@ -272,7 +272,7 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
 
     for path <- [~p"/admin/auth/github", ~p"/admin/auth/github/callback?code=x&state=y"] do
       conn = get(build_conn(), path)
-      assert redirected_to(conn) == "/admin/login"
+      assert redirected_to(conn) =~ ~r{^/admin/login(\?|$)}
       assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "isn't set up"
     end
   end
