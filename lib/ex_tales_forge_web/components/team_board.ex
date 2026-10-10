@@ -171,7 +171,7 @@ defmodule TalesForgeWeb.TeamBoard do
 
       <p id="board-small-print" class="max-w-3xl text-xs leading-relaxed text-[var(--paper-muted)]">
         It grows out of what's already there. The app has a founders' decision queue
-        (<.link href={~p"/admin/decisions"} class="underline">/admin/decisions</.link>)
+        (<.link href={~p"/admin/founders/decisions"} class="underline">/admin/founders/decisions</.link>)
         with comments, interest and ranking; the board extends that into a full idea-to-done flow.
         Listed in <a href="/admin/docs/future-ideas.md" class="underline">docs/future-ideas.md</a>
         as “Founder kanban on /team”.

@@ -1,6 +1,6 @@
 defmodule TalesForgeWeb.AdminLive.CostsLive do
   @moduledoc """
-  Admin costs page (`/admin/costs`), read-only, USD with SEK alongside at the
+  Admin costs page (`/admin/operate/costs`), read-only, USD with SEK alongside at the
   configured rate. Scope: AI calls only (xAI/Grok, TypeSafe Jev). What it shows
   depends on the app's role (`TalesForge.AppRole`):
 
@@ -237,7 +237,7 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
               <tr :for={s <- @metrics.sessions} id={"costs-session-#{s.game_session_id}"}>
                 <td class="whitespace-nowrap py-1 pr-2">
                   <.link
-                    navigate={~p"/admin/sessions/#{s.game_session_id}"}
+                    navigate={~p"/admin/play/sessions/#{s.game_session_id}"}
                     class="text-[var(--paper-accent)]"
                   >
                     {String.slice(s.game_session_id, 0, 8)}
@@ -415,6 +415,13 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
   defp page_header(assigns) do
     ~H"""
     <header class="space-y-1">
+      <.link
+        id="section-crumb"
+        href="/admin#section-operate"
+        class="play-label text-[var(--paper-accent)] hover:underline"
+      >
+        Operate
+      </.link>
       <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Costs</h2>
       <p class="text-[var(--paper-muted)]">
         {render_slot(@inner_block)} Days and months run on Europe/Stockholm time, like the AI day cap.

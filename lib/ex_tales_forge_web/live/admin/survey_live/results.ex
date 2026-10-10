@@ -1,6 +1,6 @@
 defmodule TalesForgeWeb.AdminLive.SurveyLive.Results do
   @moduledoc """
-  Admin results for a survey (`/admin/surveys/:id/results`): completion, one
+  Admin results for a survey (`/admin/founders/surveys/:id/results`): completion, one
   line per user (click a login for their answers), aggregates per question
   grouped by section, so each persona has its own block, and the CSV and
   Markdown exports (`TalesForgeWeb.SurveyExportController`).
@@ -79,6 +79,13 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Results do
     <Layouts.admin flash={@flash} active="survey">
       <header class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0 space-y-1">
+          <.link
+            id="section-crumb"
+            href="/admin#section-founders"
+            class="play-label text-[var(--paper-accent)] hover:underline"
+          >
+            Founders
+          </.link>
           <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Survey results</h2>
           <p class="text-sm text-[var(--paper-muted)]">
             {@definition.title} ·
@@ -89,7 +96,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Results do
               Survey page
             </.link>
             ·
-            <.link navigate={~p"/admin/surveys"} class="text-[var(--paper-accent)] underline">
+            <.link navigate={~p"/admin/founders/surveys"} class="text-[var(--paper-accent)] underline">
               All surveys
             </.link>
             · {if TalesForge.Survey.Definition.active?(@definition),
@@ -98,8 +105,8 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Results do
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
-          <a href={~p"/admin/surveys/#{@definition.id}/results.csv"} class={button_class()}>CSV</a>
-          <a href={~p"/admin/surveys/#{@definition.id}/results.md"} class={button_class()}>
+          <a href={~p"/admin/founders/surveys/#{@definition.id}/results.csv"} class={button_class()}>CSV</a>
+          <a href={~p"/admin/founders/surveys/#{@definition.id}/results.md"} class={button_class()}>
             Markdown summary
           </a>
           <button type="button" phx-click="reload" class={button_class()}>Reload from docs</button>
@@ -323,7 +330,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Results do
 
   defp sorted_rows(%{rows: rows}), do: rows
 
-  defp survey_path(id), do: ~p"/admin/surveys/#{id}"
+  defp survey_path(id), do: ~p"/admin/founders/surveys/#{id}"
 
   defp blank(""), do: "–"
   defp blank(text), do: text

@@ -1,6 +1,6 @@
 defmodule TalesForgeWeb.AdminLive.SurveyLive.Index do
   @moduledoc """
-  Every founder survey in one table (`/admin/surveys`): each survey file the
+  Every founder survey in one table (`/admin/founders/surveys`): each survey file the
   docs hold (`TalesForge.Surveys.overview/1`), whether it is an open tab or
   closed, how many founders answered, and each founder's status (not
   started, in progress, done). Closed and inactive surveys stay listed, with
@@ -38,10 +38,17 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Index do
     <Layouts.admin flash={@flash} active="survey">
       <header class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0 space-y-1">
+          <.link
+            id="section-crumb"
+            href="/admin#section-founders"
+            class="play-label text-[var(--paper-accent)] hover:underline"
+          >
+            Founders
+          </.link>
           <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Founder surveys</h2>
           <p class="text-sm text-[var(--paper-muted)]">
             Every survey file in tales-forge-docs. Open tabs show on <.link
-              navigate={~p"/admin/survey"}
+              navigate={~p"/admin/founders/survey"}
               class="text-[var(--paper-accent)] underline"
             >
               the survey page
@@ -75,7 +82,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Index do
               >
                 <td class="py-1.5 pr-2">
                   <.link
-                    navigate={~p"/admin/surveys/#{row.id}"}
+                    navigate={~p"/admin/founders/surveys/#{row.id}"}
                     class="text-[var(--paper-accent)] underline"
                   >
                     {if row.definition, do: row.definition.title, else: row.id}
@@ -94,14 +101,14 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Index do
                 <td class="py-1.5 whitespace-nowrap">
                   <.link
                     :if={row.definition}
-                    navigate={~p"/admin/surveys/#{row.id}/results"}
+                    navigate={~p"/admin/founders/surveys/#{row.id}/results"}
                     class="text-[var(--paper-accent)] underline"
                   >
                     Results
                   </.link>
                   <a
                     :if={row.definition}
-                    href={~p"/admin/surveys/#{row.id}/results.csv"}
+                    href={~p"/admin/founders/surveys/#{row.id}/results.csv"}
                     class="ml-2 text-[var(--paper-accent)] underline"
                   >
                     CSV

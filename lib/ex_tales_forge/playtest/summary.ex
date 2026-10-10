@@ -8,7 +8,7 @@ defmodule TalesForge.Playtest.Summary do
 
   - `summary.md`: plain-language Markdown. The part before the
     `<!-- batches -->` line is the intro (what we test and how), the part after
-    it the main findings, with links to run pages (`/admin/playtest/<run id>`).
+    it the main findings, with links to run pages (`/admin/play/runs/<run id>`).
   - `batches.json`: one entry per batch of runs, oldest first: title, date,
     commit, what the game looked like, what changed since the batch before,
     notes, and the numbers from the written analysis (per persona: runs, mean
@@ -239,17 +239,18 @@ defmodule TalesForge.Playtest.Summary do
   @doc """
   Where a summary run link goes: the run page on this server when the run is
   here (`local_ids`, from `local_run_ids/1`), otherwise the run page on the
-  playtest server, where the series run.
+  playtest server, where the series run (by its old path, which every
+  version of the playtest app understands; `TalesForge.AdminPaths.legacy/1`).
 
       iex> TalesForge.Playtest.Summary.run_url("abc", MapSet.new(["abc"]))
-      "/admin/playtest/abc"
+      "/admin/play/runs/abc"
       iex> TalesForge.Playtest.Summary.run_url("abc", MapSet.new())
       "https://tales-forge-playtest.fly.dev/admin/playtest/abc"
   """
   @spec run_url(String.t(), MapSet.t(String.t())) :: String.t()
   def run_url(id, local_ids) do
     if MapSet.member?(local_ids, id),
-      do: "/admin/playtest/" <> id,
+      do: "/admin/play/runs/" <> id,
       else: @playtest_server <> "/admin/playtest/" <> id
   end
 

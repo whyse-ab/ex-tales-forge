@@ -348,7 +348,7 @@ defmodule TalesForgeWeb.SurveyComponents do
       <.link
         :for={tab <- @tabs}
         id={"survey-tab-#{tab.id}"}
-        navigate={~p"/admin/surveys/#{tab.id}"}
+        navigate={~p"/admin/founders/surveys/#{tab.id}"}
         aria-current={if tab.id == @current, do: "page", else: "false"}
         class={[
           "rounded-t border px-3 py-2 text-sm",

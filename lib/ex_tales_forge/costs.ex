@@ -1,6 +1,6 @@
 defmodule TalesForge.Costs do
   @moduledoc """
-  Numbers for the admin costs page (`/admin/costs`). Scope: AI calls only
+  Numbers for the admin costs page (`/admin/operate/costs`). Scope: AI calls only
   (xAI/Grok, TypeSafe Jev); hosting is not in the totals yet.
 
   - **Playtest app:** only playtest-run spend (`TalesForge.Costs.PlaytestRuns`):
