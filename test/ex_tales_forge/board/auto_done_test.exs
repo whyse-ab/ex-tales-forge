@@ -122,6 +122,53 @@ defmodule TalesForge.Board.AutoDoneTest do
     assert AutoDone.backoff(%Oban.Job{attempt: 20}) == 4 * 3600
   end
 
+  describe "a PR link added after the deploy (card b18fc8dc)" do
+    setup do
+      Application.put_env(:ex_tales_forge, :board_auto_done_anywhere, true)
+      on_exit(fn -> Application.delete_env(:ex_tales_forge, :board_auto_done_anywhere) end)
+    end
+
+    test "the link queues a new run and the card moves to Done without a boot" do
+      github!()
+      card = building!("Linked late", nil)
+      assert Board.get_idea!(card.id).column == "building"
+
+      {:ok, _} =
+        Board.add_link(card, "bot:bobby", %{
+          "kind" => "pr",
+          "url" => "https://github.com/whyse-ab/ex-tales-forge/pull/1"
+        })
+
+      done = Board.get_idea!(card.id)
+      assert done.column == "done"
+      assert List.last(done.transitions).actor == "bot:board"
+    end
+
+    test "a PR that is not in the release yet keeps the card in Building" do
+      github!()
+      card = building!("Linked late", nil)
+
+      {:ok, _} =
+        Board.add_link(card, "bot:bobby", %{
+          "kind" => "pr",
+          "url" => "https://github.com/whyse-ab/ex-tales-forge/pull/3"
+        })
+
+      assert Board.get_idea!(card.id).column == "building"
+    end
+
+    test "a link that is not a PR queues no run" do
+      github!()
+      card = building!("Doc only", nil)
+
+      {:ok, _} =
+        Board.add_link(card, "bot:bobby", %{"kind" => "doc", "url" => "https://x.test/d"})
+
+      refute_received {:github, _}
+      assert Board.get_idea!(card.id).column == "building"
+    end
+  end
+
   test "Done wakes no bot" do
     assert TalesForge.Board.Transitions.wakes("building", "done") == [:founders]
     assert TalesForge.Board.Events.bots(:idea_to_done, %{}) == []
