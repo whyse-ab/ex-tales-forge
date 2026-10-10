@@ -108,7 +108,8 @@ defmodule TalesForge.Board do
       links: from(l in Link, order_by: [asc: l.inserted_at]),
       transitions: from(t in Transition, order_by: [asc: t.inserted_at, asc: t.id]),
       approvals: from(a in Approval, order_by: [asc: a.inserted_at, asc: a.id]),
-      answers: []
+      answers: [],
+      images: from(i in TalesForge.Images.Image, order_by: [asc: i.inserted_at])
     )
   end
 
@@ -348,6 +349,40 @@ defmodule TalesForge.Board do
 
   def add_link(%Idea{}, _added_by, _attrs),
     do: {:error, "Bots add the links: Bobby the PR, Gentry or Bobby the playtest run."}
+
+  @doc """
+  Adds images to a card (`TalesForge.Images`): `images` is a list of image
+  bytes, `uploader` a founder email, `note` an optional text for each image.
+  Returns `{:ok, idea}`, or `{:error, message}` when a file is not a PNG, JPEG
+  or WebP image or is too large. Then the card gets no image.
+  """
+  @spec add_images(Idea.t(), String.t(), [binary()], String.t() | nil) ::
+          {:ok, Idea.t()} | error()
+  def add_images(%Idea{}, _uploader, [], _note), do: {:error, "Add an image first."}
+
+  def add_images(%Idea{} = idea, uploader, images, note) do
+    case Enum.find_value(images, &image_error/1) do
+      nil ->
+        images
+        |> Enum.with_index()
+        |> Enum.reduce(Multi.new(), fn {data, n}, multi ->
+          Multi.run(multi, {:image, n}, fn _repo, _changes ->
+            TalesForge.Images.store({:idea, idea.id}, data, %{uploader: uploader, note: note})
+          end)
+        end)
+        |> run(idea.id)
+
+      message ->
+        {:error, message}
+    end
+  end
+
+  defp image_error(data) do
+    case TalesForge.Images.validate(data) do
+      :ok -> nil
+      {:error, message} -> message
+    end
+  end
 
   @refinement_keys ~w(details open_questions rough_cost verdict)
   @verdicts ~w(feasible feasible_with_caveats not_feasible)
@@ -616,6 +651,7 @@ defmodule TalesForge.Board do
         })
       )
       |> add_move_events(idea, to, actor)
+      |> clean_up_images(idea, to)
       |> run(idea.id)
       |> check_done_after(to == "building")
     end
@@ -629,6 +665,12 @@ defmodule TalesForge.Board do
   end
 
   defp check_done_after(result, _), do: result
+
+  # A card that reaches Done gives up its images (TalesForge.Images).
+  defp clean_up_images(multi, idea, "done"),
+    do: Multi.delete_all(multi, :images, TalesForge.Images.delete_query(idea.id))
+
+  defp clean_up_images(multi, _idea, _to), do: multi
 
   defp add_move_events(multi, idea, to, actor) do
     extra = %{from: idea.column, to: to, actor: Transitions.actor_name(actor)}
@@ -965,6 +1007,9 @@ defmodule TalesForge.Board do
 
       {:error, _step, %Ecto.Changeset{} = changeset, _} ->
         {:error, changeset}
+
+      {:error, _step, reason, _} when is_binary(reason) ->
+        {:error, reason}
 
       {:error, _step, reason, _} ->
         {:error, inspect(reason)}

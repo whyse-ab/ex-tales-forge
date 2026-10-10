@@ -862,4 +862,46 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     refute has_element?(other, "#tile-#{idea.id}-typing")
     assert render(other) =~ "I think so"
   end
+
+  test "a card takes images with a note and shows them as thumbnails", %{conn: conn} do
+    {:ok, idea} = Board.create_idea("bo@example.com", %{"title" => "Show the bug"})
+    {:ok, view, _} = live(conn, "/team")
+    open(view, idea)
+
+    assert has_element?(view, "#card-#{idea.id}-image-form[phx-hook=ImageInput]")
+    assert has_element?(view, "#card-#{idea.id}-picker-capture[hidden]", "Capture screen")
+
+    image =
+      file_input(view, "#card-#{idea.id}-image-form", :card_images, [
+        %{name: "shot.webp", content: "RIFF" <> <<0, 0, 0, 0>> <> "WEBPVP8 ", type: "image/webp"}
+      ])
+
+    render_upload(image, "shot.webp")
+
+    view
+    |> form("#card-#{idea.id}-image-form", %{note: "Blank map"})
+    |> render_submit()
+
+    [stored] = Board.get_idea!(idea.id).images
+    assert stored.content_type == "image/webp"
+    assert stored.note == "Blank map"
+    assert has_element?(view, ~s(#card-#{idea.id}-thumbs a[href="/team/images/#{stored.id}"] img))
+  end
+
+  test "a card refuses a file whose content is not an image", %{conn: conn} do
+    {:ok, idea} = Board.create_idea("bo@example.com", %{"title" => "Show the bug"})
+    {:ok, view, _} = live(conn, "/team")
+    open(view, idea)
+
+    image =
+      file_input(view, "#card-#{idea.id}-image-form", :card_images, [
+        %{name: "fake.jpg", content: TalesForge.ImageFixtures.gif(), type: "image/jpeg"}
+      ])
+
+    render_upload(image, "fake.jpg")
+    view |> form("#card-#{idea.id}-image-form") |> render_submit()
+
+    assert render(view) =~ "Add a PNG, JPEG or WebP image."
+    assert Board.get_idea!(idea.id).images == []
+  end
 end

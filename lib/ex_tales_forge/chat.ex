@@ -16,6 +16,9 @@ defmodule TalesForge.Chat do
     outbox (`TalesForge.Board.Workers.Notify`, event `chat.mention`), in the
     same transaction as the message. A bot that mentions a bot wakes nobody,
     to keep bot costs under control (Fredrik's answer on the card).
+  - A message can carry images (`TalesForge.Images`): pasted, dropped,
+    picked, or one still from "Capture screen". The text is then the note
+    and can be empty. The bots get the image links in the JSON (`images`).
   - Bots read and write through `GET`/`POST /internal/chat` with their board
     tokens (`TalesForgeWeb.ChatApiController`, `api/3`).
   """
@@ -27,6 +30,7 @@ defmodule TalesForge.Chat do
   alias TalesForge.Board.Mentions
   alias TalesForge.Board.Workers.Notify
   alias TalesForge.Chat.{Message, Read}
+  alias TalesForge.Images
   alias TalesForge.Repo
 
   @topic "team_chat"
@@ -44,7 +48,7 @@ defmodule TalesForge.Chat do
   @doc "The latest messages, oldest first (at most #{@shown})."
   @spec recent(pos_integer()) :: [Message.t()]
   def recent(limit \\ @shown) do
-    from(m in Message, order_by: [desc: m.inserted_at], limit: ^limit)
+    from(m in Message, order_by: [desc: m.inserted_at], limit: ^limit, preload: :images)
     |> Repo.all()
     |> Enum.reverse()
   end
@@ -53,40 +57,86 @@ defmodule TalesForge.Chat do
   Posts `body` as `author` (a founder email or `bot:<name>`). `opts[:login]`
   is a founder author's GitHub login, so the author gets no badge for their
   own handle (handles come from GitHub logins, `TalesForge.Board.Mentions`).
-  Returns `{:ok, message}` or `{:error, changeset}`.
+  `opts[:images]` is a list of image bytes (`TalesForge.Images`); with an
+  image, the text can be empty. Returns `{:ok, message}` (images loaded) or
+  `{:error, changeset}`. A file that is not a PNG, JPEG or WebP image, or is too
+  large, gives a changeset error on `:body` and stores nothing.
   """
-  @spec post(String.t(), String.t(), keyword()) ::
+  @spec post(String.t(), String.t() | nil, keyword()) ::
           {:ok, Message.t()} | {:error, Ecto.Changeset.t()}
   def post(author, body, opts \\ []) when is_binary(author) do
     body = body || ""
+    images = Keyword.get(opts, :images, [])
+
+    case Enum.find_value(images, &image_error/1) do
+      nil -> insert(author, body, images, opts)
+      message -> {:error, image_changeset(author, body, message)}
+    end
+  end
+
+  defp image_error(data) do
+    case Images.validate(data) do
+      :ok -> nil
+      {:error, message} -> message
+    end
+  end
+
+  defp image_changeset(author, body, message) do
+    %Message{}
+    |> Message.changeset(%{author: author, body: body}, images?: true)
+    |> Ecto.Changeset.add_error(:body, message)
+    |> Map.put(:action, :insert)
+  end
+
+  defp insert(author, body, images, opts) do
     %{bots: bots, founders: founders} = Mentions.parse(body)
     founders = founders -- [Mentions.handle_for(opts[:login])]
     wakes = if founder?(author), do: bots, else: []
 
     changeset =
-      Message.changeset(%Message{}, %{
-        author: author,
-        body: body,
-        mentions: founders,
-        bots: Enum.map(bots, &Atom.to_string/1)
-      })
+      Message.changeset(
+        %Message{},
+        %{
+          author: author,
+          body: body,
+          mentions: founders,
+          bots: Enum.map(bots, &Atom.to_string/1)
+        },
+        images?: images != []
+      )
 
     Multi.new()
     |> Multi.insert(:message, changeset)
+    |> Multi.run(:images, fn _repo, %{message: m} -> store_images(m, author, images) end)
     |> then(fn multi ->
       Enum.reduce(wakes, multi, fn bot, acc ->
-        Oban.insert(acc, {:wake, bot}, fn %{message: m} -> wake_job(bot, m) end)
+        Oban.insert(acc, {:wake, bot}, fn %{message: m, images: imgs} ->
+          wake_job(bot, %{m | images: imgs})
+        end)
       end)
     end)
     |> Repo.transaction()
     |> case do
-      {:ok, %{message: message}} ->
+      {:ok, %{message: message, images: stored}} ->
+        message = %{message | images: stored}
         Phoenix.PubSub.broadcast(TalesForge.PubSub, @topic, {:team_chat, message})
         {:ok, message}
 
       {:error, :message, changeset, _} ->
         {:error, changeset}
+
+      {:error, :images, message, _} ->
+        {:error, image_changeset(author, body, message)}
     end
+  end
+
+  defp store_images(message, author, images) do
+    Enum.reduce_while(images, {:ok, []}, fn data, {:ok, acc} ->
+      case Images.store({:message, message.id}, data, %{uploader: author}) do
+        {:ok, image} -> {:cont, {:ok, acc ++ [image]}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
   end
 
   @doc """
@@ -108,7 +158,8 @@ defmodule TalesForge.Chat do
       from(m in Message,
         where: m.inserted_at < ^message.inserted_at,
         order_by: [desc: m.inserted_at],
-        limit: @context
+        limit: @context,
+        preload: :images
       )
       |> Repo.all()
       |> Enum.reverse()
@@ -127,7 +178,7 @@ defmodule TalesForge.Chat do
     })
   end
 
-  @doc "A message as JSON for the bots."
+  @doc "A message as JSON for the bots, with its image links (`images`)."
   @spec to_json(Message.t()) :: map()
   def to_json(%Message{} = m),
     do: %{
@@ -136,8 +187,12 @@ defmodule TalesForge.Chat do
       "body" => m.body,
       "mentions" => m.mentions,
       "bots" => m.bots,
+      "images" => images_json(m.images),
       "at" => m.inserted_at
     }
+
+  defp images_json(images) when is_list(images), do: Enum.map(images, &Images.to_json/1)
+  defp images_json(_not_loaded), do: []
 
   @doc "How many messages mention the founder with this GitHub `login` since they last opened the chat."
   @spec unread(String.t() | nil) :: non_neg_integer()

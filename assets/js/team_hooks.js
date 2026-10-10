@@ -559,7 +559,8 @@ export const TeamChat = {
       if (!e.target.matches("[data-chat-input]")) return
       if (e.key !== "Enter" || e.shiftKey || e.isComposing || e.defaultPrevented) return
       e.preventDefault()
-      if (e.target.value.trim() !== "") e.target.form.requestSubmit()
+      const hasImage = e.target.form.querySelector("[data-phx-entry-ref]")
+      if (e.target.value.trim() !== "" || hasImage) e.target.form.requestSubmit()
     }
     this.el.addEventListener("input", this.onInput)
     this.el.addEventListener("keydown", this.onKey)
@@ -578,5 +579,93 @@ export const TeamChat = {
   destroyed() {
     this.el.removeEventListener("input", this.onInput)
     this.el.removeEventListener("keydown", this.onKey)
+  },
+}
+
+// Images on cards and in the team chat (TalesForgeWeb.TeamImages). The hook
+// sits on a form with a LiveView upload. It adds pasted images and one still
+// from "Capture screen" to the upload's file input. LiveView then shows the
+// previews and uploads the files. The capture button shows only where the
+// browser can capture the screen and the device is not a phone.
+const MAX_IMAGE_BYTES = 5_000_000
+
+export function canCaptureScreen(nav = navigator, win = window) {
+  const media = nav.mediaDevices
+  if (!media || typeof media.getDisplayMedia !== "function") return false
+  if (/Android|iPhone|iPad|iPod|Mobi/i.test(nav.userAgent || "")) return false
+  return !win.matchMedia || win.matchMedia("(pointer: fine)").matches
+}
+
+export const ImageInput = {
+  mounted() {
+    this.onPaste = e => {
+      const files = [...(e.clipboardData?.files || [])].filter(f => f.type.startsWith("image/"))
+      if (files.length === 0) return
+      e.preventDefault()
+      this.addFiles(files)
+    }
+    this.el.addEventListener("paste", this.onPaste)
+    this.onCapture = () => this.capture()
+    this.bindCapture()
+  },
+  updated() { this.bindCapture() },
+  destroyed() {
+    this.el.removeEventListener("paste", this.onPaste)
+    this.stopStream()
+  },
+  bindCapture() {
+    const button = this.el.querySelector("[data-capture]")
+    if (!button || button.dataset.bound) return
+    button.dataset.bound = "1"
+    if (!canCaptureScreen()) return
+    button.hidden = false
+    button.addEventListener("click", this.onCapture)
+  },
+  fileInput() { return this.el.querySelector("input[type=file][data-phx-upload-ref]") },
+  addFiles(files) {
+    const input = this.fileInput()
+    if (!input) return
+    const transfer = new DataTransfer()
+    files.forEach(f => transfer.items.add(f))
+    input.files = transfer.files
+    input.dispatchEvent(new Event("input", {bubbles: true}))
+  },
+  stopStream() {
+    if (this.stream) this.stream.getTracks().forEach(t => t.stop())
+    this.stream = null
+  },
+  // Takes one still frame of the tab, window or screen the user picks, then
+  // stops the screen sharing at once. No recording is kept.
+  async capture() {
+    try {
+      this.stream = await navigator.mediaDevices.getDisplayMedia({video: true, audio: false})
+    } catch (_cancelled) {
+      return
+    }
+    try {
+      const video = document.createElement("video")
+      video.muted = true
+      video.playsInline = true
+      video.srcObject = this.stream
+      await video.play()
+      await new Promise(resolve => requestAnimationFrame(() => resolve()))
+      const canvas = document.createElement("canvas")
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      canvas.getContext("2d").drawImage(video, 0, 0)
+      let blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"))
+      let ext = "png"
+      if (blob && blob.size > MAX_IMAGE_BYTES) {
+        blob = await new Promise(resolve => canvas.toBlob(resolve, "image/jpeg", 0.85))
+        ext = "jpg"
+      }
+      if (!blob) return
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-")
+      this.addFiles([new File([blob], `screen-capture-${stamp}.${ext}`, {type: blob.type})])
+      const note = this.el.querySelector("textarea, input[type=text]")
+      if (note) note.focus()
+    } finally {
+      this.stopStream()
+    }
   },
 }

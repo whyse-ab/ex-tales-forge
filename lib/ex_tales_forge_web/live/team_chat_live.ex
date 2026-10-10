@@ -17,6 +17,11 @@ defmodule TalesForgeWeb.TeamChatLive do
     list scrolls down by itself (`TeamChat` hook in `assets/js/team_hooks.js`).
   - Composer pinned to the bottom: a one-line box that grows, Enter sends,
     Shift+Enter adds a new line; typing @ suggests names (`MentionSuggest`).
+  - Images (`TalesForge.Images`, `TalesForgeWeb.TeamImages`): paste, drop or
+    pick PNG, JPEG or WebP files, or "Capture screen" (one still of a tab,
+    window or screen; desktop only). The chosen images show as previews above
+    the message box; the text is the note and can be empty. Sent images show
+    as thumbnails that open the full image.
   - Phone: the panel fills the screen; from `sm` up it is a side panel.
   """
 
@@ -26,6 +31,7 @@ defmodule TalesForgeWeb.TeamChatLive do
   alias TalesForge.Chat
   alias TalesForge.Chat.Message
   alias TalesForge.TeamOnline
+  alias TalesForgeWeb.TeamImages
   alias TalesForgeWeb.TimeAgo
 
   @impl true
@@ -49,7 +55,8 @@ defmodule TalesForgeWeb.TeamChatLive do
      |> assign(:draft, "")
      |> assign(:messages, [])
      |> assign(:unread, Chat.unread(login))
-     |> assign(:form, to_form(%{"body" => ""}, as: :chat)), layout: false}
+     |> assign(:form, to_form(%{"body" => ""}, as: :chat))
+     |> TeamImages.allow(:chat_images), layout: false}
   end
 
   @impl true
@@ -58,8 +65,16 @@ defmodule TalesForgeWeb.TeamChatLive do
   def handle_event("open", _params, socket), do: {:noreply, open(socket, nil)}
   def handle_event("close", _params, socket), do: {:noreply, assign(socket, :open, false)}
 
-  def handle_event("send", %{"chat" => %{"body" => body}}, socket) do
-    case Chat.post(socket.assigns.admin_email, body, login: socket.assigns.login) do
+  def handle_event("validate", _params, socket), do: {:noreply, socket}
+
+  def handle_event("cancel_image", %{"ref" => ref}, socket),
+    do: {:noreply, cancel_upload(socket, :chat_images, ref)}
+
+  def handle_event("send", params, socket) do
+    body = get_in(params, ["chat", "body"]) || ""
+    images = TeamImages.read_all(socket, :chat_images)
+
+    case Chat.post(socket.assigns.admin_email, body, login: socket.assigns.login, images: images) do
       {:ok, _message} ->
         {:noreply,
          socket
@@ -213,7 +228,12 @@ defmodule TalesForgeWeb.TeamChatLive do
                     Mentions you
                   </span>
                 </p>
-                <p class="whitespace-pre-wrap break-words">{body(m.body)}</p>
+                <p :if={m.body != ""} class="whitespace-pre-wrap break-words">{body(m.body)}</p>
+                <TeamImages.thumbnails
+                  images={images(m)}
+                  id={"#{@id_prefix}-msg-#{m.id}-images"}
+                  class="mt-1"
+                />
               </div>
             </li>
           </ol>
@@ -222,6 +242,10 @@ defmodule TalesForgeWeb.TeamChatLive do
             for={@form}
             id={"#{@id_prefix}-form"}
             phx-submit={JS.push("send", target: "##{@id_prefix}-root")}
+            phx-change="validate"
+            phx-target={"##{@id_prefix}-root"}
+            phx-drop-target={@uploads.chat_images.ref}
+            phx-hook="ImageInput"
             class="shrink-0 border-t border-[var(--paper-rule)] bg-[var(--paper-panel)] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
           >
             <p
@@ -231,14 +255,19 @@ defmodule TalesForgeWeb.TeamChatLive do
             >
               {msg}
             </p>
-            <div class="relative flex items-end gap-2">
+            <TeamImages.picker
+              upload={@uploads.chat_images}
+              id={"#{@id_prefix}-images"}
+              target={"##{@id_prefix}-root"}
+            />
+            <div class="relative mt-2 flex items-end gap-2">
               <label for={"#{@id_prefix}-body"} class="sr-only">Message</label>
               <textarea
                 id={"#{@id_prefix}-body"}
                 name="chat[body]"
                 rows="1"
                 maxlength={Message.max_length()}
-                placeholder="Message (@ to mention)"
+                placeholder="Message or image note (@ to mention)"
                 phx-mounted={JS.focus()}
                 phx-hook="MentionSuggest"
                 data-handles={Jason.encode!(Chat.suggestions())}
@@ -267,7 +296,7 @@ defmodule TalesForgeWeb.TeamChatLive do
               </button>
             </div>
             <p id={"#{@id_prefix}-hint"} class="sr-only">
-              Enter sends, Shift and Enter adds a new line. Write @ to mention a founder or a bot.
+              Enter sends, Shift and Enter adds a new line. Write @ to mention a founder or a bot. Paste or drop an image to add it.
             </p>
           </.form>
         </div>
@@ -291,6 +320,9 @@ defmodule TalesForgeWeb.TeamChatLive do
     end)
     |> Phoenix.HTML.raw()
   end
+
+  defp images(%Message{images: images}) when is_list(images), do: images
+  defp images(_message), do: []
 
   defp escape(t), do: t |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
 

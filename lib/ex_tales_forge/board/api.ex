@@ -5,7 +5,9 @@ defmodule TalesForge.Board.Api do
   `TalesForge.BoardApi` contract). JSON in, JSON out:
 
   - `GET /ideas` (`?column=ideas`): the cards, ranked Ideas first.
-  - `GET /ideas/:id`: one card with refinement, votes, comments, links, history.
+  - `GET /ideas/:id`: one card with refinement, votes, comments, links,
+    images, history. Each image has `url` (signed-in team members) and
+    `api_url` (bots, with the board token; `TalesForgeWeb.TeamImageController`).
   - `POST /ideas/:id/refinement` (Case): `details`, `open_questions`,
     `rough_cost` (S/M/L), `verdict`.
   - `POST /ideas/:id/move`: `to` (a column), optional `note`. Gates as in
@@ -90,7 +92,12 @@ defmodule TalesForge.Board.Api do
     |> Enum.map_join("; ", fn {field, msgs} -> "#{field} #{Enum.join(msgs, ", ")}" end)
   end
 
-  @doc "A card as JSON (everything loaded)."
+  defp images(%Idea{images: images}) when is_list(images),
+    do: Enum.map(images, &TalesForge.Images.to_json/1)
+
+  defp images(_idea), do: []
+
+  @doc "A card as JSON (everything loaded), with its image links (`images`)."
   @spec card(Idea.t()) :: map()
   def card(%Idea{} = idea) do
     %{
@@ -145,6 +152,7 @@ defmodule TalesForge.Board.Api do
           idea.comments,
           &%{"author" => &1.author, "body" => &1.body, "at" => &1.inserted_at}
         ),
+      "images" => images(idea),
       "links" =>
         Enum.map(idea.links, &%{"kind" => &1.kind, "url" => &1.url, "label" => &1.label}),
       "history" =>

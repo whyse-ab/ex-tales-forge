@@ -154,4 +154,37 @@ defmodule TalesForgeWeb.TeamChatLiveTest do
     assert html =~
              "&lt;b&gt;hi&lt;/b&gt; <span class=\"font-semibold text-[var(--paper-accent)]\">@fredrik</span>\nnext</p>"
   end
+
+  # LiveViewTest cannot upload into a portal, so the upload itself is tested on
+  # the card (team_idea_board_test.exs) and in TalesForge.ImagesTest.
+  test "the composer takes images: file button, drop target, paste hook, capture button",
+       %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/team")
+    {_header, chat} = chat(view, "team-online")
+    chat |> element("#team-online-chat-button") |> render_click()
+
+    assert panel_has?(chat, "#team-online-chat-form[phx-hook=ImageInput][phx-drop-target]")
+    assert panel_has?(chat, "#team-online-chat-images label", "Add image")
+
+    assert panel_has?(
+             chat,
+             ~s(input[type=file][name=chat_images][accept=".png,.jpg,.jpeg,.webp"])
+           )
+
+    assert panel_has?(chat, "#team-online-chat-images-capture[hidden]", "Capture screen")
+  end
+
+  test "a message with an image shows a thumbnail that opens the full image", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/team")
+    {_header, chat} = chat(view, "team-online")
+    chat |> element("#team-online-chat-button") |> render_click()
+
+    {:ok, m} = Chat.post("max@example.com", "", images: [TalesForge.ImageFixtures.png()])
+    [image] = m.images
+
+    assert panel_has?(
+             chat,
+             ~s(#team-online-chat-msg-#{m.id} a[href="/team/images/#{image.id}"][target=_blank] img)
+           )
+  end
 end
