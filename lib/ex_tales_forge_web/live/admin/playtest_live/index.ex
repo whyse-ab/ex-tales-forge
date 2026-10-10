@@ -134,7 +134,11 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
 
       <.batch_character_changes :if={@rows != []} batches={@batches} />
 
-      <div :if={@rows != []} class="overflow-x-auto rounded-lg border border-[var(--paper-rule)]">
+      <div
+        :if={@rows != []}
+        id="runs-table"
+        class="w-full max-w-full overflow-x-auto rounded-lg border border-[var(--paper-rule)]"
+      >
         <table class="min-w-full divide-y divide-[var(--paper-rule)] text-sm">
           <thead class="bg-[var(--paper-panel)] text-left text-[var(--paper-muted)]">
             <tr>
@@ -144,7 +148,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
               <th class="px-3 py-2">Status</th>
               <th class="px-3 py-2">Turns</th>
               <th class="hidden px-3 py-2 sm:table-cell">Game time</th>
-              <th class="px-3 py-2">Game cost</th>
+              <th class="hidden px-3 py-2 sm:table-cell">Game cost</th>
               <th class="hidden px-3 py-2 sm:table-cell">Persona cost</th>
               <th class="px-3 py-2">Score</th>
             </tr>
@@ -179,15 +183,21 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
                   {row.run.stop_reason}
                 </div>
               </td>
-              <td class="px-3 py-2">{row.run.turns_played}/{row.run.turn_limit}</td>
+              <td class="px-3 py-2">
+                {row.run.turns_played}/{row.run.turn_limit}
+                <%!-- On phones the cost sits here, so the Score column fits. --%>
+                <div class="text-xs text-[var(--paper-muted)] sm:hidden">
+                  {format_usd(row.game_cost_micro_usd)}
+                </div>
+              </td>
               <td class="hidden px-3 py-2 sm:table-cell">{format_ms(row.run.game_ms)}</td>
-              <td class="px-3 py-2">{format_usd(row.game_cost_micro_usd)}</td>
+              <td class="hidden px-3 py-2 sm:table-cell">{format_usd(row.game_cost_micro_usd)}</td>
               <td class="hidden px-3 py-2 sm:table-cell">
                 {format_usd(row.run.persona_cost_micro_usd)}
               </td>
               <td class="px-3 py-2">
                 <%= if row.jev do %>
-                  <span id={"run-#{row.run.id}-jev"} class="whitespace-nowrap tabular-nums">
+                  <span id={"run-#{row.run.id}-jev"} class="tabular-nums sm:whitespace-nowrap">
                     {JevHeadline.format(row.jev)}
                   </span>
                   <div class="text-xs text-[var(--paper-muted)] sm:whitespace-nowrap">
