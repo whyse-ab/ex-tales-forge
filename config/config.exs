@@ -27,9 +27,15 @@ config :ex_tales_forge, Oban,
 config :ex_tales_forge, :board_api, TalesForge.Board.Api
 
 # Who's online (header counter on admin and /team): the module that adds the
-# bots' activity, and the disabled "Chat" placeholder (until team chat exists).
+# bots' activity, and the "Chat" buttons: true shows them as a disabled
+# placeholder, false opens the team chat (TalesForgeWeb.TeamChatLive).
 config :ex_tales_forge, :online_snapshot, TalesForge.TeamOnline
-config :ex_tales_forge, :team_chat_placeholder, true
+config :ex_tales_forge, :team_chat_placeholder, false
+
+# Team chat (production only, like the board): the admin module behind the
+# header's chat panel and the bots' /internal/chat API (TalesForge.Chat).
+config :ex_tales_forge, :team_chat, TalesForge.Chat
+config :ex_tales_forge, :team_chat_live, TalesForgeWeb.TeamChatLive
 
 # LLM prices in USD per 1M tokens, used when a response carries no billed cost.
 # Source: https://docs.x.ai/developers/pricing (fetched 2026-10-06). Prompts at or

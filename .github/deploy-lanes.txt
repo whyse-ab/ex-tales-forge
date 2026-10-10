@@ -81,6 +81,13 @@ lib/ex_tales_forge/pr_feed/
 lib/ex_tales_forge_web/live/team_live.ex
 lib/ex_tales_forge_web/live/team_presentation_live.ex
 lib/ex_tales_forge_web/live/team_pr_feed_live.ex
+# Team chat (production only; card 'Team chat with mentions'). Its migration,
+# the bots' /internal/chat controller and route are shared.
+lib/ex_tales_forge/chat.ex
+lib/ex_tales_forge/chat/
+lib/ex_tales_forge_web/live/team_chat_live.ex
+test/ex_tales_forge/chat_test.exs
+test/ex_tales_forge_web/live/team_chat_live_test.exs
 lib/ex_tales_forge_web/components/team_*.ex
 assets/js/team_hooks.js
 priv/team/
