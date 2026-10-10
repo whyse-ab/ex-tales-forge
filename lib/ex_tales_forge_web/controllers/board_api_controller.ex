@@ -17,7 +17,7 @@ defmodule TalesForgeWeb.BoardApiController do
   alias TalesForge.BoardApi
   alias TalesForgeWeb.PeerToken
 
-  for action <- [:index, :show, :refine, :move, :link, :comment] do
+  for action <- [:index, :show, :refine, :move, :link, :comment, :pr] do
     @doc "`#{action}` for an authorised bot (see the moduledoc)."
     @spec unquote(action)(Plug.Conn.t(), map()) :: Plug.Conn.t()
     def unquote(action)(conn, params), do: dispatch(conn, unquote(action), params)

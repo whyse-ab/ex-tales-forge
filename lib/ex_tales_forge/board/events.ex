@@ -9,6 +9,7 @@ defmodule TalesForge.Board.Events do
   | `:idea_to_building` | write the decision log entry, wake Bobby |
   | `:pr_link_added` (on a Building card) | wake Gentry to check the playtest |
   | `:mention` (`@case`, `@bobby`, `@gentry` in a comment) | wake that bot |
+  | `:pr_approved`, `:pr_changes_requested` (a founder answers a PR) | wake Bobby |
   | `:idea_to_check`, `:idea_to_done` | nothing (founders see the board) |
 
   Bot wake-ups are `TalesForge.Board.Workers.Notify` jobs (signed webhook
@@ -29,6 +30,8 @@ defmodule TalesForge.Board.Events do
           | :idea_to_done
           | :pr_link_added
           | :mention
+          | :pr_approved
+          | :pr_changes_requested
 
   @doc "Adds the jobs of `event` on `idea` (with `extra` details) to `multi`."
   @spec add(Multi.t(), event(), Idea.t(), map()) :: Multi.t()
@@ -70,5 +73,6 @@ defmodule TalesForge.Board.Events do
   def bots(:idea_to_building, _extra), do: [:bobby]
   def bots(:pr_link_added, _extra), do: [:gentry]
   def bots(:mention, %{bot: bot}), do: [bot]
+  def bots(event, _extra) when event in [:pr_approved, :pr_changes_requested], do: [:bobby]
   def bots(_event, _extra), do: []
 end

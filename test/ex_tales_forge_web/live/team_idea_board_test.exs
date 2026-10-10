@@ -188,6 +188,60 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     end
   end
 
+  describe "merge approval on the card" do
+    setup do
+      {:ok, idea} =
+        Board.link_pr(%{
+          "number" => 125,
+          "url" => "https://github.com/whyse-ab/ex-tales-forge/pull/125",
+          "head_sha" => "abc1234def",
+          "player_note" => "Brenna greets you by name.",
+          "title" => "Brenna remembers regulars"
+        })
+
+      {:ok, idea: idea}
+    end
+
+    test "founders see the PR, the note and labelled Approve / Request changes; answers show in the log and history",
+         %{conn: conn, idea: idea} do
+      {:ok, view, _} = live(conn, "/team")
+      open(view, idea)
+      assert has_element?(view, "#card-#{idea.id}-pr a[href$='/pull/125']", "PR #125")
+
+      assert has_element?(
+               view,
+               "#card-#{idea.id}-pr [data-role=player-note]",
+               "Brenna greets you by name."
+             )
+
+      assert has_element?(
+               view,
+               ~s(#card-#{idea.id}-answer button[aria-label="Approve PR #125 for merge"])
+             )
+
+      assert has_element?(
+               view,
+               ~s(#card-#{idea.id}-answer button[aria-label="Request changes on PR #125"])
+             )
+
+      view
+      |> form("#card-#{idea.id}-answer", %{comment: "Twice please"})
+      |> render_submit(%{"answer" => "request_changes"})
+
+      assert has_element?(view, "#card-#{idea.id}-approvals", "Changes requested")
+      assert has_element?(view, "#card-#{idea.id}-approvals", "Twice please")
+
+      view
+      |> form("#card-#{idea.id}-answer", %{comment: "Good now"})
+      |> render_submit(%{"answer" => "approve"})
+
+      assert has_element?(view, "#card-#{idea.id}-approvals", "Approved")
+      assert has_element?(view, "#board-col-building #tile-#{idea.id}")
+      refute has_element?(view, "#card-#{idea.id}-answer")
+      assert render(view) =~ "Approved PR #125 (abc1234): Good now"
+    end
+  end
+
   test "on playtest the placeholder stays", %{conn: conn} do
     Application.put_env(:ex_tales_forge, :app_name, "tales-forge-playtest")
     on_exit(fn -> Application.delete_env(:ex_tales_forge, :app_name) end)

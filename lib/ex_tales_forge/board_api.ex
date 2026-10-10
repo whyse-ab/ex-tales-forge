@@ -17,7 +17,7 @@ defmodule TalesForge.BoardApi do
   @type bot :: :case | :bobby | :gentry
 
   @typedoc "An API action, one per route."
-  @type action :: :index | :show | :refine | :move | :link | :comment
+  @type action :: :index | :show | :refine | :move | :link | :comment | :pr
 
   @typedoc "The HTTP status and JSON body of an answer."
   @type answer :: {pos_integer(), map() | [map()]}

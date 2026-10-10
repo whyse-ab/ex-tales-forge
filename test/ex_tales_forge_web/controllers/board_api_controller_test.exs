@@ -50,7 +50,8 @@ defmodule TalesForgeWeb.BoardApiControllerTest do
           {:get, "/internal/board/ideas/abc", "show"},
           {:post, "/internal/board/ideas/abc/refinement", "refine"},
           {:post, "/internal/board/ideas/abc/links", "link"},
-          {:post, "/internal/board/ideas/abc/comments", "comment"}
+          {:post, "/internal/board/ideas/abc/comments", "comment"},
+          {:post, "/internal/board/prs", "pr"}
         ] do
       assert json_response(call(method, path, "case-token"), 201)["action"] == action
     end

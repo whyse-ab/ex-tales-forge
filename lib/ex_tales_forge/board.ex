@@ -19,7 +19,7 @@ defmodule TalesForge.Board do
   import Ecto.Query
 
   alias Ecto.Multi
-  alias TalesForge.Board.{Comment, Events, Idea, Link, Ranking, Rules, Transition, Vote}
+  alias TalesForge.Board.{Approval, Comment, Events, Idea, Link, Ranking, Rules, Transition, Vote}
   alias TalesForge.Collab.Schemas.Decision
   alias TalesForge.Repo
 
@@ -88,7 +88,8 @@ defmodule TalesForge.Board do
       votes: [],
       comments: from(c in Comment, order_by: [asc: c.inserted_at, asc: c.id]),
       links: from(l in Link, order_by: [asc: l.inserted_at]),
-      transitions: from(t in Transition, order_by: [asc: t.inserted_at, asc: t.id])
+      transitions: from(t in Transition, order_by: [asc: t.inserted_at, asc: t.id]),
+      approvals: from(a in Approval, order_by: [asc: a.inserted_at, asc: a.id])
     )
   end
 
@@ -475,6 +476,197 @@ defmodule TalesForge.Board do
   @doc "True once the open Collab decisions have been imported."
   @spec collab_imported?() :: boolean()
   def collab_imported?, do: TalesForge.Collab.read_only?()
+
+  @doc """
+  Bobby puts a PR up for a founder's merge OK (decision 2026-10-10; only
+  normal-lane PRs, fast-lane PRs need no OK). `attrs`: `number`, `url`,
+  `head_sha`, `player_note` (one line: what changes for players), and either
+  `idea_id` (an existing card) or `title` (a new card, made by Bobby). The
+  card gets the PR fields and a `pr` link and goes to Founder check (from
+  any column but Done), with a line in its history. Linking the same PR again
+  updates the head sha and note.
+  """
+  @spec link_pr(map()) :: {:ok, Idea.t()} | error()
+  def link_pr(attrs) do
+    attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
+
+    with {:ok, number} <- pr_number(attrs["number"]),
+         :ok <- need_text(attrs["url"], "url"),
+         :ok <- need_text(attrs["head_sha"], "head_sha"),
+         :ok <- need_text(attrs["player_note"], "player_note"),
+         {:ok, idea} <- pr_card(attrs, number) do
+      put_pr(idea, number, attrs)
+    end
+  end
+
+  defp pr_number(n) when is_integer(n) and n > 0, do: {:ok, n}
+
+  defp pr_number(n) when is_binary(n) do
+    case Integer.parse(n) do
+      {i, ""} when i > 0 -> {:ok, i}
+      _ -> {:error, "number must be the PR number."}
+    end
+  end
+
+  defp pr_number(_), do: {:error, "number must be the PR number."}
+
+  defp need_text(v, name) do
+    if is_binary(v) and String.trim(v) != "", do: :ok, else: {:error, "#{name} is required."}
+  end
+
+  defp pr_card(%{"idea_id" => id}, _number) when is_binary(id) and id != "" do
+    case get_idea(id) do
+      nil -> {:error, "No such card."}
+      idea -> {:ok, idea}
+    end
+  end
+
+  defp pr_card(attrs, number) do
+    case Repo.one(from i in Idea, where: i.pr_number == ^number, limit: 1) do
+      %Idea{} = idea ->
+        {:ok, get_idea!(idea.id)}
+
+      nil ->
+        title = attrs["title"] |> to_string() |> String.trim()
+        title = if title == "", do: "PR ##{number}", else: title
+        create_idea("bot:bobby", %{"title" => title, "body" => attrs["player_note"]})
+    end
+  end
+
+  defp put_pr(%Idea{column: "done"}, _number, _attrs),
+    do: {:error, "That card is Done; put the PR on a new card."}
+
+  defp put_pr(idea, number, attrs) do
+    note = String.trim(attrs["player_note"])
+
+    Multi.new()
+    |> Multi.update(
+      :idea,
+      Idea.update_changeset(idea, %{
+        column: "check",
+        pr_number: number,
+        pr_url: attrs["url"],
+        pr_head_sha: String.trim(attrs["head_sha"]),
+        player_note: note
+      })
+    )
+    |> Multi.insert(:transition, fn _ ->
+      Transition.changeset(%Transition{}, %{
+        idea_id: idea.id,
+        from: idea.column,
+        to: "check",
+        actor: "bot:bobby",
+        note: "PR ##{number} waits for a founder's OK: #{note}"
+      })
+    end)
+    |> then(fn multi ->
+      if Enum.any?(idea.links, &(&1.kind == "pr" and &1.url == attrs["url"])),
+        do: multi,
+        else:
+          Multi.insert(
+            multi,
+            :link,
+            Link.changeset(%Link{}, %{
+              idea_id: idea.id,
+              kind: "pr",
+              url: attrs["url"],
+              label: "PR ##{number}",
+              added_by: "bot:bobby"
+            })
+          )
+    end)
+    |> run(idea.id)
+  end
+
+  @doc """
+  A founder answers the PR on a card: `:approve` or `:request_changes`, with
+  an optional `comment`. Records who, when, the PR number and its head sha
+  (`TalesForge.Board.Approval`), writes a line in the history and wakes Bobby
+  (`pr.approved` / `pr.changes_requested`). Approving also moves the card from
+  Founder check to Building, so the open -1 block applies.
+  """
+  @spec answer_pr(Idea.t(), String.t(), :approve | :request_changes, String.t() | nil) ::
+          {:ok, Idea.t()} | error()
+  def answer_pr(%Idea{pr_number: nil}, _founder, _answer, _comment),
+    do: {:error, "No PR waits on this card."}
+
+  def answer_pr(%Idea{} = idea, founder, answer, comment)
+      when answer in [:approve, :request_changes] do
+    idea = get_idea!(idea.id)
+    founder = normalize(founder)
+    comment = comment |> to_string() |> String.trim()
+    approve? = answer == :approve
+    to = if approve?, do: "building", else: idea.column
+
+    with :ok <- answer_allowed(idea, founder, approve?) do
+      decision = if approve?, do: "approved", else: "changes_requested"
+      label = if approve?, do: "Approved", else: "Changes requested on"
+
+      extra = %{
+        actor: founder,
+        from: idea.column,
+        to: to,
+        pr: %{
+          "number" => idea.pr_number,
+          "url" => idea.pr_url,
+          "head_sha" => idea.pr_head_sha
+        },
+        approver: founder,
+        comment: comment
+      }
+
+      Multi.new()
+      |> Multi.insert(
+        :approval,
+        Approval.changeset(%Approval{}, %{
+          idea_id: idea.id,
+          decision: decision,
+          founder: founder,
+          pr_number: idea.pr_number,
+          head_sha: idea.pr_head_sha,
+          comment: comment
+        })
+      )
+      |> then(fn m ->
+        if approve?,
+          do: Multi.update(m, :idea, Idea.update_changeset(idea, %{column: to})),
+          else: m
+      end)
+      |> Multi.insert(
+        :transition,
+        Transition.changeset(%Transition{}, %{
+          idea_id: idea.id,
+          from: idea.column,
+          to: to,
+          actor: founder,
+          note:
+            "#{label} PR ##{idea.pr_number} (#{short(idea.pr_head_sha)})" <>
+              if(comment == "", do: "", else: ": " <> comment)
+        })
+      )
+      |> Events.add(if(approve?, do: :pr_approved, else: :pr_changes_requested), idea, extra)
+      |> run(idea.id)
+    end
+  end
+
+  defp answer_allowed(idea, founder, approve?) do
+    cond do
+      String.starts_with?(founder, "bot:") ->
+        {:error, "Only a founder can answer a PR."}
+
+      idea.column != "check" ->
+        {:error, "The PR waits in Founder check; this card is in #{Rules.label(idea.column)}."}
+
+      approve? ->
+        Rules.check({:founder, founder}, "check", "building", %{downvoted: downvoted?(idea)})
+
+      true ->
+        :ok
+    end
+  end
+
+  defp short(nil), do: "no sha"
+  defp short(sha), do: String.slice(sha, 0, 7)
 
   defp run(multi, idea_id \\ nil) do
     case Repo.transaction(multi) do

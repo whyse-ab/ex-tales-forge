@@ -34,7 +34,8 @@ defmodule TalesForgeWeb.AccessControlTest do
     {:post, "/internal/board/ideas/:id/refinement"},
     {:post, "/internal/board/ideas/:id/move"},
     {:post, "/internal/board/ideas/:id/links"},
-    {:post, "/internal/board/ideas/:id/comments"}
+    {:post, "/internal/board/ideas/:id/comments"},
+    {:post, "/internal/board/prs"}
   ]
 
   @id Ecto.UUID.generate()
