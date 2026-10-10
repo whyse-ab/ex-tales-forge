@@ -18,8 +18,13 @@ config :ex_tales_forge, TalesForge.Jido,
 
 config :ex_tales_forge, Oban,
   repo: TalesForge.Repo,
-  queues: [default: 10, llm: 5],
+  queues: [default: 10, llm: 5, board: 5],
   plugins: [{Oban.Plugins.Pruner, max_age: 60 * 60 * 24 * 7}]
+
+# The founders' idea board on /team (tales-forge-docs docs/design-idea-board.md).
+# The bot API (TalesForgeWeb.BoardApiController, shared) hands each request to
+# this module; until it is deployed the API answers 404.
+config :ex_tales_forge, :board_api, TalesForge.Board.Api
 
 # LLM prices in USD per 1M tokens, used when a response carries no billed cost.
 # Source: https://docs.x.ai/developers/pricing (fetched 2026-10-06). Prompts at or

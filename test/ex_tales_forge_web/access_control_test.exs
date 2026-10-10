@@ -26,7 +26,15 @@ defmodule TalesForgeWeb.AccessControlTest do
     {:get, "/internal/costs"},
     # Machine-to-machine, same bearer token: the running commit for the other
     # app's live PR feed on /team; see VersionPeerController.
-    {:get, "/internal/version"}
+    {:get, "/internal/version"},
+    # The bots' idea-board API (production only), one bearer token per bot
+    # (BOARD_BOT_TOKEN_<BOT>); see BoardApiController.
+    {:get, "/internal/board/ideas"},
+    {:get, "/internal/board/ideas/:id"},
+    {:post, "/internal/board/ideas/:id/refinement"},
+    {:post, "/internal/board/ideas/:id/move"},
+    {:post, "/internal/board/ideas/:id/links"},
+    {:post, "/internal/board/ideas/:id/comments"}
   ]
 
   @id Ecto.UUID.generate()

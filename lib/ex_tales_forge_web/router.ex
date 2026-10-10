@@ -10,7 +10,7 @@ defmodule TalesForgeWeb.Router do
 
   The only public routes are the login page, the GitHub OAuth request/callback,
   logout, the Fly health check (`/health`) and the token-guarded machine-to-machine
-  `/internal/costs` and `/internal/version`. Static assets are served by the endpoint before the router.
+  `/internal/costs`, `/internal/version` and the bots' `/internal/board/*`. Static assets are served by the endpoint before the router.
   """
 
   use TalesForgeWeb, :router
@@ -168,6 +168,20 @@ defmodule TalesForgeWeb.Router do
 
     get "/costs", CostsPeerController, :show
     get "/version", VersionPeerController, :show
+  end
+
+  # The founders' idea board's bot API (Case, Bobby and Gentry; production only).
+  # Each bot has its own bearer token (BOARD_BOT_TOKEN_<BOT>); see
+  # BoardApiController. Off (404) until the board module is deployed.
+  scope "/internal/board", TalesForgeWeb do
+    pipe_through :api
+
+    get "/ideas", BoardApiController, :index
+    get "/ideas/:id", BoardApiController, :show
+    post "/ideas/:id/refinement", BoardApiController, :refine
+    post "/ideas/:id/move", BoardApiController, :move
+    post "/ideas/:id/links", BoardApiController, :link
+    post "/ideas/:id/comments", BoardApiController, :comment
   end
 
   # Swoosh mailbox preview in development (LiveDashboard lives at /admin/operate/telemetry)
