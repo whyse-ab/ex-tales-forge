@@ -531,6 +531,38 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
               </span>
             </button>
             <.tile_votes idea={idea} founder={@founder} myself={@myself} />
+            <%!-- Siblings of the open button: answering a PR never opens the
+                 card, except Request changes, which opens it for the comment. --%>
+            <div
+              :if={idea.column == "building" and Board.pr_waiting?(idea)}
+              id={"tile-#{idea.id}-pr-waiting"}
+              class="mt-1 flex flex-wrap items-center gap-1"
+            >
+              <span class="badge badge-info badge-xs">PR waiting for approval</span>
+              <button
+                type="button"
+                id={"tile-#{idea.id}-approve"}
+                phx-click="answer_pr"
+                phx-value-card_id={idea.id}
+                phx-value-answer="approve"
+                phx-target={@myself}
+                aria-label={"Approve PR ##{idea.pr_number} of #{idea.title}"}
+                class="min-h-8 rounded-full border border-success px-2 text-xs font-semibold"
+              >
+                Approve
+              </button>
+              <button
+                type="button"
+                id={"tile-#{idea.id}-request-changes"}
+                phx-click={
+                  open_js(@myself, idea.id) |> JS.focus(to: "#card-#{idea.id}-answer textarea")
+                }
+                aria-label={"Request changes on PR ##{idea.pr_number} of #{idea.title}: opens the card for a comment"}
+                class="min-h-8 rounded-full border px-2 text-xs"
+              >
+                Request changes
+              </button>
+            </div>
           </li>
         </ul>
       </div>
@@ -1127,8 +1159,11 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           <p :if={@idea.player_note} data-role="player-note">
             <span class="font-semibold">For players:</span> {@idea.player_note}
           </p>
+          <p :if={@facts.pr == :awaiting} class="badge badge-info" data-role="pr-waiting">
+            PR waiting for approval
+          </p>
           <form
-            :if={@idea.column == "check"}
+            :if={@facts.pr == :awaiting and @idea.column == "building"}
             id={"card-#{@idea.id}-answer"}
             phx-submit="answer_pr"
             phx-target={@myself}

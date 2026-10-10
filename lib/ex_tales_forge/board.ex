@@ -549,6 +549,10 @@ defmodule TalesForge.Board do
          "Open again (not deferred): #{question}"}
   end
 
+  @doc "True when the card's PR waits for a founder's Approve (at its current head sha)."
+  @spec pr_waiting?(Idea.t()) :: boolean()
+  def pr_waiting?(%Idea{} = idea), do: pr_state(idea) == :awaiting
+
   @doc """
   The card's PR number (links loaded): the one Bobby linked for approval,
   else the first `pr` link that points at a pull request; nil for none.
@@ -741,10 +745,10 @@ defmodule TalesForge.Board do
   normal-lane PRs, fast-lane PRs need no OK). `attrs`: `number`, `url`,
   `head_sha`, `player_note` (one line: what changes for players), and either
   `idea_id` (an existing card) or `title` (a new card, which Bobby makes in
-  Building). The card gets the PR fields and a `pr` link and moves Building →
-  Founder check (`TalesForge.Board.Transitions`), with a line in the move log.
-  Linking the same PR again while the card is in Founder check updates the head
-  sha and note; a new head sha needs a new Approve.
+  Building). The card gets the PR fields and a `pr` link and stays in
+  Building with "PR waiting for approval" (decision 2026-10-10, 15:08), with a
+  line in the move log. Linking the PR again updates the head sha and note; a
+  new head sha needs a new Approve.
   """
   @spec link_pr(map()) :: {:ok, Idea.t()} | error()
   def link_pr(attrs) do
@@ -814,28 +818,22 @@ defmodule TalesForge.Board do
     |> run()
   end
 
-  defp put_pr(%Idea{column: "check", pr_number: number} = idea, number, attrs),
-    do: write_pr(idea, number, attrs, nil)
-
-  defp put_pr(%Idea{column: "building"} = idea, number, attrs) do
-    with :ok <-
-           Transitions.allowed?(%{pr: :awaiting}, "building", "check", {:bot, :bobby}),
-         do: write_pr(idea, number, attrs, "check")
-  end
+  # The card stays in Building; the PR waits for a founder's OK there.
+  defp put_pr(%Idea{column: "building"} = idea, number, attrs),
+    do: write_pr(idea, number, attrs)
 
   defp put_pr(idea, _number, _attrs),
     do:
       {:error,
        "Bobby links a PR to a card in Building. This card is in #{Transitions.label(idea.column)}."}
 
-  defp write_pr(idea, number, attrs, to) do
+  defp write_pr(idea, number, attrs) do
     note = String.trim(attrs["player_note"])
 
     Multi.new()
     |> Multi.update(
       :idea,
       Idea.update_changeset(idea, %{
-        column: to || idea.column,
         pr_number: number,
         pr_url: attrs["url"],
         pr_head_sha: String.trim(attrs["head_sha"]),
@@ -846,16 +844,10 @@ defmodule TalesForge.Board do
       Transition.changeset(%Transition{}, %{
         idea_id: idea.id,
         from: idea.column,
-        to: "check",
+        to: idea.column,
         actor: "bot:bobby",
         note: "PR ##{number} (#{short(attrs["head_sha"])}) waits for a founder's OK: #{note}"
       })
-    end)
-    |> then(fn multi ->
-      if to,
-        do:
-          Events.add(multi, :idea_to_check, idea, %{from: idea.column, to: to, actor: "bot:bobby"}),
-        else: multi
     end)
     |> then(fn multi ->
       if Enum.any?(idea.links, &(&1.kind == "pr" and &1.url == attrs["url"])),
@@ -895,7 +887,7 @@ defmodule TalesForge.Board do
     founder = normalize(founder)
     comment = comment |> to_string() |> String.trim()
     approve? = answer == :approve
-    to = if approve?, do: "building", else: idea.column
+    to = idea.column
 
     with :ok <- answer_allowed(idea, founder, approve?) do
       decision = if approve?, do: "approved", else: "changes_requested"
@@ -926,11 +918,6 @@ defmodule TalesForge.Board do
           comment: comment
         })
       )
-      |> then(fn m ->
-        if approve?,
-          do: Multi.update(m, :idea, Idea.update_changeset(idea, %{column: to})),
-          else: m
-      end)
       |> Multi.insert(
         :transition,
         Transition.changeset(%Transition{}, %{
@@ -948,25 +935,11 @@ defmodule TalesForge.Board do
     end
   end
 
-  defp answer_allowed(idea, founder, approve?) do
-    cond do
-      String.starts_with?(founder, "bot:") ->
-        {:error, "Only a founder can answer a PR."}
+  defp answer_allowed(idea, founder, _approve?),
+    do: Transitions.pr_answer(facts(idea), idea.column, actor_of(founder))
 
-      idea.column != "check" ->
-        {:error,
-         "The PR waits in Founder check; this card is in #{Transitions.label(idea.column)}."}
-
-      approve? ->
-        idea
-        |> facts()
-        |> Map.put(:pr, :approved)
-        |> Transitions.allowed?("check", "building", {:founder, founder})
-
-      true ->
-        :ok
-    end
-  end
+  defp actor_of("bot:" <> bot), do: {:bot, bot}
+  defp actor_of(founder), do: {:founder, founder}
 
   defp short(nil), do: "no sha"
   defp short(sha) when not is_binary(sha), do: "no sha"
