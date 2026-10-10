@@ -137,6 +137,30 @@ defmodule TalesForge.DeployLanesTest do
       assert "lib/ex_tales_forge/pr_feed/poller.ex" in result.admin
     end
 
+    test "#133 (board thumbs: the board component and its UI test) takes the admin lane" do
+      assert %{lane: :admin, other: []} =
+               DeployLanes.classify(@lanes, [
+                 "lib/ex_tales_forge_web/components/team_idea_board.ex",
+                 "test/ex_tales_forge_web/live/team_idea_board_test.exs"
+               ])
+    end
+
+    test "every board test is admin; the board's API contract and controller are not" do
+      for file <- [
+            "test/ex_tales_forge_web/live/team_idea_board_test.exs",
+            "test/ex_tales_forge/board_test.exs",
+            "test/ex_tales_forge/board/auto_done_test.exs",
+            "test/ex_tales_forge/board/transitions_test.exs"
+          ] do
+        assert DeployLanes.admin?(@lanes, file), file
+      end
+
+      refute DeployLanes.admin?(
+               @lanes,
+               "lib/ex_tales_forge_web/controllers/board_api_controller.ex"
+             )
+    end
+
     test "#97 (CI workflow) is normal" do
       assert DeployLanes.classify(@lanes, @merges[97]).lane == :normal
     end

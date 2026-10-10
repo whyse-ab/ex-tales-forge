@@ -90,6 +90,9 @@ test/ex_tales_forge_web/live/team_presentation_live_test.exs
 test/ex_tales_forge/pr_feed_test.exs
 test/ex_tales_forge_web/live/team_pr_feed_live_test.exs
 test/support/pr_feed_fixtures.ex
+# The idea board's UI test (the board component is on the list above, and so
+# are the board's server modules and their tests, near the top)
+test/ex_tales_forge_web/live/team_idea_board_test.exs
 
 [game]
 # Game engine code. Used only by `mix deploy.check_boundaries` (game code must
