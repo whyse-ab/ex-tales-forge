@@ -131,8 +131,9 @@ defmodule TalesForgeWeb.Router do
     live_dashboard "/operate/telemetry",
       metrics: TalesForgeWeb.Telemetry,
       home_app: {"Tales Forge", :ex_tales_forge},
-      # The way back: a "← Admin" menu entry (the dashboard has no admin layout).
-      additional_pages: [admin: TalesForgeWeb.TelemetryBackPage],
+      # The way back is the breadcrumb bar (TalesForgeWeb.Plugs.TelemetryChrome).
+      # A dashboard menu entry can only link to a dashboard page, so it can't
+      # point at /admin#section-operate itself.
       on_mount: [TalesForgeWeb.LiveAuth]
   end
 

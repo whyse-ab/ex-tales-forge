@@ -8,7 +8,10 @@ defmodule TalesForgeWeb.Plugs.TelemetryChrome do
   2. Each HTML page of the dashboard gets a breadcrumb bar at the top of the
      body: "Admin › Operate › Telemetry", with links back to `/admin`. The bar
      is outside the LiveView container, so it stays when the dashboard
-     changes page.
+     changes page. It is the way back: LiveDashboard's side menu can only
+     link to dashboard pages, so it has no "Admin" entry.
+  3. `GET /admin/operate/telemetry/admin` (the old menu entry) goes to
+     `/admin#section-operate`.
   """
 
   @behaviour Plug
@@ -39,6 +42,14 @@ defmodule TalesForgeWeb.Plugs.TelemetryChrome do
 
     conn
     |> Phoenix.Controller.redirect(to: to)
+    |> halt()
+  end
+
+  # The old "← Admin › Operate" menu page (removed): send old links to the
+  # admin home's Operate section.
+  def call(%Plug.Conn{method: "GET", request_path: @base <> "/admin"} = conn, _opts) do
+    conn
+    |> Phoenix.Controller.redirect(to: "/admin#section-operate")
     |> halt()
   end
 

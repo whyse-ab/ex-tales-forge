@@ -69,4 +69,19 @@ defmodule TalesForgeWeb.TelemetryChromeTest do
              "#{selector}: no #{text} in #{inspect(cross)}"
     end
   end
+
+  test "the old '← Admin › Operate' menu page goes to the admin home's Operate section", %{
+    conn: conn
+  } do
+    conn = get(log_in_admin(conn), "/admin/operate/telemetry/admin")
+    assert redirected_to(conn) == "/admin#section-operate"
+  end
+
+  test "the dashboard menu has no entry that points inside the dashboard for the way back", %{
+    conn: conn
+  } do
+    html = conn |> log_in_admin() |> get("/admin/operate/telemetry/home") |> html_response(200)
+    refute html =~ "/admin/operate/telemetry/admin"
+    assert html =~ ~s(href="/admin#section-operate")
+  end
 end
