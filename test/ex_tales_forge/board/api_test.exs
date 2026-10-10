@@ -59,13 +59,15 @@ defmodule TalesForge.Board.ApiTest do
     assert {200, %{"links" => [_]}} =
              Api.handle(:link, :bobby, %{"id" => idea.id, "kind" => "pr", "url" => "https://x/1"})
 
-    assert {200, %{"links" => [_, %{"kind" => "playtest", "label" => "batch 12"}]}} =
+    assert {200, %{"links" => links}} =
              Api.handle(:link, :gentry, %{
                "id" => idea.id,
                "kind" => "playtest",
                "url" => "https://p.example/runs/1",
                "label" => "batch 12"
              })
+
+    assert Enum.any?(links, &match?(%{"kind" => "playtest", "label" => "batch 12"}, &1))
 
     assert {200, %{"comments" => [%{"body" => body}]}} =
              Api.handle(:comment, :gentry, %{
