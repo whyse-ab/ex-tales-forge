@@ -54,6 +54,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
 
   alias TalesForge.AppRole
   alias TalesForge.PrFeed
+  alias TalesForge.PrFeed.Extras
   alias TalesForge.TeamPace
   alias TalesForge.TeamPage
   alias TalesForgeWeb.Layouts
@@ -61,6 +62,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
   alias TalesForgeWeb.TeamBoard
   alias TalesForgeWeb.TeamCallTypes
   alias TalesForgeWeb.TeamLayout
+  alias TalesForgeWeb.TeamLiveNumbers
 
   @sections [
     {"team", "Team"},
@@ -151,12 +153,20 @@ defmodule TalesForgeWeb.TeamPresentationLive do
      |> assign(:page_title, "Team · presentation")
      |> assign(:d, d)
      |> assign(:pace, TeamPace.current(PrFeed.snapshot(), d))
+     |> assign(:live, TeamLiveNumbers.all(d, Extras.current()))
      |> assign(:sections, @sections)}
   end
 
+  # Each new feed snapshot (about once a minute) refreshes every live group:
+  # the PR pace, the GitHub extras and this app's database numbers.
   @impl true
   def handle_info({:pr_feed, snapshot}, socket) do
-    {:noreply, assign(socket, :pace, TeamPace.current(snapshot, socket.assigns.d))}
+    d = socket.assigns.d
+
+    {:noreply,
+     socket
+     |> assign(:pace, TeamPace.current(snapshot, d))
+     |> assign(:live, TeamLiveNumbers.all(d, Extras.current()))}
   end
 
   @impl true
@@ -165,6 +175,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
     # Rendered without a mount (tests call render/1 with just `d`): the
     # numbers of `d` itself, as the fallback.
     assigns = Map.put_new_lazy(assigns, :pace, fn -> TeamPace.from_data(assigns.d) end)
+    assigns = Map.put_new_lazy(assigns, :live, fn -> TeamLiveNumbers.fallback(assigns.d) end)
 
     ~H"""
     <div
@@ -176,12 +187,12 @@ defmodule TalesForgeWeb.TeamPresentationLive do
       <TeamLayout.header page={:presentation} items={@sections} />
 
       <main class="mx-auto max-w-6xl space-y-20 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
-        <.hero d={@d} pace={@pace} />
+        <.hero d={@d} pace={@pace} live={@live} />
         <.team_section d={@d} />
-        <.how_section d={@d} />
+        <.how_section d={@d} live={@live} />
         <.infra_section d={@d} />
-        <.playtests_section d={@d} />
-        <.pace_section d={@d} pace={@pace} />
+        <.playtests_section d={@d} live={@live} />
+        <.pace_section d={@d} pace={@pace} live={@live} />
         <TeamBoard.section d={@d} />
         <.together_section d={@d} />
       </main>
@@ -196,6 +207,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
 
   attr :d, :map, required: true
   attr :pace, :map, required: true, doc: "`TalesForge.TeamPace.current/0`"
+  attr :live, :map, required: true, doc: "`TalesForgeWeb.TeamLiveNumbers.all/3`"
 
   defp hero(assigns) do
     ~H"""
@@ -242,15 +254,19 @@ defmodule TalesForgeWeb.TeamPresentationLive do
         </.stat>
         <.stat
           id="stat-decisions"
-          value={number(get(@d, ["decisions", "total"]))}
+          value={number(@live.decisions.total)}
           label="decisions written down"
         />
         <.stat
           id="stat-tests"
-          value={number(get(@d, ["pace", "tests", "total"]))}
-          label={tests_label(@d)}
+          value={number(tests_total(@live.tests))}
+          label={tests_label(@live.tests)}
         />
-        <.pace_source id="stat-source" pace={@pace} class="sm:col-span-3" />
+        <div id="stat-source" class="space-y-0.5 sm:col-span-3">
+          <.pace_source id="stat-source-prs" pace={@pace} />
+          <.group_source id="stat-source-decisions" what="Decisions" group={@live.decisions} />
+          <.group_source id="stat-source-tests" what="Tests" group={@live.tests} />
+        </div>
       </div>
     </section>
     """
@@ -566,15 +582,21 @@ defmodule TalesForgeWeb.TeamPresentationLive do
   # ── 2. How we work ─────────────────────────────────────────────────────────
 
   attr :d, :map, required: true
+  attr :live, :map, required: true
 
   defp how_section(assigns) do
-    by_date = get(assigns.d, ["decisions", "by_date"]) || []
+    decisions = assigns.live.decisions
+    all_days = decisions.by_date
+    {by_date, _earlier} = TeamLiveNumbers.since_inception(all_days)
 
     assigns =
       assign(assigns,
+        decisions: decisions,
+        all_days: all_days,
         by_date: by_date,
-        busiest: Enum.max_by(by_date, &(&1["count"] || 0), fn -> nil end),
-        as_of: get(assigns.d, ["_about", "as_of"])
+        earlier: earlier_count(all_days, by_date),
+        busiest: Enum.max_by(all_days, &(&1["count"] || 0), fn -> nil end),
+        as_of: decisions.as_of
       )
 
     ~H"""
@@ -592,20 +614,25 @@ defmodule TalesForgeWeb.TeamPresentationLive do
             and a link to the details. Changing a decision means adding a new entry, never editing history.
           </p>
           <p class="text-sm">
-            <strong class="text-2xl text-[var(--paper-accent)]">{number(
-              get(@d, ["decisions", "total"])
-            )}</strong>
-            <strong>decisions in {count_word(length(@by_date))} days</strong>
-            ({day_range(@by_date)}).
+            <strong class="text-2xl text-[var(--paper-accent)]">{number(@decisions.total)}</strong>
+            <strong>decisions in {count_word(length(@all_days))} days</strong>
+            ({day_range(@all_days)}).
           </p>
           <p class="text-sm leading-relaxed text-[var(--paper-muted)]">
             Plus a decision queue of {number(get(@d, ["decisions", "queue", "total"]))} bigger questions
             ({number(get(@d, ["decisions", "queue", "open"]))} still open), and a future-ideas list
             ({number(get(@d, ["decisions", "future_ideas", "count"]))} ideas so far: <em>{ideas_text(@d)}</em>).
           </p>
+          <h4 class="flex flex-wrap items-baseline justify-between gap-2 text-sm font-semibold">
+            Decisions per day
+            <span id="chart-decisions-window" class="text-xs font-normal text-[var(--paper-muted)]">
+              {TeamLiveNumbers.window_label(:since_inception)}{if @earlier > 0,
+                do: " (#{number(@earlier)} earlier)"}
+            </span>
+          </h4>
           <.column_chart
             id="chart-decisions"
-            label="Decisions logged per day"
+            label="Decisions logged per day since 2026-10-07"
             items={
               Enum.map(
                 @by_date,
@@ -623,6 +650,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
           <p :if={@busiest} class="text-xs italic text-[var(--paper-muted)]">
             {TeamPage.short_date(@busiest["date"])} was the big one: {number(@busiest["count"])} decisions in a day, mostly small, all written down.
           </p>
+          <.group_source id="decisions-source" what="Decision numbers" group={@decisions} />
         </article>
 
         <div class="space-y-4">
@@ -918,6 +946,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
   # ── 4. Playtests ───────────────────────────────────────────────────────────
 
   attr :d, :map, required: true
+  attr :live, :map, required: true
 
   defp playtests_section(assigns) do
     ~H"""
@@ -979,10 +1008,19 @@ defmodule TalesForgeWeb.TeamPresentationLive do
             Small batches, so small moves are noise. The clear win is Hawk: once the game gave him a real antagonist, his scores came up.
           </p>
           <.full_batch batch={get(@d, ["playtest_series", "full_batch"])} personas={personas(@d)} />
+          <p
+            id="personas-series-source"
+            class="text-xs text-[var(--paper-muted)]"
+            data-source="fallback"
+          >
+            Batch series: as of {TeamPage.date_label(get(@d, ["playtest_series", "as_of"]))}, from the batch analyses.
+          </p>
         </div>
       </div>
 
-      <.shadow_test d={@d} />
+      <.persona_scores_now scores={@live.persona_scores} personas={personas(@d)} />
+
+      <.shadow_test d={@d} latency={@live.intent_latency} />
       <.eval_set d={@d} />
       <.gentry d={@d} />
     </section>
@@ -1031,7 +1069,47 @@ defmodule TalesForgeWeb.TeamPresentationLive do
     """
   end
 
+  attr :scores, :map, required: true, doc: "`TalesForgeWeb.TeamLiveNumbers.persona_scores/2`"
+  attr :personas, :list, required: true
+
+  # The Jev score per persona now: live over every scored run here since
+  # 2026-10-07 (playtest), else the last batch (labelled "as of").
+  defp persona_scores_now(assigns) do
+    ~H"""
+    <div id="persona-scores-now" class="team-card space-y-3 p-4">
+      <h3 class="font-semibold">
+        Jev score per persona
+        <span id="persona-scores-window" class="text-xs font-normal text-[var(--paper-muted)]">
+          {if @scores.source == :live,
+            do: TeamLiveNumbers.window_label(:since_inception),
+            else: "last batch"}
+        </span>
+      </h3>
+      <ul class="grid grid-cols-2 gap-2 text-sm sm:grid-cols-5">
+        <li :for={p <- @personas} id={"persona-now-#{p["id"]}"} class="min-w-0">
+          <span class="font-semibold">{p["name"]}</span>
+          <span class="block">
+            {score_text(get_in(@scores.by_persona, [p["id"], :score]))}<span
+              :if={get_in(@scores.by_persona, [p["id"], :unsure_pct])}
+              class="text-xs text-[var(--paper-muted)]"
+            > · unsure {get_in(@scores.by_persona, [p["id"], :unsure_pct])}%</span>
+          </span>
+        </li>
+      </ul>
+      <p :if={@scores.source == :live} class="text-xs text-[var(--paper-muted)]">
+        {number(@scores.runs)} scored runs on this app.
+      </p>
+      <.group_source id="persona-scores-source" what="Persona scores" group={@scores} />
+    </div>
+    """
+  end
+
+  defp score_text(nil), do: TeamPage.not_measured()
+  defp score_text(score), do: "#{:erlang.float_to_binary(score * 1.0, decimals: 2)}/5"
+
   attr :d, :map, required: true
+
+  attr :latency, :map, required: true
 
   defp shadow_test(assigns) do
     assigns =
@@ -1046,6 +1124,9 @@ defmodule TalesForgeWeb.TeamPresentationLive do
       <p class="max-w-3xl leading-relaxed text-[var(--paper-muted)]">
         We replaced a keyword guesser with Jev for working out what the player meant. Before switching, we ran Jev in <em>shadow</em>:
         it read every turn on playtest but didn't change anything, so we could compare.
+      </p>
+      <p id="shadow-source" class="text-xs text-[var(--paper-muted)]" data-source="fallback">
+        Shadow test numbers: as of {TeamPage.date_label(@s["as_of"])} (a one-off test, 2026-10-08 to 2026-10-09).
       </p>
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <.stat id="shadow-reads" value={number(@s["reads"])} label="turns read" />
@@ -1082,14 +1163,25 @@ defmodule TalesForgeWeb.TeamPresentationLive do
 
       <div class="grid gap-4 lg:grid-cols-2">
         <div class="team-card space-y-3 p-4">
-          <h4 class="font-semibold">Intent latency</h4>
+          <h4 class="font-semibold">
+            Intent latency
+            <span id="chart-latency-window" class="text-xs font-normal text-[var(--paper-muted)]">
+              {if @latency.source == :live,
+                do: TeamLiveNumbers.window_label(:last_7_days),
+                else: "shadow test"}
+            </span>
+          </h4>
           <.latency_chart
             id="chart-latency"
-            p50={@s["p50_ms"]}
-            p95={@s["p95_ms"]}
-            max={@s["max_ms"]}
-            timeout={@s["timeout_ms"]}
+            p50={@latency.p50_ms}
+            p95={@latency.p95_ms}
+            max={@latency.max_ms}
+            timeout={@latency.timeout_ms || @s["timeout_ms"]}
           />
+          <p :if={@latency.source == :live} class="text-xs text-[var(--paper-muted)]">
+            {number(@latency.reads)} Jev intent reads on this app.
+          </p>
+          <.group_source id="latency-source" what="Latency" group={@latency} />
         </div>
         <div class="team-card space-y-3 p-4">
           <h4 class="font-semibold">Agreement with today's path</h4>
@@ -1146,6 +1238,9 @@ defmodule TalesForgeWeb.TeamPresentationLive do
     ~H"""
     <div id="eval-set" class="space-y-5">
       <h3 class="font-serif text-2xl font-bold">The eval set</h3>
+      <p id="eval-source" class="text-xs text-[var(--paper-muted)]" data-source="fallback">
+        Eval numbers: as of {TeamPage.date_label(@e["as_of"])} (the eval runs offline, so there is no live source yet).
+      </p>
       <p class="max-w-3xl leading-relaxed text-[var(--paper-muted)]">
         To trust Jev, we built an exam for it: {number(@e["total"])} real and hand-written player lines with the right answers,
         split so we tune on one part and keep the other part unseen until the end.
@@ -1263,17 +1358,23 @@ defmodule TalesForgeWeb.TeamPresentationLive do
 
   attr :d, :map, required: true
   attr :pace, :map, required: true, doc: "`TalesForge.TeamPace.current/0`"
+  attr :live, :map, required: true, doc: "`TalesForgeWeb.TeamLiveNumbers.all/3`"
 
   defp pace_section(assigns) do
-    {current, earlier} = split_prs_by_month(assigns.pace)
+    {current, earlier} = split_prs_since_inception(assigns.pace)
+    {commit_days, _earlier} = TeamLiveNumbers.since_inception(assigns.pace.commits_by_day)
     as_of = assigns.pace.as_of
 
     assigns =
       assign(assigns,
         current: current,
         earlier: earlier,
+        commit_days: commit_days,
         busiest: Enum.max_by(current, &(&1["created"] || 0), fn -> nil end),
-        as_of: as_of
+        as_of: as_of,
+        tests: assigns.live.tests,
+        decisions: assigns.live.decisions,
+        costs: assigns.live.costs
       )
 
     ~H"""
@@ -1295,25 +1396,32 @@ defmodule TalesForgeWeb.TeamPresentationLive do
         />
         <.stat
           id="pace-tests"
-          value={"#{number(get(@d, ["pace", "tests", "tests"]))} + #{number(get(@d, ["pace", "tests", "doctests"]))}"}
+          value={"#{number(@tests.tests)} + #{number(@tests.doctests)}"}
           label="tests + doctests"
         >
-          {number(get(@d, ["pace", "tests", "failures"]))} failing, {pct(
-            get(@d, ["pace", "tests", "coverage_pct"])
-          )} coverage
+          {number(@tests.failures)} failing, {pct(@tests.coverage_pct)} coverage
         </.stat>
         <.stat
           id="pace-decisions"
-          value={number(get(@d, ["decisions", "total"]))}
+          value={number(@decisions.total)}
           label="decisions logged"
         />
-        <.pace_source id="pace-source" pace={@pace} class="sm:col-span-2 lg:col-span-4" />
+        <div class="space-y-0.5 sm:col-span-2 lg:col-span-4">
+          <.pace_source id="pace-source" pace={@pace} />
+          <.group_source id="pace-source-tests" what="Tests" group={@tests} />
+          <.group_source id="pace-source-decisions" what="Decisions" group={@decisions} />
+        </div>
       </div>
 
       <div class="grid gap-4 lg:grid-cols-2">
         <div class="team-card space-y-3 p-4">
           <div class="flex flex-wrap items-center justify-between gap-2">
-            <h3 class="font-semibold">PRs per day</h3>
+            <h3 class="font-semibold">
+              PRs per day
+              <span id="chart-prs-window" class="text-xs font-normal text-[var(--paper-muted)]">
+                {TeamLiveNumbers.window_label(:since_inception)}
+              </span>
+            </h3>
             <span
               :if={@earlier}
               id="prs-earlier-chip"
@@ -1324,7 +1432,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
           </div>
           <.paired_chart
             id="chart-prs"
-            label="Pull requests created and merged per day"
+            label="Pull requests created and merged per day since 2026-10-07"
             legend={["created", "merged"]}
             items={
               Enum.map(
@@ -1342,11 +1450,16 @@ defmodule TalesForgeWeb.TeamPresentationLive do
         </div>
         <div class="space-y-4">
           <div class="team-card space-y-3 p-4">
-            <h3 class="font-semibold">Commits per day on main</h3>
+            <h3 class="font-semibold">
+              Commits per day on main
+              <span id="chart-commits-window" class="text-xs font-normal text-[var(--paper-muted)]">
+                {TeamLiveNumbers.window_label(:since_inception)}
+              </span>
+            </h3>
             <.heat_strip
               id="chart-commits"
-              label="Commits per day on the game's main branch"
-              days={@pace.commits_by_day}
+              label="Commits per day on the game's main branch since 2026-10-07"
+              days={@commit_days}
             />
           </div>
           <div id="ai-spend" class="team-callout space-y-2 p-4 text-sm leading-relaxed">
@@ -1362,6 +1475,33 @@ defmodule TalesForgeWeb.TeamPresentationLive do
       </div>
 
       <div class="team-card space-y-3 p-4">
+        <h3 class="font-semibold">
+          AI spend per day
+          <span id="chart-spend-days-window" class="text-xs font-normal text-[var(--paper-muted)]">
+            {TeamLiveNumbers.window_label(:last_7_days)}
+          </span>
+        </h3>
+        <.bar_list
+          id="chart-spend-days"
+          label="AI spend per day, last 7 days, USD"
+          items={
+            for day <- @costs.days,
+                do: %{
+                  label: TeamPage.short_date(day["date"]),
+                  value: day["usd"],
+                  display: usd(day["usd"])
+                }
+          }
+        />
+        <p class="text-xs text-[var(--paper-muted)]">
+          {usd(@costs.total_usd)} in the last 7 days{if @costs.source == :live,
+            do: " on this app",
+            else: " of playtest runs"}. Today is a partial day.
+        </p>
+        <.group_source id="spend-days-source" what="Spend per day" group={@costs} />
+      </div>
+
+      <div class="team-card space-y-3 p-4">
         <h3 class="font-semibold">Where the AI money went</h3>
         <.bar_list
           id="chart-spend"
@@ -1373,6 +1513,9 @@ defmodule TalesForgeWeb.TeamPresentationLive do
         />
         <p id="spend-gaps" class="text-xs text-[var(--paper-muted)]">
           Not shown: {Enum.join(get(@d, ["ai_spend", "gaps"]) || [], "; ")}.
+        </p>
+        <p id="spend-batches-source" class="text-xs text-[var(--paper-muted)]" data-source="fallback">
+          Per-batch spend: as of {TeamPage.date_label(get(@d, ["ai_spend", "as_of"]))}, from the analysis docs (no live source per batch).
         </p>
       </div>
     </section>
@@ -1476,11 +1619,14 @@ defmodule TalesForgeWeb.TeamPresentationLive do
   defp kind_label(%{"kind" => "humans"}), do: "humans"
   defp kind_label(%{"kind" => kind}), do: kind
 
-  defp tests_label(d) do
-    if get(d, ["pace", "tests", "failures"]) == 0,
+  defp tests_label(tests) do
+    if tests.failures == 0,
       do: "automated tests, all passing",
       else: "automated tests"
   end
+
+  defp tests_total(%{tests: t, doctests: d}) when is_integer(t) and is_integer(d), do: t + d
+  defp tests_total(%{tests: t}), do: t
 
   # The October median, rounded to the nearest 5 minutes ("about 15").
   defp median_minutes(d) do
@@ -1733,13 +1879,30 @@ defmodule TalesForgeWeb.TeamPresentationLive do
     """
   end
 
-  # PRs per day for the month of the pace's `as_of`; earlier days become one
-  # chip ("+14 PRs in July").
-  defp split_prs_by_month(pace) do
+  # PRs per day since 2026-10-07; earlier days become one chip ("+14 PRs
+  # in July").
+  defp split_prs_since_inception(pace) do
     days = pace.prs_by_day
-    month = (pace.as_of || "") |> String.slice(0, 7)
-    {current, earlier} = Enum.split_with(days, &String.starts_with?(&1["date"] || "", month))
-    {current, earlier_chip(earlier)}
+    {current, _n} = TeamLiveNumbers.since_inception(days)
+    {current, earlier_chip(days -- current)}
+  end
+
+  defp earlier_count(all_days, kept) do
+    (all_days -- kept) |> Enum.map(&(&1["count"] || 0)) |> Enum.sum()
+  end
+
+  attr :id, :string, required: true
+  attr :what, :string, required: true, doc: "which numbers, e.g. \"Tests\""
+  attr :group, :map, required: true, doc: "a `TalesForgeWeb.TeamLiveNumbers` group"
+
+  # Where a group of numbers came from: "Tests: live from CI on main (f7f3abd)."
+  # or "Tests: as of 9 Oct 2026."
+  defp group_source(assigns) do
+    ~H"""
+    <p id={@id} class="text-xs text-[var(--paper-muted)]" data-source={@group.source}>
+      {@what}: {TeamLiveNumbers.label(@group)}.
+    </p>
+    """
   end
 
   defp earlier_chip([]), do: nil

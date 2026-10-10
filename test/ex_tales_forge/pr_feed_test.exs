@@ -331,4 +331,18 @@ defmodule TalesForge.PrFeedTest do
       assert PrFeed.snapshot() == snapshot
     end
   end
+
+  describe "extras: tests from CI and the decision log" do
+    doctest TalesForge.PrFeed.Extras
+
+    test "nothing stored: empty" do
+      :ets.delete(TalesForge.PrFeed.Poller, :extras)
+      assert TalesForge.PrFeed.Extras.current() == TalesForge.PrFeed.Extras.empty()
+    end
+
+    test "refresh keeps the last values within 10 minutes" do
+      prev = %{tests: %{tests: 1}, decisions: nil, refreshed_at: ~U[2026-10-10 03:00:00Z]}
+      assert TalesForge.PrFeed.Extras.refresh(prev, ~U[2026-10-10 03:05:00Z]) == prev
+    end
+  end
 end

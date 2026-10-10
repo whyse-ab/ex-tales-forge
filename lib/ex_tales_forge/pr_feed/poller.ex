@@ -16,6 +16,8 @@ defmodule TalesForge.PrFeed.Poller do
   - No token: nothing is fetched, the snapshot is `:not_configured`.
   - The pull requests can't be fetched: `:unavailable`. CI or main's commits
     missing only blank out the CI badges or the deploy status.
+  - After each poll, `TalesForge.PrFeed.Extras.refresh/2` (at most every 10
+    min): the test counts of main's latest CI run and the decision log.
   - Each poll is one pass in this process; a crash restarts it under the
     application supervisor with an empty feed.
   """
@@ -25,6 +27,7 @@ defmodule TalesForge.PrFeed.Poller do
   require Logger
 
   alias TalesForge.PrFeed
+  alias TalesForge.PrFeed.Extras
   alias TalesForge.PrFeed.GitHub
   alias TalesForge.PrFeed.Parse
   alias TalesForge.PrFeed.Versions
@@ -52,7 +55,14 @@ defmodule TalesForge.PrFeed.Poller do
 
   @impl true
   def handle_info(:poll, cache) do
-    {snapshot, cache} = poll(cache, DateTime.utc_now())
+    now = DateTime.utc_now()
+    {snapshot, cache} = poll(cache, now)
+    # The presentation's other GitHub numbers (tests, decisions): at most every
+    # 10 min, stored before the snapshot goes out so subscribers see both.
+    if PrFeed.configured?() do
+      Extras.current() |> Extras.refresh(now) |> Extras.store()
+    end
+
     PrFeed.publish(snapshot)
     Process.send_after(self(), :poll, PrFeed.config(:interval_ms, @default_interval_ms))
     {:noreply, cache}
