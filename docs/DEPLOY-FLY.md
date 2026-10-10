@@ -79,6 +79,53 @@ fly secrets set \
 
 Optional: `TALES_FORGE_DOCS_PATH` is for local/dev sync only; production should use `GITHUB_DOCS_TOKEN`.
 
+### Idea board secrets (production only)
+
+The founders' idea board (`/team`, design: tales-forge-docs
+`docs/design-idea-board.md`) needs these on `tales-forge` only. Without them the
+board still works; the bots just aren't woken and the decision log isn't written
+(the card says so).
+
+**GitHub App** (commits the decision log entry to `docs/decisions.md`):
+
+1. github.com/organizations/whyse-ab/settings/apps → New GitHub App. Name
+   "Tales Forge idea board", homepage the admin URL, **Webhook off**.
+2. Repository permissions: **Contents: Read and write** (Metadata: read is
+   automatic). Nothing else. "Only on this account".
+3. Create, note the **App ID**, then "Generate a private key" (downloads a PEM).
+4. Install App → whyse-ab → **Only select repositories: tales-forge-docs**.
+   The installation's URL ends with its **installation id**.
+5. If `main` on tales-forge-docs is protected, allow the App to push (add it
+   to the bypass list), or entries can't be committed.
+
+```bash
+fly secrets set -a tales-forge \
+  GITHUB_APP_ID='123456' \
+  GITHUB_APP_INSTALLATION_ID='7890123' \
+  GITHUB_APP_PRIVATE_KEY="$(cat tales-forge-idea-board.private-key.pem)"
+```
+
+**Bots** (`CASE`, `BOBBY`, `GENTRY`; each optional):
+
+```bash
+fly secrets set -a tales-forge \
+  BOARD_WEBHOOK_URL_CASE='https://…/hook' \
+  BOARD_WEBHOOK_KEY_CASE="$(openssl rand -hex 32)" \
+  BOARD_BOT_TOKEN_CASE="$(openssl rand -hex 32)"
+```
+
+- `BOARD_WEBHOOK_URL_<BOT>`: where the board POSTs wake-ups for that bot.
+- `BOARD_WEBHOOK_KEY_<BOT>`: sent as `Authorization: Bearer`, and the HMAC key
+  of `X-Board-Signature: sha256=<hex HMAC-SHA256 of "<X-Board-Timestamp>.<body>">`.
+  The bot should check the signature, refuse timestamps older than 5 minutes,
+  and drop repeated `X-Board-Delivery` ids (retries reuse the id).
+- `BOARD_BOT_TOKEN_<BOT>`: the bearer token the bot uses on
+  `https://<host>/internal/board/…` (ideas, refine, move, comments, links).
+
+Events: `idea.to_refining`, `idea.back_to_refining`, `idea.pullable` (Case),
+`idea.to_building` (Bobby), `pr.link_added` (Gentry), `mention` (whoever is
+@mentioned). Failed deliveries retry up to 8 times (1 min doubling to 4 h).
+
 ## 4. Deploy
 
 Normally you don't run `fly deploy` by hand. A push to `main` that passes CI deploys to
