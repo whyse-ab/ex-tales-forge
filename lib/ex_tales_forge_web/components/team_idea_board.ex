@@ -1598,7 +1598,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
                 <time
                   datetime={DateTime.to_iso8601(c.inserted_at)}
                   class="text-[var(--paper-muted)]"
-                >{Calendar.strftime(c.inserted_at, "%Y-%m-%d %H:%M UTC")}</time>
+                >{TalesForgeWeb.TimeAgo.stockholm(c.inserted_at)}</time>
               </div>
               <p class="whitespace-pre-line break-words">{comment_body(c.body)}</p>
             </li>
