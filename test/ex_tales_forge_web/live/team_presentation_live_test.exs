@@ -338,8 +338,16 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
         put_in(@data, ["team", "members", Access.at(0), "approval_key", "holder_today"], "Ada")
 
       html = render_with(data)
-      assert html =~ "Right now Ada holds the approval key"
-      assert html =~ "Today: Ada · Soon: any founder."
+      assert html =~ "Every founder approves PRs on the idea board"
+      assert html =~ "Ada pushes the production releases of the normal lane."
+      assert html =~ "Release: Ada pushes it."
+      assert html =~ "Any founder, on the board."
+      assert html =~ "The approval key: every founder, on the board"
+
+      # Founders already approve on the board: no "soon", no single key holder.
+      refute html =~ ~r/\bsoon\b/i
+      refute html =~ "Ada holds the approval key"
+      refute html =~ "Today: Ada"
     end
   end
 
@@ -879,7 +887,13 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
 
       assert has_element?(view, "#board-why", "Moving a card pings the right bot.")
       assert has_element?(view, "#board-why", "One place for each thing.")
-      assert has_element?(view, "#board-why", "which Fredrik holds today")
+
+      assert has_element?(
+               view,
+               "#board-why",
+               "Fredrik pushes the production releases of the normal lane."
+             )
+
       assert has_element?(view, ~s(#board-small-print a[href="/admin/founders/decisions"]))
       assert has_element?(view, "#board-small-print", "docs/design-board-states.md")
       assert has_element?(view, "#board-step-founder_check", "That move is the founder's OK.")
@@ -991,7 +1005,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
                6
 
       assert doc |> LazyHTML.query("#board-why") |> LazyHTML.text() =~
-               "which one founder holds today"
+               "one founder pushes the production releases"
     end
   end
 

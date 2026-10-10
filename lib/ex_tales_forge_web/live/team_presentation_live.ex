@@ -247,9 +247,9 @@ defmodule TalesForgeWeb.TeamPresentationLive do
           <TeamArt.seal class="size-10 shrink-0" />
           <p class="text-sm leading-relaxed sm:text-base">
             <strong>This is how we work today, and it's a starting point.</strong>
-            Right now {holder(@d)} holds the approval key for merges and deploys. That's where we began, not where we stop.
-            Soon every founder will be able to do the same: approve changes, steer the bots and make decisions.
-            This page is an invitation to shape it with us.
+            Every founder approves PRs on the idea board: send a card to Building, then approve its PR on the card. {holder(
+              @d
+            )} pushes the production releases of the normal lane. This page is an invitation to shape the rest with us.
           </p>
         </aside>
       </div>
@@ -302,7 +302,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
     <section id="team" class="team-section space-y-8" aria-labelledby="team-title" data-reveal>
       <.section_head id="team" title="1. The team">
         Tales Forge is built by one crew: the founders and {count_word(bot_count(@d))} bots. The bots do a lot of the hands-on work,
-        and nothing reaches the game without a founder's yes. Today that yes comes from {holder(@d)}, and soon it can come from any of us.
+        and nothing reaches the game without a founder's yes. Any founder gives that yes on the board.
       </.section_head>
 
       <ul id="team-cards" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -372,8 +372,8 @@ defmodule TalesForgeWeb.TeamPresentationLive do
     <li>Shape what we build: ideas, surveys and playing the game.</li>
     <li>Make the decisions, written down in one shared log.</li>
     <li>
-      Approve merges and deploys.
-      <strong>Today {holder(@d)} holds the approval key; soon every founder will.</strong>
+      Approve PRs on the board.
+      <strong>Every founder holds the approval key; {holder(@d)} pushes the normal-lane production releases.</strong>
     </li>
     <li :if={get(@d, ["team", "members", 0, "people", "names"]) not in [nil, []]}>
       <.founders_people id="founders-people" d={@d} />
@@ -406,7 +406,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
     <li>
       Ships to Fly
       <.explain text="our hosting" />. Admin-only changes take the fast lane and ship by themselves when the checks pass.
-      Every other change reaches production only with a founder's OK (today {holder(@d)}'s).
+      Every other change reaches production when {holder(@d)} pushes the release, after a founder's OK on the board.
     </li>
     <li>Checks the Fly logs every hour.</li>
     """
@@ -437,15 +437,13 @@ defmodule TalesForgeWeb.TeamPresentationLive do
 
   attr :member, :map, required: true
 
-  defp member_badge(
-         %{member: %{"approval_key" => %{"holder_today" => holder, "later" => later}}} = assigns
-       )
-       when is_binary(holder) and is_binary(later) do
-    assigns = assign(assigns, holder: holder, later: later)
+  defp member_badge(%{member: %{"approval_key" => %{"holder_today" => holder}}} = assigns)
+       when is_binary(holder) do
+    assigns = assign(assigns, holder: holder)
 
     ~H"""
     <p class="team-badge">
-      <TeamArt.seal class="size-4" /> The approval key: {@holder} today, {@later} soon
+      <TeamArt.seal class="size-4" /> The approval key: every founder, on the board
     </p>
     """
   end
@@ -523,7 +521,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
               :if={step["approval"]}
               class="team-seal-caption mt-1 text-xs font-semibold text-[var(--team-seal)] lg:text-[0.68rem]"
             >
-              Today: {holder(@d)} · Soon: any founder.
+              {seal_caption(step["id"], @d)}
             </p>
             <p :if={!step["approval"]} class="mt-1 text-xs leading-snug lg:hidden">
               <.step_detail id={step["id"]} d={@d} />
@@ -578,13 +576,13 @@ defmodule TalesForgeWeb.TeamPresentationLive do
 
   defp step_detail(%{id: "ok_merge"} = assigns) do
     ~H"""
-    <em>Today that's {holder(@d)}; soon any founder. Admin-only fixes that a founder already OK'd merge when the checks pass.</em>
+    <em>Any founder approves the PR on the board card. Admin-only fixes that a founder already OK'd merge when the checks pass.</em>
     """
   end
 
   defp step_detail(%{id: "ok_prod"} = assigns) do
     ~H"""
-    <em>Normal lane only. Today that's {holder(@d)}; soon any founder.</em>
+    <em>Normal lane only. {holder(@d)} pushes the production release.</em>
     """
   end
 
@@ -699,7 +697,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
             </h3>
             <p class="text-sm leading-relaxed">
               Writing things down should be fast, so docs need no review step. Code always gets a PR and CI. Each change also gets a founder's OK,
-              on the board card or on the PR (today {holder(@d)}'s for merges and deploys, soon anyone's in the founders' team).
+              on the board card. Any founder approves PRs there, and {holder(@d)} pushes the normal-lane production releases.
             </p>
           </article>
           <article id="rule-code" class="team-card space-y-2 p-5">
@@ -1681,6 +1679,10 @@ defmodule TalesForgeWeb.TeamPresentationLive do
   defp personas(d), do: get(d, ["personas", "items"]) || []
   defp bot_count(d), do: TeamPage.bot_count(d)
   defp holder(d), do: TeamPage.approval_holder(d)
+
+  # The caption under a founder's-OK seal in the change flow.
+  defp seal_caption("ok_prod", d), do: "Release: #{holder(d)} pushes it."
+  defp seal_caption(_id, _d), do: "Any founder, on the board."
 
   defp kind_label(%{"kind" => "humans"}), do: "humans"
   defp kind_label(%{"kind" => kind}), do: kind

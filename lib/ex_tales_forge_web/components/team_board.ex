@@ -166,8 +166,7 @@ defmodule TalesForgeWeb.TeamBoard do
           <.icon name="hero-key" class="size-7 text-[var(--paper-accent)]" />
           <h3 class="font-semibold">Every founder decides.</h3>
           <p class="text-sm leading-snug">
-            Any founder can send a card to Building, and that move is the founder OK. That is a real step toward every founder holding
-            the approval key for merges and deploys, which {@holder} holds today.
+            Any founder can send a card to Building, and that move is the founder OK. Any founder also approves the PR on the card. {@holder} pushes the production releases of the normal lane.
           </p>
         </li>
       </ul>
