@@ -89,7 +89,8 @@ defmodule TalesForgeWeb.TeamPresentationLive do
   @flow_detail %{
     "idea" => "A founder adds a card on the idea board. Votes set the order.",
     "case" => "Case writes the details, the open questions and a rough cost.",
-    "pr" => "Bobby writes 'Picked up by Bobby. ETA ...' on the card at once, builds it as a pull request and links the PR to the card.",
+    "pr" =>
+      "Bobby writes 'Picked up by Bobby. ETA ...' on the card at once, builds it as a pull request and links the PR to the card.",
     "merge" => "Into main, the shared version of the code.",
     "review" => "Case's architecture review of what just landed.",
     "playtest" =>
