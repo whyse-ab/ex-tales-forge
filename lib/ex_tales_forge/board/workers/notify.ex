@@ -48,6 +48,7 @@ defmodule TalesForge.Board.Workers.Notify do
   defp pr_fields(%{pr: pr} = extra),
     do: %{"pr" => pr, "approver" => extra[:approver], "comment" => extra[:comment]}
 
+  defp pr_fields(%{question: q}), do: %{"question" => q}
   defp pr_fields(_extra), do: %{}
 
   @doc """

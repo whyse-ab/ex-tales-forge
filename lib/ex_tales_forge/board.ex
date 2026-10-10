@@ -21,6 +21,7 @@ defmodule TalesForge.Board do
   alias Ecto.Multi
 
   alias TalesForge.Board.{
+    Answer,
     Approval,
     Comment,
     Events,
@@ -104,7 +105,8 @@ defmodule TalesForge.Board do
       comments: from(c in Comment, order_by: [asc: c.inserted_at, asc: c.id]),
       links: from(l in Link, order_by: [asc: l.inserted_at]),
       transitions: from(t in Transition, order_by: [asc: t.inserted_at, asc: t.id]),
-      approvals: from(a in Approval, order_by: [asc: a.inserted_at, asc: a.id])
+      approvals: from(a in Approval, order_by: [asc: a.inserted_at, asc: a.id]),
+      answers: []
     )
   end
 
@@ -334,12 +336,111 @@ defmodule TalesForge.Board do
       up: Enum.count(idea.votes, &(&1.value == 1)),
       down: Enum.count(idea.votes, &(&1.value == -1)),
       refined: refined?(idea),
-      open_questions: length(List.wrap((idea.refinement || %{})["open_questions"])),
+      open_questions: idea |> questions() |> Enum.count(fn {_q, a} -> not Answer.settled?(a) end),
       comment: comment,
       pr: pr_state(idea),
       pr_linked: idea.pr_number != nil or Enum.any?(idea.links, &(&1.kind == "pr"))
     }
   end
+
+  @doc """
+  The open questions of Case's refinement, each with its answer (or nil),
+  in Case's order (answers loaded).
+  """
+  @spec questions(Idea.t()) :: [{String.t(), Answer.t() | nil}]
+  def questions(%Idea{} = idea) do
+    answers = Map.new(idea.answers, &{&1.question, &1})
+
+    (idea.refinement || %{})["open_questions"]
+    |> List.wrap()
+    |> Enum.filter(&is_binary/1)
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.uniq()
+    |> Enum.map(&{&1, answers[&1]})
+  end
+
+  @doc """
+  A founder answers one open question (`attrs`: `"answer"`), or defers it
+  (`"deferred"`: true / false). Any founder may defer or undefer; an answer
+  can be changed only by the founder who wrote it. Writes a line in the
+  card's history; while the card is in Refining it wakes Case
+  (`question.answered`, see `TalesForge.Board.Transitions.event_wakes/2`).
+  """
+  @spec answer_question(Idea.t(), String.t(), String.t(), map()) :: {:ok, Idea.t()} | error()
+  def answer_question(%Idea{}, "bot:" <> _, _question, _attrs),
+    do: {:error, "Founders answer the open questions."}
+
+  def answer_question(%Idea{} = idea, founder, question, attrs) do
+    idea = get_idea!(idea.id)
+    founder = normalize(founder)
+    attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
+    now = DateTime.utc_now()
+
+    with {^question, current} <-
+           Enum.find(questions(idea), {:error, nil}, fn {q, _} -> q == question end),
+         {:ok, change, note} <- answer_change(current, founder, attrs, now, question) do
+      row = current || %Answer{idea_id: idea.id, question: question}
+
+      Multi.new()
+      |> Multi.insert_or_update(:answer, Answer.changeset(row, change))
+      |> Multi.insert(
+        :transition,
+        Transition.changeset(%Transition{}, %{
+          idea_id: idea.id,
+          from: idea.column,
+          to: idea.column,
+          actor: founder,
+          note: note
+        })
+      )
+      |> Events.add(:question_answered, idea, %{
+        actor: founder,
+        from: idea.column,
+        to: idea.column,
+        column: idea.column,
+        question: %{
+          "text" => question,
+          "answer" => Map.get(change, :answer, current && current.answer),
+          "deferred" => Map.get(change, :deferred, (current && current.deferred) || false),
+          "by" => founder
+        }
+      })
+      |> run(idea.id)
+    else
+      {:error, nil} -> {:error, "That question is not on the card any more."}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp answer_change(_current, founder, %{"deferred" => d}, now, question) do
+    if d in [true, "true"],
+      do:
+        {:ok, %{deferred: true, deferred_by: founder, deferred_at: now}, "Deferred: #{question}"},
+      else:
+        {:ok, %{deferred: false, deferred_by: nil, deferred_at: nil},
+         "Open again (not deferred): #{question}"}
+  end
+
+  defp answer_change(current, founder, %{"answer" => text}, now, question) do
+    text = text |> to_string() |> String.trim()
+
+    cond do
+      text == "" ->
+        {:error, "Write an answer, or defer the question."}
+
+      current && current.answered_by not in [nil, founder] ->
+        {:error,
+         "#{current.answered_by} answered this question. Only they can change the answer. Write a comment to discuss it."}
+
+      true ->
+        {:ok, %{answer: text, answered_by: founder, answered_at: now},
+         "Answered: #{question} Answer: #{text}"}
+    end
+  end
+
+  defp answer_change(_current, _founder, _attrs, _now, _question),
+    do: {:error, "Write an answer, or defer the question."}
 
   @doc """
   The card's PR number (links loaded): the one Bobby linked for approval,
