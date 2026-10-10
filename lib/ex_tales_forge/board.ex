@@ -255,9 +255,13 @@ defmodule TalesForge.Board do
     |> Enum.uniq()
   end
 
-  @doc "Adds a link (`kind`: pr, playtest, decision, doc, other). A PR link on a Building card pings Gentry."
+  @doc """
+  Adds a link (`kind`: pr, playtest, decision, doc, other). Only bots add
+  links (`added_by` is `bot:<name>`, through the bot API): Bobby the PR,
+  Gentry or Bobby the playtest run. Links wake nobody.
+  """
   @spec add_link(Idea.t(), String.t(), map()) :: {:ok, Idea.t()} | error()
-  def add_link(%Idea{} = idea, added_by, attrs) do
+  def add_link(%Idea{} = idea, "bot:" <> _ = added_by, attrs) do
     attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
 
     changeset =
@@ -273,6 +277,9 @@ defmodule TalesForge.Board do
     |> Multi.insert(:link, changeset)
     |> run(idea.id)
   end
+
+  def add_link(%Idea{}, _added_by, _attrs),
+    do: {:error, "Bots add the links: Bobby the PR, Gentry or Bobby the playtest run."}
 
   @refinement_keys ~w(details open_questions rough_cost verdict)
   @verdicts ~w(feasible feasible_with_caveats not_feasible)
@@ -334,11 +341,14 @@ defmodule TalesForge.Board do
     }
   end
 
-  # The card's PR number: the one Bobby linked for approval, else the last
-  # `pr` link that points at a pull request.
-  defp pr_number_of(%Idea{pr_number: n}) when is_integer(n), do: n
+  @doc """
+  The card's PR number (links loaded): the one Bobby linked for approval,
+  else the first `pr` link that points at a pull request; nil for none.
+  """
+  @spec pr_number_of(Idea.t()) :: pos_integer() | nil
+  def pr_number_of(%Idea{pr_number: n}) when is_integer(n), do: n
 
-  defp pr_number_of(idea) do
+  def pr_number_of(idea) do
     idea.links
     |> Enum.filter(&(&1.kind == "pr"))
     |> Enum.find_value(fn l ->

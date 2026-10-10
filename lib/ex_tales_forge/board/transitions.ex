@@ -358,6 +358,7 @@ defmodule TalesForge.Board.Transitions do
   @type button :: %{
           kind: :back | :forward | :hold,
           to: String.t(),
+          label: String.t(),
           answer: :ok | {:error, String.t()},
           needs_comment: boolean()
         }
@@ -373,8 +374,8 @@ defmodule TalesForge.Board.Transitions do
 
       iex> alias TalesForge.Board.Transitions, as: T
       iex> T.buttons(%{up: 0}, "ideas", {:founder, "a@x"})
-      [%{kind: :forward, to: "refining", answer: {:error, "Needs an upvote."}, needs_comment: false},
-       %{kind: :hold, to: "parked", answer: :ok, needs_comment: false}]
+      [%{kind: :forward, to: "refining", label: "Send to Refining", answer: {:error, "Needs an upvote."}, needs_comment: false},
+       %{kind: :hold, to: "parked", label: "Put on hold", answer: :ok, needs_comment: false}]
       iex> T.buttons(%{open_questions: 0}, "check", {:founder, "a@x"}) |> Enum.map(&{&1.kind, &1.to, &1.needs_comment})
       [{:back, "refining", true}, {:forward, "building", false}, {:hold, "parked", false}]
       iex> T.buttons(%{}, "refining", {:founder, "a@x"}) |> Enum.map(&{&1.kind, &1.to})
@@ -403,9 +404,37 @@ defmodule TalesForge.Board.Transitions do
           comment_gate?(allowed?(plain, from, to, actor))
 
       answer = if needs_comment, do: :ok, else: answer
-      %{kind: kind, to: to, answer: answer, needs_comment: needs_comment}
+
+      %{
+        kind: kind,
+        to: to,
+        label: step_label(from, to),
+        answer: answer,
+        needs_comment: needs_comment
+      }
     end
   end
+
+  @doc """
+  The button label of a move, named by its target step. The server and the
+  UI share these.
+
+      iex> alias TalesForge.Board.Transitions, as: T
+      iex> for {f, t} <- [{"ideas", "refining"}, {"ideas", "parked"}, {"refining", "check"}, {"refining", "ideas"}], do: T.step_label(f, t)
+      ["Send to Refining", "Put on hold", "Send to Founder check", "Back to Ideas"]
+      iex> for {f, t} <- [{"check", "building"}, {"check", "refining"}, {"check", "parked"}, {"building", "check"}], do: T.step_label(f, t)
+      ["Start building", "Back to Refining", "Put on hold", "Send to Founder check"]
+      iex> for {f, t} <- [{"building", "done"}, {"building", "refining"}, {"parked", "ideas"}], do: T.step_label(f, t)
+      ["Mark as done", "Back to Refining", "Back to Ideas"]
+  """
+  @spec step_label(String.t(), String.t()) :: String.t()
+  def step_label(_from, "parked"), do: "Put on hold"
+  def step_label(_from, "building"), do: "Start building"
+  def step_label(_from, "done"), do: "Mark as done"
+  def step_label("ideas", "refining"), do: "Send to Refining"
+  def step_label(_from, "refining"), do: "Back to Refining"
+  def step_label(_from, "ideas"), do: "Back to Ideas"
+  def step_label(_from, to), do: "Send to #{label(to)}"
 
   defp comment_gate?({:error, reason}), do: reason =~ "comment"
   defp comment_gate?(_), do: false
