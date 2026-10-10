@@ -97,6 +97,14 @@ defmodule TalesForgeWeb.TeamLive do
     assign(socket, :stats, stats)
   end
 
+  @impl true
+  @spec handle_params(map(), String.t(), Phoenix.LiveView.Socket.t()) ::
+          {:noreply, Phoenix.LiveView.Socket.t()}
+  def handle_params(params, _uri, socket),
+    do:
+      {:noreply,
+       assign(socket, :ideas_sort, TalesForgeWeb.TeamIdeaBoard.sort_key(params["sort"]))}
+
   # The board lives on production (and locally); playtest keeps the placeholder.
   defp board_here?, do: TalesForge.AppRole.here?(:board)
 
@@ -136,6 +144,7 @@ defmodule TalesForgeWeb.TeamLive do
           board?={assigns[:board?] || false}
           founder={assigns[:admin_email]}
           login={assigns[:admin_github_login]}
+          ideas_sort={assigns[:ideas_sort] || "top"}
         />
         <.live_section socket={assigns[:socket]} />
         <.presentation />
@@ -205,6 +214,7 @@ defmodule TalesForgeWeb.TeamLive do
   attr :board?, :boolean, default: false
   attr :founder, :string, default: nil
   attr :login, :string, default: nil
+  attr :ideas_sort, :string, default: "top"
 
   defp going_to_do(assigns) do
     ~H"""
@@ -223,6 +233,7 @@ defmodule TalesForgeWeb.TeamLive do
         id="idea-board-live"
         founder={@founder}
         login={@login}
+        ideas_sort={@ideas_sort}
       />
     </section>
     """

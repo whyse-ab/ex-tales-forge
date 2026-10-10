@@ -310,6 +310,70 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     end
   end
 
+  describe "sort the Ideas column (card b18fc8dc)" do
+    defp ideas_order(view, ids) do
+      html = view |> element("#board-col-ideas") |> render()
+
+      ~r/id="tile-([0-9a-f-]{36})"/
+      |> Regex.scan(html)
+      |> Enum.map(fn [_, id] -> Enum.find_value(ids, fn {t, i} -> i == id && t end) end)
+    end
+
+    setup do
+      ids =
+        for {title, votes, days_ago} <- [
+              {"Old", [1], 3},
+              {"Middle", [1, -1, 1], 2},
+              {"New", [1, 1], 1}
+            ],
+            into: %{} do
+          {:ok, idea} = Board.create_idea("bo@example.com", %{"title" => title})
+
+          for {v, n} <- Enum.with_index(votes),
+              do: {:ok, _} = Board.vote(idea, "f#{n}@x", v, "Needs work")
+
+          at = DateTime.utc_now() |> DateTime.add(-days_ago, :day) |> DateTime.truncate(:second)
+
+          idea
+          |> Ecto.Changeset.change(inserted_at: at)
+          |> TalesForge.Repo.update!()
+
+          {title, idea.id}
+        end
+
+      {:ok, ids: ids}
+    end
+
+    test "the control changes the order and writes it to the URL", %{conn: conn, ids: ids} do
+      {:ok, view, _} = live(conn, "/team")
+      assert has_element?(view, ~s(#ideas-sort option[value="top"][selected]))
+      assert ideas_order(view, ids) == ["New", "Middle", "Old"]
+
+      view |> form("#ideas-sort", %{sort: "oldest"}) |> render_change()
+      assert_patch(view, "/team?sort=oldest")
+      assert ideas_order(view, ids) == ["Old", "Middle", "New"]
+
+      view |> form("#ideas-sort", %{sort: "votes"}) |> render_change()
+      assert_patch(view, "/team?sort=votes")
+      assert ideas_order(view, ids) == ["Middle", "New", "Old"]
+
+      view |> form("#ideas-sort", %{sort: "top"}) |> render_change()
+      assert_patch(view, "/team")
+    end
+
+    test "the URL query sets the order on load", %{conn: conn, ids: ids} do
+      {:ok, view, _} = live(conn, "/team?sort=newest")
+      assert has_element?(view, ~s(#ideas-sort option[value="newest"][selected]))
+      assert ideas_order(view, ids) == ["New", "Middle", "Old"]
+
+      {:ok, view, _} = live(conn, "/team?sort=oldest")
+      assert ideas_order(view, ids) == ["Old", "Middle", "New"]
+
+      {:ok, view, _} = live(conn, "/team?sort=unknown")
+      assert has_element?(view, ~s(#ideas-sort option[value="top"][selected]))
+    end
+  end
+
   describe "voting (Fredrik's report 2026-10-10: the browser sends the button's empty value)" do
     # A browser merges a <button>'s own `value` ("") into the click payload;
     # LiveViewTest doesn't, so every click here sends it explicitly.
