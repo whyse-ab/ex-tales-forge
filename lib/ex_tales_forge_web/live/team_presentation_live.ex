@@ -246,10 +246,8 @@ defmodule TalesForgeWeb.TeamPresentationLive do
         <aside id="starting-point" class="team-callout flex gap-3 p-4">
           <TeamArt.seal class="size-10 shrink-0" />
           <p class="text-sm leading-relaxed sm:text-base">
-            <strong>This is how we work today, and it's a starting point.</strong>
-            Every founder approves PRs on the idea board: send a card to Building, then approve its PR on the card. {holder(
-              @d
-            )} pushes the production releases of the normal lane. This page is an invitation to shape the rest with us.
+            <strong>This is how we work today, and we shape it together.</strong>
+            Every founder can add ideas, vote, answer the open questions and approve PRs on the board. An approved change goes to playtest, Gentry checks it, and then it ships to production by itself. Changes that only touch admin pages ship straight away. This page is an invitation to shape the rest with us.
           </p>
         </aside>
       </div>
@@ -373,7 +371,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
     <li>Make the decisions, written down in one shared log.</li>
     <li>
       Approve PRs on the board.
-      <strong>Every founder holds the approval key; {holder(@d)} pushes the normal-lane production releases.</strong>
+      <strong>A founder's Approve ships the change: playtest, then Gentry, then production by itself.</strong>
     </li>
     <li :if={get(@d, ["team", "members", 0, "people", "names"]) not in [nil, []]}>
       <.founders_people id="founders-people" d={@d} />
@@ -406,7 +404,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
     <li>
       Ships to Fly
       <.explain text="our hosting" />. Admin-only changes take the fast lane and ship by themselves when the checks pass.
-      Every other change reaches production when {holder(@d)} pushes the release, after a founder's OK on the board.
+      Every other change goes to playtest after a founder approves it on the board. Gentry checks it, and then it ships to production by itself.
     </li>
     <li>Checks the Fly logs every hour.</li>
     """
@@ -582,7 +580,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
 
   defp step_detail(%{id: "ok_prod"} = assigns) do
     ~H"""
-    <em>Normal lane only. {holder(@d)} pushes the production release.</em>
+    <em>Normal lane only. When Gentry's checks pass, the change ships to production by itself.</em>
     """
   end
 
@@ -697,7 +695,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
             </h3>
             <p class="text-sm leading-relaxed">
               Writing things down should be fast, so docs need no review step. Code always gets a PR and CI. Each change also gets a founder's OK,
-              on the board card. Any founder approves PRs there, and {holder(@d)} pushes the normal-lane production releases.
+              on the board card. Any founder approves PRs there. An approved change goes to playtest, Gentry checks it, and then it ships to production by itself.
             </p>
           </article>
           <article id="rule-code" class="team-card space-y-2 p-5">
@@ -1611,7 +1609,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
         <.involve
           id="involve-approve"
           icon="hero-key"
-          title="Hold the approval key yourself."
+          title="Approve on the board yourself."
           href="/team#idea-board"
           link="Approve on the board"
         >
@@ -1678,10 +1676,9 @@ defmodule TalesForgeWeb.TeamPresentationLive do
   defp find_member(members, id), do: Enum.find(members || [], %{}, &(&1["id"] == id))
   defp personas(d), do: get(d, ["personas", "items"]) || []
   defp bot_count(d), do: TeamPage.bot_count(d)
-  defp holder(d), do: TeamPage.approval_holder(d)
 
   # The caption under a founder's-OK seal in the change flow.
-  defp seal_caption("ok_prod", d), do: "Release: #{holder(d)} pushes it."
+  defp seal_caption("ok_prod", _d), do: "Ships by itself after Gentry."
   defp seal_caption(_id, _d), do: "Any founder, on the board."
 
   defp kind_label(%{"kind" => "humans"}), do: "humans"

@@ -333,14 +333,18 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       assert html =~ "tales-forge-v999"
     end
 
-    test "the approval holder comes from the data" do
+    test "no founder holds a special release step (no 'Fredrik pushes', no 'only Fredrik')" do
       data =
         put_in(@data, ["team", "members", Access.at(0), "approval_key", "holder_today"], "Ada")
 
       html = render_with(data)
-      assert html =~ "Every founder approves PRs on the idea board"
-      assert html =~ "Ada pushes the production releases of the normal lane."
-      assert html =~ "Release: Ada pushes it."
+      assert html =~ "Every founder can add ideas, vote, answer the open questions and approve PRs on the board."
+      assert html =~ "This is how we work today, and we shape it together."
+      assert html =~ "then it ships to production by itself."
+      assert html =~ "Changes that only touch admin pages ship straight away."
+      refute html =~ "Ada pushes"
+      refute html =~ ~r/Fredrik pushes/i
+      refute html =~ ~r/only Fredrik/i
       assert html =~ "Any founder, on the board."
       assert html =~ "The approval key: every founder, on the board"
 
@@ -891,7 +895,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       assert has_element?(
                view,
                "#board-why",
-               "Fredrik pushes the production releases of the normal lane."
+               "Gentry checks it, and then it ships to production by itself."
              )
 
       assert has_element?(view, ~s(#board-small-print a[href="/admin/founders/decisions"]))
@@ -917,7 +921,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
              |> Enum.at(0)
              |> LazyHTML.attribute("id") == ["involve-board"]
 
-      assert has_element?(view, "#involve-approve h3", "Hold the approval key yourself.")
+      assert has_element?(view, "#involve-approve h3", "Approve on the board yourself.")
       refute has_element?(view, "#involve h3", "Soon")
       assert has_element?(view, "#involve-archive", "keeps the ideas from before the board")
     end
@@ -1005,7 +1009,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
                6
 
       assert doc |> LazyHTML.query("#board-why") |> LazyHTML.text() =~
-               "one founder pushes the production releases"
+               "then it ships to production by itself"
     end
   end
 

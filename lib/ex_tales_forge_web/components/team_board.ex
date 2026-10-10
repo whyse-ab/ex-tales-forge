@@ -101,8 +101,7 @@ defmodule TalesForgeWeb.TeamBoard do
       assign(assigns,
         anchor: @anchor,
         columns: columns,
-        total_labels: @total_labels,
-        holder: TeamPage.approval_holder(assigns.d)
+        total_labels: @total_labels
       )
 
     ~H"""
@@ -166,7 +165,7 @@ defmodule TalesForgeWeb.TeamBoard do
           <.icon name="hero-key" class="size-7 text-[var(--paper-accent)]" />
           <h3 class="font-semibold">Every founder decides.</h3>
           <p class="text-sm leading-snug">
-            Any founder can send a card to Building, and that move is the founder OK. Any founder also approves the PR on the card. {@holder} pushes the production releases of the normal lane.
+            Any founder can send a card to Building, and that move is the founder OK. Any founder also approves the PR on the card. The approved change goes to playtest, Gentry checks it, and then it ships to production by itself.
           </p>
         </li>
       </ul>
