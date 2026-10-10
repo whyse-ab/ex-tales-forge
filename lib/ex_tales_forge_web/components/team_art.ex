@@ -20,14 +20,40 @@ defmodule TalesForgeWeb.TeamArt do
   @skins %{a: "#e9bb92", b: "#c48a5f", c: "#8e5b3d", d: "#f2cdb0"}
 
   @doc """
-  A round crew avatar: `id` is `founders`, `case`, `bobby` or `gentry`
-  (anything else draws a neutral circle).
+  A round crew avatar. `id` is `founders`, `case`, `bobby` or `gentry`;
+  anything else draws a neutral circle. The three bots show their painted
+  portrait (`priv/static/images/team/<id>-avatar-<96|192>`, WebP with a JPEG
+  fallback, square crops of the Grok Imagine portraits). The founders show the
+  drawn group of three.
   """
   attr :id, :string, required: true
   attr :class, :string, default: "size-16"
   attr :label, :string, default: nil
 
   @spec avatar(map()) :: Phoenix.LiveView.Rendered.t()
+  def avatar(%{id: id} = assigns) when id in ~w(case bobby gentry) do
+    ~H"""
+    <picture class={["team-avatar block shrink-0 overflow-hidden rounded-full", @class]}>
+      <source
+        type="image/webp"
+        srcset={"/images/team/#{@id}-avatar-96.webp 96w, /images/team/#{@id}-avatar-192.webp 192w"}
+        sizes="64px"
+      />
+      <img
+        src={"/images/team/#{@id}-avatar-192.jpg"}
+        srcset={"/images/team/#{@id}-avatar-96.jpg 96w, /images/team/#{@id}-avatar-192.jpg 192w"}
+        sizes="64px"
+        width="192"
+        height="192"
+        alt={@label || "#{@id} avatar"}
+        loading="lazy"
+        data-avatar={@id}
+        class="block size-full rounded-full border-2 border-[#b4874a] object-cover"
+      />
+    </picture>
+    """
+  end
+
   def avatar(assigns) do
     assigns = assign(assigns, :skins, @skins)
 
@@ -62,76 +88,6 @@ defmodule TalesForgeWeb.TeamArt do
       <ellipse cx="32" cy="52" rx="25" ry="7" fill="#8a5a35" />
       <circle cx="32" cy="51" r="4.5" fill="#a3182f" />
       <circle cx="32" cy="51" r="2" fill="#e4677d" />
-    </g>
-    """
-  end
-
-  defp avatar_body(%{id: "case"} = assigns) do
-    ~H"""
-    <g aria-hidden="true">
-      <path
-        d="M12 18 H52 M8 28 H56 M8 38 H56 M18 8 V56 M30 4 V60 M42 6 V58"
-        stroke="#7fa7c9"
-        stroke-width="0.8"
-        opacity="0.7"
-      />
-      <path d="M14 58 Q32 34 50 58 Z" fill="#2f4f6f" />
-      <circle cx="32" cy="27" r="9" fill={@skins.d} />
-      <path d="M23 25 Q32 12 41 25 Q36 20 23 25" fill="#6b4a2b" />
-      <circle cx="29" cy="27" r="1" fill="#2b211a" />
-      <circle cx="35" cy="27" r="1" fill="#2b211a" />
-      <path d="M29.5 31 Q32 32.5 34.5 31" stroke="#2b211a" stroke-width="1" fill="none" />
-      <rect x="20" y="46" width="24" height="9" rx="1.5" fill="#efe0bd" stroke="#9c7a45" />
-      <path d="M24 50 Q30 47 33 51 T42 49" stroke="#a3182f" stroke-width="1" fill="none" />
-      <circle cx="50" cy="14" r="6" fill="#f7efd9" stroke="#9c7a45" />
-      <path d="M50 9 L51.5 14 L50 19 L48.5 14 Z" fill="#a3182f" />
-    </g>
-    """
-  end
-
-  defp avatar_body(%{id: "bobby"} = assigns) do
-    ~H"""
-    <g aria-hidden="true">
-      <path d="M14 58 Q32 34 50 58 Z" fill="#6b4630" />
-      <path d="M26 44 H38 V58 H26 Z" fill="#a8763f" />
-      <circle cx="32" cy="27" r="9" fill={@skins.b} />
-      <path d="M23 24 Q32 14 41 24" fill="#2b211a" />
-      <rect x="24.5" y="23" width="15" height="4" rx="2" fill="#4b5563" />
-      <circle cx="28.5" cy="25" r="1.8" fill="#9bd3f0" />
-      <circle cx="35.5" cy="25" r="1.8" fill="#9bd3f0" />
-      <path d="M29 31 Q32 33 35 31" stroke="#2b211a" stroke-width="1" fill="none" />
-      <path d="M6 50 H18 L16 54 H8 Z" fill="#4b5563" />
-      <rect x="44" y="47" width="13" height="8" rx="1" fill="#374151" />
-      <rect x="45.5" y="48.5" width="10" height="5" fill="#7dd3c0" />
-      <text x="9" y="44" font-size="7" font-family="monospace" font-weight="700" fill="#e8590c">
-        |&gt;
-      </text>
-      <circle cx="19" cy="40" r="1" fill="#f59f00" />
-      <circle cx="16" cy="36" r="0.8" fill="#f59f00" />
-    </g>
-    """
-  end
-
-  defp avatar_body(%{id: "gentry"} = assigns) do
-    ~H"""
-    <g aria-hidden="true">
-      <path d="M14 58 Q32 34 50 58 Z" fill="#3d5a3c" />
-      <circle cx="32" cy="27" r="9" fill={@skins.a} />
-      <path d="M22 23 L32 15 L42 23 Q32 19 22 23" fill="#3a2a1c" />
-      <circle cx="28.5" cy="27" r="1" fill="#2b211a" />
-      <path d="M28 32 Q32 35.5 37 31" stroke="#2b211a" stroke-width="1.1" fill="none" />
-      <circle
-        cx="37"
-        cy="26"
-        r="5"
-        fill="#cfe9f7"
-        fill-opacity="0.55"
-        stroke="#8a6a2f"
-        stroke-width="1.8"
-      />
-      <path d="M40.5 29.5 L47 36" stroke="#8a6a2f" stroke-width="2.4" stroke-linecap="round" />
-      <path d="M12 52 Q16 40 24 34 Q19 44 15 52 Z" fill="#c92a2a" />
-      <path d="M12 52 L18 42" stroke="#7a1d1d" stroke-width="0.8" />
     </g>
     """
   end
@@ -347,7 +303,7 @@ defmodule TalesForgeWeb.TeamArt do
       height: 720,
       alt:
         "The five founders, Fredrik, Thobias, Håkan, Jeanette and Max, " <>
-          "our vibe-coding founder and RPG apprentice, as stylised Nordic adventurers " <>
+          "as stylised Nordic adventurers " <>
           "with the three bots, Case, Bobby and Gentry the owl, around one round tavern table, " <>
           "leaning over a painted map of Tin Valley, with empty chairs left open"
     },

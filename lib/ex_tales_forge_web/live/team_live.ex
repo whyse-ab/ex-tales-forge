@@ -213,7 +213,7 @@ defmodule TalesForgeWeb.TeamLive do
       </h2>
       <p class="max-w-3xl leading-relaxed">
         The crew and who does what, how a change gets from an idea to the game, the rules we work by, what the game runs on,
-        what the playtests taught us, the pace and cost so far, the shared board that's coming, and where we go from here, together.
+        what the playtests taught us, the pace and cost so far, how the idea board works, and where we go from here, together.
       </p>
       <.link
         id="presentation-link"

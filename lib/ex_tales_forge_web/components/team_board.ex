@@ -2,9 +2,10 @@ defmodule TalesForgeWeb.TeamBoard do
   @moduledoc """
   Section 6 of the founders' presentation (`/team/presentation`,
   `TalesForgeWeb.TeamPresentationLive`): "How we'll work together: one shared
-  board". It is **coming soon and not built**: this is the idea, a picture of
-  it, and an animated mock board. There is no working board, nothing to drag
-  and no events.
+  board". The real idea board is live on `/team` (`#idea-board`, since
+  2026-10-10). This section explains how a card travels, with an animated mock
+  board. The mock has nothing to drag and sends no events. The rules follow
+  tales-forge-docs `docs/design-board-states.md` (approved 2026-10-10).
 
   Copy follows tales-forge-docs `docs/team-page/content.md` section 6 (commits
   a590abc and d118917). The columns come from `shared_board.columns` in
@@ -113,12 +114,13 @@ defmodule TalesForgeWeb.TeamBoard do
       aria-labelledby={"#{@anchor}-title"}
       data-reveal
     >
-      <p id="board-badge" class="team-badge team-soon">
-        <.icon name="hero-sparkles-micro" class="size-4" /> Coming soon. Not built yet.
+      <p id="board-badge" class="team-badge">
+        <.icon name="hero-check-circle-micro" class="size-4" /> Live on
+        <.link href="/team#idea-board" class="underline">/team</.link>
       </p>
-      <.section_head id={@anchor} title="6. How we'll work together: one shared board">
-        Soon this page becomes more than a presentation. It becomes the place where founders and bots work side by side:
-        one shared board where every feature lives, from a first idea to a shipped change.
+      <.section_head id={@anchor} title="6. How we work together: one shared board">
+        The idea board on /team is where founders and bots work side by side.
+        Every feature lives there, from a first idea to a change on production.
         You add an idea, the bots do the legwork, and you decide what gets built.
       </.section_head>
 
@@ -126,6 +128,8 @@ defmodule TalesForgeWeb.TeamBoard do
         <h3 class="font-serif text-xl font-bold sm:text-2xl">How a card travels</h3>
         <p class="text-sm text-[var(--paper-muted)]">
           {count_word(length(@columns)) |> String.capitalize()} columns, from an idea to done.
+          A founder can also put a card on hold in <strong>Parked</strong>
+          and later send it back to Ideas.
         </p>
         <ol class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <li
@@ -148,7 +152,8 @@ defmodule TalesForgeWeb.TeamBoard do
           <.icon name="hero-bell-alert" class="size-7 text-[var(--paper-accent)]" />
           <h3 class="font-semibold">Moving a card pings the right bot.</h3>
           <p class="text-sm leading-snug">
-            A card in Refining wakes Case, and a card in Building wakes Bobby. Nobody has to keep checking, bots or people.
+            A card in Refining wakes Case, and a card in Building wakes Bobby. A mention like @Case in a comment wakes that bot too.
+            Nobody has to keep checking, bots or people.
           </p>
         </li>
         <li class="team-card flex flex-col gap-2 p-4">
@@ -161,20 +166,18 @@ defmodule TalesForgeWeb.TeamBoard do
         </li>
         <li class="team-card flex flex-col gap-2 p-4">
           <.icon name="hero-key" class="size-7 text-[var(--paper-accent)]" />
-          <h3 class="font-semibold">Everyone holds the key.</h3>
+          <h3 class="font-semibold">Every founder decides.</h3>
           <p class="text-sm leading-snug">
-            Dragging a card to Building is the founder OK. That makes the board a real step toward every founder holding
-            the approval key, not just {@holder} as today.
+            Any founder can send a card to Building, and that move is the founder OK. That is a real step toward every founder holding
+            the approval key for merges and deploys, which {@holder} holds today.
           </p>
         </li>
       </ul>
 
       <p id="board-small-print" class="max-w-3xl text-xs leading-relaxed text-[var(--paper-muted)]">
-        It grows out of what's already there. The app has a founders' decision queue
-        (<.link href={~p"/admin/founders/decisions"} class="underline">/admin/founders/decisions</.link>)
-        with comments, interest and ranking; the board extends that into a full idea-to-done flow.
-        Listed in <a href="/admin/docs/future-ideas.md" class="underline">docs/future-ideas.md</a>
-        as “Founder kanban on /team”.
+        The board grew out of the founders' decision queue
+        (<.link href={~p"/admin/founders/decisions"} class="underline">/admin/founders/decisions</.link>).
+        The rules for every move are in <a href="/admin/docs/design-board-states.md" class="underline">docs/design-board-states.md</a>.
       </p>
     </section>
     """
@@ -184,32 +187,33 @@ defmodule TalesForgeWeb.TeamBoard do
 
   defp travel(%{id: "ideas"} = assigns) do
     ~H"""
-    Any founder adds a feature card, or drags an existing one into the queue. A sentence is enough.
+    Any founder adds a card. A sentence is enough. Votes set the order: a card needs an upvote to move,
+    and a downvote (with a reason) stops it until that founder takes it back.
     """
   end
 
   defp travel(%{id: "refining"} = assigns) do
     ~H"""
-    Case picks it up and fills in the card: the details, the open questions and a rough cost.
+    Case fills in the card: the details, the open questions and a rough cost. Then Case sends it to Founder check.
     """
   end
 
   defp travel(%{id: "founder_check"} = assigns) do
     ~H"""
-    Founders read it, check it's what they meant, and comment. When it's right, a founder drags it to <strong>Building</strong>.
-    <em>That drag is the founder's OK.</em>
+    Founders read it, check it is what they meant, and answer the open questions. Then a founder sends it to <strong>Building</strong>.
+    <em>That move is the founder's OK.</em>
     """
   end
 
   defp travel(%{id: "building"} = assigns) do
     ~H"""
-    Bobby builds it. The PR link and the playtest link appear right on the card, so you can follow along and try it.
+    Bobby builds it and links the PR to the card. The PR's status (open, merged, on production) shows on the card, so you can follow along and try it.
     """
   end
 
   defp travel(%{id: "done"} = assigns) do
     ~H"""
-    Shipped, and the card keeps the whole story.
+    On production. Bobby can move a card to Done only when the PR's merge commit runs on production. The card keeps the whole story.
     """
   end
 
@@ -228,7 +232,7 @@ defmodule TalesForgeWeb.TeamBoard do
       data-board="static"
     >
       <p class="sr-only">
-        A mock of the shared board, not a working one: one card, “{@title}”, travels through the columns {Enum.map_join(
+        A mock of the shared board (the real one is on /team): one card, “{@title}”, travels through the columns {Enum.map_join(
           @columns,
           ", ",
           &(&1["label"] || TeamPage.not_measured())
@@ -255,11 +259,11 @@ defmodule TalesForgeWeb.TeamBoard do
       </ol>
       <figcaption class="flex flex-wrap items-center justify-between gap-3">
         <span id="board-caption" class="font-serif text-lg">
-          Coming soon: one board, the whole crew, from idea to done.
+          One board, the whole crew, from idea to done.
         </span>
         <span class="flex items-center gap-3">
           <span id="board-as-of" class="text-xs text-[var(--paper-muted)]">
-            Board plan as of {date_label(@as_of)}
+            Board rules as of {date_label(@as_of)}
           </span>
           <button
             type="button"

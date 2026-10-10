@@ -65,10 +65,7 @@ defmodule TalesForgeWeb.TeamLiveTest do
 
       assert has_element?(view, ~s(#landing-hero-art[alt*="The five founders"]))
 
-      assert has_element?(
-               view,
-               ~s(#landing-hero-art[alt*="Max, our vibe-coding founder and RPG apprentice"])
-             )
+      refute has_element?(view, ~s(#landing-hero-art[alt*="apprentice"]))
 
       assert has_element?(view, ~s(#landing-hero-art[alt*="Case, Bobby and Gentry"]))
 
@@ -104,7 +101,7 @@ defmodule TalesForgeWeb.TeamLiveTest do
       assert {:ok, _presentation, html} =
                view |> element("#presentation-link") |> render_click() |> follow_redirect(conn)
 
-      assert html =~ "6. How we&#39;ll work together: one shared board"
+      assert html =~ "6. How we work together: one shared board"
     end
 
     test "what we're going to do: the idea board's slot, coming soon on playtest", %{conn: conn} do
@@ -156,7 +153,7 @@ defmodule TalesForgeWeb.TeamLiveTest do
     test "null and missing numbers still render, never a zero" do
       html = render_with(%{})
       assert html =~ "The founders and not measured yet bots"
-      assert html =~ "Numbers as of not measured yet"
+      assert html =~ "Bundled numbers as of not measured yet"
       assert html =~ "Right now one founder holds the approval key"
     end
 
