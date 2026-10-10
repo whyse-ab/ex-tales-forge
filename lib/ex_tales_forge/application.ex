@@ -17,6 +17,8 @@ defmodule TalesForge.Application do
       TalesForge.NPCRecovery,
       {DNSCluster, query: Application.get_env(:ex_tales_forge, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: TalesForge.PubSub},
+      TalesForgeWeb.Presence,
+      TalesForge.Online.Peer,
       {Task.Supervisor, name: TalesForge.Playtest.Supervisor},
       {Task.Supervisor, name: TalesForge.Playtest.SeriesSupervisor},
       {Task.Supervisor, name: TalesForge.IntentJev.Supervisor},

@@ -9,12 +9,15 @@ defmodule TalesForgeWeb.BoardApiController do
   - Off (404) until the board module is deployed (`TalesForge.BoardApi.impl/0`).
   - Each bot has its own bearer token (`TalesForge.BoardApi.bot_for_token/1`);
     missing or unknown: 401. Who may do what is checked by the board itself.
+  - Each authorised call counts as the bot's latest activity for "Online now"
+    on `/team` (`TalesForge.Online.bot_seen/1`).
   """
 
   use TalesForgeWeb, :controller
 
   alias TalesForge.AppRole
   alias TalesForge.BoardApi
+  alias TalesForge.Online
   alias TalesForgeWeb.PeerToken
 
   for action <- [:index, :show, :refine, :move, :link, :comment, :pr] do
@@ -31,6 +34,7 @@ defmodule TalesForgeWeb.BoardApiController do
           PeerToken.unauthorized(conn)
 
         bot ->
+          :ok = Online.bot_seen(bot)
           {status, body} = mod.handle(action, bot, params)
 
           conn

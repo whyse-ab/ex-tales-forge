@@ -67,6 +67,7 @@ config :ex_tales_forge, TalesForge.PrFeed, poll: false
 config :ex_tales_forge, :pr_feed_token, nil
 config :ex_tales_forge, :pr_feed_req_options, plug: {Req.Test, TalesForge.PrFeed.GitHub}
 config :ex_tales_forge, :version_peer_req_options, plug: {Req.Test, TalesForge.PrFeed.Versions}
+config :ex_tales_forge, :online_peer_req_options, plug: {Req.Test, TalesForge.Online.Peer}
 
 # Docs viewer images from GitHub go to Req.Test stubs (TalesForge.Collab.Files).
 config :ex_tales_forge, :docs_req_options, plug: {Req.Test, TalesForge.Collab.Files}

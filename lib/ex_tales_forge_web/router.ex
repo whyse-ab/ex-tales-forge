@@ -184,12 +184,15 @@ defmodule TalesForgeWeb.Router do
   # COSTS_PEER_TOKEN is set (404 otherwise); needs it as a bearer token (401);
   # see CostsPeerController. /internal/version (both apps, same token) gives the
   # running commit to the other app's live PR feed on /team; see
-  # VersionPeerController. Neither calls an LLM.
+  # VersionPeerController. /internal/online (playtest only, same token) gives
+  # production's /team the founders online on playtest; see OnlinePeerController.
+  # None of them calls an LLM.
   scope "/internal", TalesForgeWeb do
     pipe_through :api
 
     get "/costs", CostsPeerController, :show
     get "/version", VersionPeerController, :show
+    get "/online", OnlinePeerController, :show
   end
 
   # The founders' idea board's bot API (Case, Bobby and Gentry; production only).
