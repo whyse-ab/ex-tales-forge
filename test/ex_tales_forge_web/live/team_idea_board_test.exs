@@ -556,9 +556,16 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
   test "pings: a mention shows under 'Pings for you' until the founder opens the card",
        %{conn: conn} do
     {:ok, idea} = Board.create_idea("fredrik@whyse.se", %{"title" => "Fishing"})
-    {:ok, _} = Board.add_comment(idea, "fredrik@whyse.se", "@hakan can you check this?")
 
-    {:ok, view, _} = live(log_in_admin(conn, "hawkan.fredriksson@gmail.com"), "/team")
+    {:ok, _} =
+      Board.add_comment(idea, "fredrik@whyse.se", "@hakan can you check this?", login: "fpahlen")
+
+    {:ok, view, _} =
+      live(
+        log_in_admin(conn, "hawkan.fredriksson@gmail.com", login: "Hawkan-Fredriksson"),
+        "/team"
+      )
+
     assert has_element?(view, "#board-pings [data-role=ping-count]", "1")
     assert has_element?(view, "#ping-#{idea.id}", "Fishing")
 
@@ -566,6 +573,6 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     assert has_element?(view, "#board-modal mark", "@hakan")
     assert has_element?(view, "#card-#{idea.id}-comment-body[phx-hook=MentionSuggest]")
     refute has_element?(view, "#board-pings")
-    assert Board.unread_pings("hawkan.fredriksson@gmail.com") == []
+    assert Board.unread_pings("Hawkan-Fredriksson") == []
   end
 end

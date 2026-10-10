@@ -233,14 +233,15 @@ defmodule TalesForge.Board do
   Adds a comment by `author` (a founder email or `bot:<name>`). `@case`,
   `@bobby`, `@gentry` wake that bot. `@fredrik`, `@hakan`, ... and
   `@founders` add an unread ping for each founder named, except the author
-  (see `TalesForge.Board.Mentions`).
+  (see `TalesForge.Board.Mentions`). `opts[:login]` is the author's GitHub
+  login, so the author gets no ping for their own name.
   """
-  @spec add_comment(Idea.t(), String.t(), String.t()) :: {:ok, Idea.t()} | error()
-  def add_comment(%Idea{} = idea, author, body) do
+  @spec add_comment(Idea.t(), String.t(), String.t(), keyword()) :: {:ok, Idea.t()} | error()
+  def add_comment(%Idea{} = idea, author, body, opts \\ []) do
     author = normalize(author)
     changeset = Comment.changeset(%Comment{}, %{idea_id: idea.id, author: author, body: body})
     %{bots: bots, founders: founders} = Mentions.parse(body)
-    founders = founders -- [Mentions.handle_for(author)]
+    founders = founders -- [Mentions.handle_for(opts[:login])]
 
     Multi.new()
     |> Multi.insert(:comment, changeset)
@@ -279,12 +280,12 @@ defmodule TalesForge.Board do
   def mentions(body), do: Mentions.parse(body, []).bots
 
   @doc """
-  The unread pings of a founder (by email), one entry for each card, newest
+  The unread pings of a founder (by GitHub login), one entry for each card, newest
   first: `%{idea_id, title, count, from, at}`.
   """
   @spec unread_pings(String.t()) :: [map()]
-  def unread_pings(email) do
-    case Mentions.handle_for(email) do
+  def unread_pings(login) do
+    case Mentions.handle_for(login) do
       nil ->
         []
 
@@ -307,8 +308,8 @@ defmodule TalesForge.Board do
 
   @doc "Marks a founder's pings on a card as read (they opened the card)."
   @spec read_pings(String.t(), String.t()) :: non_neg_integer()
-  def read_pings(idea_id, email) do
-    with handle when is_binary(handle) <- Mentions.handle_for(email),
+  def read_pings(idea_id, login) do
+    with handle when is_binary(handle) <- Mentions.handle_for(login),
          {n, _} when n > 0 <-
            from(p in Ping,
              where: p.idea_id == ^idea_id and p.handle == ^handle and is_nil(p.read_at)

@@ -7,9 +7,9 @@ defmodule TalesForge.Board.Mentions do
 
   A founder's handle is their first name from the team data
   (`priv/team/data.json`), in lower case and without accents, so "Håkan" is
-  `@hakan` (`@håkan` also works). `handle_for/1` finds the handle of a
-  signed-in email: first the `:board_founder_handles` config (email to
-  handle), then the first part of the email.
+  `@hakan` (`@håkan` also works). Founders sign in with GitHub, so
+  `handle_for/1` finds the handle of a GitHub login in the
+  `:board_founder_handles` config (login to handle, case-insensitive).
   """
 
   @bots ~w(case bobby gentry)
@@ -87,30 +87,23 @@ defmodule TalesForge.Board.Mentions do
   end
 
   @doc """
-  The handle of a founder's email, or nil.
+  The handle of a founder's GitHub login (case-insensitive), or nil.
 
-      iex> TalesForge.Board.Mentions.handle_for("fredrik@whyse.se", ~w(fredrik hakan), %{})
-      "fredrik"
-      iex> TalesForge.Board.Mentions.handle_for("hawkan.f@gmail.com", ~w(fredrik hakan), %{"hawkan.f@gmail.com" => "hakan"})
+      iex> alias TalesForge.Board.Mentions
+      iex> Mentions.handle_for("Hawkan-Fredriksson", %{"hawkan-fredriksson" => "hakan"})
       "hakan"
-      iex> TalesForge.Board.Mentions.handle_for("bot:case", ~w(fredrik), %{})
+      iex> Mentions.handle_for("someone", %{"fpahlen" => "fredrik"})
+      nil
+      iex> Mentions.handle_for(nil, %{})
       nil
   """
-  @spec handle_for(String.t() | nil, [String.t()], map()) :: String.t() | nil
-  def handle_for(email, handles \\ handles(), overrides \\ overrides())
-  def handle_for("bot:" <> _, _handles, _overrides), do: nil
+  @spec handle_for(String.t() | nil, map()) :: String.t() | nil
+  def handle_for(login, overrides \\ overrides())
 
-  def handle_for(email, handles, overrides) when is_binary(email) do
-    email = String.downcase(String.trim(email))
-    first = email |> String.split(["@", ".", "+"]) |> hd() |> plain()
+  def handle_for(login, overrides) when is_binary(login),
+    do: Map.get(overrides, login |> String.trim() |> String.downcase())
 
-    case overrides do
-      %{^email => handle} -> handle
-      _ -> if first in handles, do: first
-    end
-  end
-
-  def handle_for(_email, _handles, _overrides), do: nil
+  def handle_for(_login, _overrides), do: nil
 
   defp overrides, do: Application.get_env(:ex_tales_forge, :board_founder_handles, %{})
 

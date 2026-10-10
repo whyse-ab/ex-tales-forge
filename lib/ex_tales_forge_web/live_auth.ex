@@ -11,13 +11,13 @@ defmodule TalesForgeWeb.LiveAuth do
   opts out (`use TalesForgeWeb, :public_live_view`).
   """
 
-  import Phoenix.Component, only: [assign: 3]
+  import Phoenix.Component, only: [assign: 2]
   import Phoenix.LiveView, only: [redirect: 2]
 
   alias TalesForge.AdminAuth
   alias TalesForge.Online
 
-  @doc "Continues for a team member (assigning `:admin_email`), otherwise redirects to login."
+  @doc "Continues for a team member (assigning `:admin_email` and `:admin_github_login`), otherwise redirects to login."
   @spec on_mount(atom(), map() | :not_mounted_at_router, map(), Phoenix.LiveView.Socket.t()) ::
           {:cont | :halt, Phoenix.LiveView.Socket.t()}
   def on_mount(_name, _params, session, socket) do
@@ -27,7 +27,12 @@ defmodule TalesForgeWeb.LiveAuth do
 
       email ->
         :ok = Online.track(socket, email)
-        {:cont, assign(socket, :admin_email, email)}
+
+        {:cont,
+         assign(socket,
+           admin_email: email,
+           admin_github_login: session[AdminAuth.github_login_key()]
+         )}
     end
   end
 end
