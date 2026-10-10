@@ -1,0 +1,99 @@
+defmodule TalesForgeWeb.TeamChatLiveTest do
+  use TalesForgeWeb.ConnCase, async: false
+
+  import Phoenix.LiveViewTest
+
+  alias TalesForge.Chat
+
+  setup %{conn: conn} do
+    on_exit(fn -> Application.delete_env(:ex_tales_forge, :app_name) end)
+    {:ok, conn: log_in_admin(conn, "fredrik@whyse.se")}
+  end
+
+  defp chat(view, prefix \\ "admin-online") do
+    header = find_live_child(view, prefix)
+    {header, find_live_child(header, prefix <> "-chat")}
+  end
+
+  test "the chat button opens the room; Close and Esc close it", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/admin")
+    {_header, chat} = chat(view)
+
+    assert has_element?(
+             chat,
+             "#admin-online-chat-button[aria-expanded=false][aria-haspopup=dialog]"
+           )
+
+    chat |> element("#admin-online-chat-button") |> render_click()
+
+    assert has_element?(chat, "#admin-online-chat-panel[role=dialog][aria-modal=true]")
+    assert has_element?(chat, "#admin-online-chat-title", "Team chat")
+    assert has_element?(chat, "label[for=admin-online-chat-body]", "Message")
+
+    render_keydown(element(chat, "#admin-online-chat-panel"), %{"key" => "Escape"})
+    refute has_element?(chat, "#admin-online-chat-panel")
+
+    chat |> element("#admin-online-chat-button") |> render_click()
+    chat |> element("#admin-online-chat-close") |> render_click()
+    refute has_element?(chat, "#admin-online-chat-panel")
+  end
+
+  test "sending a message shows it live with mentions highlighted", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/team")
+    {_header, chat} = chat(view, "team-online")
+    chat |> element("#team-online-chat-button") |> render_click()
+
+    chat |> form("#team-online-chat-form", chat: %{body: "Hi @Case and @max"}) |> render_submit()
+    html = render(chat)
+    assert html =~ "Hi "
+    assert has_element?(chat, "#team-online-chat-messages span.font-semibold", "@Case")
+    assert has_element?(chat, "#team-online-chat-body", "")
+  end
+
+  test "an empty message shows the reason", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/admin")
+    {_header, chat} = chat(view)
+    chat |> element("#admin-online-chat-button") |> render_click()
+    chat |> form("#admin-online-chat-form", chat: %{body: "  "}) |> render_submit()
+    assert has_element?(chat, "[role=alert]", "Write a message first.")
+  end
+
+  test "a mention of you shows an unread badge until you open the chat", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/admin")
+    {_header, chat} = chat(view)
+    refute has_element?(chat, "#admin-online-chat-unread")
+
+    {:ok, _} = Chat.post("max@example.com", "@fredrik look at this")
+    assert has_element?(chat, "#admin-online-chat-unread", "1")
+
+    chat |> element("#admin-online-chat-button") |> render_click()
+    refute has_element?(chat, "#admin-online-chat-unread")
+    assert has_element?(chat, "#admin-online-chat-panel li", "Mentions you")
+  end
+
+  test "Chat on a person in the online list opens the room with their @handle", %{conn: conn} do
+    {:ok, view, _html} = live(conn, "/admin")
+    {header, chat} = chat(view)
+
+    header |> element("#admin-online-toggle") |> render_click()
+    header |> element("#admin-online-bot-gentry button", "Chat") |> render_click()
+
+    assert has_element?(chat, "#admin-online-chat-panel")
+    assert render(chat) =~ "@gentry </textarea>"
+  end
+
+  test "on playtest there is no chat panel; Chat links to production", %{conn: conn} do
+    Application.put_env(:ex_tales_forge, :app_name, "tales-forge-playtest")
+    {:ok, view, _html} = live(conn, "/admin/play/sessions")
+    header = find_live_child(view, "admin-online")
+    refute find_live_child(header, "admin-online-chat")
+
+    header |> element("#admin-online-toggle") |> render_click()
+
+    assert has_element?(
+             header,
+             ~s(#admin-online-bot-case a[href="https://tales-forge.fly.dev/team"]),
+             "Chat"
+           )
+  end
+end

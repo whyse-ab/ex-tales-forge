@@ -210,6 +210,15 @@ defmodule TalesForgeWeb.Router do
     post "/prs", BoardApiController, :pr
   end
 
+  # The team chat's bot API (production only), with the same bot tokens as the
+  # board API; see ChatApiController.
+  scope "/internal", TalesForgeWeb do
+    pipe_through :api
+
+    get "/chat", ChatApiController, :index
+    post "/chat", ChatApiController, :create
+  end
+
   # Swoosh mailbox preview in development (LiveDashboard lives at /admin/operate/telemetry)
   if Application.compile_env(:ex_tales_forge, :dev_routes) do
     scope "/dev" do
