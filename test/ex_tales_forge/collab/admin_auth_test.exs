@@ -31,7 +31,7 @@ defmodule TalesForge.AdminAuthTest do
       |> init_test_session(%{})
       |> put_session(AdminAuth.session_key(), "founder@example.com")
 
-    for path <- [~p"/", ~p"/admin", ~p"/admin/costs"] do
+    for path <- [~p"/", ~p"/admin", ~p"/admin/operate/costs"] do
       assert conn |> get(path) |> redirected_to() == "/admin/login"
     end
 
@@ -40,7 +40,7 @@ defmodule TalesForge.AdminAuthTest do
 
   test "a team member reaches /admin with no second admin check" do
     conn = log_in_admin(build_conn()) |> get(~p"/admin")
-    assert html_response(conn, 200) =~ "Dashboard"
+    assert html_response(conn, 200) =~ "Admin home"
   end
 
   test "anonymous cannot reach /admin" do

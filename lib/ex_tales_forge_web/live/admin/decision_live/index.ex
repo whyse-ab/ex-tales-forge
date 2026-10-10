@@ -132,7 +132,7 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Index do
 
               <div class="min-w-0 flex-1">
                 <.link
-                  navigate={~p"/admin/decisions/#{d.slug}"}
+                  navigate={~p"/admin/founders/decisions/#{d.slug}"}
                   class="font-medium text-[var(--paper-ink)] hover:text-[var(--paper-accent)]"
                 >
                   {d.title}

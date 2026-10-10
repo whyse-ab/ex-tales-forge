@@ -9,6 +9,7 @@ defmodule TalesForgeWeb.AdminLive.HomeAppTest do
   import Phoenix.LiveViewTest
   import TalesForge.SurveyFixtures
 
+  alias TalesForge.AdminPaths
   alias TalesForge.Playtest.{Runner, Series}
   alias TalesForge.Survey.Source
   alias TalesForge.Surveys
@@ -17,16 +18,16 @@ defmodule TalesForgeWeb.AdminLive.HomeAppTest do
   @playtest "https://tales-forge-playtest.fly.dev"
 
   @survey_paths [
-    "/admin/survey",
-    "/admin/surveys",
-    "/admin/surveys/founder-survey-3",
-    "/admin/surveys/founder-survey-3/results",
-    "/admin/surveys/founder-survey-3/results.csv",
-    "/admin/surveys/founder-survey-3/results.md"
+    "/admin/founders/survey",
+    "/admin/founders/surveys",
+    "/admin/founders/surveys/founder-survey-3",
+    "/admin/founders/surveys/founder-survey-3/results",
+    "/admin/founders/surveys/founder-survey-3/results.csv",
+    "/admin/founders/surveys/founder-survey-3/results.md"
   ]
 
   @run_id "761713eb-b3cd-4460-b4d0-34c7ba6f777c"
-  @playtest_paths ["/admin/playtest", "/admin/playtest/#{@run_id}"]
+  @playtest_paths ["/admin/play/runs", "/admin/play/runs/#{@run_id}"]
 
   setup %{conn: conn} do
     snapshot_only()
@@ -46,31 +47,31 @@ defmodule TalesForgeWeb.AdminLive.HomeAppTest do
 
     test "survey pages and downloads redirect to the same path on production", %{conn: conn} do
       for path <- @survey_paths do
-        assert redirected_to(get(conn, path)) == @prod <> path
+        assert redirected_to(get(conn, path)) == @prod <> AdminPaths.legacy(path)
         # Before sign-in too: production does its own.
-        assert redirected_to(get(build_conn(), path)) == @prod <> path
+        assert redirected_to(get(build_conn(), path)) == @prod <> AdminPaths.legacy(path)
       end
 
-      assert redirected_to(get(conn, "/admin/surveys/founder-survey-3?x=1")) ==
+      assert redirected_to(get(conn, "/admin/founders/surveys/founder-survey-3?x=1")) ==
                @prod <> "/admin/surveys/founder-survey-3?x=1"
     end
 
     test "live navigation to a survey page goes to production", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/admin/sessions")
+      {:ok, view, _html} = live(conn, ~p"/admin/play/sessions")
 
       # Another live_session: a full page load, which the plug redirects.
-      assert {:error, {:redirect, %{to: "http://www.example.com/admin/survey"}}} =
-               live_redirect(view, to: ~p"/admin/survey")
+      assert {:error, {:redirect, %{to: "http://www.example.com/admin/founders/survey"}}} =
+               live_redirect(view, to: ~p"/admin/founders/survey")
 
-      assert redirected_to(get(conn, "/admin/survey")) == @prod <> "/admin/survey"
+      assert redirected_to(get(conn, "/admin/founders/survey")) == @prod <> "/admin/survey"
     end
 
     test "playtest runs are served here and the nav links to production's survey", %{
       conn: conn
     } do
-      {:ok, view, _html} = live(conn, ~p"/admin/playtest")
+      {:ok, view, _html} = live(conn, ~p"/admin/play/runs")
 
-      assert has_element?(view, ~s(#admin-nav a[href="/admin/playtest"]), "Playtest runs")
+      assert has_element?(view, ~s(#admin-nav a[href="/admin/play/runs"]), "Playtest runs")
 
       assert has_element?(
                view,
@@ -78,7 +79,7 @@ defmodule TalesForgeWeb.AdminLive.HomeAppTest do
                "Founder survey (production)"
              )
 
-      refute has_element?(view, ~s(#admin-nav a[href="/admin/survey"]))
+      refute has_element?(view, ~s(#admin-nav a[href="/admin/founders/survey"]))
     end
 
     test "survey answers can't be saved or cleared" do
@@ -104,23 +105,29 @@ defmodule TalesForgeWeb.AdminLive.HomeAppTest do
 
     test "playtest run pages redirect to the same path on playtest", %{conn: conn} do
       for path <- @playtest_paths do
+        assert redirected_to(get(conn, path)) == @playtest <> AdminPaths.legacy(path)
+        assert redirected_to(get(build_conn(), path)) == @playtest <> AdminPaths.legacy(path)
+      end
+    end
+
+    test "the old playtest paths go straight to playtest, unchanged", %{conn: conn} do
+      for path <- ["/admin/playtest", "/admin/playtest/#{@run_id}?tab=turns"] do
         assert redirected_to(get(conn, path)) == @playtest <> path
-        assert redirected_to(get(build_conn(), path)) == @playtest <> path
       end
     end
 
     test "live navigation to a playtest page goes to playtest", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/admin/sessions")
+      {:ok, view, _html} = live(conn, ~p"/admin/play/sessions")
 
-      assert {:error, {:redirect, %{to: "http://www.example.com/admin/playtest/" <> @run_id}}} =
-               live_redirect(view, to: "/admin/playtest/#{@run_id}")
+      assert {:error, {:redirect, %{to: "http://www.example.com/admin/play/runs/" <> @run_id}}} =
+               live_redirect(view, to: "/admin/play/runs/#{@run_id}")
     end
 
     test "the survey is served here and the nav links to playtest's runs", %{conn: conn} do
-      {:ok, view, html} = live(conn, ~p"/admin/survey")
+      {:ok, view, html} = live(conn, ~p"/admin/founders/survey")
 
       assert html =~ "Answering as <strong>@ada</strong>"
-      assert has_element?(view, ~s(#admin-nav a[href="/admin/survey"]), "Founder survey")
+      assert has_element?(view, ~s(#admin-nav a[href="/admin/founders/survey"]), "Founder survey")
 
       assert has_element?(
                view,
@@ -128,7 +135,7 @@ defmodule TalesForgeWeb.AdminLive.HomeAppTest do
                "Playtest runs (playtest)"
              )
 
-      refute has_element?(view, ~s(#admin-nav a[href="/admin/playtest"]))
+      refute has_element?(view, ~s(#admin-nav a[href="/admin/play/runs"]))
     end
 
     test "survey answers save" do
@@ -152,9 +159,9 @@ defmodule TalesForgeWeb.AdminLive.HomeAppTest do
 
   describe "locally (no app name)" do
     test "both live here", %{conn: conn} do
-      assert {:ok, _view, _html} = live(conn, ~p"/admin/survey")
-      assert {:ok, view, _html} = live(conn, ~p"/admin/playtest")
-      assert has_element?(view, ~s(#admin-nav a[href="/admin/survey"]))
+      assert {:ok, _view, _html} = live(conn, ~p"/admin/founders/survey")
+      assert {:ok, view, _html} = live(conn, ~p"/admin/play/runs")
+      assert has_element?(view, ~s(#admin-nav a[href="/admin/founders/survey"]))
     end
   end
 end

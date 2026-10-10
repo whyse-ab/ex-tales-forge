@@ -6,7 +6,7 @@ defmodule TalesForgeWeb.AdminLive.LayoutTest do
   setup %{conn: conn}, do: {:ok, conn: log_in_admin(conn)}
 
   test "admin pages opt into the themed palette and mark the active tab", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/admin/playtest")
+    {:ok, view, _html} = live(conn, ~p"/admin/play/runs")
 
     # .admin-shell switches the paper palette with the theme toggle (app.css).
     assert has_element?(view, "div.admin-shell")

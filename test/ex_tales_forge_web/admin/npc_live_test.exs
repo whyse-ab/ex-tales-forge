@@ -19,8 +19,8 @@ defmodule TalesForgeWeb.AdminLive.NpcLiveTest do
   end
 
   test "index links to an NPC page that renders it", %{conn: conn, session: session, npc: npc} do
-    {:ok, index, _html} = live(conn, ~p"/admin/sessions/#{session.id}/npcs")
-    path = ~p"/admin/sessions/#{session.id}/npcs/#{npc.npc_id}"
+    {:ok, index, _html} = live(conn, ~p"/admin/play/sessions/#{session.id}/npcs")
+    path = ~p"/admin/play/sessions/#{session.id}/npcs/#{npc.npc_id}"
     assert has_element?(index, ~s(a[href="#{path}"]))
 
     {:ok, view, html} = live(conn, path)
@@ -30,7 +30,7 @@ defmodule TalesForgeWeb.AdminLive.NpcLiveTest do
   end
 
   test "saving runtime state keeps the page working", %{conn: conn, session: session, npc: npc} do
-    {:ok, view, _html} = live(conn, ~p"/admin/sessions/#{session.id}/npcs/#{npc.npc_id}")
+    {:ok, view, _html} = live(conn, ~p"/admin/play/sessions/#{session.id}/npcs/#{npc.npc_id}")
 
     view
     |> form("form[phx-submit=save_runtime]", %{runtime_json: ~s({"mood": "wary"})})
@@ -48,21 +48,21 @@ defmodule TalesForgeWeb.AdminLive.NpcLiveTest do
     end
 
     assert {:error, {:live_redirect, %{to: to, flash: flash}}} =
-             live(conn, ~p"/admin/sessions/#{other.id}/npcs/#{npc.npc_id}")
+             live(conn, ~p"/admin/play/sessions/#{other.id}/npcs/#{npc.npc_id}")
 
-    assert to == ~p"/admin/sessions/#{other.id}/npcs"
+    assert to == ~p"/admin/play/sessions/#{other.id}/npcs"
     assert flash["error"] =~ "No NPC"
   end
 
   test "an unknown NPC slug redirects instead of crashing", %{conn: conn, session: session} do
     assert {:error, {:live_redirect, %{to: to}}} =
-             live(conn, ~p"/admin/sessions/#{session.id}/npcs/no_such_npc")
+             live(conn, ~p"/admin/play/sessions/#{session.id}/npcs/no_such_npc")
 
-    assert to == ~p"/admin/sessions/#{session.id}/npcs"
+    assert to == ~p"/admin/play/sessions/#{session.id}/npcs"
   end
 
   test "the disposition form saves to the database", %{conn: conn, session: session, npc: npc} do
-    {:ok, view, _html} = live(conn, ~p"/admin/sessions/#{session.id}/npcs/#{npc.npc_id}")
+    {:ok, view, _html} = live(conn, ~p"/admin/play/sessions/#{session.id}/npcs/#{npc.npc_id}")
 
     view
     |> form("#npc-form", npc: %{disposition: "0.7"})
@@ -74,7 +74,7 @@ defmodule TalesForgeWeb.AdminLive.NpcLiveTest do
 
   test "the disposition form shows validation errors and saves nothing",
        %{conn: conn, session: session, npc: npc} do
-    {:ok, view, _html} = live(conn, ~p"/admin/sessions/#{session.id}/npcs/#{npc.npc_id}")
+    {:ok, view, _html} = live(conn, ~p"/admin/play/sessions/#{session.id}/npcs/#{npc.npc_id}")
 
     html =
       view

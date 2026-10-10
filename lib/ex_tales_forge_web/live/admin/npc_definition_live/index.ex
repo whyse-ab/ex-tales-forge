@@ -45,7 +45,7 @@ defmodule TalesForgeWeb.AdminLive.NpcDefinitionLive.Index do
               <td class="px-4 py-3">{npc.default_location_id}</td>
               <td class="px-4 py-3">
                 <.link
-                  navigate={~p"/admin/npc-definitions/#{npc.id}"}
+                  navigate={~p"/admin/archive/npc-definitions/#{npc.id}"}
                   class="text-[var(--paper-accent)]"
                 >
                   Edit JSON

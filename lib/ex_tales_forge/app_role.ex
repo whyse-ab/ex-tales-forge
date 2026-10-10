@@ -15,6 +15,8 @@ defmodule TalesForge.AppRole do
   config `TalesForge.AppRole` (`:production_url`, `:playtest_url`).
   """
 
+  alias TalesForge.AdminPaths
+
   @typedoc "This app's role."
   @type role :: :production | :playtest | :local
 
@@ -99,19 +101,25 @@ defmodule TalesForge.AppRole do
   def here?(area, role \\ role()), do: role == :local or role == home(area)
 
   @doc """
-  The area an admin path belongs to, or nil: `/admin/survey`, `/admin/surveys`
-  and below are `:surveys`; `/admin/playtest` and below are `:playtest_runs`.
+  The area an admin path belongs to, or nil: `/admin/founders/survey`,
+  `/admin/founders/surveys` and below are `:surveys`; `/admin/play/runs` and
+  below are `:playtest_runs`. Their old paths (`/admin/survey`, `/admin/surveys`,
+  `/admin/playtest`; `TalesForge.AdminPaths`) count too.
 
       iex> TalesForge.AppRole.area_for_path("/admin/surveys/founder-survey-3/results.csv")
       :surveys
       iex> TalesForge.AppRole.area_for_path("/admin/playtest/abc")
       :playtest_runs
-      iex> TalesForge.AppRole.area_for_path("/admin/sessions")
+      iex> TalesForge.AppRole.area_for_path("/admin/founders/survey")
+      :surveys
+      iex> TalesForge.AppRole.area_for_path("/admin/play/runs/abc")
+      :playtest_runs
+      iex> TalesForge.AppRole.area_for_path("/admin/play/sessions")
       nil
   """
   @spec area_for_path(String.t()) :: area() | nil
   def area_for_path(path) when is_binary(path) do
-    case String.split(path, "/", trim: true) do
+    case path |> AdminPaths.legacy() |> String.split("/", trim: true) do
       ["admin", "survey" | _] -> :surveys
       ["admin", "surveys" | _] -> :surveys
       ["admin", "playtest" | _] -> :playtest_runs
@@ -121,7 +129,14 @@ defmodule TalesForge.AppRole do
 
   @doc """
   Where a request for `path` (with an optional `query`) should go instead: the
-  same path on the app that owns it, or nil when it is served here.
+  same page on the app that owns it, or nil when it is served here. The URL uses
+  the page's old path (`TalesForge.AdminPaths.legacy/1`), which every version
+  of the other app understands.
+
+      iex> TalesForge.AppRole.redirect_url("/admin/play/runs/abc", "x=1", :production)
+      "https://tales-forge-playtest.fly.dev/admin/playtest/abc?x=1"
+      iex> TalesForge.AppRole.redirect_url("/admin/play/runs/abc", nil, :playtest)
+      nil
   """
   @spec redirect_url(String.t(), String.t() | nil, role()) :: String.t() | nil
   def redirect_url(path, query \\ nil, role \\ role()) do
@@ -130,17 +145,23 @@ defmodule TalesForge.AppRole do
         nil
 
       area ->
-        if here?(area, role), do: nil, else: url(home(area), path, query)
+        if here?(area, role), do: nil, else: url(home(area), AdminPaths.legacy(path), query)
     end
   end
 
   @doc """
   Link to `path` for `area`: the path itself when the area lives here, else
-  the full URL on the app that owns it.
+  the full URL on the app that owns it, with the page's old path (see
+  `redirect_url/3`).
+
+      iex> TalesForge.AppRole.link(:surveys, "/admin/founders/survey", :playtest)
+      "https://tales-forge.fly.dev/admin/survey"
+      iex> TalesForge.AppRole.link(:surveys, "/admin/founders/survey", :production)
+      "/admin/founders/survey"
   """
   @spec link(area(), String.t(), role()) :: String.t()
   def link(area, path, role \\ role()) do
-    if here?(area, role), do: path, else: url(home(area), path, nil)
+    if here?(area, role), do: path, else: url(home(area), AdminPaths.legacy(path), nil)
   end
 
   @doc "Base URL of the production or playtest app (config `TalesForge.AppRole`)."

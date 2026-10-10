@@ -101,7 +101,7 @@ defmodule TalesForgeWeb.HomeLive do
               </.link>
               <div class="flex items-center gap-3 text-sm">
                 <.link
-                  href={~p"/admin/sessions/#{session.id}"}
+                  href={~p"/admin/play/sessions/#{session.id}"}
                   class="text-[var(--paper-muted)] hover:text-[var(--paper-accent)] hover:underline"
                 >
                   Admin

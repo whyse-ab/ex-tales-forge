@@ -111,7 +111,7 @@ defmodule TalesForgeWeb.AdminGithubAuthTest do
     assert get_session(conn, "admin_github_state") == nil
     assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "@octo"
     assert signed_in?(conn)
-    assert conn |> recycle() |> get(~p"/admin/costs") |> html_response(200)
+    assert conn |> recycle() |> get(~p"/admin/operate/costs") |> html_response(200)
     # The user's token was used for GitHub's user API, and never stored...
     assert_received {:github, "GET", "/user/emails", "Bearer user-token"}
     refute inspect(get_session(conn)) =~ "user-token"

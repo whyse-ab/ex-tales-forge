@@ -35,10 +35,10 @@ defmodule TalesForge.Collab.LinksTest do
 
   test "decisions open on their page, by file name", %{known: known} do
     assert Links.rewrite("../decisions/d-008-tin-valley-starter.md#why", "docs/x.md", known) ==
-             "/admin/decisions/d-008-tin-valley-starter#why"
+             "/admin/founders/decisions/d-008-tin-valley-starter#why"
 
     assert Links.rewrite("d-008-tin-valley-starter.md", "decisions/d-001.md", known) ==
-             "/admin/decisions/d-008-tin-valley-starter"
+             "/admin/founders/decisions/d-008-tin-valley-starter"
   end
 
   test "images under docs/ go through the doc image route", %{known: known} do
@@ -67,9 +67,9 @@ defmodule TalesForge.Collab.LinksTest do
   test "absolute URLs, app paths, mail and same-page anchors stay as written", %{known: known} do
     for url <- [
           "https://github.com/whyse-ab/ex-tales-forge/pull/74",
-          "https://tales-forge-playtest.fly.dev/admin/playtest/761713eb-b3cd-4460-b4d0-34c7ba6f777c",
+          "https://tales-forge-playtest.fly.dev/admin/play/runs/761713eb-b3cd-4460-b4d0-34c7ba6f777c",
           "mailto:team@example.com",
-          "/admin/playtest",
+          "/admin/play/runs",
           "#answers",
           ""
         ] do

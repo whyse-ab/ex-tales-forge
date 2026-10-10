@@ -25,7 +25,7 @@ defmodule TalesForgeWeb.AdminLive.NpcLive.Index do
     <Layouts.admin flash={@flash} active="sessions">
       <header class="space-y-2">
         <.link
-          navigate={~p"/admin/sessions/#{@session.id}"}
+          navigate={~p"/admin/play/sessions/#{@session.id}"}
           class="text-sm text-[var(--paper-accent)]"
         >
           ← {@session.name}
@@ -54,7 +54,7 @@ defmodule TalesForgeWeb.AdminLive.NpcLive.Index do
               <td class="px-4 py-3">{stock_count(npc)}</td>
               <td class="px-4 py-3">
                 <.link
-                  navigate={~p"/admin/sessions/#{@session.id}/npcs/#{npc.npc_id}"}
+                  navigate={~p"/admin/play/sessions/#{@session.id}/npcs/#{npc.npc_id}"}
                   class="text-[var(--paper-accent)]"
                 >
                   Edit

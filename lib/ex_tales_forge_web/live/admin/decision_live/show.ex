@@ -115,7 +115,7 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Show do
     ~H"""
     <Layouts.admin flash={@flash} active="decisions">
       <div class="space-y-1">
-        <.link navigate={~p"/admin/decisions"} class="text-sm text-[var(--paper-accent)]">
+        <.link navigate={~p"/admin/founders/decisions"} class="text-sm text-[var(--paper-accent)]">
           ← Decision queue
         </.link>
         <div class="flex flex-wrap items-center gap-3">

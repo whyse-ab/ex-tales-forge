@@ -25,7 +25,7 @@ defmodule TalesForge.SurveyFixtures do
         "status" => "open",
         "title" => "Test survey",
         "intro" => "Hello **founders**.",
-        "playtest_base_url" => "https://tp.test/admin/playtest",
+        "playtest_base_url" => "https://tp.test/admin/play/runs",
         "latest_findings" => %{"markdown" => "Findings land tonight.", "placeholder" => true},
         "lists" => %{
           "rating" => ["Too low", "About right", "Too high"],

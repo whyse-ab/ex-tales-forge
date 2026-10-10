@@ -40,7 +40,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     run = seed_run()
 
     for conn <- [build_conn(), log_in_non_member(build_conn())],
-        path <- [~p"/admin/playtest", ~p"/admin/playtest/#{run.id}"] do
+        path <- [~p"/admin/play/runs", ~p"/admin/play/runs/#{run.id}"] do
       assert redirected_to(get(conn, path)) =~ "/admin/login"
     end
   end
@@ -50,12 +50,12 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     run = seed_run(persona: "hawk")
 
     for anon <- [build_conn(), log_in_non_member(build_conn())] do
-      conn = get(anon, ~p"/admin/playtest")
+      conn = get(anon, ~p"/admin/play/runs")
       assert redirected_to(conn) =~ "/admin/login"
       refute response(conn, 302) =~ "What we test, and how"
     end
 
-    {:ok, view, html} = live(conn, ~p"/admin/playtest")
+    {:ok, view, html} = live(conn, ~p"/admin/play/runs")
 
     assert has_element?(view, "#summary-intro h2", "What we test, and how")
     assert has_element?(view, "#summary-intro", "scale from 1 (frustrated) to 5")
@@ -155,7 +155,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
         run
       end
 
-    {:ok, view, _html} = live(conn, ~p"/admin/playtest")
+    {:ok, view, _html} = live(conn, ~p"/admin/play/runs")
 
     batch = "#batch-post-rework-2026-10-08"
     assert has_element?(view, "#{batch}-runs", "3 of 25 planned runs done")
@@ -209,7 +209,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
 
     seed_run(persona: "hawk", notes: "series=next-1 variant=default")
 
-    {:ok, view, _html} = live(conn, ~p"/admin/playtest")
+    {:ok, view, _html} = live(conn, ~p"/admin/play/runs")
 
     assert has_element?(view, "#batch-next-runs", "1 of 25 runs done so far")
     assert has_element?(view, "#batch-later-runs", "10 runs planned")
@@ -221,7 +221,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     on_exit(fn -> Application.delete_env(:ex_tales_forge, :playtest_summary_dir) end)
     run = seed_run()
 
-    {:ok, view, _html} = live(conn, ~p"/admin/playtest")
+    {:ok, view, _html} = live(conn, ~p"/admin/play/runs")
 
     assert has_element?(view, "#playtest-summary-missing")
     refute has_element?(view, "#playtest-summary")
@@ -232,7 +232,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     scored = seed_run(persona: "paul", score: true)
     seed_run(persona: "hawk")
 
-    {:ok, _view, html} = live(conn, ~p"/admin/playtest")
+    {:ok, _view, html} = live(conn, ~p"/admin/play/runs")
 
     assert html =~ "Playtest runs"
     assert html =~ "paul"
@@ -252,7 +252,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     recent = seed_run(persona: "paul", started_at: DateTime.add(now, -3 * 60, :second))
     middle = seed_run(persona: "hawk", started_at: DateTime.add(now, -2 * 3_600 - 60, :second))
 
-    {:ok, view, html} = live(conn, ~p"/admin/playtest")
+    {:ok, view, html} = live(conn, ~p"/admin/play/runs")
 
     # Order unchanged: newest started_at first, whatever the insert order.
     assert Regex.scan(~r/<tr id="run-([^"]+)"/, html, capture: :all_but_first) ==
@@ -280,7 +280,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
         started_at: DateTime.add(DateTime.utc_now(:second), -2 * 3_600, :second)
       )
 
-    {:ok, view, html} = live(conn, ~p"/admin/playtest/#{run.id}")
+    {:ok, view, html} = live(conn, ~p"/admin/play/runs/#{run.id}")
 
     assert has_element?(view, "#run-started", "2 hours ago")
     assert html =~ "(#{TalesForgeWeb.TimeAgo.stockholm(run.started_at)})"
@@ -298,7 +298,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     run = seed_run(git_sha: sha, flags: flags)
     bare = seed_run(persona: "lars")
 
-    {:ok, view, _html} = live(conn, ~p"/admin/playtest/#{run.id}")
+    {:ok, view, _html} = live(conn, ~p"/admin/play/runs/#{run.id}")
 
     assert has_element?(
              view,
@@ -309,17 +309,17 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     assert has_element?(view, "#run-flags li", "npc_reactions=on")
     assert has_element?(view, "#run-flags li", "variant=default")
 
-    {:ok, view, _html} = live(conn, ~p"/admin/playtest/#{bare.id}")
+    {:ok, view, _html} = live(conn, ~p"/admin/play/runs/#{bare.id}")
     assert has_element?(view, "#run-commit", "unknown")
     refute has_element?(view, "#run-flags")
 
-    {:ok, _view, html} = live(conn, ~p"/admin/playtest")
+    {:ok, _view, html} = live(conn, ~p"/admin/play/runs")
     assert html =~ "00c370d"
     assert html =~ "default · reactions"
   end
 
   test "start form is hidden and refused when the runner is off", %{conn: conn} do
-    {:ok, view, html} = live(conn, ~p"/admin/playtest")
+    {:ok, view, html} = live(conn, ~p"/admin/play/runs")
     refute html =~ "Start a run"
 
     assert render_hook(view, "start", %{
@@ -334,7 +334,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
 
   test "start form starts a run when the runner is on", %{conn: conn} do
     Application.put_env(:ex_tales_forge, :playtest_runner_enabled, true)
-    {:ok, view, html} = live(conn, ~p"/admin/playtest")
+    {:ok, view, html} = live(conn, ~p"/admin/play/runs")
     assert html =~ "Start a run"
 
     view
@@ -365,7 +365,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
           narrative: "Rain drums on the shutters of the Valley Inn."
         })
 
-    {:ok, view, html} = live(conn, ~p"/admin/playtest/#{run.id}")
+    {:ok, view, html} = live(conn, ~p"/admin/play/runs/#{run.id}")
 
     # The GM's opening comes before turn 1, so the persona is seen responding to it.
     assert has_element?(view, "#turn-opening", "Opening · GM narration")
@@ -392,7 +392,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
   test "run detail breaks cost down by call type, persona apart, with per-turn rows",
        %{conn: conn} do
     run = seed_run()
-    {:ok, view, _html} = live(conn, ~p"/admin/playtest/#{run.id}")
+    {:ok, view, _html} = live(conn, ~p"/admin/play/runs/#{run.id}")
 
     assert has_element?(view, "#run-breakdown-game-llm-gm", "$0.0120")
     assert has_element?(view, "#run-breakdown-game-function-turn_rules", "14 ms")
@@ -413,13 +413,13 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
   test "run detail without score or reasoning, and scoring on demand", %{conn: conn} do
     run = seed_run()
 
-    {:ok, _view, html} = live(conn, ~p"/admin/playtest/#{run.id}")
+    {:ok, _view, html} = live(conn, ~p"/admin/play/runs/#{run.id}")
     assert html =~ "Not scored."
     assert html =~ "none recorded"
     refute html =~ ~s(phx-click="score")
 
     Application.put_env(:ex_tales_forge, :playtest_runner_enabled, true)
-    {:ok, view, _html} = live(conn, ~p"/admin/playtest/#{run.id}")
+    {:ok, view, _html} = live(conn, ~p"/admin/play/runs/#{run.id}")
 
     view |> element("button", "Score") |> render_click()
     html = render_async(view)
@@ -461,7 +461,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     insert_turn_affect(run, 2, 4.5, 0.9)
     insert_turn_affect(run, 3, 2.0, 0.2)
 
-    {:ok, view, html} = live(conn, ~p"/admin/playtest/#{run.id}")
+    {:ok, view, html} = live(conn, ~p"/admin/play/runs/#{run.id}")
 
     assert html =~ "4.2/5 persona affect"
     assert html =~ "Jev session_affect"
@@ -483,7 +483,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     insert_turn_affect(run, 2, 2.0, 0.8)
     unscored = seed_run(persona: "hawk")
 
-    {:ok, view, _html} = live(conn, ~p"/admin/playtest")
+    {:ok, view, _html} = live(conn, ~p"/admin/play/runs")
 
     assert has_element?(view, "#run-#{run.id}-jev", "3.00/5 · unsure 0%")
     assert has_element?(view, "#run-#{run.id}", "1 high · 1 low · 0 middle · 0 unsure")
@@ -527,7 +527,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
 
     session |> GameSession.changeset(%{world_state: world}) |> Repo.update!()
 
-    {:ok, view, _html} = live(conn, ~p"/admin/playtest/#{run.id}")
+    {:ok, view, _html} = live(conn, ~p"/admin/play/runs/#{run.id}")
 
     assert has_element?(view, "#character-changes h2", "Character changes")
     # The player character first, open; NPCs with a change before the rest.
@@ -545,7 +545,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     # The link target exists on the same page.
     assert has_element?(view, "#turn-1")
 
-    {:ok, view, _html} = live(conn, ~p"/admin/playtest")
+    {:ok, view, _html} = live(conn, ~p"/admin/play/runs")
     assert has_element?(view, "#batch-character-changes", "cc-1 · default")
     assert has_element?(view, "#batch-character-changes", "100% (1/1")
     assert has_element?(view, "#batch-character-changes", "Memories / run")
@@ -568,7 +568,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     |> GameSession.changeset(%{world_state: Map.delete(session.world_state, "character")})
     |> Repo.update!()
 
-    {:ok, view, _html} = live(conn, ~p"/admin/playtest/#{run.id}")
+    {:ok, view, _html} = live(conn, ~p"/admin/play/runs/#{run.id}")
     assert has_element?(view, "#character-changes", "No characters recorded for this run.")
   end
 

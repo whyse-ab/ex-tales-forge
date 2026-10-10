@@ -69,7 +69,7 @@ defmodule TalesForgeWeb.CodeDocsControllerTest do
     end
 
     test "linked from the admin nav as a full page load", %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/admin/costs")
+      {:ok, view, _html} = live(conn, ~p"/admin/operate/costs")
       link = element(view, ~s(#admin-nav a[href="/admin/code-docs/"]), "Code docs")
       assert render(link) =~ ~s(href="/admin/code-docs/")
       refute render(link) =~ "data-phx-link"
