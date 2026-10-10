@@ -6,9 +6,9 @@ defmodule TalesForgeWeb.AdminSections do
 
   - **Founders**: the founders' pages, the founder survey and the decisions.
   - **Play and test**: playtest runs and what they measure (personas, Jev's
-    scoring, intent evals, character changes, Gentry), and the game sessions.
-  - **Operate**: costs, telemetry, health, the live PR and deploy feed, logs.
-  - **Develop**: code docs, architecture, the call types and their metrics.
+    scoring, character changes), and the game sessions.
+  - **Operate**: costs and Jev intent latency, telemetry, health, logs.
+  - **Develop**: code docs, architecture, the call types.
   - **Docs**: the shared docs (rules, world, design notes).
   - **Archive** (collapsed): old pages that still work but are rarely needed.
 
@@ -50,8 +50,14 @@ defmodule TalesForgeWeb.AdminSections do
       title: "Founders",
       line: "Who we are, the founder survey, and what we have decided.",
       items: [
-        %{label: "Founders' page (/team) ↗", path: "/team", kind: :page, key: "team", nav: true},
-        %{label: "Presentation (/team) ↗", path: "/team/presentation", kind: :page, nav: true},
+        %{
+          label: "Founders' page and PR feed ↗",
+          path: "/team",
+          kind: :page,
+          key: "team",
+          nav: true
+        },
+        %{label: "Presentation ↗", path: "/team/presentation", kind: :page, nav: true},
         %{
           label: "Founder survey",
           path: "/admin/founders/survey",
@@ -94,18 +100,6 @@ defmodule TalesForgeWeb.AdminSections do
         %{label: "Personas", path: "/admin/docs/personas.md", kind: :live},
         %{label: "Jev scoring", path: "/admin/docs/jev-scoring.md", kind: :live},
         %{
-          label: "Eval and intent results (presentation) ↗",
-          path: "/team/presentation",
-          fragment: "intent-compare",
-          kind: :page
-        },
-        %{
-          label: "Gentry (presentation) ↗",
-          path: "/team/presentation",
-          fragment: "gentry",
-          kind: :page
-        },
-        %{
           label: "Game sessions",
           path: "/admin/play/sessions",
           kind: :live,
@@ -121,17 +115,17 @@ defmodule TalesForgeWeb.AdminSections do
       items: [
         %{label: "Costs", path: "/admin/operate/costs", kind: :live, key: "costs", nav: true},
         %{
+          label: "Jev intent latency",
+          path: "/admin/operate/costs",
+          fragment: "costs-intent-latency",
+          kind: :live
+        },
+        %{
           label: "Telemetry and AI calls",
           path: "/admin/operate/telemetry",
           kind: :page,
           key: "oban",
           nav: true
-        },
-        %{
-          label: "Live PR and deploy feed (/team) ↗",
-          path: "/team",
-          fragment: "live",
-          kind: :page
         },
         %{label: "Health check", path: "/health", kind: :page},
         %{
@@ -166,12 +160,6 @@ defmodule TalesForgeWeb.AdminSections do
           kind: :live
         },
         %{label: "Call types", path: "/admin/docs/call-types.md", kind: :live},
-        %{
-          label: "Call-type metrics (presentation) ↗",
-          path: "/team/presentation",
-          fragment: "rule-call-types",
-          kind: :page
-        },
         %{label: "Coding standards", path: "/admin/docs/coding-standards.md", kind: :live},
         %{label: "Environments", path: "/admin/docs/environments.md", kind: :live}
       ]
