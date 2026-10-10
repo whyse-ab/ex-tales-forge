@@ -315,8 +315,8 @@ defmodule TalesForgeWeb.TeamCallTypes do
               <li>
                 <strong>Learning:</strong>
                 a success earns nothing to learn from. In Tales Forge you learn from your failures,
-                only in the skill you failed, and it sinks in when you sleep.
-                <em>(This rule is being rolled out now.)</em>
+                and only in the skill you failed. Persuasion is not a physical skill, so a failed haggle
+                would improve it during the next sleep.
               </li>
               <li>
                 <strong>Price:</strong>
@@ -351,7 +351,9 @@ defmodule TalesForgeWeb.TeamCallTypes do
           <p>
             <strong>Real today:</strong>
             the Elixir roll-under check with the stat bonus, and the price list.
-            The new learning rule (learn only from failure, improve after sleeping) is being rolled out now.
+            The learning rule: you learn only from failure, and only in the failed skill.
+            Physical skills (combat, dodge, climbing, lockpicking) improve right away, at most +1 for each long rest.
+            Other skills improve during sleep. From level 10, a skill improves only after reflection, practice or training.
             <.intent_live d={@d} />
           </p>
           <p>
@@ -376,9 +378,10 @@ defmodule TalesForgeWeb.TeamCallTypes do
             <ul class="team-bullets space-y-1.5 text-sm leading-relaxed">
               <li>
                 <strong>Dice and learning:</strong>
-                every skill check is 1d20 against skill + stat bonus. A failure is something to learn from, in that skill only,
-                and the improvement comes after a night's sleep
-                (<code>Game.Mechanics</code>, <code>Game.Progression</code>; the sleep rule is rolling out now).
+                every skill check is 1d20 against skill + stat bonus. A failure is something to learn from, in that skill only.
+                Physical skills improve right away (at most +1 for each long rest). Other skills improve during sleep.
+                From level 10, a skill improves only after reflection, practice or training
+                (<code>Game.Mechanics</code>, <code>Game.Progression</code>).
               </li>
               <li>
                 <strong>Prices and coins:</strong>

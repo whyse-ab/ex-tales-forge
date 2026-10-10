@@ -1,25 +1,30 @@
 {
   "_about": {
     "what": "Numbers for the /team founders' page (content in content.md). Every block has a source and an as_of date. All money in USD. No secret values.",
-    "as_of": "2026-10-09",
+    "as_of": "2026-10-10",
     "generated_at": "2026-10-09 ~11:00 CEST; updated 2026-10-09 ~12:00 CEST (Gentry hostile play, intent comparison, Jev intent on, full batch placeholder)",
     "timezone": "Europe/Stockholm",
     "gaps_marker": "null values and entries in 'gaps' mean the number was not found; do not invent."
   },
   "team": {
-    "as_of": "2026-10-09",
+    "as_of": "2026-10-10",
     "source": "Brief for this page (roles, revised 2026-10-09 for a shared, crew framing); Gentry findings from ex-tales-forge PR #89 body",
     "members": [
       {
         "id": "founders",
         "name": "The founders",
         "kind": "humans",
-      "people": {
-        "count": 5,
-        "names": ["Fredrik", "Thobias", "Håkan", "Jeanette", "Max"],
-        "max": "Our vibe-coding founder and RPG apprentice: a founder who has never played a tabletop RPG",
-        "source": "Fredrik 2026-10-09 (decisions.md 'Max is a founder: our vibe-coding founder and RPG apprentice')"
-      },
+        "people": {
+          "count": 5,
+          "names": [
+            "Fredrik",
+            "Thobias",
+            "Håkan",
+            "Jeanette",
+            "Max"
+          ],
+          "source": "Fredrik 2026-10-10 (board card 'check that founder page is up to date'): five founders, presented as equals"
+        },
         "role": "The people Tales Forge is built by and for",
         "does": [
           "Shape what we build: ideas, surveys, playtesting",
@@ -39,7 +44,7 @@
         "kind": "bot",
         "role": "Point of contact and architect",
         "does": [
-          "Plans work",
+          "Refines ideas on the board: details, open questions and a rough cost",
           "Architecture review on every merge (Pragmatic Programmer spirit)",
           "Hourly status",
           "Daily branch cleanup",
@@ -55,7 +60,7 @@
         "does": [
           "Writes code as pull requests",
           "Runs playtests and evals",
-          "Deploys on Fly only with a founder's OK (today Fredrik's)",
+          "Ships admin-only changes through the fast lane when the checks pass; other changes reach production only with a founder's OK (today Fredrik's)",
           "Hourly Fly log check"
         ],
         "schedule": "hourly Fly log check"
@@ -82,18 +87,24 @@
     "framing": "Current setup, a starting point. Founders and bots are one crew. Later every founder can approve merges and deploys, steer the bots and make decisions; today Fredrik holds the approval key."
   },
   "change_flow": {
-    "as_of": "2026-10-09",
-    "source": "Founders' current process; deploy order decided by Fredrik 2026-10-09 (playtest first); docs/environments.md (CI checks Test + Dialyzer)",
+    "as_of": "2026-10-10",
+    "source": "docs/design-board-states.md (approved 2026-10-10); docs/environments.md 'Deploy lanes' (fast lane since 2026-10-09, ex-tales-forge #107); deploy order playtest first (decision 2026-10-09)",
     "steps": [
       {
         "id": "idea",
-        "label": "Idea",
+        "label": "Idea on the board",
         "who": "any founder"
       },
       {
         "id": "case",
-        "label": "Case plans it",
+        "label": "Case refines it",
         "who": "case"
+      },
+      {
+        "id": "founder_check",
+        "label": "Founder check",
+        "who": "a founder",
+        "approval": true
       },
       {
         "id": "pr",
@@ -124,7 +135,7 @@
       {
         "id": "playtest",
         "label": "Deploy to playtest",
-        "who": "bobby"
+        "who": "GitHub Actions"
       },
       {
         "id": "check",
@@ -140,10 +151,19 @@
       {
         "id": "prod",
         "label": "Production",
+        "who": "GitHub Actions"
+      },
+      {
+        "id": "done",
+        "label": "Card to Done",
         "who": "bobby"
       }
     ],
-    "note": "Approval steps are held by Fredrik today; later any founder can give them. Deploy order playtest-first decided 2026-10-09; docs/environments.md (2026-10-08) still describes prod-first and needs updating."
+    "note": "Approval steps are held by Fredrik today; on the idea board any founder can send a card to Building. Admin-only changes take the fast lane. A card moves to Done only when its PR's merge commit runs on production.",
+    "lanes": {
+      "fast": "Admin-only changes (every changed file is on the admin list in .github/deploy-lanes.txt): after playtest, production deploys by itself. No batch and no second OK.",
+      "normal": "Every other change: Gentry and the persona batch on playtest, then a founder's OK, then 'Deploy to production'."
+    }
   },
   "decisions": {
     "as_of": "2026-10-09",
@@ -178,14 +198,18 @@
       "source": "tales-forge-docs decisions/d-001..d-012 front matter 'status'"
     },
     "future_ideas": {
-      "count": 3,
+      "count": 7,
       "items": [
         "Speculative intent while typing",
         "Memory consolidation and attitude drift",
-        "Founder kanban on /team"
+        "Presence on /team",
+        "Team chat with mentions",
+        "Built-in screen capture in chat",
+        "Code heat map",
+        "Attribution"
       ],
-      "source": "docs/future-ideas.md '## ' headings",
-      "as_of": "2026-10-09"
+      "source": "docs/future-ideas.md '## ' headings, without 'Founder kanban on /team' (built: the idea board on /team, 2026-10-10)",
+      "as_of": "2026-10-10"
     }
   },
   "call_types": {
@@ -256,7 +280,7 @@
     "smell": "Asking the LLM for structured output is a smell: move that work to Jev or Elixir.",
     "walkthrough": {
       "illustrative": true,
-      "note": "Illustrative turn. Mechanics follow ex-tales-forge main (Game.Mechanics: 1d20 roll-under vs skill + (stat-10) div 2) Learning rule per decision 2026-10-09 (Fredrik): learn only from failure, only in the failed skill, improvement after sleeping; being rolled out, so a success earns nothing.. Room price from priv/adventures/tin_valley/world_agents.json. Jev intent is on in playtest and prod since 2026-10-09 (decisions.md); no haggling-discount rule yet; NPC memories still come from GM bookkeeping fields (queued to move).",
+      "note": "Illustrative turn. Mechanics follow ex-tales-forge main (Game.Mechanics: 1d20 roll-under vs skill + (stat-10) div 2) Learning rule per decisions 2026-10-09 (Fredrik), live: learn only from failure, only in the failed skill; physical skills improve right away (at most +1 per skill per long rest), other skills improve during sleep; from level 10 only after reflection, practice or training. A success earns nothing. Room price from priv/adventures/tin_valley/world_agents.json. Jev intent is on in playtest and prod since 2026-10-09 (decisions.md); no haggling-discount rule yet; NPC memories still come from GM bookkeeping fields (queued to move).",
       "player_text": "I lean on the bar and try to talk Brenna down on the price of the room.",
       "steps": [
         {
@@ -284,7 +308,7 @@
             "die": 6,
             "outcome": "success",
             "room_price": "3 silver (price list)",
-            "learning": "none (successes teach nothing; learn from failure, sinks in after sleep)"
+            "learning": "none (a success teaches nothing; persuasion would improve during sleep after a failure)"
           }
         },
         {
@@ -299,7 +323,7 @@
     },
     "examples": {
       "elixir": [
-        "Dice rolls and learning from failure, improving after sleep (Game.Mechanics, Game.Progression; rolling out)",
+        "Dice rolls and learning from failure: physical skills improve right away, others during sleep (Game.Mechanics, Game.Progression)",
         "Prices and coins (World.Prices, Game.Inventory)",
         "False-claim check against session state (Game.PremiseCheck)",
         "World clock and fronts (Game.WorldClock, Tinjacks trouble clock)",
@@ -350,19 +374,16 @@
       {
         "name": "tales-forge",
         "role": "production",
-        "release": "v85",
         "region": "arn (Stockholm)",
         "machine": "shared-cpu-1x 1 GB"
       },
       {
         "name": "tales-forge-playtest",
         "role": "playtest (persona bots, Gentry)",
-        "release": "v76",
         "region": "arn",
         "machine": "shared-cpu-1x 512 MB + swap"
       }
     ],
-    "release_source": "decisions.md 2026-10-09 'Jev intent on for playtest and production' (playtest v76, prod v85)",
     "login": "GitHub team sign-in only (whyse-ab/tales-forge team), every page, prod and playtest",
     "keys": "Separate AI keys per environment (prod and playtest), stored as Fly secrets. Values never shown.",
     "costs_pages": "/admin/operate/costs on each app; prod shows all costs plus a live Playtest section (PR #90, live since 2026-10-09)",
@@ -956,14 +977,12 @@
     "Holdout eval results: not run yet",
     "Production AI spend and bot (Case/Bobby/Gentry) running costs: not in docs",
     "Names/roles of the company-admin helper bots: not confirmed",
-    "docs/environments.md still describes prod-first deploys; update it to the playtest-first order decided 2026-10-09",
-    "Fresh full batch 2026-10-09 (full-2026-10-09): running, no analysis yet",
-    "PR and commit counts (pace) are as of ~11:00 CEST and have not been recounted since"
+    "Fresh full batch 2026-10-09 (full-2026-10-09): running, no analysis yet"
   ],
   "shared_board": {
-    "as_of": "2026-10-09",
-    "status": "coming soon, not built",
-    "source": "Fredrik's idea 2026-10-09; docs/future-ideas.md 'Founder kanban on /team'; builds on Collab decision queue (ex-tales-forge lib/ex_tales_forge/collab.ex, /admin/founders/decisions)",
+    "as_of": "2026-10-10",
+    "status": "live on /team since 2026-10-10",
+    "source": "docs/design-board-states.md (approved by Fredrik 2026-10-10); docs/design-idea-board.md; ex-tales-forge #113, #116, #118, #119, #121, #125",
     "columns": [
       {
         "id": "ideas",
@@ -975,26 +994,26 @@
         "id": "refining",
         "label": "Refining (Case)",
         "owner": "case",
-        "on_enter": "ping Case: add details, questions, rough cost"
+        "on_enter": "wakes Case: details, open questions, rough cost"
       },
       {
         "id": "founder_check",
         "label": "Founder check",
         "owner": "founders",
-        "on_enter": "notify founders to review and comment"
+        "on_enter": "founders read the refinement or the PR and decide"
       },
       {
         "id": "building",
         "label": "Building (Bobby)",
         "owner": "bobby",
-        "on_enter": "founder OK recorded; decisions.md entry written; ping Bobby",
+        "on_enter": "founder OK recorded; wakes Bobby",
         "approval": true
       },
       {
         "id": "done",
         "label": "Done",
         "owner": "crew",
-        "on_enter": null
+        "on_enter": "only when the PR's merge commit runs on production"
       }
     ],
     "card_fields": [
@@ -1011,6 +1030,8 @@
     "sample_card": {
       "title": "Brenna remembers regulars",
       "note": "Illustrative card for the animation only"
-    }
+    },
+    "parked": "A founder can put a card on hold (Parked) and later send it back to Ideas.",
+    "votes": "Net votes set the order. A card needs an upvote to move, and a downvote (with a reason) stops it until the founder takes it back."
   }
 }

@@ -301,7 +301,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       assert has_element?(
                view,
                "#team-footer",
-               "Numbers as of #{TeamPage.date_label(@data["_about"]["as_of"])}"
+               "Bundled numbers as of #{TeamPage.date_label(@data["_about"]["as_of"])}"
              )
 
       for step <- @data["change_flow"]["steps"] do
@@ -323,12 +323,12 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
         @data
         |> put_in(["pace", "prs_merged"], 12_345)
         |> put_in(["decisions", "total"], 678)
-        |> put_in(["infrastructure", "apps", Access.at(0), "release"], "v999")
+        |> put_in(["infrastructure", "apps", Access.at(0), "name"], "tales-forge-v999")
 
       html = render_with(data)
       assert html =~ "12,345"
       assert html =~ "678"
-      assert html =~ "release v999"
+      assert html =~ "tales-forge-v999"
     end
 
     test "the approval holder comes from the data" do
@@ -492,7 +492,21 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       assert has_element?(view, "#turn-roll", "so the target is #{elixir["target"]}")
       assert has_element?(view, "#turn-roll", "The die shows #{elixir["die"]}: success")
       assert has_element?(view, "#turn-elixir", "a success earns nothing to learn from")
-      assert has_element?(view, "#turn-elixir", "it sinks in when you sleep")
+      assert has_element?(view, "#turn-elixir", "would improve it during the next sleep")
+
+      assert has_element?(
+               view,
+               "#calltype-honesty",
+               "Physical skills (combat, dodge, climbing, lockpicking) improve right away"
+             )
+
+      assert has_element?(
+               view,
+               "#calltype-honesty",
+               "From level 10, a skill improves only after reflection"
+             )
+
+      refute render(view) =~ "rolled out now"
 
       assert has_element?(
                view,
@@ -775,8 +789,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       end
 
       assert has_element?(view, ~s(#hero-art[alt*="The five founders"]))
-      assert has_element?(view, ~s(#hero-art[alt*="our vibe-coding founder and RPG apprentice"]))
-      refute has_element?(view, ~s(#hero-art[alt*="Max the apprentice"]))
+      refute has_element?(view, ~s(#hero-art[alt*="apprentice"]))
 
       refute has_element?(view, "#hero svg.team-hero-art")
     end
@@ -832,10 +845,10 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
     end
   end
 
-  describe "6. one shared board (coming soon)" do
+  describe "6. one shared board (live on /team)" do
     setup %{conn: conn}, do: {:ok, conn: log_in_admin(conn)}
 
-    test "sits between pace and together, badged as not built, with the brief's copy", %{
+    test "sits between pace and together, badged as live, with the brief's copy", %{
       conn: conn
     } do
       {:ok, view, html} = live(conn, ~p"/team/presentation")
@@ -850,31 +863,35 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       assert ids == ["hero" | Enum.map(TeamPresentationLive.sections(), &elem(&1, 0))]
       assert Enum.drop(ids, 5) == ["pace", anchor, "together"]
 
-      assert has_element?(view, "##{anchor} h2", "6. How we'll work together: one shared board")
+      assert has_element?(view, "##{anchor} h2", "6. How we work together: one shared board")
       assert has_element?(view, "#together h2", "7. Where we go from here, together")
-      assert has_element?(view, "#board-badge", "Coming soon. Not built yet.")
-      assert has_element?(view, "##{anchor}", "one shared board where every feature lives")
+      assert has_element?(view, "#board-badge", "Live on")
+      assert has_element?(view, ~s(#board-badge a[href="/team#idea-board"]))
+      assert has_element?(view, "##{anchor}", "Every feature lives there")
 
       assert has_element?(
                view,
                "#board-caption",
-               "Coming soon: one board, the whole crew, from idea to done."
+               "One board, the whole crew, from idea to done."
              )
 
       assert has_element?(view, "#board-why", "Moving a card pings the right bot.")
       assert has_element?(view, "#board-why", "One place for each thing.")
-      assert has_element?(view, "#board-why", "not just Fredrik as today")
+      assert has_element?(view, "#board-why", "which Fredrik holds today")
       assert has_element?(view, ~s(#board-small-print a[href="/admin/founders/decisions"]))
-      assert has_element?(view, "#board-small-print", "Founder kanban on /team")
-      assert has_element?(view, "#board-step-founder_check", "That drag is the founder's OK.")
+      assert has_element?(view, "#board-small-print", "docs/design-board-states.md")
+      assert has_element?(view, "#board-step-founder_check", "That move is the founder's OK.")
+      assert has_element?(view, "#board-step-done", "merge commit runs on production")
+      assert has_element?(view, "#board-travel", "Parked")
 
       assert has_element?(
                view,
-               ~s(#involve-board a[href="##{anchor}"]),
-               "The shared board"
+               ~s(#involve-board a[href="/team#idea-board"]),
+               "The idea board"
              )
 
-      assert has_element?(view, "#involve-board", "Soon: put your ideas on the board.")
+      assert has_element?(view, "#involve-board", "Put your ideas on the board.")
+      refute has_element?(view, "#involve-board", "Soon")
     end
 
     test "the columns, owners and pings come from shared_board in data.json", %{conn: conn} do
@@ -894,15 +911,25 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       end
 
       assert has_element?(view, "#board-travel", "Five columns")
-      assert has_element?(view, ~s(#board-col-refining svg.team-avatar[aria-label="Case"]))
-      assert has_element?(view, ~s(#board-col-building svg.team-avatar[aria-label="Bobby"]))
+      assert has_element?(view, ~s(#board-col-refining img[data-avatar="case"][alt="Case"]))
+      assert has_element?(view, ~s(#board-col-building img[data-avatar="bobby"][alt="Bobby"]))
+
+      # Every bot avatar is the painted portrait; no drawn SVG is left for a bot.
+      assert has_element?(
+               view,
+               ~s(img[data-avatar="gentry"][alt="Gentry"][src="/images/team/gentry-avatar-192.jpg"])
+             )
+
+      refute has_element?(view, ~s(svg.team-avatar[aria-label="Gentry"]))
+      refute has_element?(view, ~s(svg.team-avatar[aria-label="Case"]))
+      refute has_element?(view, ~s(svg.team-avatar[aria-label="Bobby"]))
 
       assert has_element?(
                view,
                ~s(#board-col-founder_check svg.team-avatar[aria-label="The founders"])
              )
 
-      assert has_element?(view, "#board-as-of", "Board plan as of 9 Oct 2026")
+      assert has_element?(view, "#board-as-of", "Board rules as of 10 Oct 2026")
 
       # The static board: the sample card once in every column, labelled.
       for col <- board["columns"] do
@@ -961,7 +988,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       doc = data |> render_with() |> LazyHTML.from_document()
       text = &(doc |> LazyHTML.query(&1) |> LazyHTML.text())
 
-      assert text.("#board-as-of") =~ "Board plan as of not measured yet"
+      assert text.("#board-as-of") =~ "Board rules as of not measured yet"
       refute text.("#board-as-of") =~ ~r/\b0\b/
 
       for col <- ~w(ideas refining founder_check building done) do
@@ -978,12 +1005,12 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       html = render_with(%{})
       doc = LazyHTML.from_document(html)
 
-      assert html =~ "6. How we&#39;ll work together: one shared board"
+      assert html =~ "6. How we work together: one shared board"
       assert doc |> LazyHTML.query("#team-board .team-board-col") |> Enum.count() == 5
       assert doc |> LazyHTML.query("#board-as-of") |> LazyHTML.text() =~ "not measured yet"
 
       assert doc |> LazyHTML.query("#board-why") |> LazyHTML.text() =~
-               "not just one founder as today"
+               "which one founder holds today"
     end
 
     test "the board's motion is client-side, off with reduced motion" do
@@ -1049,7 +1076,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
   describe "the founders: five, Max among them" do
     setup %{conn: conn}, do: {:ok, conn: log_in_admin(conn)}
 
-    test "the founders' card names all five and has a warm word for Max", %{conn: conn} do
+    test "the founders' card names all five as equals, with no title for anyone", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/team/presentation")
       people = hd(@data["team"]["members"])["people"]
 
@@ -1059,40 +1086,34 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       assert has_element?(
                view,
                "#member-founders #founders-people",
-               "We're five: Fredrik, Thobias, Håkan, Jeanette and Max."
+               "We're five founders: Fredrik, Thobias, Håkan, Jeanette and Max."
              )
 
-      assert has_element?(
-               view,
-               "#member-founders #founders-people",
-               "Max, our vibe-coding founder and RPG apprentice, has never played a tabletop RPG."
-             )
-
-      refute render(view) =~ ~r/four founders|Max the apprentice/
+      refute render(view) =~ ~r/four founders|apprentice|vibe-coding|never played/
+      refute Jason.encode!(@data) =~ ~r/apprentice|vibe-coding|never played/
     end
 
     test "a missing count reads 'not measured yet'; no names, no line" do
       no_count =
         update_in(@data, ["team", "members", Access.at(0), "people"], &Map.delete(&1, "count"))
 
-      assert render_with(no_count) =~ ~r"We(&#39;|')re not measured yet: Fredrik"
+      assert render_with(no_count) =~ ~r"We(&#39;|')re not measured yet founders: Fredrik"
 
       no_people =
         update_in(@data, ["team", "members", Access.at(0)], &Map.delete(&1, "people"))
 
       html = render_with(no_people)
       refute html =~ "founders-people"
-      refute html =~ "Welcome to the table, Max!"
     end
   end
 
   describe "copy from the latest brief" do
-    test "the future-ideas list has all three ideas, in a proper list" do
+    test "the future-ideas list has the seven open ideas, in a proper list" do
       html = render_with(@data)
-      assert @data["decisions"]["future_ideas"]["count"] == 3
+      assert @data["decisions"]["future_ideas"]["count"] == 7
 
       assert html =~
-               "3 ideas so far: <em>speculative intent while typing, memory consolidation and attitude drift and a founder kanban on /team</em>"
+               "7 ideas so far: <em>speculative intent while typing, memory consolidation and attitude drift, presence on /team, team chat with mentions, built-in screen capture in chat, code heat map and attribution</em>"
     end
 
     test "the shadow test is told in the past tense" do

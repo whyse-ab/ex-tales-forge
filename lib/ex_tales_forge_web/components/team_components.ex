@@ -66,10 +66,10 @@ defmodule TalesForgeWeb.TeamComponents do
   end
 
   @doc """
-  Who the founders are, from `team.members[0].people`: "We're five: Fredrik,
-  ..., Jeanette and Max.", and a warm word for Max, our vibe-coding founder and
-  RPG apprentice, when he is among them. Nothing when the data has no names;
-  a missing count reads "not measured yet".
+  Who the founders are, from `team.members[0].people`: "We're five founders:
+  Fredrik, ..., Jeanette and Max." All founders are equals, so no name gets a
+  title. Nothing shows when the data has no names. A missing count reads "not
+  measured yet".
   """
   attr :id, :string, required: true
   attr :d, :map, required: true
@@ -82,16 +82,12 @@ defmodule TalesForgeWeb.TeamComponents do
     assigns =
       assign(assigns,
         names: names,
-        count: TeamPage.count_word(people["count"]),
-        max?: "Max" in names
+        count: TeamPage.count_word(people["count"])
       )
 
     ~H"""
     <span :if={@names != []} id={@id} class="team-founders-people block space-y-1">
-      <span class="block">We're {@count}: {TeamPage.and_list(@names)}.</span>
-      <span :if={@max?} class="block">
-        Max, our vibe-coding founder and RPG apprentice, has never played a tabletop RPG. Welcome to the table, Max!
-      </span>
+      <span class="block">We're {@count} founders: {TeamPage.and_list(@names)}.</span>
     </span>
     """
   end

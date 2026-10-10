@@ -87,11 +87,12 @@ defmodule TalesForgeWeb.TeamLayout do
       id="team-footer"
       class="border-t border-[var(--paper-rule)] bg-[var(--paper-panel)] px-4 py-6 text-center text-sm text-[var(--paper-muted)]"
     >
-      <p>Numbers as of {date_label(get(@d, ["_about", "as_of"]))}</p>
+      <p>Bundled numbers as of {date_label(get(@d, ["_about", "as_of"]))}</p>
       <p class="mt-1 text-xs">
-        Pull request and commit numbers come live from GitHub when the feed is up (otherwise from the same file, marked “as of”).
-        Every other number comes from <code>docs/team-page/data.json</code>
-        in tales-forge-docs. Where we don't have one, it says “{TeamPage.not_measured()}”.
+        Pull requests, commits, tests, decisions, AI spend, Jev latency and persona scores come live (from GitHub and from the app) when a source is up.
+        Each group says “live” or “as of” its date. The other numbers come from
+        <code>docs/team-page/data.json</code>
+        in tales-forge-docs. Where we have no number, it says “{TeamPage.not_measured()}”.
       </p>
     </footer>
     """

@@ -104,18 +104,21 @@ defmodule TalesForge.TeamPageTest do
     end
   end
 
-  test "the change flow goes to playtest before production, through two founder approvals" do
+  test "the change flow goes from the board to playtest to production, through three founder approvals" do
     ids = TeamPage.data() |> TeamPage.get(["change_flow", "steps"]) |> Enum.map(& &1["id"])
     index = &Enum.find_index(ids, fn id -> id == &1 end)
 
     assert index.("playtest") < index.("check")
     assert index.("check") < index.("ok_prod")
     assert index.("ok_prod") < index.("prod")
+    assert index.("idea") < index.("case")
+    assert index.("founder_check") < index.("pr")
+    assert List.last(ids) == "done"
 
     approvals =
       TeamPage.data() |> TeamPage.get(["change_flow", "steps"]) |> Enum.filter(& &1["approval"])
 
-    assert Enum.map(approvals, & &1["id"]) == ["ok_merge", "ok_prod"]
+    assert Enum.map(approvals, & &1["id"]) == ["founder_check", "ok_merge", "ok_prod"]
   end
 
   describe "missing values read 'not measured yet', never zero" do

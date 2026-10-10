@@ -85,13 +85,17 @@ defmodule TalesForgeWeb.TeamPresentationLive do
              ~w(stack hosting architecture persona-cards shadow-test intent-compare eval-set gentry hostile-play ai-spend)
 
   @flow_detail %{
-    "idea" => "From any founder.",
-    "case" => "Case plans it and writes the brief.",
-    "pr" => "Bobby builds it as a pull request.",
+    "idea" => "A founder adds a card on the idea board. Votes set the order.",
+    "case" => "Case writes the details, the open questions and a rough cost.",
+    "pr" => "Bobby builds it as a pull request and links the PR to the card.",
     "merge" => "Into main, the shared version of the code.",
     "review" => "Case's architecture review of what just landed.",
-    "playtest" => "Our separate copy of the game for testing.",
-    "prod" => "Where players are."
+    "playtest" =>
+      "Our separate copy of the game for testing. Every merge goes here first, by itself.",
+    "prod" =>
+      "Where players are. Admin-only changes (the fast lane) go here by themselves after playtest. Other changes go here with \"Deploy to production\".",
+    "done" =>
+      "Bobby moves the card to Done. The board allows it only when the merge commit runs on production."
   }
 
   @category_labels %{
@@ -326,15 +330,19 @@ defmodule TalesForgeWeb.TeamPresentationLive do
       <div id="flow" class="space-y-4">
         <h3 class="font-serif text-xl font-bold sm:text-2xl">How a change flows</h3>
         <p class="max-w-3xl leading-relaxed text-[var(--paper-muted)]">
-          Every change takes the same path. It looks like a lot of steps, but most take minutes, and the median PR went from opened to merged
-          in about {median_minutes(@d)} minutes in October. A change goes to playtest first; only once Gentry and the persona bots have had a go does it reach players.
+          Every change starts as a card on the idea board and ends on production. Most steps take minutes: the median PR went from opened to merged
+          in about {median_minutes(@d)} minutes in October. Every merge goes to playtest first. Then the lane decides the rest.
+          <strong>Fast lane:</strong>
+          a change that only touches admin pages goes on to production by itself.
+          <strong>Normal lane:</strong>
+          Gentry and the persona bots play it first, and a founder gives the OK to ship.
         </p>
         <.flow steps={@steps} d={@d} />
         <p class="text-xs text-[var(--paper-muted)]">
           Median time from a PR being opened to merged in October: {number(
             get(@d, ["pace", "median_hours_open_to_merge_oct"])
           )} h
-          (about {median_minutes(@d)} min). Deploy order (playtest first, then production) as decided on 9 Oct 2026.
+          (about {median_minutes(@d)} min). Deploy order: playtest first, then production (decided 9 Oct 2026). Fast lane since 9 Oct 2026; board rules approved 10 Oct 2026.
         </p>
       </div>
     </section>
@@ -360,7 +368,9 @@ defmodule TalesForgeWeb.TeamPresentationLive do
 
   defp member_bullets(%{id: "case"} = assigns) do
     ~H"""
-    <li>The crew's go-to bot. Turns ideas into plans and hands the work to Bobby.</li>
+    <li>
+      The crew's go-to bot. Refines the cards on the idea board: details, open questions and a rough cost.
+    </li>
     <li>
       Reviews the architecture on every merge, in the spirit of <em>The Pragmatic Programmer</em>
       <.explain text="a classic book on keeping code simple: don't repeat yourself, fix broken windows early, keep decisions reversible" />.
@@ -379,7 +389,9 @@ defmodule TalesForgeWeb.TeamPresentationLive do
       <.explain text="an eval is a fixed test set we score the AI against, so we can tell if a change made it better or worse" />.
     </li>
     <li>
-      Deploys to Fly <.explain text="our hosting" /> only with a founder's OK (today {holder(@d)}'s).
+      Ships to Fly
+      <.explain text="our hosting" />. Admin-only changes take the fast lane and ship by themselves when the checks pass.
+      Every other change reaches production only with a founder's OK (today {holder(@d)}'s).
     </li>
     <li>Checks the Fly logs every hour.</li>
     """
@@ -455,7 +467,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
       </figcaption>
       <ol
         id="team-flow-steps"
-        class="team-flow-track relative grid gap-4 lg:grid-cols-11 lg:gap-1"
+        class="team-flow-track relative grid gap-4 lg:grid-cols-13 lg:gap-1"
         data-flow-track
       >
         <div class="team-flow-line" aria-hidden="true" />
@@ -539,13 +551,25 @@ defmodule TalesForgeWeb.TeamPresentationLive do
 
   defp step_detail(%{id: "check"} = assigns) do
     ~H"""
-    Gentry attacks it, and the five persona bots play it while Jev scores how each would have felt.
+    Normal lane only: Gentry attacks it, and the five persona bots play it while Jev scores how each would have felt.
     """
   end
 
-  defp step_detail(%{id: id} = assigns) when id in ["ok_merge", "ok_prod"] do
+  defp step_detail(%{id: "founder_check"} = assigns) do
     ~H"""
-    <em>Today that's {holder(@d)}; soon any founder.</em>
+    <em>Any founder reads the refinement and sends the card to Building. That is the OK to build.</em>
+    """
+  end
+
+  defp step_detail(%{id: "ok_merge"} = assigns) do
+    ~H"""
+    <em>Today that's {holder(@d)}; soon any founder. Admin-only fixes that a founder already OK'd merge when the checks pass.</em>
+    """
+  end
+
+  defp step_detail(%{id: "ok_prod"} = assigns) do
+    ~H"""
+    <em>Normal lane only. Today that's {holder(@d)}; soon any founder.</em>
     """
   end
 
@@ -659,8 +683,8 @@ defmodule TalesForgeWeb.TeamPresentationLive do
               2. Docs go straight to main; code goes through PRs.
             </h3>
             <p class="text-sm leading-relaxed">
-              Writing things down should be fast, so docs need no review step. Code always gets a PR, CI and a founder's OK
-              (today {holder(@d)}'s, soon anyone's in the founders' team).
+              Writing things down should be fast, so docs need no review step. Code always gets a PR and CI. Each change also gets a founder's OK,
+              on the board card or on the PR (today {holder(@d)}'s for merges and deploys, soon anyone's in the founders' team).
             </p>
           </article>
           <article id="rule-code" class="team-card space-y-2 p-5">
@@ -778,9 +802,9 @@ defmodule TalesForgeWeb.TeamPresentationLive do
         </.stack_item>
         <.stack_item icon="hero-cloud" title="Fly.io, Stockholm">
           Two apps: <code>{get(@d, ["infrastructure", "apps", 0, "name"]) || "tales-forge"}</code>
-          (production, release {release(@d, 0)}) and
+          (production) and
           <code>{get(@d, ["infrastructure", "apps", 1, "name"]) || "tales-forge-playtest"}</code>
-          (playtest, {release(@d, 1)}).
+          (playtest). The live feed on /team shows which commit each app runs.
         </.stack_item>
       </ul>
 
@@ -1572,11 +1596,11 @@ defmodule TalesForgeWeb.TeamPresentationLive do
         <.involve
           id="involve-board"
           icon="hero-view-columns"
-          title="Soon: put your ideas on the board."
-          href={"#" <> TeamBoard.anchor()}
-          link="The shared board"
+          title="Put your ideas on the board."
+          href="/team#idea-board"
+          link="The idea board"
         >
-          Once the shared board is live, drop a card in Ideas and watch the crew pick it up.
+          Add a card in Ideas on /team and vote on the others. A card with an upvote can go to Case for refining.
         </.involve>
       </ul>
       <div class="team-callout flex flex-col items-center gap-3 p-6 text-center sm:flex-row sm:text-left">
@@ -1761,9 +1785,6 @@ defmodule TalesForgeWeb.TeamPresentationLive do
       values -> Enum.join(values, " · ")
     end
   end
-
-  defp release(d, index),
-    do: get(d, ["infrastructure", "apps", index, "release"]) || TeamPage.not_measured()
 
   # "4.3/5 · confident 54%", from the post-rework series (Paul), the example the brief uses.
   defp score_example(d) do
