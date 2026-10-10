@@ -32,6 +32,15 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   alias TalesForge.Board
   alias TalesForge.Board.{Idea, Mentions, Transitions, Typing}
 
+  # The sort choices for the Ideas column: {URL value, label}.
+  @sorts [
+    {"top", "Top ranked"},
+    {"newest", "Newest"},
+    {"oldest", "Oldest"},
+    {"votes", "Most votes"}
+  ]
+  @sort_keys Enum.map(@sorts, &elem(&1, 0))
+
   @impl true
   def update(%{refresh: true}, socket), do: {:ok, load(socket)}
 
@@ -56,12 +65,38 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
      |> assign_new(:downvote_for, fn -> nil end)
      |> assign_new(:editing, fn -> nil end)
      |> assign_new(:drafts, fn -> %{} end)
+     |> assign(:sorts, @sorts)
      |> assign_new(:typed, fn -> %{} end)
      |> load()}
   end
 
+  @doc """
+  The sort key for the Ideas column from the `sort` URL query value.
+  An unknown or missing value gives `"top"` (the board's ranking).
+
+      iex> TalesForgeWeb.TeamIdeaBoard.sort_key("newest")
+      "newest"
+      iex> TalesForgeWeb.TeamIdeaBoard.sort_key("other")
+      "top"
+  """
+  @spec sort_key(term()) :: String.t()
+  def sort_key(key) when key in @sort_keys, do: key
+  def sort_key(_key), do: "top"
+
+  # Puts the Ideas cards in the selected order. "top" keeps the board's ranking.
+  # Equal values keep the ranking order (Enum.sort_by is stable).
+  defp sort_ideas(cards, "newest"),
+    do: Enum.sort_by(cards, & &1.inserted_at, {:desc, DateTime})
+
+  defp sort_ideas(cards, "oldest"),
+    do: Enum.sort_by(cards, & &1.inserted_at, {:asc, DateTime})
+
+  defp sort_ideas(cards, "votes"), do: Enum.sort_by(cards, &length(&1.votes), :desc)
+  defp sort_ideas(cards, _top), do: cards
+
   defp load(socket) do
-    board = Board.board()
+    sort = sort_key(socket.assigns[:ideas_sort])
+    board = Board.board() |> Map.update("ideas", [], &sort_ideas(&1, sort))
     open_id = socket.assigns[:open_id]
     open = open_id && board |> Map.values() |> List.flatten() |> Enum.find(&(&1.id == open_id))
 
@@ -139,6 +174,12 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   end
 
   @impl true
+  def handle_event("sort", %{"sort" => key}, socket) do
+    key = sort_key(key)
+    query = if key == "top", do: "", else: "?" <> URI.encode_query(%{"sort" => key})
+    {:noreply, push_patch(socket, to: "/team" <> query)}
+  end
+
   def handle_event("open", %{"card_id" => id}, socket) do
     Board.read_pings(id, socket.assigns[:login])
     {:noreply, socket |> assign(:open_id, id) |> load()}
@@ -389,6 +430,8 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
       >
         <.area
           column="ideas"
+          sorts={@sorts}
+          sort={sort_key(@ideas_sort)}
           size={:thin}
           prs={@prs}
           typing={@typing}
@@ -488,6 +531,8 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   attr :typing, :map, default: %{}
   attr :myself, :any, required: true
   attr :class, :string, default: nil
+  attr :sorts, :list, default: nil
+  attr :sort, :string, default: "top"
 
   defp area(assigns) do
     assigns = assign(assigns, :cards, assigns.board[assigns.column])
@@ -511,6 +556,17 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
         {Transitions.label(@column)}
         <span class="font-sans text-xs font-normal text-[var(--paper-muted)]">{length(@cards)}</span>
       </h3>
+      <form :if={@sorts} id="ideas-sort" phx-change="sort" phx-target={@myself} class="px-1 pb-1">
+        <label class="flex items-center gap-2 text-xs text-[var(--paper-muted)]">
+          Sort
+          <select
+            name="sort"
+            class="min-h-11 flex-1 rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-2 text-sm"
+          >
+            <option :for={{key, label} <- @sorts} value={key} selected={key == @sort}>{label}</option>
+          </select>
+        </label>
+      </form>
       <div
         class="min-h-0 flex-1 overflow-y-auto pr-1"
         tabindex="0"
