@@ -6,9 +6,12 @@ defmodule TalesForgeWeb.OnlineHeaderLiveTest do
   alias TalesForge.Online.Peer
 
   setup %{conn: conn} do
+    # Restore the configured value, so later tests see the real flag.
+    previous = Application.get_env(:ex_tales_forge, :team_chat_placeholder)
+
     on_exit(fn ->
       Peer.put([], ~U[2000-01-01 00:00:00Z])
-      Application.put_env(:ex_tales_forge, :team_chat_placeholder, true)
+      Application.put_env(:ex_tales_forge, :team_chat_placeholder, previous)
     end)
 
     {:ok, conn: log_in_admin(conn, "fredrik@example.com")}
@@ -89,6 +92,7 @@ defmodule TalesForgeWeb.OnlineHeaderLiveTest do
   end
 
   test "Chat is a disabled placeholder behind the config flag", %{conn: conn} do
+    Application.put_env(:ex_tales_forge, :team_chat_placeholder, true)
     {:ok, view, _html} = live(conn, "/admin")
     header = find_live_child(view, "admin-online")
     header |> element("#admin-online-toggle") |> render_click()

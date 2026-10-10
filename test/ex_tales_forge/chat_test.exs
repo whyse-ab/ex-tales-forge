@@ -29,15 +29,19 @@ defmodule TalesForge.ChatTest do
   end
 
   test "founder mentions give an unread badge until the founder opens the chat" do
-    {:ok, _} = Chat.post(@fredrik, "@max can you look? cc @fredrik")
-    {:ok, _} = Chat.post(@fredrik, "@founders standup at 16")
+    # Handles come from GitHub logins (config :board_founder_handles).
+    {:ok, _} = Chat.post(@fredrik, "@max can you look? cc @fredrik", login: "fpahlen")
+    {:ok, _} = Chat.post(@fredrik, "@founders standup at 16", login: "fpahlen")
 
-    assert Chat.unread(@max) == 2
+    assert Chat.unread("maxpahlen") == 2
+    assert Chat.unread("MaxPahlen") == 2
     # The author is never pinged by their own message.
-    assert Chat.unread(@fredrik) == 0
-
-    :ok = Chat.mark_read(@max)
+    assert Chat.unread("fpahlen") == 0
+    # An email or an unknown login has no handle, so no badge.
     assert Chat.unread(@max) == 0
+
+    :ok = Chat.mark_read("maxpahlen")
+    assert Chat.unread("maxpahlen") == 0
   end
 
   test "a founder's bot mention wakes the bot through the webhook outbox" do

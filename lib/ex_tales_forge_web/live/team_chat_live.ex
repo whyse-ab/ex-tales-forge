@@ -6,7 +6,8 @@ defmodule TalesForgeWeb.TeamChatLive do
   Nested in `TalesForgeWeb.OnlineHeaderLive`, which loads it through config
   `:team_chat_live` on production and locally.
 
-  - The chat button shows the number of unread mentions of you.
+  - The chat button shows the number of unread mentions of you (your handle
+    comes from your GitHub login, `TalesForge.Board.Mentions`).
   - Accessible: the panel is a `role="dialog"` with a title; focus moves to
     the message box when it opens; Esc or "Close" closes it and moves focus
     back to the chat button. New messages are announced (`aria-live`).
@@ -25,7 +26,7 @@ defmodule TalesForgeWeb.TeamChatLive do
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) ::
           {:ok, Phoenix.LiveView.Socket.t(), keyword()}
   def mount(_params, session, socket) do
-    email = socket.assigns[:admin_email]
+    login = socket.assigns[:admin_github_login]
 
     if connected?(socket) do
       Chat.subscribe()
@@ -35,11 +36,12 @@ defmodule TalesForgeWeb.TeamChatLive do
     {:ok,
      socket
      |> assign(:id_prefix, session["id_prefix"] || "chat")
-     |> assign(:me, Chat.handle_for(email))
+     |> assign(:login, login)
+     |> assign(:me, Chat.handle_for(login))
      |> assign(:open, false)
      |> assign(:draft, "")
      |> assign(:messages, [])
-     |> assign(:unread, Chat.unread(email))
+     |> assign(:unread, Chat.unread(login))
      |> assign(:form, to_form(%{"body" => ""}, as: :chat)), layout: false}
   end
 
@@ -50,7 +52,7 @@ defmodule TalesForgeWeb.TeamChatLive do
   def handle_event("close", _params, socket), do: {:noreply, assign(socket, :open, false)}
 
   def handle_event("send", %{"chat" => %{"body" => body}}, socket) do
-    case Chat.post(socket.assigns.admin_email, body) do
+    case Chat.post(socket.assigns.admin_email, body, login: socket.assigns.login) do
       {:ok, _message} ->
         {:noreply, assign(socket, :form, to_form(%{"body" => ""}, as: :chat))}
 
@@ -66,17 +68,17 @@ defmodule TalesForgeWeb.TeamChatLive do
 
   def handle_info({:team_chat, %Message{} = m}, socket) do
     if socket.assigns.open do
-      Chat.mark_read(socket.assigns.admin_email)
+      Chat.mark_read(socket.assigns.login)
       {:noreply, assign(socket, :messages, socket.assigns.messages ++ [m])}
     else
-      {:noreply, assign(socket, :unread, Chat.unread(socket.assigns.admin_email))}
+      {:noreply, assign(socket, :unread, Chat.unread(socket.assigns.login))}
     end
   end
 
   def handle_info(_msg, socket), do: {:noreply, socket}
 
   defp open(socket, to) do
-    Chat.mark_read(socket.assigns.admin_email)
+    Chat.mark_read(socket.assigns.login)
     body = if to, do: "@#{mention(to)} ", else: ""
 
     socket
@@ -86,7 +88,7 @@ defmodule TalesForgeWeb.TeamChatLive do
 
   # The handle to start a message with: a founder's email or "bot:<name>".
   defp mention("bot:" <> bot), do: bot
-  defp mention(email), do: Chat.handle_for(email) || email
+  defp mention(email), do: Chat.handle_for_email(email) || email |> String.split("@") |> hd()
 
   @impl true
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()

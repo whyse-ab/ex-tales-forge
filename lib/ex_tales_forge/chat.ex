@@ -10,7 +10,7 @@ defmodule TalesForge.Chat do
   - Mentions use the board's one parser, `TalesForge.Board.Mentions`:
     `@fredrik`, `@founders` and `@case`, `@bobby`, `@gentry`.
   - A founder mention gives that founder an unread badge on the chat button
-    (`unread/1`) until they open the chat (`mark_read/1`). No email or push
+    (`unread/1`, by GitHub login) until they open the chat (`mark_read/1`). No email or push
     (Fredrik's answer on the card).
   - A bot mention **by a founder** wakes the bot through the board's webhook
     outbox (`TalesForge.Board.Workers.Notify`, event `chat.mention`), in the
@@ -50,14 +50,17 @@ defmodule TalesForge.Chat do
   end
 
   @doc """
-  Posts `body` as `author` (a founder email or `bot:<name>`). Returns
-  `{:ok, message}` or `{:error, changeset}`.
+  Posts `body` as `author` (a founder email or `bot:<name>`). `opts[:login]`
+  is a founder author's GitHub login, so the author gets no badge for their
+  own handle (handles come from GitHub logins, `TalesForge.Board.Mentions`).
+  Returns `{:ok, message}` or `{:error, changeset}`.
   """
-  @spec post(String.t(), String.t()) :: {:ok, Message.t()} | {:error, Ecto.Changeset.t()}
-  def post(author, body) when is_binary(author) do
+  @spec post(String.t(), String.t(), keyword()) ::
+          {:ok, Message.t()} | {:error, Ecto.Changeset.t()}
+  def post(author, body, opts \\ []) when is_binary(author) do
     body = body || ""
     %{bots: bots, founders: founders} = Mentions.parse(body)
-    founders = founders -- [Mentions.handle_for(author)]
+    founders = founders -- [Mentions.handle_for(opts[:login])]
     wakes = if founder?(author), do: bots, else: []
 
     changeset =
@@ -136,10 +139,10 @@ defmodule TalesForge.Chat do
       "at" => m.inserted_at
     }
 
-  @doc "How many messages mention the founder with `email` since they last opened the chat."
+  @doc "How many messages mention the founder with this GitHub `login` since they last opened the chat."
   @spec unread(String.t() | nil) :: non_neg_integer()
-  def unread(email) do
-    case Mentions.handle_for(email) do
+  def unread(login) do
+    case Mentions.handle_for(login) do
       nil ->
         0
 
@@ -152,10 +155,10 @@ defmodule TalesForge.Chat do
     end
   end
 
-  @doc "Marks the chat as read for the founder with `email` (they opened it)."
+  @doc "Marks the chat as read for the founder with this GitHub `login` (they opened it)."
   @spec mark_read(String.t() | nil) :: :ok
-  def mark_read(email) do
-    case Mentions.handle_for(email) do
+  def mark_read(login) do
+    case Mentions.handle_for(login) do
       nil ->
         :ok
 
@@ -169,9 +172,29 @@ defmodule TalesForge.Chat do
     end
   end
 
-  @doc "The handle to mention a founder by email, or nil (`TalesForge.Board.Mentions`)."
+  @doc "The handle of a founder's GitHub login, or nil (`TalesForge.Board.Mentions`)."
   @spec handle_for(String.t() | nil) :: String.t() | nil
-  def handle_for(email), do: Mentions.handle_for(email)
+  def handle_for(login), do: Mentions.handle_for(login)
+
+  @doc """
+  The handle to start a message to a founder with, from their email (the
+  who-is-online list knows emails, not logins): the first part of the email
+  when it is a founder handle, else nil.
+
+      iex> TalesForge.Chat.handle_for_email("max@example.com", ~w(fredrik max))
+      "max"
+      iex> TalesForge.Chat.handle_for_email("hawkan.f@gmail.com", ~w(fredrik hakan))
+      nil
+  """
+  @spec handle_for_email(String.t() | nil, [String.t()]) :: String.t() | nil
+  def handle_for_email(email, handles \\ Mentions.handles())
+
+  def handle_for_email(email, handles) when is_binary(email) do
+    first = email |> String.downcase() |> String.split(["@", ".", "+"]) |> hd()
+    if first in handles, do: first
+  end
+
+  def handle_for_email(_email, _handles), do: nil
 
   @doc "Text and mentions of a message body, to highlight the mentions."
   @spec segments(String.t()) :: [{:text | :mention, String.t()}]
