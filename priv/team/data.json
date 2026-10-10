@@ -450,7 +450,7 @@
     "source": "docs/jev-scoring.md; decisions.md 2026-10-08 'The headline Jev score is a confidence-weighted average'",
     "formula": "sum(score x confidence) / sum(confidence), 1-5 scale",
     "unsure_threshold": 0.7,
-    "display": "X/5 · unsure Y%"
+    "display": "X/5 · confident Y%"
   },
   "playtest_series": {
     "as_of": "2026-10-09",

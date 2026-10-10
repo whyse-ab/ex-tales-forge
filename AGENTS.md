@@ -68,12 +68,43 @@ Use kebab-case names that describe the work (`feature/two-tier-llm`, `fix/oban-m
 1. **Plain Ecto + Repo everywhere** (play loop, Jido, Oban, GameSessions, NPC logic, admin). Ash was removed on 2026-10-07 ([#47](https://github.com/whyse-ab/ex-tales-forge/pull/47)); revisit only if an in-app adventure editor needs it. Authored content lives in pack files, not database tables. Don't add a second data layer without a decision entry.
 2. **Call-type rule** (decision 2026-10-07, tales-forge-docs `docs/call-types.md`): known structured input + structured output = Elixir function; unstructured input + structured output = Jev; prose output = LLM. Asking the LLM for structured output is a smell. Elixir is exact, free and instant, Jev is fast and cheap, the LLM is the slowest and most expensive: use the LLM last, with the smallest input possible.
 3. **One Character type** for player characters and NPCs: OCEAN, personality-filtered memory, a Maslow level and concerns; only the controller differs (`player`, `gm` or `bot`). `TalesForge.Characters` keeps a `characters` row per PC and NPC in step after every turn; the game still reads `world_state["character"]` and `npc_instances` until the Character plan's read switch (tales-forge-docs `docs/plan-unify-character.md`). Don't add a separate PC or NPC model.
-4. **Intent before the GM; the GM gets a typed struct plus a short quote.** Tier 1 intent (heuristic, or the intent LLM when the heuristic is unsure) runs first. The GM gets the validated, typed `PlayerAction` plus a short, sanitised quote of the player's words (`overall_intent`, at most 500 characters), so it keeps the player's tone. This is intended (decisions 2026-10-07 "GM pipeline direction" and 2026-10-08). When the intent LLM handles the turn, `overall_intent` is its short summary of the message, sanitised the same way. The full raw message never goes to the GM.
+4. **Intent before the GM; the GM gets a typed struct plus a short quote.** Tier 1 intent (heuristic, or the intent LLM when the heuristic has low confidence) runs first. The GM gets the validated, typed `PlayerAction` plus a short, sanitised quote of the player's words (`overall_intent`, at most 500 characters), so it keeps the player's tone. This is intended (decisions 2026-10-07 "GM pipeline direction" and 2026-10-08). When the intent LLM handles the turn, `overall_intent` is its short summary of the message, sanitised the same way. The full raw message never goes to the GM.
 5. **The server owns mechanics.** It rolls dice and applies LP, inventory, coins, prices and time; the LLM narrates and never invents mechanics. A player's claim about the character's own state (an item, coins, a purchase or a kill the session doesn't back) is checked in Elixir against the session (`TalesForge.Game.PremiseCheck`, default variant), not by Jev; a false one reaches the GM as a short correction in the per-turn prompt (decision 2026-10-09).
 6. Important authored state stays human-readable: `priv/rules/*.md`, `priv/prompts/*.txt`, pack files.
 7. LLM replies use structured JSON with a strict schema (Tier 1 `PlayerAction` via `TalesForge.Game.Intent`; the scene and GM reply via `TalesForge.LLM`).
 8. Turn history is auditable: every turn is persisted in the `Turn` schema.
 9. **Secret names only, never values**, in code, docs, commits, PRs, logs and chat. Secrets live in Fly secrets or GitHub Actions secrets (tales-forge-docs `docs/fly-secrets.md`).
+
+## Language: positive framing and ASD-STE100
+
+Decision: tales-forge-docs `docs/decisions.md`, 2026-10-10, "Positive framing and ASD-STE100 language standard" (Fredrik).
+
+**1. Say confidence, not doubt.** In the UI, playtest reports, scores, prompts that show in reports, and docs, write "confidence" or "certainty". Do not write "unsure", "uncertain", "uncertainty" or "unsureness". Give the positive quantity directly. Do not use minimized negatives ("not unlikely", "fewer failures") or double negatives.
+
+| Write | Not |
+|---|---|
+| `4.21/5 · confident 70%` | `4.21/5 · unsure 30%` |
+| `3 low-confidence turns` | `3 unsure turns` |
+| `Jev had low confidence here.` | `Jev was very unsure here.` |
+| `9 of 10 checks pass.` | `Only 1 check fails.` |
+| `The result is likely.` | `The result is not unlikely.` |
+
+**2. Code, comments, moduledocs and docs use ASD-STE100 Simplified Technical English.**
+
+- Short sentences: 20 words or fewer for an instruction, 25 for a description.
+- One instruction in one sentence. Start an instruction with the verb.
+- Active voice. Name the actor.
+- Use approved words with one meaning. Use the same word for the same thing every time.
+
+| Write | Not |
+|---|---|
+| `Start the poller. Then read the snapshot.` | `The snapshot should be read once the poller has been started.` |
+| `The scorer writes one row for each turn.` | `A row is written per turn by the scorer.` |
+| `@doc "Returns the confident share (0 to 1)."` | `@doc "Basically gives you roughly how sure-ish Jev was."` |
+
+Old names (for example `unsure_share`, `unsure_pct`) change to the confidence form when you touch them. A separate rename PR does the rest. Do not change the GM, Jev or intent prompts for wording only: a prompt change needs its own decision, and the baseline GM prompt golden test stays byte-identical.
+
+The same rule is in `CONTRIBUTING.md`.
 
 ## Sign-in and access
 
