@@ -841,7 +841,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
         ~s([data-approval="true"] img.team-seal[src="/images/team/founders-seal-192.jpg"][srcset*="founders-seal-96.jpg 96w"])
 
       assert has_element?(view, ~s(#flow-step-ok_merge#{seal}[loading="lazy"][width="192"]))
-      assert has_element?(view, "#flow-step-ok_prod#{seal}")
+      refute has_element?(view, "#flow-step-ok_prod#{seal}")
       refute has_element?(view, "#team-flow [data-approval] svg.team-seal")
     end
 
