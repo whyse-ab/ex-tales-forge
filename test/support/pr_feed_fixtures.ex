@@ -1,6 +1,33 @@
 defmodule TalesForge.PrFeedFixtures do
   @moduledoc "GitHub REST answers and snapshots for the live PR feed tests (mocked data only)."
 
+  @doc """
+  Clears the live PR feed's shared cache (the `TalesForge.PrFeed.Poller` ETS
+  table: the snapshot and the extras), so the next read gives the initial
+  state. A no-op when the table does not exist.
+  """
+  @spec reset_cache() :: :ok
+  def reset_cache do
+    if :ets.whereis(TalesForge.PrFeed.Poller) != :undefined do
+      :ets.delete(TalesForge.PrFeed.Poller, :snapshot)
+      :ets.delete(TalesForge.PrFeed.Poller, :extras)
+    end
+
+    :ok
+  end
+
+  @doc """
+  Isolates the cache for one test: clears it now and again when the test
+  exits. Call it from `setup` in every test that reads or writes the feed, so
+  no test depends on what an earlier test left in the cache.
+  """
+  @spec isolate_cache() :: :ok
+  def isolate_cache do
+    reset_cache()
+    ExUnit.Callbacks.on_exit(&reset_cache/0)
+    :ok
+  end
+
   @doc "A pull request as GitHub's pulls list returns it."
   @spec pull(pos_integer(), keyword()) :: map()
   def pull(number, opts \\ []) do

@@ -5,14 +5,14 @@ defmodule TalesForgeWeb.TeamPrFeedLiveTest do
   import TalesForge.PrFeedFixtures
 
   alias TalesForge.PrFeed
-  alias TalesForge.PrFeed.Poller
   alias TalesForgeWeb.TeamPrFeedLive
 
   doctest TalesForgeWeb.TeamPrFeed
 
   setup %{conn: conn} do
+    isolate_cache()
+
     on_exit(fn ->
-      :ets.delete(Poller, :snapshot)
       Application.put_env(:ex_tales_forge, :pr_feed_token, nil)
     end)
 
