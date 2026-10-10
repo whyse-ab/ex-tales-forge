@@ -194,7 +194,8 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
       )
 
     TalesForge.PrFeed.publish(%{feed | items: [item]})
-    on_exit(fn -> TalesForge.PrFeed.publish(TalesForge.PrFeed.empty(:not_configured)) end)
+    # Clear the shared feed cache afterwards (a published snapshot would stay).
+    on_exit(&TalesForge.PrFeedFixtures.reset_cache/0)
 
     {:ok, view, _} = live(conn, "/team")
 

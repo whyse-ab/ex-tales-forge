@@ -187,7 +187,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
     import TalesForge.PrFeedFixtures
 
     setup %{conn: conn} do
-      on_exit(fn -> :ets.delete(PrFeed.Poller, :snapshot) end)
+      isolate_cache()
       {:ok, conn: log_in_admin(conn)}
     end
 
@@ -1144,7 +1144,8 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
     doctest TalesForgeWeb.TeamLiveNumbers
 
     setup %{conn: conn} do
-      on_exit(fn -> :ets.delete(PrFeed.Poller, :extras) end)
+      # This group publishes snapshots and stores extras.
+      TalesForge.PrFeedFixtures.isolate_cache()
       {:ok, conn: log_in_admin(conn)}
     end
 

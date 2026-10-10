@@ -22,12 +22,13 @@ defmodule TalesForge.PrFeedTest do
   @now ~U[2026-10-09 12:00:00Z]
 
   setup do
+    isolate_cache()
+
     on_exit(fn ->
       Application.put_env(:ex_tales_forge, :pr_feed_token, nil)
       Application.delete_env(:ex_tales_forge, :costs_peer)
       Application.delete_env(:ex_tales_forge, :app_name)
       System.delete_env("GIT_SHA")
-      :ets.delete(Poller, :snapshot)
     end)
 
     :ok
