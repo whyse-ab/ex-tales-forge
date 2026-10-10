@@ -1,39 +1,32 @@
 defmodule TalesForgeWeb.TeamLive do
   @moduledoc """
-  The founders' landing page at `/team`: the hero with the painted crew, a
-  short card for each of the crew (the founders and the three bots, with their
-  portraits), a prominent way into the full presentation at
-  `/team/presentation` (`TalesForgeWeb.TeamPresentationLive`) and a marked,
-  "coming soon" spot where the shared board will live.
+  The founders' landing page at `/team`, top to bottom:
 
-  The page is a stack of independent sections (`hero/1`, `crew/1`,
-  `presentation/1`, `board_soon/1`), each an `id`'d `<section>` with its own
-  assigns, so more can slot in between them later without touching the
-  others. The live PR feed (ex-tales-forge #102, on hold) is meant to go in
-  after the crew, where the template marks it.
+  1. the hero with the painted crew (`hero/1`);
+  2. **What we're going to do** (`#idea-board`): the founders' idea board. Until
+     its UI ships this is a "coming soon" placeholder (`#board-soon`,
+     `data-slot="shared-board"`); the board replaces it in the same slot;
+  3. **What we're doing now** (`#live`): the live GitHub PR, CI and deploy feed,
+     the nested `TalesForgeWeb.TeamPrFeedLive` (`TalesForge.PrFeed`, polled on
+     the server and pushed over PubSub);
+  4. the one link to the full presentation (`#presentation-cta`).
 
-  Old links to the presentation's sections (`/team#playtests`) still work: the
-  server never sees the `#`, so the `TeamAnchorRedirect` hook
-  (`assets/js/team_hooks.js`) replaces the URL with
-  `/team/presentation#playtests` when the anchor is one of
-  `TalesForgeWeb.TeamPresentationLive.anchors/0`, passed in `data-anchors`.
-  This page's own anchors are named so they never collide with those.
+  The crew cards moved to the presentation (decision 2026-10-10). Old links
+  still work: the `TeamAnchorRedirect` hook (`assets/js/team_hooks.js`)
+  replaces `/team#playtests` and the other
+  `TalesForgeWeb.TeamPresentationLive.anchors/0` with the same anchor on the
+  presentation, and the old crew anchors (`aliases/0`, e.g. `#crew`,
+  `#crew-case`) with the crew on the presentation.
 
   Behind the GitHub team sign-in like every page (router `:browser` pipeline
-  plus the `:require_team_member` mount hook, the same `:play` live session as
-  the presentation). Read-only: no events, no AI calls, no database. The one
-  live part, "Live: what we're shipping", is the nested
-  `TalesForgeWeb.TeamPrFeedLive` (the PR feed of `TalesForge.PrFeed`, polled
-  from GitHub on the server and pushed over PubSub). Copy
-  follows tales-forge-docs `docs/team-page/content.md`; numbers come from
+  plus the `:require_team_member` mount hook). Read-only; copy follows
+  tales-forge-docs `docs/team-page/content.md`; numbers come from
   `TalesForge.TeamPage`.
   """
 
   use TalesForgeWeb, :live_view
 
-  import TalesForge.TeamPage, only: [get: 2, count_word: 1]
-
-  import TalesForgeWeb.TeamComponents, only: [founders_people: 1]
+  import TalesForge.TeamPage, only: [count_word: 1]
 
   alias TalesForge.PrFeed
   alias TalesForge.TeamPage
@@ -44,32 +37,40 @@ defmodule TalesForgeWeb.TeamLive do
   alias TalesForgeWeb.TeamPresentationLive
   alias TalesForgeWeb.TeamPrFeed
 
-  @nav [{"crew", "The crew"}, {"live", "Live"}, {"board-soon", "Shared board"}]
-
-  # One line per crew member, the first line of their card in the brief.
-  @short %{
-    "founders" => "Shape what we build: ideas, surveys and playing the game.",
-    "case" => "The crew's go-to bot. Turns ideas into plans and hands the work to Bobby.",
-    "bobby" => "Writes all the code, always as pull requests.",
-    "gentry" =>
-      "Plays the game like a troublemaker: prompt injections, fake GM notes and false claims."
-  }
-
-  @badges %{
-    "case" => "Hourly status · daily cleanup",
-    "bobby" => "Hourly log check",
-    "gentry" => "Weekdays 07:13 · after every playtest deploy"
-  }
+  @nav [
+    {"idea-board", "Going to do"},
+    {"live", "Doing now"},
+    {"presentation-cta", "Presentation"}
+  ]
 
   @doc """
   This page's own anchors (its nav and sections). None of them is a
   presentation anchor, so the redirect hook leaves them alone.
 
       iex> TalesForgeWeb.TeamLive.anchors()
-      ["crew", "live", "board-soon", "landing-hero", "presentation-cta"]
+      ["idea-board", "live", "presentation-cta", "landing-hero", "board-soon"]
   """
   @spec anchors() :: [String.t()]
-  def anchors, do: Enum.map(@nav, &elem(&1, 0)) ++ ~w(landing-hero presentation-cta)
+  def anchors, do: Enum.map(@nav, &elem(&1, 0)) ++ ~w(landing-hero board-soon)
+
+  @doc """
+  The old crew anchors of this page and where they land now: the crew on the
+  presentation (the section, or that member's card).
+
+      iex> TalesForgeWeb.TeamLive.aliases()["crew"]
+      "/team/presentation#team"
+      iex> TalesForgeWeb.TeamLive.aliases()["crew-case"]
+      "/team/presentation#member-case"
+  """
+  @spec aliases() :: %{String.t() => String.t()}
+  def aliases do
+    members = ~w(founders case bobby gentry)
+
+    Map.new(
+      [{"crew", "/team/presentation#team"}, {"crew-cards", "/team/presentation#team"}] ++
+        Enum.map(members, &{"crew-" <> &1, "/team/presentation#member-" <> &1})
+    )
+  end
 
   @impl true
   @spec mount(map(), map(), Phoenix.LiveView.Socket.t()) :: {:ok, Phoenix.LiveView.Socket.t()}
@@ -79,7 +80,8 @@ defmodule TalesForgeWeb.TeamLive do
      |> assign(:page_title, "Team")
      |> assign(:d, TeamPage.data())
      |> assign(:nav, @nav)
-     |> assign(:anchors, Jason.encode!(TeamPresentationLive.anchors()))}
+     |> assign(:anchors, Jason.encode!(TeamPresentationLive.anchors()))
+     |> assign(:aliases, Jason.encode!(aliases()))}
   end
 
   @impl true
@@ -98,15 +100,15 @@ defmodule TalesForgeWeb.TeamLive do
         phx-hook="TeamAnchorRedirect"
         data-target={~p"/team/presentation"}
         data-anchors={@anchors}
+        data-aliases={@aliases}
       />
       <TeamLayout.header page={:landing} items={@nav} />
 
       <main class="mx-auto max-w-6xl space-y-16 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
         <.hero d={@d} />
-        <.crew d={@d} />
+        <.going_to_do />
         <.live_section socket={assigns[:socket]} />
         <.presentation />
-        <.board_soon />
       </main>
 
       <TeamLayout.footer d={@d} />
@@ -141,13 +143,6 @@ defmodule TalesForgeWeb.TeamLive do
             Soon every founder will be able to do the same: approve changes, steer the bots and make decisions.
           </p>
         </aside>
-        <.link
-          id="hero-presentation-link"
-          navigate={~p"/team/presentation"}
-          class="team-cta inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-base font-semibold"
-        >
-          See the full presentation <.icon name="hero-arrow-right" class="size-5" />
-        </.link>
       </div>
       <div class="team-card overflow-hidden p-3">
         <TeamArt.picture
@@ -163,62 +158,6 @@ defmodule TalesForgeWeb.TeamLive do
     """
   end
 
-  attr :d, :map, required: true
-
-  defp crew(assigns) do
-    assigns = assign(assigns, :members, TeamPage.members(assigns.d))
-
-    ~H"""
-    <section id="crew" class="space-y-5" aria-labelledby="crew-title">
-      <header class="max-w-3xl space-y-2">
-        <h2 id="crew-title" class="font-serif text-2xl font-bold sm:text-3xl">The crew</h2>
-        <p class="text-base leading-relaxed text-[var(--paper-muted)] sm:text-lg">
-          Tales Forge is built by one crew: the founders and {count_word(TeamPage.bot_count(@d))} bots.
-          The bots do a lot of the hands-on work, and nothing reaches the game without a founder's yes.
-        </p>
-      </header>
-      <ul id="crew-cards" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <li
-          :for={member <- @members}
-          id={"crew-#{member["id"]}"}
-          class="team-card flex flex-col gap-3 p-4"
-        >
-          <TeamArt.picture
-            :if={TeamArt.portrait?(member["id"])}
-            id={"crew-portrait-#{member["id"]}"}
-            name={member["id"]}
-            sizes="(min-width: 1152px) 240px, (min-width: 1024px) calc(25vw - 3rem), (min-width: 640px) calc(50vw - 4rem), calc(100vw - 4rem)"
-            class="team-portrait block aspect-[4/3] h-auto w-full rounded-lg object-cover"
-          />
-          <div class="flex items-center gap-3">
-            <TeamArt.avatar
-              :if={!TeamArt.portrait?(member["id"])}
-              id={member["id"]}
-              class="size-16"
-              label={member["name"]}
-            />
-            <div class="min-w-0">
-              <h3 class="font-serif text-lg font-bold leading-tight">{member["name"]}</h3>
-              <p class="text-xs text-[var(--paper-muted)]">{member["role"]}</p>
-            </div>
-          </div>
-          <p class="flex-1 space-y-1 text-sm leading-snug">
-            <span class="block">{short(member)}</span>
-            <.founders_people :if={member["id"] == "founders"} id="crew-founders-people" d={@d} />
-          </p>
-          <p :if={badge(member, @d)} class="team-badge">{badge(member, @d)}</p>
-          <.link
-            navigate={"/team/presentation#member-#{member["id"]}"}
-            class="text-sm font-semibold text-[var(--paper-accent)] underline"
-          >
-            More about {more_name(member["name"])} →
-          </.link>
-        </li>
-      </ul>
-    </section>
-    """
-  end
-
   # The feed is its own LiveView (TeamPrFeedLive), so its minute-by-minute
   # updates patch only that part and never the page's animation state. Without
   # a socket (render/1 called directly in tests) the current snapshot is shown
@@ -230,11 +169,11 @@ defmodule TalesForgeWeb.TeamLive do
     <section id="live" class="space-y-5" aria-labelledby="live-title">
       <header class="max-w-3xl space-y-2">
         <h2 id="live-title" class="font-serif text-2xl font-bold sm:text-3xl">
-          Live: what we're shipping
+          What we're doing now
         </h2>
         <p class="text-base leading-relaxed text-[var(--paper-muted)] sm:text-lg">
-          The latest pull requests in the game's repo, straight from GitHub and updated every minute:
-          what's open, what just merged, and whether it's on playtest or in production yet.
+          Live from GitHub, updated every minute: the pull requests in the game's repo, whether their checks
+          passed, and whether they're on playtest or in production yet.
         </p>
       </header>
       <%= if @socket do %>
@@ -247,8 +186,6 @@ defmodule TalesForgeWeb.TeamLive do
   end
 
   defp presentation(assigns) do
-    assigns = assign(assigns, :sections, TeamPresentationLive.sections())
-
     ~H"""
     <section
       id="presentation-cta"
@@ -259,7 +196,7 @@ defmodule TalesForgeWeb.TeamLive do
         The full presentation
       </h2>
       <p class="max-w-3xl leading-relaxed">
-        Who does what, how a change gets from an idea to the game, the rules we work by, what the game runs on,
+        The crew and who does what, how a change gets from an idea to the game, the rules we work by, what the game runs on,
         what the playtests taught us, the pace and cost so far, the shared board that's coming, and where we go from here, together.
       </p>
       <.link
@@ -269,59 +206,46 @@ defmodule TalesForgeWeb.TeamLive do
       >
         Open the presentation <.icon name="hero-arrow-right" class="size-5" />
       </.link>
-      <ol id="presentation-contents" class="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-        <li :for={{{id, label}, i} <- Enum.with_index(@sections, 1)}>
-          <.link navigate={"/team/presentation##{id}"} class="underline underline-offset-2">
-            {i}. {label}
-          </.link>
-        </li>
-      </ol>
     </section>
     """
   end
 
-  defp board_soon(assigns) do
+  # "What we're going to do": the idea board's slot. Until the board UI ships it
+  # holds the "coming soon" placeholder (#board-soon), which the board then
+  # replaces in place.
+  defp going_to_do(assigns) do
     assigns = assign(assigns, :board, TeamBoard.anchor())
 
     ~H"""
-    <section
-      id="board-soon"
-      class="team-board-soon space-y-3 rounded-xl border-2 border-dashed border-[var(--paper-rule)] p-5 text-center sm:p-8"
-      aria-labelledby="board-soon-title"
-      data-slot="shared-board"
-    >
-      <p class="team-badge team-soon mx-auto">
-        <.icon name="hero-sparkles-micro" class="size-4" /> Coming soon. Not built yet.
-      </p>
-      <h2 id="board-soon-title" class="font-serif text-2xl font-bold">One shared board</h2>
-      <p class="mx-auto max-w-2xl text-sm leading-relaxed text-[var(--paper-muted)] sm:text-base">
-        Coming soon: one board, the whole crew, from idea to done. This is where it will live.
-      </p>
-      <.link
-        navigate={"/team/presentation##{@board}"}
-        class="inline-block text-sm font-semibold text-[var(--paper-accent)] underline"
+    <section id="idea-board" class="space-y-5" aria-labelledby="idea-board-title">
+      <header class="max-w-3xl space-y-2">
+        <h2 id="idea-board-title" class="font-serif text-2xl font-bold sm:text-3xl">
+          What we're going to do
+        </h2>
+        <p class="text-base leading-relaxed text-[var(--paper-muted)] sm:text-lg">
+          The founders' idea board: add ideas, vote them up or down, and decide what gets built.
+        </p>
+      </header>
+      <div
+        id="board-soon"
+        class="team-board-soon space-y-3 rounded-xl border-2 border-dashed border-[var(--paper-rule)] p-5 text-center sm:p-8"
+        data-slot="shared-board"
       >
-        How it will work →
-      </.link>
+        <p class="team-badge team-soon mx-auto">
+          <.icon name="hero-sparkles-micro" class="size-4" /> Coming soon. Not built yet.
+        </p>
+        <h3 class="font-serif text-xl font-bold">One shared board</h3>
+        <p class="mx-auto max-w-2xl text-sm leading-relaxed text-[var(--paper-muted)] sm:text-base">
+          One board, the whole crew, from idea to done. This is where it will live.
+        </p>
+        <.link
+          navigate={"/team/presentation##{@board}"}
+          class="inline-block text-sm font-semibold text-[var(--paper-accent)] underline"
+        >
+          How it will work →
+        </.link>
+      </div>
     </section>
     """
   end
-
-  defp more_name("The " <> rest), do: "the " <> rest
-  defp more_name(name), do: name
-
-  defp short(member), do: Map.get(@short, member["id"]) || List.first(member["does"] || []) || ""
-
-  defp badge(%{"id" => "founders"} = member, d) do
-    case get(member, ["approval_key", "later"]) do
-      later when is_binary(later) ->
-        "The approval key: #{TeamPage.approval_holder(d)} today, #{later} soon"
-
-      _missing ->
-        nil
-    end
-  end
-
-  defp badge(%{"id" => id}, _d), do: Map.get(@badges, id)
-  defp badge(_member, _d), do: nil
 end

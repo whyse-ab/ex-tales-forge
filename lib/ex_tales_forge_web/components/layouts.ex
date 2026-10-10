@@ -5,6 +5,8 @@ defmodule TalesForgeWeb.Layouts do
   """
   use TalesForgeWeb, :html
 
+  alias TalesForgeWeb.AdminSections
+
   import TalesForgeWeb.AdminComponents
 
   # Embed all files in layouts/* within this module.
@@ -72,6 +74,10 @@ defmodule TalesForgeWeb.Layouts do
 
   attr :active, :string, default: "dashboard"
 
+  attr :page, :string,
+    default: nil,
+    doc: "the page's own name as the last breadcrumb, when it is more specific than its nav item"
+
   attr :wide, :boolean,
     default: false,
     doc: "wider page (max-w-7xl) for pages with their own sidebar column, e.g. docs"
@@ -99,12 +105,46 @@ defmodule TalesForgeWeb.Layouts do
           <.nav active={@active} />
         </aside>
         <main class="min-w-0 space-y-4">
+          <.admin_breadcrumbs active={@active} page={@page} />
           {render_slot(@inner_block)}
         </main>
       </div>
 
       <.flash_group flash={@flash} />
     </div>
+    """
+  end
+
+  @doc """
+  The breadcrumbs above every admin page, Admin > Section > Page
+  (`TalesForgeWeb.AdminSections.breadcrumbs/3`, from the regroup's section
+  map). Wraps on a phone; the current page is marked `aria-current`.
+  """
+  attr :active, :string, default: "dashboard"
+  attr :page, :string, default: nil
+
+  @spec admin_breadcrumbs(map()) :: Phoenix.LiveView.Rendered.t()
+  def admin_breadcrumbs(assigns) do
+    assigns = assign(assigns, :crumbs, AdminSections.breadcrumbs(assigns.active, assigns.page))
+
+    ~H"""
+    <nav id="admin-breadcrumbs" aria-label="Breadcrumb">
+      <ol class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm text-[var(--paper-muted)]">
+        <li :for={{{label, href}, i} <- Enum.with_index(@crumbs)} class="flex items-center gap-1.5">
+          <span :if={i > 0} aria-hidden="true">›</span>
+          <.link
+            :if={href}
+            href={href}
+            class="play-label text-[var(--paper-accent)] hover:underline"
+          >
+            {label}
+          </.link>
+          <span :if={!href} aria-current="page" class="play-label text-[var(--paper-ink)]">
+            {label}
+          </span>
+        </li>
+      </ol>
+    </nav>
     """
   end
 

@@ -404,21 +404,28 @@ export const TeamBoard = {
 // TeamPresentationLive.anchors/0), the URL is replaced with
 // /team/presentation#section, so Back skips the landing page. Anything else
 // (the landing page's own anchors, no fragment) stays put.
-export const presentationTarget = (hash, anchors, target) => {
+export const presentationTarget = (hash, anchors, target, aliases = {}) => {
   const anchor = decodeURIComponent((hash || "").replace(/^#/, ""))
+  if (anchor && Object.prototype.hasOwnProperty.call(aliases, anchor)) return aliases[anchor]
   return anchor && anchors.includes(anchor) ? `${target}#${anchor}` : null
 }
 
 export const TeamAnchorRedirect = {
   mounted() {
     this.anchors = JSON.parse(this.el.dataset.anchors || "[]")
+    this.aliases = JSON.parse(this.el.dataset.aliases || "{}")
     this.onHash = () => this.check()
     window.addEventListener("hashchange", this.onHash)
     this.check()
   },
 
   check() {
-    const to = presentationTarget(window.location.hash, this.anchors, this.el.dataset.target)
+    const to = presentationTarget(
+      window.location.hash,
+      this.anchors,
+      this.el.dataset.target,
+      this.aliases,
+    )
     if (to) window.location.replace(to)
   },
 

@@ -158,7 +158,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Show do
       )
 
     ~H"""
-    <Layouts.admin flash={@flash} active="survey">
+    <Layouts.admin flash={@flash} active="survey" page={@definition.title}>
       <.survey_tabs tabs={@tabs} current={@survey_id} />
       <p
         :if={not Definition.active?(@definition)}
@@ -168,13 +168,6 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Show do
         This survey is not one of the open tabs right now. You can still read it here, and its results stay available.
       </p>
       <header class="space-y-2">
-        <.link
-          id="section-crumb"
-          href="/admin#section-founders"
-          class="play-label text-[var(--paper-accent)] hover:underline"
-        >
-          Founders
-        </.link>
         <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">{@definition.title}</h2>
         <p class="text-sm text-[var(--paper-muted)]">
           About {@definition.estimated_minutes || "?"} minutes · version {@definition.version} ·

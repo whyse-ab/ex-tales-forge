@@ -76,16 +76,9 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Results do
       assign(assigns, :selected, Enum.find(assigns.responses, &(&1.github_login == assigns.user)))
 
     ~H"""
-    <Layouts.admin flash={@flash} active="survey">
+    <Layouts.admin flash={@flash} active="survey" page={"Results: " <> @definition.title}>
       <header class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0 space-y-1">
-          <.link
-            id="section-crumb"
-            href="/admin#section-founders"
-            class="play-label text-[var(--paper-accent)] hover:underline"
-          >
-            Founders
-          </.link>
           <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Survey results</h2>
           <p class="text-sm text-[var(--paper-muted)]">
             {@definition.title} ·
