@@ -479,10 +479,40 @@ defmodule TalesForge.Board do
     end
   end
 
+  @doc """
+  Saves a founder's answer boxes of one card together (the full card sends
+  them with a move, on close and on blur). `drafts` is a list of
+  `{question, %{"answer" => text, "deferred" => bool}}`. A deferral that
+  changed is saved first, then a typed answer. A blank box and a box equal to
+  the saved answer save nothing, so the history gets no duplicate lines.
+  """
+  @spec save_answers(Idea.t(), String.t(), [{String.t(), map()}]) :: {:ok, Idea.t()} | error()
+  def save_answers(%Idea{} = idea, founder, drafts) do
+    Enum.reduce_while(drafts, {:ok, idea}, fn {q, d}, {:ok, acc} ->
+      steps =
+        [
+          Map.has_key?(d, "deferred") && %{"deferred" => d["deferred"]},
+          String.trim(to_string(d["answer"])) != "" && %{"answer" => d["answer"]}
+        ]
+        |> Enum.filter(& &1)
+
+      Enum.reduce_while(steps, {:ok, acc}, fn attrs, {:ok, i} ->
+        case answer_question(i, founder, q, attrs) do
+          {:ok, i} -> {:cont, {:ok, i}}
+          error -> {:halt, error}
+        end
+      end)
+      |> case do
+        {:ok, i} -> {:cont, {:ok, i}}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
   defp answer_change(current, founder, %{"deferred" => d}, now, question) do
     deferred = d in [true, "true"]
 
-    if current && current.deferred == deferred,
+    if (current && current.deferred) == deferred or (current == nil and not deferred),
       do: :unchanged,
       else: defer_change(deferred, founder, now, question)
   end
