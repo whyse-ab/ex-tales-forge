@@ -2,6 +2,7 @@ defmodule TalesForge.Board.Events do
   @moduledoc """
   What a board change sets off, added to the same `Ecto.Multi` as the change
   (a transactional outbox: the jobs exist if and only if the change committed).
+
   `TalesForge.Board.Events.add/4` names the event; the jobs it inserts come with the bot pings and the
   decision log commit.
   """
