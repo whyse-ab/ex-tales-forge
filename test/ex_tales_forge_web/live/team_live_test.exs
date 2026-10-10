@@ -5,7 +5,6 @@ defmodule TalesForgeWeb.TeamLiveTest do
 
   doctest TalesForgeWeb.TeamLive
 
-  alias TalesForgeWeb.TeamBoard
   alias TalesForgeWeb.TeamLive
   alias TalesForgeWeb.TeamPresentationLive
 
