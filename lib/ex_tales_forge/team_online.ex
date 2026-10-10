@@ -26,7 +26,7 @@ defmodule TalesForge.TeamOnline do
   @bots [{:case, "Case"}, {:bobby, "Bobby"}, {:gentry, "Gentry"}]
   @online_minutes 10
 
-  @typedoc "A founder as shown: `TalesForge.Online.person/0` plus the display name and @handle."
+  @typedoc "A founder as shown: `t:TalesForge.Online.person/0` plus the display name and @handle."
   @type founder :: %{
           key: String.t(),
           name: String.t(),
