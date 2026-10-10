@@ -40,14 +40,14 @@ defmodule TalesForge.Playtest.JevHeadlineTest do
 
     assert h.score == nil
     assert h.unsure_share == 1.0
-    assert JevHeadline.format(h) == "— · unsure 100%"
+    assert JevHeadline.format(h) == "— · confident 0%"
   end
 
   test "format and breakdown" do
     h = JevHeadline.summarize([row(4.0, 0.8), row(4.5, 0.8), row(2.0, 0.5)])
 
-    assert JevHeadline.format(h) == "3.71/5 · unsure 33%"
-    assert JevHeadline.breakdown(h) == "2 high · 0 low · 0 middle · 1 unsure"
+    assert JevHeadline.format(h) == "3.71/5 · confident 67%"
+    assert JevHeadline.breakdown(h) == "2 high · 0 low · 0 middle · 1 low-confidence"
     assert JevHeadline.format(%{score: 4.0, unsure_share: nil}) == "4.00/5"
     assert JevHeadline.unsure_below() == 0.7
   end

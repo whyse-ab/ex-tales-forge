@@ -5,14 +5,19 @@ defmodule TalesForge.Playtest.JevHeadline do
 
   Jev rates every turn on the persona's 1–5 scale and returns a confidence
   (0–1). The headline is the **confidence-weighted average** of the turn scores,
-  `sum(score × confidence) / sum(confidence)`, still on the 1–5 scale, shown
-  with the **unsure share** next to it: the share of turns whose confidence is
-  below 0.7. Underneath, the turns are split into confident-high
-  (score ≥ 3.5), confident-low (score ≤ 2.5), confident-middle and unsure.
+  `sum(score × confidence) / sum(confidence)`, on the 1–5 scale. The
+  **confident share** shows next to it: the share of turns with a confidence
+  of 0.7 or more. Below the headline, the turns go into four groups:
+  confident-high (score ≥ 3.5), confident-low (score ≤ 2.5),
+  confident-middle, and low-confidence (confidence below 0.7).
 
-  A turn without a confidence counts as unsure and carries no weight; a turn
-  without a score is left out. When no turn has any weight the headline is
-  `nil`.
+  A turn with no confidence goes into the low-confidence group and has zero
+  weight. A turn with no score is left out. When the total weight is zero, the
+  headline is `nil`.
+
+  The field names `unsure_share`, `unsure` and `unsure_below/0` stay until the
+  rename PR (tales-forge-docs decisions.md, 2026-10-10, positive framing). The
+  text that this module makes uses the confidence form.
   """
 
   @unsure_below 0.7
@@ -33,7 +38,7 @@ defmodule TalesForge.Playtest.JevHeadline do
           unsure: non_neg_integer()
         }
 
-  @doc "Confidence below this marks a turn as unsure (0.7)."
+  @doc "The confidence that a turn must have to be confident (0.7). A lower confidence puts the turn in the low-confidence group."
   @spec unsure_below() :: float()
   def unsure_below, do: @unsure_below
 
@@ -68,31 +73,33 @@ defmodule TalesForge.Playtest.JevHeadline do
   end
 
   @doc """
-  The headline as one line, e.g. `"4.21/5 · unsure 30%"`.
+  The headline as one line, for example `"4.21/5 · confident 70%"`. The
+  percentage is the share of turns with a confidence of 0.7 or more.
 
       iex> TalesForge.Playtest.JevHeadline.format(%{score: 4.214, unsure_share: 0.3})
-      "4.21/5 · unsure 30%"
+      "4.21/5 · confident 70%"
 
       iex> TalesForge.Playtest.JevHeadline.format(%{score: nil, unsure_share: 1.0})
-      "— · unsure 100%"
+      "— · confident 0%"
   """
   @spec format(%{score: float() | nil, unsure_share: float() | nil}) :: String.t()
   def format(%{score: score, unsure_share: share}) do
     score_text = if score, do: "#{:erlang.float_to_binary(score / 1, decimals: 2)}/5", else: "—"
-    share_text = if share, do: " · unsure #{round(share * 100)}%", else: ""
+    share_text = if share, do: " · confident #{round((1 - share) * 100)}%", else: ""
     score_text <> share_text
   end
 
   @doc """
-  The breakdown under the headline, e.g. `"6 high · 0 low · 1 middle · 3 unsure"`.
+  The breakdown under the headline, for example
+  `"6 high · 0 low · 1 middle · 3 low-confidence"`.
 
       iex> TalesForge.Playtest.JevHeadline.breakdown(%{high: 6, low: 0, middle: 1, unsure: 3})
-      "6 high · 0 low · 1 middle · 3 unsure"
+      "6 high · 0 low · 1 middle · 3 low-confidence"
   """
   @spec breakdown(%{high: integer(), low: integer(), middle: integer(), unsure: integer()}) ::
           String.t()
   def breakdown(%{high: high, low: low, middle: middle, unsure: unsure}),
-    do: "#{high} high · #{low} low · #{middle} middle · #{unsure} unsure"
+    do: "#{high} high · #{low} low · #{middle} middle · #{unsure} low-confidence"
 
   defp weight(%{confidence: c}) when is_number(c) and c > 0, do: c
   defp weight(_row), do: 0

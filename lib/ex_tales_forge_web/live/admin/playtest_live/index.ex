@@ -105,8 +105,8 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
         <h2 class="font-serif text-xl font-bold text-[var(--paper-ink)]">All runs, in detail</h2>
         <p class="text-sm text-[var(--paper-muted)]">
           Persona bot sessions and their judge scores. Game cost and time leave out the bot's own calls.
-          The Jev score is the confidence-weighted turn average with the share of unsure turns
-          (confidence below {JevHeadline.unsure_below()}) next to it.
+          The Jev score is the confidence-weighted turn average. Next to it is the share of
+          confident turns (confidence {JevHeadline.unsure_below()} or more).
         </p>
       </header>
 

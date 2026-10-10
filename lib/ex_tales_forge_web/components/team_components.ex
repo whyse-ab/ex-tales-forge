@@ -427,7 +427,7 @@ defmodule TalesForgeWeb.TeamComponents do
   end
 
   defp series_tip(series, id) do
-    "#{series["label"]}: #{score(get_in(series, ["weighted", id]))} · unsure #{TeamPage.pct(get_in(series, ["unsure_pct", id]))} · #{number(series["completed_runs"])} runs"
+    "#{series["label"]}: #{score(get_in(series, ["weighted", id]))} · confident #{TeamPage.pct(confident_pct(get_in(series, ["unsure_pct", id])))} · #{number(series["completed_runs"])} runs"
   end
 
   # Height in percent of a 1-5 score on a 1-5 axis.
@@ -474,4 +474,9 @@ defmodule TalesForgeWeb.TeamComponents do
   end
 
   defp missing?(value), do: value == TeamPage.not_measured()
+
+  # The data keeps the low-confidence share ("unsure_pct"); the page shows the
+  # confident share (positive framing, decisions.md 2026-10-10).
+  defp confident_pct(pct) when is_number(pct), do: 100 - pct
+  defp confident_pct(_missing), do: nil
 end

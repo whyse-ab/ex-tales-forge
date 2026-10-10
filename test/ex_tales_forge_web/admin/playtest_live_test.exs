@@ -469,12 +469,12 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
     assert has_element?(view, "#score-confidence", "Session confidence 81.0%")
     assert has_element?(view, "#turn-affect-strip", "T1: 3.0")
     # Headline: confidence-weighted turn average, (3.0×0.7 + 4.5×0.9 + 2.0×0.2) / 1.8.
-    assert has_element?(view, "#jev-headline", "3.64/5 · unsure 33%")
+    assert has_element?(view, "#jev-headline", "3.64/5 · confident 67%")
     assert has_element?(view, "#jev-headline", "confidence-weighted over 3 turns")
-    assert has_element?(view, "#jev-breakdown", "1 high · 0 low · 1 middle · 1 unsure")
+    assert has_element?(view, "#jev-breakdown", "1 high · 0 low · 1 middle · 1 low-confidence")
   end
 
-  test "runs list shows the weighted Jev headline with the unsure share and the breakdown",
+  test "runs list shows the weighted Jev headline with the confident share and the breakdown",
        %{conn: conn} do
     run = seed_run(persona: "lotta")
     insert_turn_affect(run, 1, 4.0, 0.8)
@@ -485,8 +485,8 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLiveTest do
 
     {:ok, view, _html} = live(conn, ~p"/admin/play/runs")
 
-    assert has_element?(view, "#run-#{run.id}-jev", "3.00/5 · unsure 0%")
-    assert has_element?(view, "#run-#{run.id}", "1 high · 1 low · 0 middle · 0 unsure")
+    assert has_element?(view, "#run-#{run.id}-jev", "3.00/5 · confident 100%")
+    assert has_element?(view, "#run-#{run.id}", "1 high · 1 low · 0 middle · 0 low-confidence")
     refute has_element?(view, "#run-#{unscored.id}-jev")
   end
 

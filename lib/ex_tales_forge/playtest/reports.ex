@@ -39,7 +39,7 @@ defmodule TalesForge.Playtest.Reports do
 
   @doc """
   The Jev headline for a run's turn rows (`TalesForge.Playtest.JevHeadline`):
-  the confidence-weighted turn average with the unsure share and the
+  the confidence-weighted turn average with the confident share and the
   breakdown, or nil when the run has no Jev turn scores.
   """
   @spec jev_headline([JevHeadline.row()]) :: JevHeadline.t() | nil

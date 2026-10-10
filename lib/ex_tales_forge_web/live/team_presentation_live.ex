@@ -987,7 +987,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
           <h3 class="font-serif text-xl font-bold">How scoring works</h3>
           <p class="text-sm leading-relaxed">
             Jev gives each turn a score from 1 (frustrated) to 5 (delighted) for that persona, plus how sure it is.
-            The headline is a <strong>confidence-weighted average</strong>: every turn counts, and the turns Jev is unsure about count less.
+            The headline is a <strong>confidence-weighted average</strong>: every turn counts, and a turn counts more when Jev has more confidence in it.
             We show it as “{score_example(@d)}”, so you can see both the score and how much to trust it.
           </p>
           <h3 class="pt-2 font-serif text-xl font-bold">What changed</h3>
@@ -1092,7 +1092,7 @@ defmodule TalesForgeWeb.TeamPresentationLive do
             {score_text(get_in(@scores.by_persona, [p["id"], :score]))}<span
               :if={get_in(@scores.by_persona, [p["id"], :unsure_pct])}
               class="text-xs text-[var(--paper-muted)]"
-            > · unsure {get_in(@scores.by_persona, [p["id"], :unsure_pct])}%</span>
+            > · confident {100 - get_in(@scores.by_persona, [p["id"], :unsure_pct])}%</span>
           </span>
         </li>
       </ul>
@@ -1765,14 +1765,14 @@ defmodule TalesForgeWeb.TeamPresentationLive do
   defp release(d, index),
     do: get(d, ["infrastructure", "apps", index, "release"]) || TeamPage.not_measured()
 
-  # "4.3/5 · unsure 46%", from the post-rework series (Paul), the example the brief uses.
+  # "4.3/5 · confident 54%", from the post-rework series (Paul), the example the brief uses.
   defp score_example(d) do
     series = get(d, ["playtest_series", "series"]) || []
 
     with %{} = s <- Enum.find(series, &(&1["id"] == "post-rework-2026-10-08")),
          value when is_number(value) <- get(s, ["weighted", "paul"]),
          unsure when is_number(unsure) <- get(s, ["unsure_pct", "paul"]) do
-      "#{score(value)} · unsure #{pct(unsure)}"
+      "#{score(value)} · confident #{pct(100 - unsure)}"
     else
       _missing -> get(d, ["jev_headline", "display"]) || TeamPage.not_measured()
     end
