@@ -35,6 +35,7 @@ defmodule TalesForgeWeb.AdminSections do
           optional(:key) => String.t(),
           optional(:fragment) => String.t(),
           optional(:area) => AppRole.area(),
+          optional(:app) => :production | :playtest,
           optional(:nav) => boolean()
         }
 
@@ -132,14 +133,16 @@ defmodule TalesForgeWeb.AdminSections do
         },
         %{label: "Health check", path: "/health", kind: :page},
         %{
-          label: "Logs (production)",
+          label: "Logs",
           path: "https://fly.io/apps/tales-forge/monitoring",
-          kind: :external
+          kind: :external,
+          app: :production
         },
         %{
-          label: "Logs (playtest)",
+          label: "Logs",
           path: "https://fly.io/apps/tales-forge-playtest/monitoring",
-          kind: :external
+          kind: :external,
+          app: :playtest
         }
       ]
     },
@@ -313,4 +316,45 @@ defmodule TalesForgeWeb.AdminSections do
   def elsewhere?(item, role \\ AppRole.role())
   def elsewhere?(%{area: area}, role), do: not AppRole.here?(area, role)
   def elsewhere?(_item, _role), do: false
+
+  @doc """
+  True when `item` belongs to the other app: a page that lives there
+  (`elsewhere?/2`), or an outside link about the other app (`:app`, for
+  example the playtest logs on production). These links get the cross-app
+  look in the nav and on the admin home.
+
+      iex> logs = %{label: "Logs", path: "https://fly.io/apps/tales-forge-playtest/monitoring", kind: :external, app: :playtest}
+      iex> TalesForgeWeb.AdminSections.cross_app?(logs, :production)
+      true
+      iex> TalesForgeWeb.AdminSections.cross_app?(logs, :playtest)
+      false
+  """
+  @spec cross_app?(item(), AppRole.role()) :: boolean()
+  def cross_app?(item, role \\ AppRole.role())
+  def cross_app?(%{app: app}, role), do: role != :local and app != role
+  def cross_app?(item, role), do: elsewhere?(item, role)
+
+  @doc """
+  The link text of `item`: its label, then the app in brackets for a page on
+  the other app or a link about one app, then "↗" for a link that leaves the
+  page's app or the site.
+
+      iex> logs = %{label: "Logs", path: "https://fly.io/apps/tales-forge-playtest/monitoring", kind: :external, app: :playtest}
+      iex> TalesForgeWeb.AdminSections.link_label(logs, :production)
+      "Logs (playtest) ↗"
+      iex> runs = %{label: "Playtest runs", path: "/admin/play/runs", kind: :live, area: :playtest_runs}
+      iex> TalesForgeWeb.AdminSections.link_label(runs, :production)
+      "Playtest runs (playtest) ↗"
+      iex> TalesForgeWeb.AdminSections.link_label(runs, :playtest)
+      "Playtest runs"
+  """
+  @spec link_label(item(), AppRole.role()) :: String.t()
+  def link_label(item, role \\ AppRole.role()) do
+    cond do
+      Map.has_key?(item, :app) -> "#{item.label} (#{item.app}) ↗"
+      elsewhere?(item, role) -> "#{item.label} (#{AppRole.home_label(item.area)}) ↗"
+      item.kind == :external -> item.label <> " ↗"
+      true -> item.label
+    end
+  end
 end

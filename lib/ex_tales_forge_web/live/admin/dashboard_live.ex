@@ -103,21 +103,17 @@ defmodule TalesForgeWeb.AdminLive.DashboardLive do
           }
           target={item.kind == :external && "_blank"}
           rel={item.kind == :external && "noopener noreferrer"}
-          aria-label={link_label(item, @role)}
-          class="inline-flex min-h-11 items-center rounded px-1 text-[var(--paper-accent)] underline-offset-2 hover:underline"
+          aria-label={AdminSections.link_label(item, @role)}
+          data-cross-app={AdminSections.cross_app?(item, @role)}
+          class={[
+            "inline-flex min-h-11 items-center rounded px-1 text-[var(--paper-accent)] underline-offset-2 hover:underline",
+            AdminSections.cross_app?(item, @role) && "font-semibold"
+          ]}
         >
-          {link_label(item, @role)}
+          {AdminSections.link_label(item, @role)}
         </.link>
       </li>
     </ul>
     """
-  end
-
-  defp link_label(item, role) do
-    cond do
-      AdminSections.elsewhere?(item, role) -> "#{item.label} (#{AppRole.home_label(item.area)}) ↗"
-      item.kind == :external -> item.label <> " ↗"
-      true -> item.label
-    end
   end
 end

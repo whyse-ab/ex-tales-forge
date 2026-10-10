@@ -123,18 +123,22 @@ defmodule TalesForgeWeb.AdminComponents do
     assigns =
       assign(assigns,
         href: AdminSections.href(item, assigns.role),
-        label:
-          if(elsewhere,
-            do: "#{item.label} (#{AppRole.home_label(item.area)}) ↗",
-            else: item.label
-          ),
+        label: AdminSections.link_label(item, assigns.role),
+        cross_app: AdminSections.cross_app?(item, assigns.role),
         external: elsewhere or item.kind != :live,
         new_tab: item.kind == :external,
         current: not elsewhere and item[:key] != nil and item[:key] == assigns.active
       )
 
     ~H"""
-    <.nav_link href={@href} label={@label} active={@current} external={@external} new_tab={@new_tab} />
+    <.nav_link
+      href={@href}
+      label={@label}
+      active={@current}
+      external={@external}
+      new_tab={@new_tab}
+      cross_app={@cross_app}
+    />
     """
   end
 
@@ -143,6 +147,7 @@ defmodule TalesForgeWeb.AdminComponents do
   attr :active, :boolean, default: false
   attr :external, :boolean, default: false, doc: "non-LiveView page: plain href"
   attr :new_tab, :boolean, default: false, doc: "another site: opens in a new tab"
+  attr :cross_app, :boolean, default: false, doc: "belongs to the other app: highlighted"
 
   defp nav_link(assigns) do
     ~H"""
@@ -153,10 +158,13 @@ defmodule TalesForgeWeb.AdminComponents do
       rel={@new_tab && "noopener noreferrer"}
       aria-current={@active && "page"}
       aria-label={@label}
+      data-cross-app={@cross_app}
       class={[
         "block min-h-11 rounded px-2.5 py-2.5 leading-snug lg:min-h-0 lg:px-3 lg:py-1.5",
         @active && "bg-[var(--paper-accent)] text-[var(--paper-on-accent)]",
-        !@active && "text-[var(--paper-ink)] hover:bg-[var(--paper-bg)]"
+        !@active && !@cross_app && "text-[var(--paper-ink)] hover:bg-[var(--paper-bg)]",
+        !@active && @cross_app &&
+          "font-semibold text-[var(--paper-accent)] hover:bg-[var(--paper-bg)]"
       ]}
     >
       {@label}
