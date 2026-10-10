@@ -1,0 +1,505 @@
+defmodule TalesForge.Board do
+  @moduledoc """
+  The founders' idea board on `/team` (tales-forge-docs
+  `docs/design-idea-board.md`, decisions 2026-10-10). Production only
+  (`TalesForge.AppRole.here?(:board)`).
+
+  Founders add ideas and vote them up or down (one vote each, +1 or -1,
+  changeable; `vote/3`); the Ideas column is ranked by
+  `TalesForge.Board.Ranking`. Case refines, founders check and comment, a
+  founder moves the card to Building (the OK, which writes the decision log
+  entry), Bobby builds, Gentry checks and Bobby moves it to Done. Who may move
+  what is `TalesForge.Board.Rules`; every move is a `board_transitions` row,
+  and what it sets off (bot pings, the decision commit) is queued in the same
+  transaction (`TalesForge.Board.Events`).
+
+  Changes are broadcast on `topic/0` as `{:board, :changed}`.
+  """
+
+  import Ecto.Query
+
+  alias Ecto.Multi
+  alias TalesForge.Board.{Comment, Events, Idea, Link, Ranking, Rules, Transition, Vote}
+  alias TalesForge.Collab.Schemas.Decision
+  alias TalesForge.Repo
+
+  @topic "board:ideas"
+  @gentry_pass "Gentry check: pass"
+
+  @typedoc "Who acts (see `TalesForge.Board.Rules`)."
+  @type actor :: Rules.actor()
+
+  @typedoc "An error for the UI or a bot: a sentence or a changeset."
+  @type error :: {:error, String.t() | Ecto.Changeset.t()}
+
+  @doc "The PubSub topic of board changes."
+  @spec topic() :: String.t()
+  def topic, do: @topic
+
+  @doc "Subscribes the caller to board changes."
+  @spec subscribe() :: :ok | {:error, term()}
+  def subscribe, do: Phoenix.PubSub.subscribe(TalesForge.PubSub, @topic)
+
+  @doc """
+  The whole board: a map of column => cards, with votes, comments, links and
+  history loaded. Ideas are ranked (best first, with `:score` set fresh); the
+  other columns are in the order the cards arrived there.
+  """
+  @spec board(DateTime.t()) :: %{String.t() => [Idea.t()]}
+  def board(now \\ DateTime.utc_now()) do
+    ideas = Idea |> Repo.all() |> preload_all()
+    grouped = Enum.group_by(ideas, & &1.column)
+
+    Map.new(Idea.columns(), fn column ->
+      cards = Map.get(grouped, column, [])
+      {column, order(column, cards, now)}
+    end)
+  end
+
+  @doc "The ranked Ideas column (best first), with fresh scores."
+  @spec ranked_ideas(DateTime.t()) :: [Idea.t()]
+  def ranked_ideas(now \\ DateTime.utc_now()) do
+    from(i in Idea, where: i.column == "ideas")
+    |> Repo.all()
+    |> preload_all()
+    |> then(&order("ideas", &1, now))
+  end
+
+  defp order("ideas", cards, now) do
+    cards
+    |> Enum.map(fn idea ->
+      score = Ranking.score(net_votes(idea), Ranking.age_days(idea.inserted_at, now))
+      {score, idea.inserted_at, %{idea | score: score}}
+    end)
+    |> Ranking.sort()
+  end
+
+  defp order(_column, cards, _now), do: Enum.sort_by(cards, &entered_at/1, {:asc, DateTime})
+
+  defp entered_at(idea) do
+    case Enum.max_by(idea.transitions, & &1.inserted_at, DateTime, fn -> nil end) do
+      nil -> idea.inserted_at
+      t -> t.inserted_at
+    end
+  end
+
+  defp preload_all(query_or_ideas) do
+    Repo.preload(query_or_ideas,
+      votes: [],
+      comments: from(c in Comment, order_by: [asc: c.inserted_at, asc: c.id]),
+      links: from(l in Link, order_by: [asc: l.inserted_at]),
+      transitions: from(t in Transition, order_by: [asc: t.inserted_at, asc: t.id])
+    )
+  end
+
+  @doc "The card's address on production's /team (its `#idea-<id>` anchor)."
+  @spec url(Idea.t()) :: String.t()
+  def url(%Idea{id: id}),
+    do: String.trim_trailing(TalesForge.AppRole.base_url(:production), "/") <> "/team#idea-" <> id
+
+  @doc "One card with everything loaded; raises when missing."
+  @spec get_idea!(Ecto.UUID.t()) :: Idea.t()
+  def get_idea!(id), do: Idea |> Repo.get!(id) |> preload_all()
+
+  @doc "One card with everything loaded, or nil (also for a malformed id)."
+  @spec get_idea(String.t()) :: Idea.t() | nil
+  def get_idea(id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, uuid} -> Idea |> Repo.get(uuid) |> then(&(&1 && preload_all(&1)))
+      :error -> nil
+    end
+  end
+
+  @doc "The net votes of a card (votes loaded)."
+  @spec net_votes(Idea.t()) :: integer()
+  def net_votes(%Idea{votes: votes}) when is_list(votes),
+    do: votes |> Enum.map(& &1.value) |> Enum.sum()
+
+  @doc "True when any founder has a -1 vote on the card (votes loaded): it can't go to Building."
+  @spec downvoted?(Idea.t()) :: boolean()
+  def downvoted?(%Idea{votes: votes}), do: Enum.any?(votes, &(&1.value == -1))
+
+  @doc "The vote of `founder` on the card (votes loaded): 1, -1 or nil."
+  @spec vote_of(Idea.t(), String.t()) :: 1 | -1 | nil
+  def vote_of(%Idea{votes: votes}, founder) do
+    founder = normalize(founder)
+    Enum.find_value(votes, &(&1.founder == founder && &1.value))
+  end
+
+  @doc "True when Gentry has passed the card (a comment starting #{inspect(@gentry_pass)})."
+  @spec gentry_ok?(Idea.t()) :: boolean()
+  def gentry_ok?(%Idea{comments: comments}),
+    do:
+      Enum.any?(
+        comments,
+        &(&1.author == "bot:gentry" and String.starts_with?(&1.body, @gentry_pass))
+      )
+
+  @doc "The text a Gentry comment starts with when the check passed."
+  @spec gentry_pass() :: String.t()
+  def gentry_pass, do: @gentry_pass
+
+  @doc "Adds an idea to the Ideas column, by `founder`."
+  @spec create_idea(String.t(), map()) :: {:ok, Idea.t()} | error()
+  def create_idea(founder, attrs) do
+    attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
+
+    Multi.new()
+    |> Multi.insert(
+      :idea,
+      Idea.create_changeset(%Idea{}, %{
+        "title" => attrs["title"],
+        "body" => attrs["body"] || "",
+        "author" => normalize(founder)
+      })
+    )
+    |> Multi.insert(:transition, fn %{idea: idea} ->
+      Transition.changeset(%Transition{}, %{
+        idea_id: idea.id,
+        to: "ideas",
+        actor: normalize(founder)
+      })
+    end)
+    |> run()
+  end
+
+  @doc """
+  Sets `founder`'s vote on the card to `value` (1 or -1). Voting the same value
+  again takes the vote back; the other value changes it. Only on cards in Ideas,
+  Refining or Founder check.
+  """
+  @spec vote(Idea.t(), String.t(), 1 | -1) :: {:ok, Idea.t()} | error()
+  def vote(%Idea{} = idea, founder, value) when value in [1, -1] do
+    founder = normalize(founder)
+
+    if idea.column in ~w(ideas refining check) do
+      before = pullable_ids()
+
+      result =
+        case Repo.get_by(Vote, idea_id: idea.id, founder: founder) do
+          %Vote{value: ^value} = vote ->
+            Repo.delete(vote)
+
+          %Vote{} = vote ->
+            vote |> Vote.changeset(%{value: value}) |> Repo.update()
+
+          nil ->
+            %Vote{}
+            |> Vote.changeset(%{idea_id: idea.id, founder: founder, value: value})
+            |> Repo.insert()
+        end
+
+      with {:ok, _} <- result do
+        :ok = ping_newly_pullable(before)
+        broadcast()
+        {:ok, get_idea!(idea.id)}
+      end
+    else
+      {:error, "Votes are closed once a card is in #{Rules.label(idea.column)}."}
+    end
+  end
+
+  def vote(_idea, _founder, _value), do: {:error, "A vote is +1 or -1."}
+
+  @doc "The ids of the ideas Case may pull now (see `TalesForge.Board.Ranking.pullable?/2`)."
+  @spec pullable_ids(DateTime.t()) :: MapSet.t(Ecto.UUID.t())
+  def pullable_ids(now \\ DateTime.utc_now()) do
+    now
+    |> ranked_ideas()
+    |> Enum.with_index(1)
+    |> Enum.filter(fn {idea, pos} -> Ranking.pullable?(idea.score, pos) end)
+    |> MapSet.new(fn {idea, _} -> idea.id end)
+  end
+
+  # Pings Case once for each idea that has just become pullable.
+  defp ping_newly_pullable(before) do
+    pullable_ids()
+    |> MapSet.difference(before)
+    |> Enum.each(fn id ->
+      idea = get_idea!(id)
+      {:ok, _} = Multi.new() |> Events.add(:idea_pullable, idea, %{}) |> Repo.transaction()
+    end)
+  end
+
+  @doc "Adds a comment by `author` (a founder email or `bot:<name>`); `@case`, `@bobby`, `@gentry` ping that bot."
+  @spec add_comment(Idea.t(), String.t(), String.t()) :: {:ok, Idea.t()} | error()
+  def add_comment(%Idea{} = idea, author, body) do
+    changeset =
+      Comment.changeset(%Comment{}, %{idea_id: idea.id, author: normalize(author), body: body})
+
+    Multi.new()
+    |> Multi.insert(:comment, changeset)
+    |> then(fn multi ->
+      Enum.reduce(mentions(body || ""), multi, fn bot, acc ->
+        Events.add(acc, :mention, idea, %{bot: bot, body: body, author: normalize(author)})
+      end)
+    end)
+    |> run(idea.id)
+  end
+
+  @doc """
+  The bots mentioned in a comment.
+
+      iex> TalesForge.Board.mentions("@Case can you look? cc @gentry, not @bobbyx")
+      [:case, :gentry]
+  """
+  @spec mentions(String.t()) :: [:case | :bobby | :gentry]
+  def mentions(body) do
+    ~r/@(case|bobby|gentry)\b/i
+    |> Regex.scan(body)
+    |> Enum.map(fn [_, name] -> name |> String.downcase() |> String.to_existing_atom() end)
+    |> Enum.uniq()
+  end
+
+  @doc "Adds a link (`kind`: pr, playtest, decision, doc, other). A PR link on a Building card pings Gentry."
+  @spec add_link(Idea.t(), String.t(), map()) :: {:ok, Idea.t()} | error()
+  def add_link(%Idea{} = idea, added_by, attrs) do
+    attrs = Map.new(attrs, fn {k, v} -> {to_string(k), v} end)
+
+    changeset =
+      Link.changeset(%Link{}, %{
+        idea_id: idea.id,
+        kind: attrs["kind"],
+        url: attrs["url"],
+        label: attrs["label"],
+        added_by: added_by
+      })
+
+    Multi.new()
+    |> Multi.insert(:link, changeset)
+    |> then(fn multi ->
+      if attrs["kind"] == "pr" and idea.column == "building",
+        do: Events.add(multi, :pr_link_added, idea, %{url: attrs["url"]}),
+        else: multi
+    end)
+    |> run(idea.id)
+  end
+
+  @refinement_keys ~w(details open_questions rough_cost verdict)
+  @verdicts ~w(feasible feasible_with_caveats not_feasible)
+  @costs ~w(S M L)
+
+  @doc """
+  Case's refinement of a card in Refining: `details` (text), `open_questions`
+  (a list of strings), `rough_cost` (S, M or L) and `verdict` (feasible,
+  feasible_with_caveats or not_feasible). Merged into what is there.
+  """
+  @spec refine(Idea.t(), map()) :: {:ok, Idea.t()} | error()
+  def refine(%Idea{column: "refining"} = idea, attrs) do
+    attrs = attrs |> Map.new(fn {k, v} -> {to_string(k), v} end) |> Map.take(@refinement_keys)
+    merged = Map.merge(idea.refinement || %{}, attrs)
+
+    with :ok <- valid_refinement(merged) do
+      idea |> Idea.update_changeset(%{refinement: merged}) |> Repo.update() |> after_update()
+    end
+  end
+
+  def refine(%Idea{}, _attrs), do: {:error, "Only a card in Refining can be refined."}
+
+  defp valid_refinement(r) do
+    cond do
+      Map.has_key?(r, "open_questions") and not is_list(r["open_questions"]) ->
+        {:error, "open_questions must be a list of strings."}
+
+      Map.has_key?(r, "rough_cost") and r["rough_cost"] not in @costs ->
+        {:error, "rough_cost must be S, M or L."}
+
+      Map.has_key?(r, "verdict") and r["verdict"] not in @verdicts ->
+        {:error, "verdict must be feasible, feasible_with_caveats or not_feasible."}
+
+      true ->
+        :ok
+    end
+  end
+
+  @doc "True when the refinement has details, open questions (a list, may be empty), a rough cost and a verdict."
+  @spec refined?(Idea.t()) :: boolean()
+  def refined?(%Idea{refinement: r}) do
+    is_binary(r["details"]) and String.trim(r["details"]) != "" and is_list(r["open_questions"]) and
+      r["rough_cost"] in @costs and r["verdict"] in @verdicts
+  end
+
+  @doc """
+  Moves a card to `to` for `actor`, if `TalesForge.Board.Rules` allows it,
+  with an optional `note` for the history. Writes the transition and queues
+  what the move sets off in the same transaction.
+  """
+  @spec move(Idea.t(), actor(), String.t(), String.t() | nil) :: {:ok, Idea.t()} | error()
+  def move(%Idea{} = idea, actor, to, note \\ nil) do
+    idea = get_idea!(idea.id)
+
+    facts = %{
+      pullable: MapSet.member?(pullable_ids(), idea.id),
+      refined: refined?(idea),
+      downvoted: downvoted?(idea),
+      pr_and_playtest:
+        Enum.all?(~w(pr playtest), fn k -> Enum.any?(idea.links, &(&1.kind == k)) end),
+      gentry_ok: gentry_ok?(idea)
+    }
+
+    with :ok <- Rules.check(actor, idea.column, to, facts) do
+      Multi.new()
+      |> Multi.update(:idea, Idea.update_changeset(idea, %{column: to}))
+      |> Multi.insert(
+        :transition,
+        Transition.changeset(%Transition{}, %{
+          idea_id: idea.id,
+          from: idea.column,
+          to: to,
+          actor: Rules.actor_name(actor),
+          note: note
+        })
+      )
+      |> add_move_events(idea, to, actor)
+      |> run(idea.id)
+    end
+  end
+
+  defp add_move_events(multi, idea, to, actor) do
+    extra = %{from: idea.column, to: to, actor: Rules.actor_name(actor)}
+
+    case {idea.column, to} do
+      {"check", "refining"} -> Events.add(multi, :idea_back_to_refining, idea, extra)
+      {_, "refining"} -> Events.add(multi, :idea_to_refining, idea, extra)
+      {_, "check"} -> Events.add(multi, :idea_to_check, idea, extra)
+      {_, "building"} -> Events.add(multi, :idea_to_building, idea, extra)
+      {_, "done"} -> Events.add(multi, :idea_to_done, idea, extra)
+      _ -> multi
+    end
+  end
+
+  @doc "Records the decision log commit of a card (set once; idempotent)."
+  @spec record_decision(Idea.t(), String.t(), String.t(), String.t()) :: {:ok, Idea.t()} | error()
+  def record_decision(%Idea{} = idea, slug, sha, url) do
+    idea = get_idea!(idea.id)
+
+    if idea.decision_sha do
+      {:ok, idea}
+    else
+      Multi.new()
+      |> Multi.update(
+        :idea,
+        Idea.update_changeset(idea, %{decision_sha: sha, decision_slug: slug})
+      )
+      |> Multi.insert(
+        :link,
+        Link.changeset(%Link{}, %{
+          idea_id: idea.id,
+          kind: "decision",
+          url: url,
+          label: "Decision log",
+          added_by: "board"
+        }),
+        on_conflict: :nothing
+      )
+      |> Multi.insert(
+        :transition,
+        Transition.changeset(%Transition{}, %{
+          idea_id: idea.id,
+          from: idea.column,
+          to: idea.column,
+          actor: "board",
+          note: "Decision log entry written: #{sha}"
+        })
+      )
+      |> run(idea.id)
+    end
+  end
+
+  @doc """
+  Imports the open Collab decisions (`/admin/founders/decisions`, status open
+  or discussing) as Ideas, once each (`collab_decision_id`), with their
+  comments. Afterwards the decision queue is read-only
+  (`TalesForge.Collab.read_only?/0`). Returns how many were imported.
+  """
+  @spec import_collab() :: {:ok, non_neg_integer()}
+  def import_collab do
+    imported =
+      from(i in Idea, where: not is_nil(i.collab_decision_id), select: i.collab_decision_id)
+
+    decisions =
+      from(d in Decision,
+        where: d.status in ["open", "discussing"] and d.id not in subquery(imported),
+        order_by: [asc: d.rank, asc: d.slug],
+        preload: [:comments]
+      )
+      |> Repo.all()
+
+    Repo.transaction(fn ->
+      Enum.each(decisions, &import_decision/1)
+    end)
+
+    broadcast()
+    {:ok, length(decisions)}
+  end
+
+  defp import_decision(decision) do
+    body =
+      [
+        decision.body,
+        options(decision.options),
+        "Imported from the decision queue (#{decision.slug})."
+      ]
+      |> Enum.reject(&(&1 in [nil, ""]))
+      |> Enum.join("\n\n")
+
+    idea =
+      %Idea{}
+      |> Idea.create_changeset(%{
+        title: String.slice(decision.title, 0, 160),
+        body: body,
+        author: "import",
+        collab_decision_id: decision.id
+      })
+      |> Repo.insert!()
+
+    Repo.insert!(
+      Transition.changeset(%Transition{}, %{
+        idea_id: idea.id,
+        to: "ideas",
+        actor: "import",
+        note: "From the decision queue: #{decision.slug}"
+      })
+    )
+
+    Enum.each(decision.comments, fn c ->
+      Repo.insert!(
+        Comment.changeset(%Comment{}, %{idea_id: idea.id, author: c.author_email, body: c.body})
+      )
+    end)
+  end
+
+  defp options([]), do: nil
+  defp options(options), do: "Options:\n" <> Enum.map_join(options, "\n", &("- " <> &1))
+
+  @doc "True once the open Collab decisions have been imported."
+  @spec collab_imported?() :: boolean()
+  def collab_imported?, do: TalesForge.Collab.read_only?()
+
+  defp run(multi, idea_id \\ nil) do
+    case Repo.transaction(multi) do
+      {:ok, changes} ->
+        broadcast()
+        id = idea_id || changes[:idea].id
+        {:ok, get_idea!(id)}
+
+      {:error, _step, %Ecto.Changeset{} = changeset, _} ->
+        {:error, changeset}
+
+      {:error, _step, reason, _} ->
+        {:error, inspect(reason)}
+    end
+  end
+
+  defp after_update({:ok, idea}) do
+    broadcast()
+    {:ok, get_idea!(idea.id)}
+  end
+
+  defp after_update(error), do: error
+
+  defp broadcast, do: Phoenix.PubSub.broadcast(TalesForge.PubSub, @topic, {:board, :changed})
+
+  defp normalize("bot:" <> _ = bot), do: bot
+  defp normalize(email) when is_binary(email), do: email |> String.trim() |> String.downcase()
+end
