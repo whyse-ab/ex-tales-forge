@@ -53,7 +53,7 @@ defmodule TalesForgeWeb.OnlineHeaderLiveTest do
 
     assert has_element?(
              header,
-             "#admin-online-founder-local-fredrik-example-com",
+             "#admin-online-founder-fredrik-example-com",
              "Admin on local"
            )
 
@@ -84,7 +84,7 @@ defmodule TalesForgeWeb.OnlineHeaderLiveTest do
 
     assert has_element?(
              header,
-             "#admin-online-founder-playtest-max-example-com",
+             "#admin-online-founder-max-example-com",
              "Playtest runs on playtest"
            )
 
@@ -108,5 +108,78 @@ defmodule TalesForgeWeb.OnlineHeaderLiveTest do
     header = find_live_child(view, "admin-online")
     header |> element("#admin-online-toggle") |> render_click()
     refute render(header) =~ "Coming with team chat"
+  end
+
+  describe "one row per person" do
+    test "tabs and both apps group into one founder; the count is people", %{conn: conn} do
+      conn = log_in_admin(conn, "fredrik@example.com", login: "fpahlen")
+      now = DateTime.utc_now()
+
+      Peer.put(
+        [
+          %{
+            email: "fredrik@example.com",
+            login: "fpahlen",
+            page: "Playtest runs",
+            app: "playtest",
+            since: now
+          },
+          %{
+            email: "fredrik@example.com",
+            login: "fpahlen",
+            page: "Playtest runs",
+            app: "playtest",
+            since: now
+          }
+        ],
+        now
+      )
+
+      # Two tabs of the same page on this app.
+      {:ok, view, _html} = live(conn, "/admin")
+      {:ok, _other_tab, _html} = live(conn, "/admin")
+      header = find_live_child(view, "admin-online")
+
+      assert render(header) =~ "Founders: 1"
+      header |> element("#admin-online-toggle") |> render_click()
+
+      row = "#admin-online-founder-fredrik-example-com"
+      assert has_element?(header, row <> " .font-semibold", "Fredrik")
+      assert has_element?(header, row <> " li", "Admin on local")
+      assert has_element?(header, row <> " li", "Playtest runs on playtest")
+      assert Enum.count(LazyHTML.query(LazyHTML.from_fragment(render(header)), row <> " li")) == 2
+
+      assert Enum.count(
+               LazyHTML.query(
+                 LazyHTML.from_fragment(render(header)),
+                 "#admin-online-founders > li"
+               )
+             ) == 1
+    end
+
+    test "a GitHub-login identity shows the name from the team data (Håkan)", %{conn: conn} do
+      now = DateTime.utc_now()
+
+      Peer.put(
+        [
+          %{
+            email: "hawkan.fredriksson@gmail.com",
+            login: "Hawkan-Fredriksson",
+            page: "Docs",
+            app: "playtest",
+            since: now
+          }
+        ],
+        now
+      )
+
+      {:ok, view, _html} = live(conn, "/admin")
+      header = find_live_child(view, "admin-online")
+      header |> element("#admin-online-toggle") |> render_click()
+
+      assert has_element?(header, "#admin-online-founder-hawkan-fredriksson-gmail-com", "Håkan")
+      refute render(header) =~ "Hawkan<"
+      assert render(header) =~ "Founders: 2"
+    end
   end
 end

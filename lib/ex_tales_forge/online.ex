@@ -102,10 +102,13 @@ defmodule TalesForge.Online do
   connected. Nested LiveViews are not tracked (their parent page is).
   Never raises: Presence is a nice-to-have, never a reason to fail a mount.
   """
-  @spec track(Phoenix.LiveView.Socket.t(), String.t()) :: :ok
-  def track(%Phoenix.LiveView.Socket{} = socket, email) when is_binary(email) do
+  @spec track(Phoenix.LiveView.Socket.t(), String.t(), String.t() | nil) :: :ok
+  def track(socket, email, login \\ nil)
+
+  def track(%Phoenix.LiveView.Socket{} = socket, email, login) when is_binary(email) do
     if Phoenix.LiveView.connected?(socket) and is_nil(socket.parent_pid) do
       meta = %{
+        login: if(is_binary(login), do: String.downcase(login)),
         page: page_label(socket.view),
         app: Atom.to_string(AppRole.role()),
         since: DateTime.utc_now() |> DateTime.to_iso8601()
@@ -119,19 +122,30 @@ defmodule TalesForge.Online do
     _ -> :ok
   end
 
-  def track(_socket, _email), do: :ok
+  def track(_socket, _email, _login), do: :ok
 
   @doc """
-  The founders online on this app, one entry per founder (their newest page),
-  as plain maps with string keys (the JSON shape of `/internal/online`).
+  The founders online on this app, one entry per founder and page (two tabs
+  on the same page are one entry, with the newest time), as plain maps with
+  string keys (the JSON shape of `/internal/online`).
   """
   @spec local() :: [map()]
   def local do
     @topic
     |> Presence.list()
-    |> Enum.map(fn {email, %{metas: metas}} ->
-      meta = Enum.max_by(metas, &(&1[:since] || ""))
-      %{"email" => email, "page" => meta[:page], "app" => meta[:app], "since" => meta[:since]}
+    |> Enum.flat_map(fn {email, %{metas: metas}} ->
+      metas
+      |> Enum.sort_by(&(&1[:since] || ""), :desc)
+      |> Enum.uniq_by(& &1[:page])
+      |> Enum.map(fn meta ->
+        %{
+          "email" => email,
+          "login" => meta[:login],
+          "page" => meta[:page],
+          "app" => meta[:app],
+          "since" => meta[:since]
+        }
+      end)
     end)
   end
 
@@ -141,32 +155,81 @@ defmodule TalesForge.Online do
 
       iex> TalesForge.Online.normalize([%{"email" => "a@x.se", "page" => "Docs",
       ...>   "app" => "playtest", "since" => "2026-10-10T12:00:00Z"}, %{"email" => 1}])
-      [%{email: "a@x.se", page: "Docs", app: "playtest", since: ~U[2026-10-10 12:00:00Z]}]
+      [%{email: "a@x.se", login: nil, page: "Docs", app: "playtest", since: ~U[2026-10-10 12:00:00Z]}]
   """
   @spec normalize(term()) :: [founder()]
   def normalize(list) when is_list(list), do: Enum.flat_map(list, &entry/1)
   def normalize(_), do: []
 
-  defp entry(%{"email" => e, "page" => p, "app" => a, "since" => s})
+  defp entry(%{"email" => e, "page" => p, "app" => a, "since" => s} = m)
        when is_binary(e) and is_binary(p) and is_binary(a) and is_binary(s) do
     case DateTime.from_iso8601(s) do
-      {:ok, since, _} -> [%{email: e, page: p, app: a, since: since}]
-      _ -> []
+      {:ok, since, _} ->
+        [%{email: e, login: login(m["login"]), page: p, app: a, since: since}]
+
+      _ ->
+        []
     end
   end
 
   defp entry(_), do: []
 
+  defp login(login) when is_binary(login) and login != "", do: String.downcase(login)
+  defp login(_), do: nil
+
   @doc """
   Every founder online on both apps: this app's Presence plus the other app's
-  last answer while it is fresh (`TalesForge.Online.Peer`). A founder with a
-  page open on each app is listed once per app. Sorted by email.
+  last answer while it is fresh (`TalesForge.Online.Peer`): one entry per
+  founder, app and page. `people/1` groups them by person.
   """
   @spec founders() :: [founder()]
   def founders do
     (normalize(local()) ++ Peer.founders())
-    |> Enum.uniq_by(&{&1.email, &1.app})
-    |> Enum.sort_by(&{&1.email, &1.app})
+    |> Enum.uniq_by(&{&1.email, &1.app, &1.page})
+    |> Enum.sort_by(&{&1.email, &1.app, &1.page})
+  end
+
+  @typedoc "One founder with every place they have a page open."
+  @type person :: %{
+          key: String.t(),
+          email: String.t(),
+          login: String.t() | nil,
+          locations: [String.t()],
+          since: DateTime.t()
+        }
+
+  @doc """
+  Groups `founders/0` entries by person (the GitHub login, else the email):
+  one entry per founder with each place once ("Docs on playtest"), however
+  many tabs or apps. Sorted by key.
+
+      iex> t = ~U[2026-10-10 12:00:00Z]
+      iex> TalesForge.Online.people([
+      ...>   %{email: "f@x.se", login: "fpahlen", page: "Docs", app: "production", since: t},
+      ...>   %{email: "f@x.se", login: "fpahlen", page: "Playtest runs", app: "playtest", since: t},
+      ...>   %{email: "f@x.se", login: "fpahlen", page: "Docs", app: "production", since: t},
+      ...>   %{email: "m@x.se", login: nil, page: "Admin", app: "production", since: t}])
+      [%{key: "fpahlen", email: "f@x.se", login: "fpahlen", since: ~U[2026-10-10 12:00:00Z],
+         locations: ["Docs on production", "Playtest runs on playtest"]},
+       %{key: "m@x.se", email: "m@x.se", login: nil, since: ~U[2026-10-10 12:00:00Z],
+         locations: ["Admin on production"]}]
+  """
+  @spec people([founder()]) :: [person()]
+  def people(founders \\ founders()) do
+    founders
+    |> Enum.group_by(&(Map.get(&1, :login) || &1.email))
+    |> Enum.map(fn {key, entries} ->
+      first = Enum.find(entries, hd(entries), &Map.get(&1, :login))
+
+      %{
+        key: key,
+        email: first.email,
+        login: Map.get(first, :login),
+        locations: entries |> Enum.map(&"#{&1.page} on #{&1.app}") |> Enum.uniq() |> Enum.sort(),
+        since: entries |> Enum.map(& &1.since) |> Enum.max(DateTime)
+      }
+    end)
+    |> Enum.sort_by(& &1.key)
   end
 
   @doc "Notes that `bot` (`:case`, `:bobby`, `:gentry`) made a board API call now."
@@ -179,7 +242,7 @@ defmodule TalesForge.Online do
 
   @doc """
   Everyone online for the header counter (`TalesForgeWeb.OnlineHeaderLive`):
-  `%{founders: [...], bots: [...]}` from the module in config
+  `%{founders: [person + name + handle], bots: [...]}` from the module in config
   `:online_snapshot` (`TalesForge.TeamOnline`, which also reads the board and
   the PR feed). Through config, so this shared module does not depend on admin
   code. Without that module: the founders only, and no bots.
@@ -197,7 +260,8 @@ defmodule TalesForge.Online do
     end
   end
 
-  defp fallback, do: %{founders: Enum.map(founders(), &Map.put(&1, :name, &1.email)), bots: []}
+  defp fallback,
+    do: %{founders: Enum.map(people(), &Map.merge(&1, %{name: &1.email, handle: nil})), bots: []}
 
   @doc """
   True when the "Chat" button shows (a disabled placeholder until team chat

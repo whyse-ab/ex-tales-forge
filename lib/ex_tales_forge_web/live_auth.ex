@@ -26,7 +26,7 @@ defmodule TalesForgeWeb.LiveAuth do
         {:halt, redirect(socket, to: "/admin/login")}
 
       email ->
-        :ok = Online.track(socket, email)
+        :ok = Online.track(socket, email, session[AdminAuth.github_login_key()])
 
         {:cont,
          assign(socket,

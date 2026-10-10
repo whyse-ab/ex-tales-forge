@@ -4,8 +4,9 @@ defmodule TalesForgeWeb.OnlineHeaderLive do
   `/team` and the presentation (`TalesForgeWeb.TeamLayout.header/1`): a compact
   counter "Founders: 2 Bots: 2" that opens a list.
 
-  - Founders: everyone with a page open on production or playtest
-    (`TalesForge.Online`), with the page they are on.
+  - Founders: one row per person with a page open on production or playtest
+    (`TalesForge.Online.people/1`); under the name, one smaller line per page
+    and app ("Docs on playtest"), each once. The count is people, not tabs.
   - Bots: counted when their latest activity is 10 minutes old or less
     (`TalesForge.TeamOnline.online_minutes/0`); the list shows every bot with
     that activity and its time.
@@ -57,7 +58,7 @@ defmodule TalesForgeWeb.OnlineHeaderLive do
       now: now,
       founders: founders,
       bots: snap.bots,
-      founder_count: founders |> Enum.uniq_by(& &1.email) |> length(),
+      founder_count: length(founders),
       bot_count: Enum.count(snap.bots, & &1[:online])
     )
   end
@@ -139,8 +140,8 @@ defmodule TalesForgeWeb.OnlineHeaderLive do
           <ul id={"#{@id_prefix}-founders"} class="space-y-1">
             <li
               :for={f <- @founders}
-              id={"#{@id_prefix}-founder-#{f.app}-#{slug(f.email)}"}
-              class="flex items-center gap-2 rounded px-2 py-1.5"
+              id={"#{@id_prefix}-founder-#{slug(f.email)}"}
+              class="flex items-start gap-2 rounded px-2 py-1.5"
             >
               <span
                 aria-hidden="true"
@@ -150,9 +151,17 @@ defmodule TalesForgeWeb.OnlineHeaderLive do
               </span>
               <span class="min-w-0 flex-1 text-sm leading-snug">
                 <span class="block font-semibold">{f.name}</span>
-                <span class="block truncate text-[var(--paper-muted)]">{f.page} on {f.app}</span>
+                <span class="sr-only">, on:</span>
+                <ul class="text-xs text-[var(--paper-muted)]">
+                  <li :for={place <- f.locations} class="truncate">{place}</li>
+                </ul>
               </span>
-              <.chat placeholder={@chat?} live={@chat_live != nil} who={f.name} to={f.email} />
+              <.chat
+                placeholder={@chat?}
+                live={@chat_live != nil}
+                who={f.name}
+                to={f[:handle] || f.email}
+              />
             </li>
             <li :if={@founders == []} class="px-2 py-1.5 text-sm text-[var(--paper-muted)]">
               Founders show here when they open a page.
