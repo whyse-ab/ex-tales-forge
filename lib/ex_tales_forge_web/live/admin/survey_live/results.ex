@@ -63,7 +63,7 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Results do
   @impl true
   def render(%{definition: nil} = assigns) do
     ~H"""
-    <Layouts.admin flash={@flash} active="survey">
+    <Layouts.admin socket={@socket} flash={@flash} active="survey">
       <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Survey results</h2>
       <.problems problems={@problems} source={Source.describe(@survey_id)} />
       <button type="button" phx-click="reload" class={button_class()}>Reload from docs</button>
@@ -76,7 +76,12 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Results do
       assign(assigns, :selected, Enum.find(assigns.responses, &(&1.github_login == assigns.user)))
 
     ~H"""
-    <Layouts.admin flash={@flash} active="survey" page={"Results: " <> @definition.title}>
+    <Layouts.admin
+      socket={@socket}
+      flash={@flash}
+      active="survey"
+      page={"Results: " <> @definition.title}
+    >
       <header class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0 space-y-1">
           <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Survey results</h2>

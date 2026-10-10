@@ -30,7 +30,7 @@ defmodule TalesForgeWeb.AdminLive.NpcDefinitionLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.admin flash={@flash} active="npc_definitions">
+    <Layouts.admin socket={@socket} flash={@flash} active="npc_definitions">
       <header class="space-y-2">
         <.link
           navigate={~p"/admin/archive/npc-definitions"}

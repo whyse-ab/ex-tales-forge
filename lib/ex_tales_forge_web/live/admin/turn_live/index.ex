@@ -35,7 +35,7 @@ defmodule TalesForgeWeb.AdminLive.TurnLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.admin flash={@flash} active="sessions">
+    <Layouts.admin socket={@socket} flash={@flash} active="sessions">
       <header class="space-y-2">
         <.link
           navigate={~p"/admin/play/sessions/#{@session.id}"}

@@ -87,6 +87,11 @@ defmodule TalesForgeWeb.Layouts do
     default: false,
     doc: "wider page (max-w-7xl) for pages with their own sidebar column, e.g. docs"
 
+  attr :socket, :any,
+    default: nil,
+    doc:
+      "the LiveView socket; with it, the header shows who is online (`TalesForgeWeb.OnlineHeaderLive`)"
+
   def admin(assigns) do
     ~H"""
     <%!-- .admin-shell opts the page into the theme toggle (paper palettes in app.css) --%>
@@ -105,6 +110,11 @@ defmodule TalesForgeWeb.Layouts do
             <h1 class="font-serif text-lg font-semibold text-[var(--paper-ink)]">Admin</h1>
           </div>
           <div class="flex flex-wrap items-center justify-end gap-2">
+            {@socket &&
+              live_render(@socket, TalesForgeWeb.OnlineHeaderLive,
+                id: "admin-online",
+                session: %{"id_prefix" => "admin-online"}
+              )}
             <TalesForgeWeb.AppComponents.env_badge />
             <.theme_toggle />
           </div>

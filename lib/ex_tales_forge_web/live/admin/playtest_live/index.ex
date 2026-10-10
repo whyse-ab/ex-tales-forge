@@ -88,7 +88,7 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.admin flash={@flash} active="playtest">
+    <Layouts.admin socket={@socket} flash={@flash} active="playtest">
       <header>
         <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Playtest runs</h2>
         <p class="text-sm text-[var(--paper-muted)]">

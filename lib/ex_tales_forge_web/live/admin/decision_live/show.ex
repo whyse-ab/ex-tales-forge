@@ -122,7 +122,7 @@ defmodule TalesForgeWeb.AdminLive.DecisionLive.Show do
     assigns = assign(assigns, :interested?, interested?)
 
     ~H"""
-    <Layouts.admin flash={@flash} active="decisions">
+    <Layouts.admin socket={@socket} flash={@flash} active="decisions">
       <div class="space-y-1">
         <.link navigate={~p"/admin/founders/decisions"} class="text-sm text-[var(--paper-accent)]">
           ← Decision queue
