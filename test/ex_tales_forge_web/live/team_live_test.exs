@@ -107,7 +107,9 @@ defmodule TalesForgeWeb.TeamLiveTest do
       assert html =~ "6. How we&#39;ll work together: one shared board"
     end
 
-    test "what we're going to do: the idea board's slot, coming soon", %{conn: conn} do
+    test "what we're going to do: the idea board's slot, coming soon on playtest", %{conn: conn} do
+      Application.put_env(:ex_tales_forge, :app_name, "tales-forge-playtest")
+      on_exit(fn -> Application.delete_env(:ex_tales_forge, :app_name) end)
       {:ok, view, _html} = live(conn, ~p"/team")
 
       assert has_element?(view, "section#idea-board h2", "What we're going to do")

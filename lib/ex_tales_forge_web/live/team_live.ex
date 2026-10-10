@@ -3,9 +3,10 @@ defmodule TalesForgeWeb.TeamLive do
   The founders' landing page at `/team`, top to bottom:
 
   1. the hero with the painted crew (`hero/1`);
-  2. **What we're going to do** (`#idea-board`): the founders' idea board. Until
-     its UI ships this is a "coming soon" placeholder (`#board-soon`,
-     `data-slot="shared-board"`); the board replaces it in the same slot;
+  2. **What we're going to do** (`#idea-board`): the founders' idea board
+     (`TalesForgeWeb.TeamIdeaBoard`, live over `TalesForge.Board`'s PubSub) on
+     production and locally; on playtest the "coming soon" placeholder
+     (`#board-soon`, `data-slot="shared-board"`) in the same slot;
   3. **What we're doing now** (`#live`): the live GitHub PR, CI and deploy feed,
      the nested `TalesForgeWeb.TeamPrFeedLive` (`TalesForge.PrFeed`, polled on
      the server and pushed over PubSub);
@@ -48,10 +49,10 @@ defmodule TalesForgeWeb.TeamLive do
   presentation anchor, so the redirect hook leaves them alone.
 
       iex> TalesForgeWeb.TeamLive.anchors()
-      ["idea-board", "live", "presentation-cta", "landing-hero", "board-soon"]
+      ["idea-board", "live", "presentation-cta", "landing-hero"]
   """
   @spec anchors() :: [String.t()]
-  def anchors, do: Enum.map(@nav, &elem(&1, 0)) ++ ~w(landing-hero board-soon)
+  def anchors, do: Enum.map(@nav, &elem(&1, 0)) ++ ~w(landing-hero)
 
   @doc """
   The old crew anchors of this page and where they land now: the crew on the
@@ -78,11 +79,26 @@ defmodule TalesForgeWeb.TeamLive do
     {:ok,
      socket
      |> assign(:page_title, "Team")
+     |> assign(:board?, board_here?())
+     |> tap(fn s -> if connected?(s) and board_here?(), do: TalesForge.Board.subscribe() end)
      |> assign(:d, TeamPage.data())
      |> assign(:nav, @nav)
      |> assign(:anchors, Jason.encode!(TeamPresentationLive.anchors()))
      |> assign(:aliases, Jason.encode!(aliases()))}
   end
+
+  # The board lives on production (and locally); playtest keeps the placeholder.
+  defp board_here?, do: TalesForge.AppRole.here?(:board)
+
+  @impl true
+  @spec handle_info(term(), Phoenix.LiveView.Socket.t()) ::
+          {:noreply, Phoenix.LiveView.Socket.t()}
+  def handle_info({:board, :changed}, socket) do
+    send_update(TalesForgeWeb.TeamIdeaBoard, id: "idea-board-live", refresh: true)
+    {:noreply, socket}
+  end
+
+  def handle_info(_msg, socket), do: {:noreply, socket}
 
   @impl true
   @spec render(map()) :: Phoenix.LiveView.Rendered.t()
@@ -106,7 +122,7 @@ defmodule TalesForgeWeb.TeamLive do
 
       <main class="mx-auto max-w-6xl space-y-16 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
         <.hero d={@d} />
-        <.going_to_do />
+        <.going_to_do board?={assigns[:board?] || false} founder={assigns[:admin_email]} />
         <.live_section socket={assigns[:socket]} />
         <.presentation />
       </main>
@@ -210,9 +226,12 @@ defmodule TalesForgeWeb.TeamLive do
     """
   end
 
-  # "What we're going to do": the idea board's slot. Until the board UI ships it
-  # holds the "coming soon" placeholder (#board-soon), which the board then
-  # replaces in place.
+  # "What we're going to do": the idea board (`TalesForgeWeb.TeamIdeaBoard`)
+  # where it lives (production, local); elsewhere the "coming soon"
+  # placeholder (#board-soon).
+  attr :board?, :boolean, default: false
+  attr :founder, :string, default: nil
+
   defp going_to_do(assigns) do
     assigns = assign(assigns, :board, TeamBoard.anchor())
 
@@ -226,7 +245,14 @@ defmodule TalesForgeWeb.TeamLive do
           The founders' idea board: add ideas, vote them up or down, and decide what gets built.
         </p>
       </header>
+      <.live_component
+        :if={@board? and is_binary(@founder)}
+        module={TalesForgeWeb.TeamIdeaBoard}
+        id="idea-board-live"
+        founder={@founder}
+      />
       <div
+        :if={not (@board? and is_binary(@founder))}
         id="board-soon"
         class="team-board-soon space-y-3 rounded-xl border-2 border-dashed border-[var(--paper-rule)] p-5 text-center sm:p-8"
         data-slot="shared-board"

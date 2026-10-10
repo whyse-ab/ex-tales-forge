@@ -22,6 +22,7 @@ export const TeamPage = {
     this.mq.addEventListener("change", this.onChange)
     this.apply()
     this.peeksCleanup = setupPeeks(this.el)
+    this.boardDragCleanup = setupBoardDrag(this)
   },
 
   apply() {
@@ -63,6 +64,7 @@ export const TeamPage = {
     this.observer?.disconnect()
     this.mq?.removeEventListener("change", this.onChange)
     this.peeksCleanup?.()
+    this.boardDragCleanup?.()
   },
 }
 
@@ -77,6 +79,43 @@ export const TeamPage = {
 //   - Esc closes every peek and puts focus back on its button; a tap or click
 //     outside closes pinned ones. One peek is open at a time.
 // Motion (the fade) is CSS with motion-safe:, so reduced motion just snaps.
+// The idea board (TalesForgeWeb.TeamIdeaBoard): drag a card
+// ([data-board-card]) onto a column ([data-board-column]) to move it. Delegated
+// on the page root, so it survives LiveView patches. The keyboard and phone
+// alternative is each card's "Move to" form; the server checks the rules.
+export const setupBoardDrag = hook => {
+  const root = hook.el
+  let dragged = null
+  const column = e => e.target.closest?.("[data-board-column]")
+  const onStart = e => {
+    const card = e.target.closest?.("[data-board-card]")
+    if (!card) return
+    dragged = card.dataset.boardCard
+    e.dataTransfer.effectAllowed = "move"
+    e.dataTransfer.setData("text/plain", dragged)
+  }
+  const onOver = e => {
+    const col = column(e)
+    if (!dragged || !col) return
+    e.preventDefault()
+    col.classList.add("is-drop-target")
+  }
+  const onLeave = e => column(e)?.classList.remove("is-drop-target")
+  const onDrop = e => {
+    const col = column(e)
+    if (!dragged || !col) return
+    e.preventDefault()
+    col.classList.remove("is-drop-target")
+    const target = root.querySelector("[data-board-target]")
+    if (target) hook.pushEventTo(target, "move", {card_id: dragged, to: col.dataset.boardColumn})
+    dragged = null
+  }
+  const onEnd = () => { dragged = null }
+  const events = [["dragstart", onStart], ["dragover", onOver], ["dragleave", onLeave], ["drop", onDrop], ["dragend", onEnd]]
+  events.forEach(([n, f]) => root.addEventListener(n, f))
+  return () => events.forEach(([n, f]) => root.removeEventListener(n, f))
+}
+
 export const setupPeeks = root => {
   const all = () => root.querySelectorAll("[data-peek]")
   const peekOf = node => node instanceof Element ? node.closest("[data-peek]") : null

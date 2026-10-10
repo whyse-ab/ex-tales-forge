@@ -50,7 +50,7 @@ defmodule TalesForgeWeb.TeamPrFeedLiveTest do
     {view, child} = feed(conn)
     assert has_element?(child, "#pr-feed-unavailable", "Live feed unavailable")
     assert render(child) =~ "GitHub didn&#39;t answer"
-    assert has_element?(view, "#board-soon")
+    assert has_element?(view, "#idea-board")
   end
 
   test "renders the stored snapshot: counters, states, CI and deployments", %{conn: conn} do
