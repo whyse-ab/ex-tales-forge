@@ -2,7 +2,7 @@ defmodule TalesForge.Board.Typing do
   @moduledoc """
   "Fredrik is typing…" on the idea board (card "Writing in the comment field
   in cards", 2026-10-10). A founder who writes in a card's comment box is
-  tracked with Phoenix Presence on `topic/0`, under their LiveView process.
+  tracked with Phoenix Presence on the "board:typing" topic, under their LiveView process.
   This is a hint, not a lock: everyone can still write, and comments save one
   by one. The hint goes when the founder posts, closes the card, stops for a
   few seconds (`TalesForgeWeb.TeamIdeaBoard` untracks them), or leaves the page
