@@ -126,7 +126,10 @@ admin_files =
                  "lib/ex_tales_forge/deploy_lanes.ex",
                  "lib/ex_tales_forge/deploy_lanes/",
                  "lib/mix/tasks/deploy.check_boundaries.ex",
-                 "lib/ex_tales_forge_web/controllers/costs_peer_controller.ex"
+                 "lib/ex_tales_forge_web/controllers/costs_peer_controller.ex",
+                 "lib/ex_tales_forge/code_heat.ex",
+                 "lib/ex_tales_forge/code_heat/",
+                 "lib/mix/tasks/code_heat.overhead.ex"
                ]
              }
            ]}

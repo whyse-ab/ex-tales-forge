@@ -252,6 +252,12 @@ if config_env() != :test do
   config :ex_tales_forge, :costs_peer, token: System.get_env("COSTS_PEER_TOKEN")
 
   config :ex_tales_forge, :app_name, System.get_env("FLY_APP_NAME")
+
+  # The code heat map (TalesForge.CodeHeat): CODE_HEAT_MAP=on turns on the daily
+  # call-time sample. Set it on playtest only (fly.playtest.toml). The heat map
+  # stays off on production, also when the variable is set there.
+  code_heat_map = System.get_env("CODE_HEAT_MAP", "off") |> String.trim() |> String.downcase()
+  config :ex_tales_forge, TalesForge.CodeHeat, enabled: code_heat_map in ~w(on true 1)
 end
 
 # The founders' idea board on /team (production only; tales-forge-docs

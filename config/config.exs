@@ -16,6 +16,10 @@ config :ex_tales_forge, TalesForge.Jido,
   max_tasks: 1000,
   agent_pools: []
 
+# The code heat map (TalesForge.CodeHeat). Off by default; config/runtime.exs
+# turns it on from CODE_HEAT_MAP=on (playtest only, never production).
+config :ex_tales_forge, TalesForge.CodeHeat, enabled: false
+
 config :ex_tales_forge, Oban,
   repo: TalesForge.Repo,
   queues: [default: 10, llm: 5, board: 5],

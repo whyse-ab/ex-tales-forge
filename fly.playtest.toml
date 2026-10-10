@@ -29,6 +29,9 @@ swap_size_mb = 512
   # docs/design-tin-valley-world.md); off on production (fly.toml).
   INN_WORLD = "on"
   WORLD_ANTAGONIST = "on"
+  # Daily call-time sample for /admin/operate/code-heat (TalesForge.CodeHeat).
+  # Playtest only: production stays off.
+  CODE_HEAT_MAP = "on"
 
 [http_service]
   internal_port = 4000
