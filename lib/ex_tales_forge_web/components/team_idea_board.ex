@@ -601,6 +601,12 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
     """
   end
 
+  # The decorative portrait for the columns that a bot owns.
+  @spec portrait(String.t()) :: String.t() | nil
+  defp portrait("refining"), do: "/images/team/case-640.webp"
+  defp portrait("building"), do: "/images/team/bobby-640.webp"
+  defp portrait(_column), do: nil
+
   defp close_js(myself), do: JS.push("close", target: myself) |> JS.pop_focus()
 
   defp open_js(myself, id),
@@ -629,12 +635,22 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
       data-board-column={@column}
       aria-labelledby={"board-col-#{@column}-title"}
       class={[
-        "team-board-column flex min-h-0 min-w-0 flex-col rounded-xl border border-[var(--paper-rule)] bg-[var(--paper-margin)] p-2",
+        "team-board-column relative isolate flex min-h-0 min-w-0 flex-col rounded-xl border border-[var(--paper-rule)] bg-[var(--paper-margin)] p-2",
         "h-[22rem] lg:h-auto [&.is-drop-target]:ring-2 [&.is-drop-target]:ring-[var(--paper-accent)] [&[data-accepts=false]]:opacity-50",
         @column == "parked" && "h-[12rem]",
         @class
       ]}
     >
+      <%!-- A muted portrait of the owner bot behind the cards (decoration only). --%>
+      <div
+        :if={portrait(@column)}
+        id={"board-col-#{@column}-portrait"}
+        data-portrait={@column}
+        aria-hidden="true"
+        class="pointer-events-none absolute inset-0 -z-10 rounded-xl bg-cover bg-center opacity-10 grayscale"
+        style={"background-image: url('#{portrait(@column)}')"}
+      >
+      </div>
       <h3
         id={"board-col-#{@column}-title"}
         class="flex items-baseline justify-between px-1 pb-1 font-serif text-base font-bold"
