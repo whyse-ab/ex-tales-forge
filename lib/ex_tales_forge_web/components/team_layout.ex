@@ -23,9 +23,9 @@ defmodule TalesForgeWeb.TeamLayout do
   @doc """
   The sticky header: the Tales Forge link, Admin and the theme toggle, then the
   in-page nav. `page` is the page being shown (`:landing` or `:presentation`);
-  `items` are the `{anchor, label}` pairs of that page. The landing page's nav
-  ends with the link to the presentation; the presentation's starts with the
-  way back to the overview.
+  `items` are the `{anchor, label}` pairs of that page. The presentation's nav
+  starts with the way back to the overview; the landing page links the
+  presentation once, from its own card (`#presentation-cta`).
   """
   attr :page, :atom, required: true, values: [:landing, :presentation]
   attr :items, :list, required: true, doc: "`{anchor, label}` pairs"
@@ -70,15 +70,6 @@ defmodule TalesForgeWeb.TeamLayout do
             >
               {label}
             </a>
-          </li>
-          <li :if={@page == :landing}>
-            <.link
-              id="team-nav-presentation"
-              navigate={~p"/team/presentation"}
-              class="team-nav-cta block rounded px-1.5 py-0.5 font-semibold sm:px-2.5 sm:py-1"
-            >
-              The full presentation →
-            </.link>
           </li>
         </ul>
       </nav>

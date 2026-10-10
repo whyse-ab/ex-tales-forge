@@ -31,11 +31,11 @@ defmodule TalesForgeWeb.TeamPrFeedLiveTest do
 
   test "no token: 'Live feed unavailable', and the rest of the page renders", %{conn: conn} do
     {view, child} = feed(conn)
-    assert has_element?(view, "#team-nav a[href='#live']", "Live")
-    assert has_element?(view, "#live-title", "Live: what we're shipping")
+    assert has_element?(view, "#team-nav a[href='#live']", "Doing now")
+    assert has_element?(view, "#live-title", "What we're doing now")
     assert has_element?(child, "#pr-feed-unavailable", "Live feed unavailable")
     assert render(child) =~ "no GitHub token"
-    assert has_element?(view, "#crew")
+    assert has_element?(view, "#idea-board")
     assert has_element?(view, "#presentation-cta")
   end
 

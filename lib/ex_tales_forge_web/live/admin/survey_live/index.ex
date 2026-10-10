@@ -38,13 +38,6 @@ defmodule TalesForgeWeb.AdminLive.SurveyLive.Index do
     <Layouts.admin flash={@flash} active="survey">
       <header class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0 space-y-1">
-          <.link
-            id="section-crumb"
-            href="/admin#section-founders"
-            class="play-label text-[var(--paper-accent)] hover:underline"
-          >
-            Founders
-          </.link>
           <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Founder surveys</h2>
           <p class="text-sm text-[var(--paper-muted)]">
             Every survey file in tales-forge-docs. Open tabs show on <.link

@@ -90,13 +90,6 @@ defmodule TalesForgeWeb.AdminLive.PlaytestLive.Index do
     ~H"""
     <Layouts.admin flash={@flash} active="playtest">
       <header>
-        <.link
-          id="section-crumb"
-          href="/admin#section-play"
-          class="play-label text-[var(--paper-accent)] hover:underline"
-        >
-          Play and test
-        </.link>
         <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Playtest runs</h2>
         <p class="text-sm text-[var(--paper-muted)]">
           A plain-language summary first; every run in detail <a

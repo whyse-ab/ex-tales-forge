@@ -415,13 +415,6 @@ defmodule TalesForgeWeb.AdminLive.CostsLive do
   defp page_header(assigns) do
     ~H"""
     <header class="space-y-1">
-      <.link
-        id="section-crumb"
-        href="/admin#section-operate"
-        class="play-label text-[var(--paper-accent)] hover:underline"
-      >
-        Operate
-      </.link>
       <h2 class="font-serif text-2xl font-bold text-[var(--paper-ink)]">Costs</h2>
       <p class="text-[var(--paper-muted)]">
         {render_slot(@inner_block)} Days and months run on Europe/Stockholm time, like the AI day cap.

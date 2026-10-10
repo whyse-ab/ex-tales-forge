@@ -12,7 +12,10 @@ defmodule TalesForgeWeb.TeamLiveTest do
   @data "priv/team/data.json" |> File.read!() |> Jason.decode!()
 
   defp render_with(data),
-    do: rendered_to_string(TeamLive.render(%{d: data, nav: [], anchors: "[]", flash: %{}}))
+    do:
+      rendered_to_string(
+        TeamLive.render(%{d: data, nav: [], anchors: "[]", aliases: "{}", flash: %{}})
+      )
 
   defp ids(html) do
     html
@@ -76,76 +79,27 @@ defmodule TalesForgeWeb.TeamLiveTest do
              )
     end
 
-    test "a short card for each of the crew: the founders, then the bots with their portraits",
-         %{conn: conn} do
-      {:ok, view, html} = live(conn, ~p"/team")
-
-      cards =
-        html
-        |> LazyHTML.from_document()
-        |> LazyHTML.query("#crew-cards > li")
-        |> Enum.map(&(&1 |> LazyHTML.attribute("id") |> hd()))
-
-      assert cards == Enum.map(@data["team"]["members"], &"crew-#{&1["id"]}")
-
-      for member <- @data["team"]["members"] do
-        assert has_element?(view, "#crew-#{member["id"]} h3", member["name"])
-        assert has_element?(view, "#crew-#{member["id"]}", member["role"])
-
-        assert has_element?(
-                 view,
-                 ~s(#crew-#{member["id"]} a[href="/team/presentation#member-#{member["id"]}"])
-               )
-      end
-
-      for bot <- ~w(case bobby gentry) do
-        assert has_element?(
-                 view,
-                 ~s(#crew-#{bot} img#crew-portrait-#{bot}[loading="lazy"][srcset*="#{bot}-320.jpg 320w"])
-               )
-      end
-
-      assert has_element?(view, "#crew-founders svg.team-avatar")
-      refute has_element?(view, "#crew-founders img")
-
-      assert has_element?(
-               view,
-               "#crew-founders .team-badge",
-               "The approval key: Fredrik today, every founder soon"
-             )
-
-      assert has_element?(view, "#crew-case .team-badge", "Hourly status · daily cleanup")
-
-      assert has_element?(
-               view,
-               "#crew-founders #crew-founders-people",
-               "We're five: Fredrik, Thobias, Håkan, Jeanette and Max."
-             )
-
-      assert has_element?(
-               view,
-               "#crew-founders",
-               "Max, our vibe-coding founder and RPG apprentice, has never played a tabletop RPG."
-             )
-
-      assert has_element?(view, "#crew-gentry", "Plays the game like a troublemaker")
+    test "the crew section is gone: it lives on the presentation", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/team")
+      refute has_element?(view, "#crew")
+      refute has_element?(view, "#crew-cards")
     end
 
-    test "a clear way into the presentation: the hero button, the nav and a contents list",
-         %{conn: conn} do
-      {:ok, view, _html} = live(conn, ~p"/team")
+    test "the presentation is linked once, from its own card", %{conn: conn} do
+      {:ok, view, html} = live(conn, ~p"/team")
 
-      assert has_element?(view, ~s(#hero-presentation-link.team-cta[href="/team/presentation"]))
       assert has_element?(view, ~s(#presentation-link.team-cta[href="/team/presentation"]))
-      assert has_element?(view, ~s(#team-nav-presentation[href="/team/presentation"]))
+      refute has_element?(view, "#hero-presentation-link")
+      refute has_element?(view, "#team-nav-presentation")
+      refute has_element?(view, "#presentation-contents")
 
-      for {{id, label}, i} <- Enum.with_index(TeamPresentationLive.sections(), 1) do
-        assert has_element?(
-                 view,
-                 ~s(#presentation-contents a[href="/team/presentation##{id}"]),
-                 "#{i}. #{label}"
-               )
-      end
+      links =
+        html
+        |> LazyHTML.from_document()
+        |> LazyHTML.query(~s(a[href="/team/presentation"]))
+        |> Enum.count()
+
+      assert links == 1
 
       assert {:ok, _presentation, html} =
                view |> element("#presentation-link") |> render_click() |> follow_redirect(conn)
@@ -153,12 +107,13 @@ defmodule TalesForgeWeb.TeamLiveTest do
       assert html =~ "6. How we&#39;ll work together: one shared board"
     end
 
-    test "a marked spot for the shared board, coming soon", %{conn: conn} do
+    test "what we're going to do: the idea board's slot, coming soon", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/team")
 
-      assert has_element?(view, ~s(section#board-soon[data-slot="shared-board"]))
+      assert has_element?(view, "section#idea-board h2", "What we're going to do")
+      assert has_element?(view, ~s(#idea-board #board-soon[data-slot="shared-board"]))
       assert has_element?(view, "#board-soon", "Coming soon. Not built yet.")
-      assert has_element?(view, "#board-soon h2", "One shared board")
+      assert has_element?(view, "#board-soon h3", "One shared board")
 
       assert has_element?(
                view,
@@ -168,6 +123,11 @@ defmodule TalesForgeWeb.TeamLiveTest do
 
       # A placeholder, not a board.
       refute has_element?(view, "#board-soon #team-board")
+    end
+
+    test "what we're doing now: the live PR, CI and deploy feed", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/team")
+      assert has_element?(view, "section#live h2", "What we're doing now")
     end
 
     test "light: the presentation's sections stay on the presentation", %{conn: conn} do
@@ -180,7 +140,7 @@ defmodule TalesForgeWeb.TeamLiveTest do
       refute html =~ "Hostile play"
     end
 
-    test "sections are independent blocks, with the live PR feed right after the crew" do
+    test "sections in order: hero, going to do, doing now, the presentation" do
       ids =
         @data
         |> render_with()
@@ -188,7 +148,7 @@ defmodule TalesForgeWeb.TeamLiveTest do
         |> LazyHTML.query("main > section")
         |> Enum.map(&(&1 |> LazyHTML.attribute("id") |> hd()))
 
-      assert ids == ~w(landing-hero crew live presentation-cta board-soon)
+      assert ids == ~w(landing-hero idea-board live presentation-cta)
     end
 
     test "null and missing numbers still render, never a zero" do
@@ -223,6 +183,23 @@ defmodule TalesForgeWeb.TeamLiveTest do
         |> LazyHTML.attribute("data-anchors")
 
       assert Jason.decode!(anchors) == TeamPresentationLive.anchors()
+
+      [aliases] =
+        html
+        |> LazyHTML.from_document()
+        |> LazyHTML.query("#team-anchor-redirect")
+        |> LazyHTML.attribute("data-aliases")
+
+      assert Jason.decode!(aliases) == TeamLive.aliases()
+    end
+
+    test "the old crew anchors land on the crew in the presentation" do
+      presentation = MapSet.new(TeamPresentationLive.anchors())
+
+      for {old, "/team/presentation#" <> anchor} <- TeamLive.aliases() do
+        assert anchor in presentation, old
+        refute old in TeamLive.anchors(), old
+      end
     end
 
     test "every section and named part of the old /team maps to the presentation" do
@@ -257,6 +234,7 @@ defmodule TalesForgeWeb.TeamLiveTest do
       [_, hook] = String.split(js, "export const presentationTarget", parts: 2)
 
       assert hook =~ "anchors.includes(anchor) ? `${target}#${anchor}` : null"
+      assert hook =~ "return aliases[anchor]"
       assert hook =~ "window.location.replace(to)"
       assert hook =~ ~s{window.addEventListener("hashchange", this.onHash)}
       assert File.read!("assets/js/app.js") =~ "TeamAnchorRedirect"

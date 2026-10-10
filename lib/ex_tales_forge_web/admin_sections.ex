@@ -229,6 +229,44 @@ defmodule TalesForgeWeb.AdminSections do
     Enum.find(@sections, fn section -> Enum.any?(section.items, &(&1[:key] == key)) end)
   end
 
+  @typedoc "One breadcrumb: its label and link (nil for the page being shown)."
+  @type crumb :: {String.t(), String.t() | nil}
+
+  @doc """
+  The breadcrumbs of an admin page, Admin > Section > Page, from the `active`
+  name it passes to `Layouts.admin` and, optionally, the name of the page
+  itself (`page`, e.g. one decision's title). The last crumb has no link.
+  Pages without a section (the home) get just "Admin". `Layouts.admin` draws
+  them on every admin page.
+
+      iex> TalesForgeWeb.AdminSections.breadcrumbs("dashboard")
+      [{"Admin", nil}]
+      iex> TalesForgeWeb.AdminSections.breadcrumbs("costs")
+      [{"Admin", "/admin"}, {"Operate", "/admin#section-operate"}, {"Costs", nil}]
+      iex> TalesForgeWeb.AdminSections.breadcrumbs("decisions", "Confirm the rewrite")
+      [{"Admin", "/admin"}, {"Founders", "/admin#section-founders"}, {"Decision queue", "/admin/founders/decisions"}, {"Confirm the rewrite", nil}]
+      iex> TalesForgeWeb.AdminSections.breadcrumbs("unknown", "Some page")
+      [{"Admin", "/admin"}, {"Some page", nil}]
+  """
+  @spec breadcrumbs(String.t() | nil, String.t() | nil, AppRole.role()) :: [crumb()]
+  def breadcrumbs(active, page \\ nil, role \\ AppRole.role()) do
+    case {section_of(active), page} do
+      {nil, nil} ->
+        [{"Admin", nil}]
+
+      {nil, page} ->
+        [{"Admin", "/admin"}, {page, nil}]
+
+      {section, page} ->
+        item = Enum.find(section.items, &(&1[:key] == active))
+        head = [{"Admin", "/admin"}, {section.title, "/admin#section-#{section.id}"}]
+
+        if page in [nil, item.label],
+          do: head ++ [{item.label, nil}],
+          else: head ++ [{item.label, href(item, role)}, {page, nil}]
+    end
+  end
+
   @doc """
   The URL of `item` on this app: its path (and `#fragment`), or for a page
   that lives on the other app the full URL there (`TalesForge.AppRole.link/3`).
