@@ -56,6 +56,52 @@ defmodule TalesForgeWeb.AdminLive.HomeAppTest do
                @prod <> "/admin/surveys/founder-survey-3?x=1"
     end
 
+    test "the founders' pages, decisions and docs redirect to production (admin split)", %{
+      conn: conn
+    } do
+      for {path, to} <- [
+            {"/team", "/team"},
+            {"/team/presentation", "/team/presentation"},
+            {"/admin/founders/decisions", "/admin/decisions"},
+            {"/admin/founders/decisions/some-slug", "/admin/decisions/some-slug"},
+            {"/admin/decisions", "/admin/decisions"},
+            {"/admin/docs", "/admin/docs"},
+            {"/admin/docs/personas.md", "/admin/docs/personas.md"},
+            {"/admin/docs-files/images/a.png", "/admin/docs-files/images/a.png"}
+          ] do
+        assert redirected_to(get(conn, path)) == @prod <> to, path
+        assert redirected_to(get(build_conn(), path)) == @prod <> to, path
+      end
+
+      assert redirected_to(get(conn, "/team/presentation?x=1")) ==
+               @prod <> "/team/presentation?x=1"
+
+      # Live navigation from another admin page is a full page load, so the plug runs.
+      {:ok, view, _html} = live(conn, ~p"/admin/play/sessions")
+
+      assert {:error, {:redirect, %{to: "http://www.example.com/admin/docs"}}} =
+               live_redirect(view, to: ~p"/admin/docs")
+    end
+
+    test "the nav marks production-only pages by their home", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/admin/play/sessions")
+
+      assert has_element?(
+               view,
+               ~s(#admin-nav a[href="#{@prod}/admin/decisions"][data-cross-app]),
+               "Decision queue (page) (production) ↗"
+             )
+
+      assert has_element?(
+               view,
+               ~s(#admin-nav a[href="#{@prod}/admin/docs"]),
+               "All docs (production) ↗"
+             )
+
+      assert has_element?(view, ~s(#admin-nav a[href="#{@prod}/team"]), "(production) ↗")
+      refute render(view) =~ "↗ (production)"
+    end
+
     test "live navigation to a survey page goes to production", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/admin/play/sessions")
 
@@ -102,6 +148,12 @@ defmodule TalesForgeWeb.AdminLive.HomeAppTest do
 
   describe "on production" do
     setup do: as_app("tales-forge")
+
+    test "the founders' pages, decisions and docs are served here", %{conn: conn} do
+      for path <- ["/team", "/team/presentation", "/admin/founders/decisions", "/admin/docs"] do
+        assert {:ok, _view, _html} = live(conn, path), path
+      end
+    end
 
     test "playtest run pages redirect to the same path on playtest", %{conn: conn} do
       for path <- @playtest_paths do

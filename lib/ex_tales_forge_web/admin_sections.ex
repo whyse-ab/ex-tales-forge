@@ -14,7 +14,9 @@ defmodule TalesForgeWeb.AdminSections do
 
   Each item is a page or a place on a page. `nav: true` items are also in the
   nav; the home lists them all. An item with an `area` lives on one app only
-  (`TalesForge.AppRole`): on the other app its link goes there (`href/1`).
+  (`TalesForge.AppRole`): on the other app its link goes there (`href/1`) and
+  its label names that app. Items under /team, the decisions and the docs get
+  their area from their path (`TalesForge.AppRole.area_for_path/1`).
   """
 
   alias TalesForge.AppRole
@@ -42,7 +44,7 @@ defmodule TalesForgeWeb.AdminSections do
   @typedoc "A section: a card on the home, a group in the nav."
   @type section :: %{id: id(), title: String.t(), line: String.t(), items: [item()]}
 
-  @sections [
+  @plain_sections [
     %{
       id: :founders,
       title: "Founders",
@@ -219,6 +221,22 @@ defmodule TalesForgeWeb.AdminSections do
     }
   ]
 
+  # Every item that lives on one app gets that app's area from its path
+  # (TalesForge.AppRole.area_for_path/1, the one map of path to home), so the
+  # nav marks it by home and links there from the other app.
+  @sections Enum.map(@plain_sections, fn section ->
+              items =
+                Enum.map(section.items, fn item ->
+                  case {item, AppRole.area_for_path(item.path)} do
+                    {%{area: _}, _area} -> item
+                    {_item, nil} -> item
+                    {_item, area} -> Map.put(item, :area, area)
+                  end
+                end)
+
+              %{section | items: items}
+            end)
+
   @doc """
   Every section, in order (Archive last).
 
@@ -351,10 +369,17 @@ defmodule TalesForgeWeb.AdminSections do
   @spec link_label(item(), AppRole.role()) :: String.t()
   def link_label(item, role \\ AppRole.role()) do
     cond do
-      Map.has_key?(item, :app) -> "#{item.label} (#{item.app}) ↗"
-      elsewhere?(item, role) -> "#{item.label} (#{AppRole.home_label(item.area)}) ↗"
-      item.kind == :external -> item.label <> " ↗"
-      true -> item.label
+      Map.has_key?(item, :app) ->
+        "#{item.label} (#{item.app}) ↗"
+
+      elsewhere?(item, role) ->
+        "#{String.trim_trailing(item.label, " ↗")} (#{AppRole.home_label(item.area)}) ↗"
+
+      item.kind == :external ->
+        item.label <> " ↗"
+
+      true ->
+        item.label
     end
   end
 end
