@@ -25,7 +25,7 @@ defmodule TalesForge.Board.Transitions do
   | check | parked | founder | none | none |
   | building | check | Bobby | linked PR needs founder approval | founders |
   | check (PR) | building | founder | Approve | Bobby (merge) |
-  | building | done | Bobby | linked PR is on prod | founders (badge) |
+  | building | done | the board (automatic), or Bobby | linked PR is on prod | founders (badge) |
   | building | refining | Bobby or founder | a comment with the blocker | Case |
   | parked | ideas | founder | none | none |
   | done | (none) | | done is final | |
@@ -34,7 +34,7 @@ defmodule TalesForge.Board.Transitions do
   """
 
   @typedoc "Who moves the card."
-  @type actor :: {:founder, String.t()} | {:bot, :case | :bobby | :gentry}
+  @type actor :: {:founder, String.t()} | {:bot, :case | :bobby | :gentry | :board}
 
   @typedoc """
   Facts about the card that the gates need:
@@ -175,7 +175,9 @@ defmodule TalesForge.Board.Transitions do
       iex> T.allowed?(%{pr: :awaiting, open_questions: 0}, "check", "building", {:founder, "a@x"})
       {:error, "Approve the PR to move this card to Building."}
 
-  Building → Done: Bobby, when the linked PR is on prod: its merge commit is
+  Building → Done: the board itself (`{:bot, :board}`, automatically after
+  each prod boot, `TalesForge.Board.Workers.AutoDone`) or Bobby (the manual
+  fallback), when the linked PR is on prod: its merge commit is
   in the running prod release (`pr_on_prod`, checked by
   `TalesForge.Board.OnProd` when Bobby moves the card).
 
@@ -186,6 +188,14 @@ defmodule TalesForge.Board.Transitions do
       {:error, "Link the PR that is on prod first."}
       iex> T.allowed?(%{pr_linked: true, pr_on_prod: {:error, "PR #7 is not in the prod release yet."}}, "building", "done", {:bot, :bobby})
       {:error, "PR #7 is not in the prod release yet."}
+      iex> T.allowed?(%{pr_linked: true, pr_on_prod: :ok}, "building", "done", {:bot, :board})
+      :ok
+      iex> T.allowed?(%{pr_linked: true, pr_on_prod: {:error, "PR #7 is not in the prod release yet."}}, "building", "done", {:bot, :board})
+      {:error, "PR #7 is not in the prod release yet."}
+      iex> T.allowed?(%{pr_linked: false}, "building", "done", {:bot, :board})
+      {:error, "Link the PR that is on prod first."}
+      iex> T.allowed?(%{pr_linked: true}, "building", "done", {:bot, :case})
+      {:error, "Bobby moves this card when its PR is on prod."}
       iex> T.allowed?(%{pr_linked: true}, "building", "done", {:founder, "a@x"})
       {:error, "Bobby moves this card when its PR is on prod."}
 
@@ -278,7 +288,7 @@ defmodule TalesForge.Board.Transitions do
 
   def allowed?(_card, "building", "check", _actor), do: {:error, "Bobby moves this card."}
 
-  def allowed?(card, "building", "done", {:bot, :bobby}) do
+  def allowed?(card, "building", "done", {:bot, bot}) when bot in [:board, :bobby] do
     case {card[:pr_linked], card[:pr_on_prod]} do
       {true, {:error, reason}} -> {:error, reason}
       {true, _} -> :ok
