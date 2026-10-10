@@ -161,7 +161,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
     # every 2 s: each patch reset data-motion to the server's "auto", so CSS
     # stopped the animations and Replay seemed dead. The hook restores it.
     test "a live-feed re-render keeps motion on, so Replay still animates", %{conn: conn} do
-      {:ok, view, html} = live(conn, ~p"/team/presentation")
+      {:ok, view, html} = live(log_in_admin(conn), ~p"/team/presentation")
       assert html =~ ~s(data-motion="auto")
       assert has_element?(view, ~s(#team-page[phx-hook="TeamPage"]))
 
@@ -694,7 +694,7 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
 
       js = File.read!("assets/js/team_hooks.js")
       assert js =~ ~s{matchMedia("(prefers-reduced-motion: reduce)")}
-      assert js =~ ~s{this.el.dataset.motion = reduce ? "reduce" : "full"}
+      assert js =~ ~s{this.motion = reduce ? "reduce" : "full"}
     end
 
     test "the three lanes only move with motion allowed; reduced motion shows the static diagram" do
