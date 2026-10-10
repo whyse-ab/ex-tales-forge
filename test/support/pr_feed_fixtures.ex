@@ -89,6 +89,8 @@ defmodule TalesForge.PrFeedFixtures do
       state: Keyword.get(opts, :state, :open),
       draft: false,
       at: DateTime.add(DateTime.utc_now(), -300),
+      opened_at: Keyword.get(opts, :opened_at, DateTime.add(DateTime.utc_now(), -3600)),
+      merged_at: Keyword.get(opts, :merged_at),
       ci: Keyword.get(opts, :ci),
       deployed: Keyword.get(opts, :deployed, %{playtest: :not_merged, production: :not_merged})
     }
