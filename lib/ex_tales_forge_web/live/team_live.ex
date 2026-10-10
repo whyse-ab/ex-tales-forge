@@ -151,7 +151,11 @@ defmodule TalesForgeWeb.TeamLive do
       </a>
       <TeamLayout.header socket={assigns[:socket]} page={:landing} items={@nav} />
 
-      <main id="team-main" tabindex="-1" class="mx-auto max-w-6xl space-y-16 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
+      <main
+        id="team-main"
+        tabindex="-1"
+        class="mx-auto max-w-6xl space-y-16 px-4 pb-16 pt-8 sm:px-6 sm:pt-12"
+      >
         <TeamWorkspace.header stats={assigns[:stats]} />
         <.going_to_do
           board?={assigns[:board?] || false}

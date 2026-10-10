@@ -204,7 +204,11 @@ defmodule TalesForgeWeb.TeamPresentationLive do
       </a>
       <TeamLayout.header socket={assigns[:socket]} page={:presentation} items={@sections} />
 
-      <main id="team-main" tabindex="-1" class="mx-auto max-w-6xl space-y-20 px-4 pb-16 pt-8 sm:px-6 sm:pt-12">
+      <main
+        id="team-main"
+        tabindex="-1"
+        class="mx-auto max-w-6xl space-y-20 px-4 pb-16 pt-8 sm:px-6 sm:pt-12"
+      >
         <.hero d={@d} pace={@pace} live={@live} />
         <.team_section d={@d} />
         <.how_section d={@d} live={@live} />
