@@ -116,19 +116,31 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     assert has_element?(view, "#card-#{idea.id}-q0[data-state=open]", "Where?")
     assert has_element?(view, "label[for=card-#{idea.id}-q0-answer]", "Your answer to: Where?")
 
-    view
-    |> form("#card-#{idea.id}-q0-form", %{"answer" => "At the mill."})
-    |> render_submit()
+    # No per-question button: a box and a Defer toggle. The gate follows the
+    # unsaved boxes; nothing is saved yet.
+    refute has_element?(view, "#card-#{idea.id}-q0 button[type=submit]")
 
-    assert has_element?(view, "#card-#{idea.id}-q0[data-state=answered]", "At the mill.")
-    assert has_element?(view, "#card-#{idea.id}-q0-answer", "At the mill.")
+    view
+    |> form("#card-#{idea.id}-answers", %{"answers" => %{"0" => "At the mill."}})
+    |> render_change()
+
+    assert has_element?(view, "#card-#{idea.id}-q0[data-state=answered]")
+    assert [{_, nil}, {_, nil}] = Board.questions(Board.get_idea!(idea.id))
+
     view |> element("#card-#{idea.id}-q1-defer") |> render_click()
     assert has_element?(view, "#card-#{idea.id}-q1-defer[aria-pressed=true]")
+    assert has_element?(view, "#card-#{idea.id}-q1-answer[disabled]")
     assert has_element?(view, "#card-#{idea.id}-questions", "all settled")
-    assert render(view) =~ "Deferred: Bait?"
     refute has_element?(view, "#card-#{idea.id}-forward[disabled]")
     view |> element("#card-#{idea.id}-q1-defer") |> render_click()
     assert has_element?(view, "#card-#{idea.id}-forward[disabled]")
+    refute has_element?(view, "#card-#{idea.id}-q1-answer[disabled]")
+
+    # Blur saves the boxes (a safety net); saving the same text again adds no line.
+    view |> element("#card-#{idea.id}-q0-answer") |> render_blur()
+    view |> element("#card-#{idea.id}-q0-answer") |> render_blur()
+    assert [{_, %{answer: "At the mill."}}, {_, nil}] = Board.questions(Board.get_idea!(idea.id))
+    assert render(view) |> String.split("Answered: Where?") |> length() == 2
     assert has_element?(view, "#board-col-check #tile-#{idea.id}")
 
     # A drag that needs a comment opens the card with the reason.
@@ -574,5 +586,59 @@ defmodule TalesForgeWeb.TeamIdeaBoardTest do
     assert has_element?(view, "#card-#{idea.id}-comment-body[phx-hook=MentionSuggest]")
     refute has_element?(view, "#board-pings")
     assert Board.unread_pings("Hawkan-Fredriksson") == []
+  end
+
+  test "answers: a move saves all boxes together and passes the gate; close saves too",
+       %{conn: conn} do
+    me = "founder@example.com"
+    {:ok, idea} = Board.create_idea(me, %{"title" => "Fishing"})
+    {:ok, idea} = Board.vote(idea, me, 1)
+    {:ok, idea} = Board.move(idea, {:founder, me}, "refining")
+
+    {:ok, idea} =
+      Board.refine(idea, %{
+        "details" => "d",
+        "open_questions" => ["Where?", "Bait?"],
+        "rough_cost" => "S",
+        "verdict" => "feasible"
+      })
+
+    {:ok, idea} = Board.move(idea, {:bot, :case}, "check")
+    {:ok, view, _} = live(conn, "/team")
+    open(view, idea)
+
+    view
+    |> form("#card-#{idea.id}-answers", %{"answers" => %{"0" => "At the mill."}})
+    |> render_change()
+
+    view |> element("#card-#{idea.id}-q1-defer") |> render_click()
+    view |> element("#card-#{idea.id}-forward") |> render_click()
+
+    assert has_element?(view, "#board-col-building #tile-#{idea.id}")
+    idea = Board.get_idea!(idea.id)
+    assert [{_, %{answer: "At the mill."}}, {_, %{deferred: true}}] = Board.questions(idea)
+
+    # Close saves an unsaved box.
+    {:ok, other} = Board.create_idea(me, %{"title" => "Inn rooms"})
+    {:ok, other} = Board.vote(other, me, 1)
+    {:ok, other} = Board.move(other, {:founder, me}, "refining")
+
+    {:ok, other} =
+      Board.refine(other, %{
+        "details" => "d",
+        "open_questions" => ["How many?"],
+        "rough_cost" => "S",
+        "verdict" => "feasible"
+      })
+
+    send(view.pid, {:board, :changed})
+    open(view, other)
+
+    view
+    |> form("#card-#{other.id}-answers", %{"answers" => %{"0" => "Three."}})
+    |> render_change()
+
+    view |> element("#board-modal-close") |> render_click()
+    assert [{_, %{answer: "Three."}}] = Board.questions(Board.get_idea!(other.id))
   end
 end

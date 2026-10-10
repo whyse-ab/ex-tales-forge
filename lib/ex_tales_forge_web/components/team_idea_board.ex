@@ -30,7 +30,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   use TalesForgeWeb, :live_component
 
   alias TalesForge.Board
-  alias TalesForge.Board.{Answer, Idea, Mentions, Transitions}
+  alias TalesForge.Board.{Idea, Mentions, Transitions}
 
   @impl true
   def update(%{refresh: true}, socket), do: {:ok, load(socket)}
@@ -45,6 +45,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
      |> assign_new(:comment_for, fn -> nil end)
      |> assign_new(:downvote_for, fn -> nil end)
      |> assign_new(:editing, fn -> nil end)
+     |> assign_new(:drafts, fn -> %{} end)
      |> load()}
   end
 
@@ -83,6 +84,32 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   # A refused move (for example a drag that needs a comment) opens the card,
   # so the founder sees the reason; a done move closes the comment box.
   defp move(socket, id, to, note) do
+    case save_drafts(socket, id) do
+      {:ok, socket} -> do_move(socket, id, to, note)
+      {:error, socket, msg} -> {:noreply, socket |> assign(:open_id, id) |> put_error(id, msg)}
+    end
+  end
+
+  defp put_error(socket, id, msg),
+    do: socket |> assign(:errors, Map.put(socket.assigns.errors, id, msg)) |> load()
+
+  # Saves the card's answer drafts (all of them together) and forgets them.
+  defp save_drafts(socket, id) do
+    mine = for {{^id, q}, d} <- socket.assigns.drafts, do: {q, d}
+
+    with [_ | _] <- mine,
+         %Idea{} = idea <- Board.get_idea(id),
+         {:ok, _} <- Board.save_answers(idea, socket.assigns.founder, mine) do
+      {:ok,
+       assign(socket, :drafts, Map.reject(socket.assigns.drafts, fn {{i, _}, _} -> i == id end))}
+    else
+      [] -> {:ok, socket}
+      nil -> {:ok, socket}
+      {:error, msg} -> {:error, socket, to_string(msg)}
+    end
+  end
+
+  defp do_move(socket, id, to, note) do
     case with_idea(socket, id, &Board.move(&1, actor(socket), to, note)) do
       {:noreply, %{assigns: %{errors: %{^id => _}}} = s} ->
         {:noreply, s |> assign(:open_id, id) |> load()}
@@ -105,10 +132,17 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
     {:noreply, socket |> assign(:open_id, id) |> load()}
   end
 
-  def handle_event("close", _params, socket),
-    do:
-      {:noreply,
-       assign(socket, open_id: nil, open: nil, comment_for: nil, downvote_for: nil, editing: nil)}
+  def handle_event("close", _params, socket) do
+    socket =
+      case socket.assigns.open_id && save_drafts(socket, socket.assigns.open_id) do
+        {:error, s, _msg} -> s
+        {:ok, s} -> s
+        _ -> socket
+      end
+
+    {:noreply,
+     assign(socket, open_id: nil, open: nil, comment_for: nil, downvote_for: nil, editing: nil)}
+  end
 
   # Back / Forward / On hold. A move that needs a comment opens the comment box.
   def handle_event("step", %{"card_id" => id, "to" => to} = params, socket) do
@@ -185,21 +219,40 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
       else: result(socket, id, {:error, "Approve or request changes."})
   end
 
-  def handle_event("answer", %{"card_id" => id, "question" => q, "answer" => a}, socket),
-    do:
-      with_idea(
-        socket,
-        id,
-        &Board.answer_question(&1, socket.assigns.founder, q, %{"answer" => a})
+  # The answer boxes: what the founder types is kept as a draft (client state)
+  # and saved with the next move, on close, or on blur.
+  def handle_event("draft_answers", %{"card_id" => id} = params, socket) do
+    qs = params["questions"] || %{}
+
+    drafts =
+      Enum.reduce(params["answers"] || %{}, socket.assigns.drafts, fn {i, text}, acc ->
+        case qs[i] do
+          nil -> acc
+          q -> Map.update(acc, {id, q}, %{"answer" => text}, &Map.put(&1, "answer", text))
+        end
+      end)
+
+    {:noreply, socket |> assign(:drafts, drafts) |> load()}
+  end
+
+  def handle_event("toggle_defer", %{"card_id" => id, "question" => q, "deferred" => d}, socket) do
+    drafts =
+      Map.update(
+        socket.assigns.drafts,
+        {id, q},
+        %{"deferred" => d == "true"},
+        &Map.put(&1, "deferred", d == "true")
       )
 
-  def handle_event("defer", %{"card_id" => id, "question" => q, "deferred" => d}, socket),
-    do:
-      with_idea(
-        socket,
-        id,
-        &Board.answer_question(&1, socket.assigns.founder, q, %{"deferred" => d == "true"})
-      )
+    {:noreply, socket |> assign(:drafts, drafts) |> load()}
+  end
+
+  def handle_event("save_answers", %{"card_id" => id}, socket) do
+    case save_drafts(socket, id) do
+      {:ok, socket} -> {:noreply, load(socket)}
+      {:error, socket, msg} -> result(socket, id, {:error, msg})
+    end
+  end
 
   def handle_event("comment", %{"card_id" => id, "body" => body}, socket),
     do:
@@ -373,6 +426,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
             comment_for={@comment_for}
             downvote_for={@downvote_for}
             editing={@editing}
+            drafts={@drafts}
           />
         </.focus_wrap>
       </div>
@@ -596,14 +650,31 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   attr :idea, :any, required: true
   attr :founder, :string, required: true
   attr :myself, :any, required: true
+  attr :drafts, :map, default: %{}
 
-  # Case's open questions, each with its own answer box and Defer toggle, in
-  # any column. An answer by another founder is read-only.
+  # Case's open questions, in any column: each has a text box and a Defer
+  # toggle (Defer disables the box). The boxes save together with the next
+  # move, when the card closes, and on blur. Another founder's answer is
+  # read-only.
   defp questions(assigns) do
+    items =
+      for {{q, a}, i} <- Enum.with_index(Board.questions(assigns.idea)) do
+        d = Map.get(assigns.drafts, {assigns.idea.id, q}, %{})
+
+        %{
+          q: q,
+          a: a,
+          i: i,
+          theirs?: !!(a && a.answered_by not in [nil, assigns.founder]),
+          text: Map.get(d, "answer", a && a.answered_by == assigns.founder && a.answer) || "",
+          deferred: Map.get(d, "deferred", (a && a.deferred) || false)
+        }
+      end
+
     assigns =
       assign(assigns,
-        items: Board.questions(assigns.idea) |> Enum.with_index(),
-        open: Board.facts(assigns.idea).open_questions
+        items: items,
+        open: draft_facts(assigns.idea, assigns.drafts, assigns.founder).open_questions
       )
 
     ~H"""
@@ -619,78 +690,110 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           {if @open == 0, do: "all settled", else: "#{@open} open"}
         </span>
       </h5>
-      <ol class="space-y-2">
-        <li
-          :for={{{q, a}, i} <- @items}
-          id={"card-#{@idea.id}-q#{i}"}
-          data-state={question_state(a)}
-          class={[
-            "rounded-lg border p-2",
-            if(Answer.settled?(a), do: "border-[var(--paper-rule)]", else: "border-warning")
-          ]}
-        >
-          <p id={"card-#{@idea.id}-q#{i}-text"} class="font-semibold">{q}</p>
-          <p :if={a && a.answer} class="mt-1" data-role="answer">
-            <span class="badge badge-success badge-xs">Answered</span>
-            {a.answer}
-            <span class="text-xs text-[var(--paper-muted)]">
-              by {who(a.answered_by)},
-              <time datetime={DateTime.to_iso8601(a.answered_at)}>{TalesForgeWeb.TimeAgo.stockholm(
-                a.answered_at
-              )}</time>
-            </span>
-          </p>
-          <p :if={a && a.deferred} class="mt-1 text-xs" data-role="deferred">
-            <span class="badge badge-ghost badge-xs">Deferred</span> by {who(a.deferred_by)}
-          </p>
-          <form
-            :if={!(a && a.answered_by not in [nil, @founder])}
-            id={"card-#{@idea.id}-q#{i}-form"}
-            phx-submit="answer"
-            phx-target={@myself}
-            class="mt-1 grid gap-1 sm:grid-cols-[minmax(0,1fr)_auto]"
+      <p class="text-xs text-[var(--paper-muted)]">
+        Your answers save when you move or close the card.
+      </p>
+      <form
+        id={"card-#{@idea.id}-answers"}
+        phx-change="draft_answers"
+        phx-submit="save_answers"
+        phx-target={@myself}
+      >
+        <input type="hidden" name="card_id" value={@idea.id} />
+        <ol class="space-y-2">
+          <li
+            :for={it <- @items}
+            id={"card-#{@idea.id}-q#{it.i}"}
+            data-state={draft_state(it)}
+            class={[
+              "rounded-lg border p-2",
+              if(draft_state(it) == "open", do: "border-warning", else: "border-[var(--paper-rule)]")
+            ]}
           >
-            <input type="hidden" name="card_id" value={@idea.id} />
-            <input type="hidden" name="question" value={q} />
-            <label class="sr-only" for={"card-#{@idea.id}-q#{i}-answer"}>Your answer to: {q}</label>
-            <textarea
-              id={"card-#{@idea.id}-q#{i}-answer"}
-              name="answer"
-              rows="2"
-              required
-              aria-describedby={"card-#{@idea.id}-q#{i}-text"}
-              placeholder="Your answer"
-              class="min-w-0 rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-2 py-1"
-            >{a && a.answered_by == @founder && a.answer}</textarea>
-            <button type="submit" class="min-h-11 rounded border px-3 font-semibold">
-              {if a && a.answer, do: "Save my answer", else: "Answer"}
-            </button>
-          </form>
-          <button
-            type="button"
-            id={"card-#{@idea.id}-q#{i}-defer"}
-            phx-click="defer"
-            phx-value-card_id={@idea.id}
-            phx-value-question={q}
-            phx-value-deferred={to_string(!(a && a.deferred))}
-            phx-target={@myself}
-            aria-pressed={to_string((a && a.deferred) || false)}
-            aria-describedby={"card-#{@idea.id}-q#{i}-text"}
-            class="mt-1 min-h-11 rounded border px-3 text-xs"
-          >
-            {if a && a.deferred, do: "Deferred (select to open again)", else: "Defer"}
-          </button>
-        </li>
-      </ol>
+            <p id={"card-#{@idea.id}-q#{it.i}-text"} class="font-semibold">{it.q}</p>
+            <input type="hidden" name={"questions[#{it.i}]"} value={it.q} />
+            <p :if={it.a && it.a.answer} class="mt-1" data-role="answer">
+              <span class="badge badge-success badge-xs">Answered</span>
+              {it.a.answer}
+              <span class="text-xs text-[var(--paper-muted)]">
+                by {who(it.a.answered_by)},
+                <time datetime={DateTime.to_iso8601(it.a.answered_at)}>{TalesForgeWeb.TimeAgo.stockholm(
+                  it.a.answered_at
+                )}</time>
+              </span>
+            </p>
+            <p :if={it.a && it.a.deferred} class="mt-1 text-xs" data-role="deferred">
+              <span class="badge badge-ghost badge-xs">Deferred</span> by {who(it.a.deferred_by)}
+            </p>
+            <div class="mt-1 grid gap-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+              <div :if={!it.theirs?} class="min-w-0">
+                <label class="sr-only" for={"card-#{@idea.id}-q#{it.i}-answer"}>
+                  Your answer to: {it.q}
+                </label>
+                <textarea
+                  id={"card-#{@idea.id}-q#{it.i}-answer"}
+                  name={"answers[#{it.i}]"}
+                  rows="2"
+                  disabled={it.deferred}
+                  phx-blur="save_answers"
+                  phx-value-card_id={@idea.id}
+                  phx-target={@myself}
+                  aria-describedby={"card-#{@idea.id}-q#{it.i}-text"}
+                  placeholder={if it.deferred, do: "Deferred", else: "Your answer"}
+                  class="w-full rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] px-2 py-1 disabled:opacity-60"
+                >{it.text}</textarea>
+              </div>
+              <button
+                type="button"
+                id={"card-#{@idea.id}-q#{it.i}-defer"}
+                phx-click="toggle_defer"
+                phx-value-card_id={@idea.id}
+                phx-value-question={it.q}
+                phx-value-deferred={to_string(!it.deferred)}
+                phx-target={@myself}
+                aria-pressed={to_string(it.deferred)}
+                aria-describedby={"card-#{@idea.id}-q#{it.i}-text"}
+                class={[
+                  "min-h-11 rounded border px-3 text-xs",
+                  it.deferred && "bg-[var(--paper-margin)] font-semibold"
+                ]}
+              >
+                {if it.deferred, do: "Deferred", else: "Defer"}
+              </button>
+            </div>
+          </li>
+        </ol>
+      </form>
     </section>
     """
   end
 
-  defp question_state(a) do
+  defp draft_state(it) do
     cond do
-      a && a.deferred -> "deferred"
-      Answer.settled?(a) -> "answered"
+      it.deferred -> "deferred"
+      it.theirs? or String.trim(it.text) != "" -> "answered"
       true -> "open"
+    end
+  end
+
+  # Board.facts/1 with the founder's unsaved answer boxes: the buttons and the
+  # gate use what is on the screen now. The server checks again on the move.
+  defp draft_facts(idea, drafts, founder) do
+    facts = Board.facts(idea)
+
+    if Enum.any?(drafts, fn {{id, _}, _} -> id == idea.id end) do
+      open =
+        Enum.count(Board.questions(idea), fn {q, a} ->
+          d = Map.get(drafts, {idea.id, q}, %{})
+          deferred = Map.get(d, "deferred", (a && a.deferred) || false)
+          theirs? = !!(a && a.answered_by not in [nil, founder])
+          text = Map.get(d, "answer", (a && a.answered_by == founder && a.answer) || "")
+          not (deferred or theirs? or String.trim(to_string(text)) != "")
+        end)
+
+      %{facts | open_questions: open}
+    else
+      facts
     end
   end
 
@@ -808,14 +911,20 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
   attr :comment_for, :any, default: nil
   attr :downvote_for, :any, default: nil
   attr :editing, :any, default: nil
+  attr :drafts, :map, default: %{}
 
   defp card(assigns) do
     idea = assigns.idea
 
     assigns =
       assign(assigns,
-        facts: Board.facts(idea),
-        buttons: Transitions.buttons(Board.facts(idea), idea.column, {:founder, assigns.founder}),
+        facts: draft_facts(idea, assigns.drafts, assigns.founder),
+        buttons:
+          Transitions.buttons(
+            draft_facts(idea, assigns.drafts, assigns.founder),
+            idea.column,
+            {:founder, assigns.founder}
+          ),
         downvotes: Enum.filter(idea.votes, &(&1.value == -1)),
         comment_to:
           case assigns.comment_for do
@@ -1070,7 +1179,7 @@ defmodule TalesForgeWeb.TeamIdeaBoard do
           </ol>
         </section>
 
-        <.questions idea={@idea} founder={@founder} myself={@myself} />
+        <.questions idea={@idea} founder={@founder} myself={@myself} drafts={@drafts} />
 
         <section aria-label="Case's refinement" class="space-y-1">
           <div class="flex items-center justify-between gap-2">
