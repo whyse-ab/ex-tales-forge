@@ -538,3 +538,45 @@ export const MentionSuggest = {
     box.addEventListener("blur", () => setTimeout(close, 100))
   }
 }
+
+// The team chat drawer (TalesForgeWeb.TeamChatLive): keeps the newest
+// message in view, grows the one-line message box with its text (up to its
+// max height), and sends on Enter (Shift+Enter adds a new line). Enter while
+// the @mention list is open picks a name instead (MentionSuggest handles it
+// first and marks the event as handled).
+export const growBox = box => {
+  box.style.height = "auto"
+  box.style.height = `${box.scrollHeight}px`
+}
+
+export const TeamChat = {
+  mounted() {
+    this.list = () => this.el.querySelector("[data-chat-scroll]")
+    this.box = () => this.el.querySelector("[data-chat-input]")
+    this.toBottom()
+    this.onInput = e => { if (e.target.matches("[data-chat-input]")) growBox(e.target) }
+    this.onKey = e => {
+      if (!e.target.matches("[data-chat-input]")) return
+      if (e.key !== "Enter" || e.shiftKey || e.isComposing || e.defaultPrevented) return
+      e.preventDefault()
+      if (e.target.value.trim() !== "") e.target.form.requestSubmit()
+    }
+    this.el.addEventListener("input", this.onInput)
+    this.el.addEventListener("keydown", this.onKey)
+    this.handleEvent("team_chat:sent", () => {
+      const box = this.box()
+      if (box) { box.value = ""; growBox(box); box.focus() }
+    })
+    const box = this.box()
+    if (box) growBox(box)
+  },
+  updated() { this.toBottom() },
+  toBottom() {
+    const list = this.list()
+    if (list) list.scrollTop = list.scrollHeight
+  },
+  destroyed() {
+    this.el.removeEventListener("input", this.onInput)
+    this.el.removeEventListener("keydown", this.onKey)
+  },
+}

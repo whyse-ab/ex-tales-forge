@@ -11,6 +11,12 @@ defmodule TalesForgeWeb.TeamChatLive do
   - Accessible: the panel is a `role="dialog"` with a title; focus moves to
     the message box when it opens; Esc or "Close" closes it and moves focus
     back to the chat button. New messages are announced (`aria-live`).
+  - The panel is rendered at the end of `<body>` (`portal`), so the header's
+    blur does not trap it: an opaque, full-height drawer above the page.
+    Messages are bubbles (avatar, name, time), newest at the bottom, and the
+    list scrolls down by itself (`TeamChat` hook in `assets/js/team_hooks.js`).
+  - Composer pinned to the bottom: a one-line box that grows, Enter sends,
+    Shift+Enter adds a new line; typing @ suggests names (`MentionSuggest`).
   - Phone: the panel fills the screen; from `sm` up it is a side panel.
   """
 
@@ -37,6 +43,7 @@ defmodule TalesForgeWeb.TeamChatLive do
      socket
      |> assign(:id_prefix, session["id_prefix"] || "chat")
      |> assign(:login, login)
+     |> assign(:email, socket.assigns[:admin_email])
      |> assign(:me, Chat.handle_for(login))
      |> assign(:open, false)
      |> assign(:draft, "")
@@ -54,7 +61,10 @@ defmodule TalesForgeWeb.TeamChatLive do
   def handle_event("send", %{"chat" => %{"body" => body}}, socket) do
     case Chat.post(socket.assigns.admin_email, body, login: socket.assigns.login) do
       {:ok, _message} ->
-        {:noreply, assign(socket, :form, to_form(%{"body" => ""}, as: :chat))}
+        {:noreply,
+         socket
+         |> assign(:form, to_form(%{"body" => ""}, as: :chat))
+         |> push_event("team_chat:sent", %{})}
 
       {:error, changeset} ->
         {:noreply, assign(socket, :form, to_form(changeset, as: :chat))}
@@ -121,106 +131,195 @@ defmodule TalesForgeWeb.TeamChatLive do
         </span>
       </button>
 
-      <div
-        :if={@open}
-        id={"#{@id_prefix}-panel"}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={"#{@id_prefix}-title"}
-        phx-window-keydown={JS.push("close") |> JS.focus(to: "##{@id_prefix}-button")}
-        phx-key="Escape"
-        class="fixed inset-0 z-50 flex flex-col bg-[var(--paper-panel)] text-left text-[var(--paper-ink)] shadow-xl sm:inset-y-0 sm:left-auto sm:right-0 sm:w-96 sm:border-l sm:border-[var(--paper-rule)]"
-      >
-        <div class="flex items-center justify-between gap-2 border-b border-[var(--paper-rule)] px-4 py-3">
-          <h2 id={"#{@id_prefix}-title"} class="font-serif text-lg font-semibold">Team chat</h2>
-          <button
-            id={"#{@id_prefix}-close"}
-            type="button"
-            phx-click={JS.push("close") |> JS.focus(to: "##{@id_prefix}-button")}
-            class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full hover:bg-[var(--paper-bg)]"
-          >
-            <.icon name="hero-x-mark" class="size-5" /><span class="sr-only">Close the chat</span>
-          </button>
+      <.portal :if={@open} id={"#{@id_prefix}-portal"} target="body">
+        <div
+          id={"#{@id_prefix}-backdrop"}
+          class="fixed inset-0 z-[90] hidden bg-black/30 sm:block"
+          phx-click={
+            JS.push("close", target: "##{@id_prefix}-root") |> JS.focus(to: "##{@id_prefix}-button")
+          }
+          aria-hidden="true"
+        >
         </div>
-
-        <ol
-          id={"#{@id_prefix}-messages"}
-          aria-live="polite"
-          aria-label="Messages"
-          class="flex-1 space-y-3 overflow-y-auto px-4 py-3"
+        <div
+          id={"#{@id_prefix}-panel"}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={"#{@id_prefix}-title"}
+          phx-hook="TeamChat"
+          phx-window-keydown={
+            JS.push("close", target: "##{@id_prefix}-root") |> JS.focus(to: "##{@id_prefix}-button")
+          }
+          phx-key="Escape"
+          class="team-chat-panel fixed inset-y-0 right-0 z-[100] flex h-dvh w-full flex-col bg-[var(--paper-panel)] text-left text-[var(--paper-ink)] shadow-2xl sm:w-[26rem] sm:border-l sm:border-[var(--paper-rule)]"
+          style="background-color: var(--paper-panel, #fbf6ec);"
         >
-          <li :if={@messages == []} class="text-sm text-[var(--paper-muted)]">
-            Write the first message. Everyone on the team sees it.
-          </li>
-          <li
-            :for={m <- @messages}
-            id={"#{@id_prefix}-msg-#{m.id}"}
-            class={[
-              "rounded-lg px-3 py-2 text-sm leading-relaxed",
-              if(@me && @me in m.mentions,
-                do: "bg-[var(--paper-bg)] ring-1 ring-[var(--paper-accent)]",
-                else: "bg-[var(--paper-bg)]/60"
-              )
-            ]}
+          <header class="flex shrink-0 items-center justify-between gap-2 border-b border-[var(--paper-rule)] px-4 py-2">
+            <h2 id={"#{@id_prefix}-title"} class="font-serif text-lg font-semibold">Team chat</h2>
+            <button
+              id={"#{@id_prefix}-close"}
+              type="button"
+              phx-click={
+                JS.push("close", target: "##{@id_prefix}-root")
+                |> JS.focus(to: "##{@id_prefix}-button")
+              }
+              aria-label="Close the chat"
+              class="inline-flex size-11 items-center justify-center rounded-full hover:bg-[var(--paper-bg)]"
+            >
+              <.icon name="hero-x-mark" class="size-5" />
+            </button>
+          </header>
+
+          <ol
+            id={"#{@id_prefix}-messages"}
+            data-chat-scroll
+            aria-live="polite"
+            aria-label="Messages"
+            class="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-4"
           >
-            <p class="flex flex-wrap items-baseline gap-x-2">
-              <span class="font-semibold">{author(m.author)}</span>
-              <time
-                datetime={DateTime.to_iso8601(m.inserted_at)}
-                class="text-xs text-[var(--paper-muted)]"
+            <li
+              :if={@messages == []}
+              id={"#{@id_prefix}-empty"}
+              class="grid h-full place-items-center text-sm text-[var(--paper-muted)]"
+            >
+              No messages yet
+            </li>
+            <li
+              :for={m <- @messages}
+              id={"#{@id_prefix}-msg-#{m.id}"}
+              class={["flex items-end gap-2", mine?(m, @email) && "flex-row-reverse"]}
+            >
+              <.avatar author={m.author} />
+              <div class={[
+                "max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed shadow-sm",
+                if(mine?(m, @email),
+                  do: "rounded-br-sm bg-[#f3dcae] text-[#2b1d0e]",
+                  else: "rounded-bl-sm border border-[var(--paper-rule)] bg-[var(--paper-bg)]"
+                ),
+                @me && @me in m.mentions && "ring-2 ring-[var(--paper-accent)]"
+              ]}>
+                <p class="flex flex-wrap items-baseline gap-x-2 text-xs">
+                  <span class="font-semibold">{author(m.author)}</span>
+                  <time
+                    datetime={DateTime.to_iso8601(m.inserted_at)}
+                    class="text-[var(--paper-muted)]"
+                  >
+                    {TimeAgo.stockholm(m.inserted_at, "%d %b %H:%M")}
+                  </time>
+                  <span
+                    :if={@me && @me in m.mentions}
+                    class="font-semibold text-[var(--paper-accent)]"
+                  >
+                    Mentions you
+                  </span>
+                </p>
+                <p class="whitespace-pre-wrap break-words">{body(m.body)}</p>
+              </div>
+            </li>
+          </ol>
+
+          <.form
+            for={@form}
+            id={"#{@id_prefix}-form"}
+            phx-submit={JS.push("send", target: "##{@id_prefix}-root")}
+            class="shrink-0 border-t border-[var(--paper-rule)] bg-[var(--paper-panel)] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
+          >
+            <p
+              :for={msg <- Enum.map(@form[:body].errors, &elem(&1, 0))}
+              class="pb-1 text-sm text-red-700"
+              role="alert"
+            >
+              {msg}
+            </p>
+            <div class="relative flex items-end gap-2">
+              <label for={"#{@id_prefix}-body"} class="sr-only">Message</label>
+              <textarea
+                id={"#{@id_prefix}-body"}
+                name="chat[body]"
+                rows="1"
+                maxlength={Message.max_length()}
+                placeholder="Message (@ to mention)"
+                phx-mounted={JS.focus()}
+                phx-hook="MentionSuggest"
+                data-handles={Jason.encode!(Chat.suggestions())}
+                data-chat-input
+                aria-autocomplete="list"
+                aria-controls={"#{@id_prefix}-mention-list"}
+                aria-describedby={"#{@id_prefix}-hint"}
+                class="max-h-40 min-h-11 flex-1 resize-none rounded-2xl border border-[var(--paper-rule)] bg-[var(--paper-bg)] px-3 py-2.5 text-base leading-snug"
+              >{Phoenix.HTML.Form.normalize_value("textarea", @form[:body].value)}</textarea>
+              <ul
+                id={"#{@id_prefix}-mention-list"}
+                role="listbox"
+                aria-label="Names to mention"
+                phx-update="ignore"
+                hidden
+                class="absolute bottom-full left-0 z-10 mb-1 max-h-48 overflow-y-auto rounded border border-[var(--paper-rule)] bg-[var(--paper-panel)] text-sm shadow"
               >
-                {TimeAgo.stockholm(m.inserted_at, "%d %b %H:%M")}
-              </time>
-              <span
-                :if={@me && @me in m.mentions}
-                class="text-xs font-semibold text-[var(--paper-accent)]"
-              >Mentions you</span>
+              </ul>
+              <button
+                id={"#{@id_prefix}-send"}
+                type="submit"
+                aria-label="Send"
+                class="team-cta inline-flex size-11 shrink-0 items-center justify-center rounded-full"
+              >
+                <.icon name="hero-paper-airplane" class="size-5" />
+              </button>
+            </div>
+            <p id={"#{@id_prefix}-hint"} class="sr-only">
+              Enter sends, Shift and Enter adds a new line. Write @ to mention a founder or a bot.
             </p>
-            <p class="whitespace-pre-wrap break-words">
-              <%= for {kind, text} <- Chat.segments(m.body) do %>
-                <span :if={kind == :mention} class="font-semibold text-[var(--paper-accent)]">{text}</span><span :if={
-                  kind == :text
-                }>{text}</span>
-              <% end %>
-            </p>
-          </li>
-        </ol>
-
-        <.form
-          for={@form}
-          id={"#{@id_prefix}-form"}
-          phx-submit="send"
-          class="space-y-2 border-t border-[var(--paper-rule)] px-4 py-3"
-        >
-          <label for={"#{@id_prefix}-body"} class="block text-sm font-semibold">Message</label>
-          <textarea
-            id={"#{@id_prefix}-body"}
-            name="chat[body]"
-            rows="3"
-            maxlength={Message.max_length()}
-            phx-mounted={JS.focus()}
-            aria-describedby={"#{@id_prefix}-hint"}
-            class="w-full rounded border border-[var(--paper-rule)] bg-[var(--paper-bg)] p-2 text-base"
-          >{Phoenix.HTML.Form.normalize_value("textarea", @form[:body].value)}</textarea>
-          <p
-            :for={msg <- Enum.map(@form[:body].errors, &elem(&1, 0))}
-            class="text-sm text-red-700"
-            role="alert"
-          >
-            {msg}
-          </p>
-          <p id={"#{@id_prefix}-hint"} class="text-xs text-[var(--paper-muted)]">
-            Mention someone with @: {Enum.map_join(Chat.suggestions(), ", ", &("@" <> &1))}. A founder's mention of a bot wakes that bot.
-          </p>
-          <button
-            type="submit"
-            class="team-cta inline-flex min-h-11 items-center gap-2 rounded-full px-5 py-2 font-semibold"
-          >
-            Send
-          </button>
-        </.form>
-      </div>
+          </.form>
+        </div>
+      </.portal>
     </div>
+    """
+  end
+
+  # The message text with mentions highlighted, built here and not in the
+  # template, so no template whitespace shows inside `whitespace-pre-wrap`.
+  # Each part is escaped.
+  defp body(text) do
+    text
+    |> Chat.segments()
+    |> Enum.map(fn
+      {:mention, t} ->
+        ["<span class=\"font-semibold text-[var(--paper-accent)]\">", escape(t), "</span>"]
+
+      {:text, t} ->
+        escape(t)
+    end)
+    |> Phoenix.HTML.raw()
+  end
+
+  defp escape(t), do: t |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
+
+  defp mine?(m, email), do: is_binary(email) and m.author == email
+
+  attr :author, :string, required: true
+
+  defp avatar(%{author: "bot:" <> bot} = assigns) do
+    assigns = assign(assigns, :bot, bot)
+
+    ~H"""
+    <img
+      src={"/images/team/#{@bot}-avatar-96.jpg"}
+      width="96"
+      height="96"
+      alt=""
+      class="size-8 shrink-0 rounded-full border-2 border-[#b4874a] object-cover"
+    />
+    """
+  end
+
+  defp avatar(assigns) do
+    ~H"""
+    <span
+      aria-hidden="true"
+      class="grid size-8 shrink-0 place-items-center rounded-full border-2 border-[#b4874a] bg-[#f3dcae] text-sm font-bold text-[#3b2a16]"
+    >
+      {String.first(author(@author))}
+    </span>
     """
   end
 
