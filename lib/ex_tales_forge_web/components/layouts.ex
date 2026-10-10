@@ -78,6 +78,11 @@ defmodule TalesForgeWeb.Layouts do
     default: nil,
     doc: "the page's own name as the last breadcrumb, when it is more specific than its nav item"
 
+  attr :other_app_path, :string,
+    default: nil,
+    doc:
+      "for a page that both apps serve with their own data: its path, for \"Same page on <other app> ↗\""
+
   attr :wide, :boolean,
     default: false,
     doc: "wider page (max-w-7xl) for pages with their own sidebar column, e.g. docs"
@@ -99,7 +104,10 @@ defmodule TalesForgeWeb.Layouts do
             <p class="play-label text-[var(--paper-accent)]">Tales Forge</p>
             <h1 class="font-serif text-lg font-semibold text-[var(--paper-ink)]">Admin</h1>
           </div>
-          <.theme_toggle />
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            <TalesForgeWeb.AppComponents.env_badge />
+            <.theme_toggle />
+          </div>
         </div>
       </header>
 
@@ -112,7 +120,10 @@ defmodule TalesForgeWeb.Layouts do
           <.nav active={@active} />
         </aside>
         <main id="admin-main" tabindex="-1" class="min-w-0 space-y-4">
-          <.admin_breadcrumbs active={@active} page={@page} />
+          <div class="flex flex-wrap items-center justify-between gap-x-4">
+            <.admin_breadcrumbs active={@active} page={@page} />
+            <TalesForgeWeb.AppComponents.other_app_link :if={@other_app_path} path={@other_app_path} />
+          </div>
           {render_slot(@inner_block)}
         </main>
       </div>

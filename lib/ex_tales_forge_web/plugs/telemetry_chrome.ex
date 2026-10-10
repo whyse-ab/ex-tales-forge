@@ -25,7 +25,7 @@ defmodule TalesForgeWeb.Plugs.TelemetryChrome do
             ~s(background:#f6f1e7;border-bottom:1px solid #ddd2bf;color:#5b5348">) <>
             ~s(<a href="/admin" style="color:#8a3b12;font-weight:600;display:inline-block;min-height:44px;line-height:44px;padding:0 4px">← Admin</a>) <>
             ~s( › <a href="/admin#section-operate" style="color:#8a3b12;display:inline-block;min-height:44px;line-height:44px;padding:0 4px">Operate</a>) <>
-            ~s( › <span aria-current="page">Telemetry</span></nav>)
+            ~s( › <span aria-current="page">Telemetry</span>)
 
   @impl true
   @spec init(term()) :: term()
@@ -69,11 +69,28 @@ defmodule TalesForgeWeb.Plugs.TelemetryChrome do
     with [type | _] <- get_resp_header(conn, "content-type"),
          true <- String.starts_with?(type, "text/html") do
       body = IO.iodata_to_binary(conn.resp_body)
-      %{conn | resp_body: Regex.replace(~r/<body[^>]*>/, body, "\\0" <> @crumbs, global: false)}
+      crumbs = @crumbs <> other_app(conn.request_path) <> "</nav>"
+      %{conn | resp_body: Regex.replace(~r/<body[^>]*>/, body, "\\0" <> crumbs, global: false)}
     else
       _other -> conn
     end
   end
 
   def add_crumbs(conn), do: conn
+
+  # "Same page on <other app> ↗" (TalesForgeWeb.AppComponents), static HTML
+  # like the rest of the bar. Nothing locally.
+  defp other_app(path) do
+    case TalesForgeWeb.AppComponents.other_app_url(path) do
+      nil ->
+        ""
+
+      url ->
+        other = if TalesForge.AppRole.role() == :production, do: "playtest", else: "production"
+
+        ~s( · <a id="telemetry-other-app" data-cross-app href="#{url}" ) <>
+          ~s(style="color:#8a3b12;font-weight:600;display:inline-block;min-height:44px;line-height:44px;padding:0 4px">) <>
+          ~s(Same page on #{other} ↗</a>)
+    end
+  end
 end

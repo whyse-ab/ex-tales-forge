@@ -36,6 +36,20 @@ defmodule TalesForgeWeb.AdminLive.DashboardLive do
         <p class="text-[var(--paper-muted)]">
           Everything behind the team sign-in, grouped by what it is for.
         </p>
+        <p id="admin-lives-on" class="flex flex-wrap gap-x-4 text-sm">
+          <TalesForgeWeb.AppComponents.lives_on
+            id="lives-on-board"
+            area={:board}
+            path="/team"
+            what="The idea board"
+          />
+          <TalesForgeWeb.AppComponents.lives_on
+            id="lives-on-runs"
+            area={:playtest_runs}
+            path="/admin/play/runs"
+            what="Playtest runs"
+          />
+        </p>
       </header>
 
       <div id="admin-sections" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
