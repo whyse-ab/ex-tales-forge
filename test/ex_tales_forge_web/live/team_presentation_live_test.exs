@@ -1315,7 +1315,6 @@ defmodule TalesForgeWeb.TeamPresentationLiveTest do
       {:ok, view, _html} = live(conn, ~p"/team/presentation")
       assert has_element?(view, ~s(#team-header[class*="sm:sticky"]))
       refute has_element?(view, ~s(#team-header[class~="sticky"]))
-      assert has_element?(view, ~s(#team-nav-list[class*="overflow-x-auto"]))
     end
 
     test "the commits heat strip shows each day's number, not colour only", %{conn: conn} do

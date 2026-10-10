@@ -62,7 +62,7 @@ defmodule TalesForgeWeb.TeamLayout do
       <nav id="team-nav" aria-label="Page sections" class="mx-auto max-w-6xl px-2 pb-2 sm:px-4">
         <ul
           id="team-nav-list"
-          class="flex flex-nowrap items-center gap-x-0.5 overflow-x-auto whitespace-nowrap text-[0.8rem] sm:flex-wrap sm:gap-x-1 sm:gap-y-0.5 sm:overflow-visible sm:text-sm"
+          class="flex flex-wrap items-center gap-x-0.5 gap-y-0.5 text-[0.8rem] sm:gap-x-1 sm:text-sm"
         >
           <li :if={@page == :presentation}>
             <.link
