@@ -9,7 +9,9 @@ defmodule TalesForge.Board.Workers.AutoDone do
   Done wakes no bot.
 
   - Production only (`TalesForge.AppRole`). `schedule_on_boot/0` queues one
-    job 30 seconds after boot.
+    job 30 seconds after boot. `schedule/0` queues one more job when a PR
+    link comes to a Building card or a card with a PR link moves to Building
+    (`TalesForge.Board`), so a link added after the deploy also moves the card.
   - Idempotent: a card in Done is no longer in Building; a second run moves
     nothing.
   - GitHub down (or `GIT_SHA` unknown): the cards that can't be checked stay;
@@ -38,10 +40,27 @@ defmodule TalesForge.Board.Workers.AutoDone do
     :ok
   end
 
+  @doc """
+  Queues a run in 5 seconds (production, or with `:board_auto_done_anywhere`).
+  Not unique: a run that runs now may have read the cards before this change.
+  """
+  @spec schedule() :: :ok
+  def schedule do
+    if enabled?() do
+      {:ok, _} = %{} |> new(schedule_in: 5, unique: false) |> Oban.insert()
+    end
+
+    :ok
+  end
+
+  defp enabled? do
+    AppRole.role() == :production or
+      Application.get_env(:ex_tales_forge, :board_auto_done_anywhere, false)
+  end
+
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    if AppRole.role() == :production or
-         Application.get_env(:ex_tales_forge, :board_auto_done_anywhere, false) do
+    if enabled?() do
       case run() do
         {:ok, _moved} -> :ok
         {:error, reason} -> {:error, reason}

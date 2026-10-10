@@ -343,6 +343,7 @@ defmodule TalesForge.Board do
     Multi.new()
     |> Multi.insert(:link, changeset)
     |> run(idea.id)
+    |> check_done_after(attrs["kind"] == "pr")
   end
 
   def add_link(%Idea{}, _added_by, _attrs),
@@ -616,8 +617,18 @@ defmodule TalesForge.Board do
       )
       |> add_move_events(idea, to, actor)
       |> run(idea.id)
+      |> check_done_after(to == "building")
     end
   end
+
+  # A PR link added, or a card moved to Building, after the deploy: the boot
+  # run of AutoDone is over, so queue a new run now.
+  defp check_done_after({:ok, %Idea{column: "building"}} = result, true) do
+    TalesForge.Board.Workers.AutoDone.schedule()
+    result
+  end
+
+  defp check_done_after(result, _), do: result
 
   defp add_move_events(multi, idea, to, actor) do
     extra = %{from: idea.column, to: to, actor: Transitions.actor_name(actor)}
@@ -759,7 +770,7 @@ defmodule TalesForge.Board do
          :ok <- need_text(attrs["head_sha"], "head_sha"),
          :ok <- need_text(attrs["player_note"], "player_note"),
          {:ok, idea} <- pr_card(attrs, number) do
-      put_pr(idea, number, attrs)
+      idea |> put_pr(number, attrs) |> check_done_after(true)
     end
   end
 
