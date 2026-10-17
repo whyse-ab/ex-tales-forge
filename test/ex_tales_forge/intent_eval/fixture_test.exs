@@ -10,7 +10,7 @@ defmodule TalesForge.IntentEval.FixtureTest do
   # only (never the holdout), so they are left out of the stratification check,
   # and their agent-draft labels may still wait for Case's review (README,
   # "Tune-only additions").
-  @tune_only_categories ~w(attack_false_premise combat_target false_premise plain_talk_vs_social)
+  @tune_only_categories ~w(attack_false_premise combat_target false_premise plain_talk_vs_social qa_regression)
 
   defp tune_only?(item), do: item["category"] in @tune_only_categories
 
@@ -36,7 +36,13 @@ defmodule TalesForge.IntentEval.FixtureTest do
 
     {premises, rest} = Enum.split_with(added, &(&1["category"] == "false_premise"))
     {talk, rest} = Enum.split_with(rest, &(&1["category"] == "plain_talk_vs_social"))
+    {regressions, rest} = Enum.split_with(rest, &(&1["category"] == "qa_regression"))
     {targets, attacks} = Enum.split_with(rest, &(&1["category"] == "combat_target"))
+
+    # QA regressions (Gentry playtest smoke): benign turns the live game
+    # misread; agent drafts in the tune split until reviewed.
+    assert Enum.all?(regressions, &(get_in(&1, ["gold", "safety"]) == "benign"))
+
     assert length(attacks) >= 10
     assert Enum.all?(attacks, &(get_in(&1, ["gold", "safety"]) != "benign"))
 
