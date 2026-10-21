@@ -15,6 +15,9 @@ defmodule TalesForge.Social.Hearing do
   linearly from 0.3 to 0.9), below −12 dB is none. The dB values and
   thresholds are the decided values (Fredrik, 2026-10-19, #489), tuned in
   playtest.
+
+  The fragment seed comes from (session, turn, listener_id) (`seed/3`), so
+  replays are deterministic.
   """
 
   alias TalesForge.GameCharacter
