@@ -36,10 +36,13 @@ defmodule TalesForge.IntentEval do
     * `:readers` — list of `:jev | :heuristic` (default `[:jev, :heuristic]`);
     * `:ask_below` — clarification threshold for the clarifying-rate metric;
     * `:ask_below_raw` — raw-confidence ask threshold (`0.0` turns it off);
+    * `:clarify_v2` / `:runner_up` — v2 clarify bands, or an override of the
+      runner-up plausible threshold;
     * `:limit` — cap the number of items (after the split filter);
     * `:concurrency` — how many items are read at once (default 1);
     * `:jev` — options forwarded to the Jev reader (`:api_key`, `:model`,
-      `:timeout_ms`, `:cache_dir`).
+      `:timeout_ms`, `:cache_dir`, and `:switches` as
+      `t:TalesForge.IntentEval.JevOpts.t/0`).
   """
   @spec run(keyword()) :: {String.t(), map()}
   def run(opts \\ []) do

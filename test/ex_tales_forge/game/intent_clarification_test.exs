@@ -68,7 +68,14 @@ defmodule TalesForge.Game.IntentClarificationTest do
     end
 
     test "defaults are the documented bands" do
-      assert Clar.defaults() == [act_min: 0.70, ask_below: 0.45, ask_below_raw: 0.45]
+      assert Clar.defaults() == Clar.defaults(:v1)
+
+      assert Clar.defaults(:v1) == [
+               act_min: 0.70,
+               ask_below: 0.45,
+               ask_below_raw: 0.45,
+               runner_up: 0.25
+             ]
     end
   end
 
@@ -95,6 +102,49 @@ defmodule TalesForge.Game.IntentClarificationTest do
       assert Clar.band(same) == :act
       assert Clar.band(faint) == :act
     end
+  end
+
+  test "flag off (v1 defaults) equals today's bands and decisions" do
+    v1 = Clar.defaults(:v1)
+    rival = Map.put(reading(0.9, [:speak, :buy]), :action_probabilities, %{speak: 0.6, buy: 0.3})
+    faint = Map.put(rival, :action_probabilities, %{speak: 0.8, buy: 0.2})
+    raw = Map.put(reading(0.83, [:speak, :move]), :raw_confidence, 0.35)
+    goods = reading(0.75, [:buy, :speak])
+
+    for sample <- [rival, faint, raw, goods, reading(0.85, [:speak, :move])] do
+      assert Clar.band(sample) == Clar.band(sample, v1)
+    end
+
+    assert Clar.band(rival, v1) == :clarify
+    assert Clar.band(faint, v1) == :act
+    assert Clar.band(raw, v1) == :clarify
+    assert Clar.band(goods, v1) == :act
+  end
+
+  test "flag on (v2 defaults) selects the new band set" do
+    v2 = Clar.defaults(:v2)
+
+    assert v2 == [
+             act_min: 0.80,
+             ask_below: 0.45,
+             ask_below_raw: 0.30,
+             runner_up: 0.40
+           ]
+
+    # buy at 0.75 acts today, clarifies under v2 (act_min 0.80)
+    goods = reading(0.75, [:buy, :speak])
+    assert Clar.band(goods) == :act
+    assert Clar.band(goods, v2) == :clarify
+
+    # runner-up 0.30 clarifies today (>= 0.25) and acts under v2 (< 0.40)
+    rival = Map.put(reading(0.9, [:speak, :buy]), :action_probabilities, %{speak: 0.6, buy: 0.3})
+    assert Clar.band(rival) == :clarify
+    assert Clar.band(rival, v2) == :act
+
+    # raw 0.35 clarifies today (< 0.45) and acts under v2 (>= 0.30) when lifted
+    raw = Map.put(reading(0.83, [:speak, :move]), :raw_confidence, 0.35)
+    assert Clar.band(raw) == :clarify
+    assert Clar.band(raw, v2) == :act
   end
 
   test "candidates are the top two readings as short phrases" do
