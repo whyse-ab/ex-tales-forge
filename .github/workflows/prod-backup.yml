@@ -1,0 +1,138 @@
+# Weekly encrypted pg_dump of production Postgres (hobby mode, docs/hobby-mode.md
+# step 2). The repo is public, so the dump is encrypted with age before it is
+# uploaded as an Actions artifact. A plaintext dump is never uploaded.
+#
+# Fredrik must add these (Settings → Secrets and variables → Actions). This
+# workflow does not set them. Names only; never put values in the repo.
+#
+# Required secrets:
+#   FLY_API_TOKEN_DB  A Fly token that can proxy the Postgres app
+#                     tales-forge-db (for example `fly tokens create deploy
+#                     -a tales-forge-db`). Do not reuse FLY_API_TOKEN: that
+#                     deploy token is scoped to the web app tales-forge only.
+#   PROD_PGPASSWORD   Password for PROD_PGUSER on the prod database (operator
+#                     or app role). Never logged.
+#
+# Required variable or secret:
+#   BACKUP_AGE_RECIPIENT  An age X25519 public key (starts with age1…). A
+#                         repository variable is enough; it is not secret.
+#                         Fredrik keeps the matching private key offline and
+#                         decrypts with `age -d -i key.txt dump.age > dump`.
+#                         Without this, the job fails rather than upload a
+#                         plaintext dump.
+#
+# Optional secrets / variables:
+#   PROD_PGUSER       Default: postgres
+#   PROD_PGDATABASE   Default: tales_forge (the database fly postgres attach
+#                     created on tales-forge-db; override if the name differs)
+#
+# By hand: gh workflow run prod-backup.yml
+name: Prod Postgres backup
+
+on:
+  schedule:
+    # Monday 02:17 UTC (03:17 Europe/Stockholm in winter).
+    - cron: "17 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prod-postgres-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    name: Encrypted pg_dump
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Required secrets are set
+        env:
+          FLY_API_TOKEN_DB: ${{ secrets.FLY_API_TOKEN_DB }}
+          PROD_PGPASSWORD: ${{ secrets.PROD_PGPASSWORD }}
+          BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT || secrets.BACKUP_AGE_RECIPIENT }}
+        run: |
+          set -euo pipefail
+          missing=
+          [ -n "$FLY_API_TOKEN_DB" ] || missing="${missing} FLY_API_TOKEN_DB"
+          [ -n "$PROD_PGPASSWORD" ] || missing="${missing} PROD_PGPASSWORD"
+          [ -n "$BACKUP_AGE_RECIPIENT" ] || missing="${missing} BACKUP_AGE_RECIPIENT"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing Actions secrets or variables:$missing. Add them in repo Settings → Secrets and variables → Actions. See .github/workflows/prod-backup.yml. No dump was taken."
+            exit 1
+          fi
+          case "$BACKUP_AGE_RECIPIENT" in
+            age1*) ;;
+            *)
+              echo "::error::BACKUP_AGE_RECIPIENT must be an age public key (age1…)."
+              exit 1
+              ;;
+          esac
+
+      - uses: superfly/flyctl-actions/setup-flyctl@1.5
+
+      - name: Install PostgreSQL 18 client and age
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends age
+          if ! command -v pg_dump >/dev/null || ! pg_dump --version | grep -q ' 18\.'; then
+            sudo apt-get install -y --no-install-recommends postgresql-common
+            sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+            sudo apt-get install -y --no-install-recommends postgresql-client-18
+          fi
+          pg_dump --version
+          age --version
+
+      - name: Dump, encrypt and upload
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_DB }}
+          PROD_PGPASSWORD: ${{ secrets.PROD_PGPASSWORD }}
+          BACKUP_AGE_RECIPIENT: ${{ vars.BACKUP_AGE_RECIPIENT || secrets.BACKUP_AGE_RECIPIENT }}
+          PROD_PGUSER: ${{ vars.PROD_PGUSER || secrets.PROD_PGUSER || 'postgres' }}
+          PROD_PGDATABASE: ${{ vars.PROD_PGDATABASE || secrets.PROD_PGDATABASE || 'tales_forge' }}
+        run: |
+          set -euo pipefail
+          umask 077
+          passfile="$RUNNER_TEMP/pgpass"
+          dump="$RUNNER_TEMP/tales-forge-prod.dump"
+          encrypted="$RUNNER_TEMP/tales-forge-prod-$(date -u +%Y%m%d).dump.age"
+          printf '*:*:*:%s:%s\n' "$PROD_PGUSER" "$PROD_PGPASSWORD" > "$passfile"
+          chmod 600 "$passfile"
+          unset PROD_PGPASSWORD
+
+          flyctl proxy 15432:5432 -a tales-forge-db &
+          proxy_pid=$!
+          cleanup() {
+            kill "$proxy_pid" 2>/dev/null || true
+            wait "$proxy_pid" 2>/dev/null || true
+            rm -f "$passfile" "$dump"
+          }
+          trap cleanup EXIT
+
+          for i in $(seq 1 30); do
+            if PGPASSFILE="$passfile" pg_isready -h 127.0.0.1 -p 15432 -U "$PROD_PGUSER" >/dev/null 2>&1; then
+              break
+            fi
+            if [ "$i" -eq 30 ]; then
+              echo "::error::flyctl proxy to tales-forge-db did not become ready on 127.0.0.1:15432."
+              exit 1
+            fi
+            sleep 2
+          done
+
+          PGPASSFILE="$passfile" pg_dump -Fc --no-password \
+            -h 127.0.0.1 -p 15432 -U "$PROD_PGUSER" -d "$PROD_PGDATABASE" -f "$dump"
+          age -r "$BACKUP_AGE_RECIPIENT" -o "$encrypted" "$dump"
+          rm -f "$dump"
+          ls -lh "$encrypted"
+          echo "path=$encrypted" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tales-forge-prod-${{ github.run_id }}
+          path: ${{ env.path }}
+          if-no-files-found: error
+          retention-days: 90
