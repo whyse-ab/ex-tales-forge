@@ -17,7 +17,7 @@ defmodule TalesForge.IntentEval.JevRequest do
   @doc """
   The Jev request for an eval item: candidates, state and questions.
   """
-  @spec request(map(), String.t(), JevOpts.t()) :: %{
+  @spec request(map(), String.t(), JevOpts.t() | keyword()) :: %{
           candidates: [JevIntent.candidate()],
           state: map(),
           questions: keyword()
