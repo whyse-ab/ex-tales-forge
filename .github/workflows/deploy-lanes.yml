@@ -33,6 +33,12 @@
 #           Bobby" posts to SECURITY_LANE_WEBHOOK_URL when that secret is set.
 #           The deploy uses the unprotected production-security environment
 #           at all hours.
+#   security-fix  A high or critical advisory fix with the label `security-fix`
+#           that the security lane does not take (merged at night by
+#           security-lane.yml). "Production (security-fix lane)" calls
+#           security-fix-deploy.yml, which re-checks the guard, deploys
+#           through production-security at all hours, smokes production, and
+#           rolls back on failure. No founder OK, no Gentry GO.
 #   normal  Anything else (game, shared, CI, docs, a mixed merge, an unknown
 #           production commit): no automatic deploy. Production follows when
 #           a founder starts deploy-production.yml.
@@ -69,7 +75,7 @@ jobs:
     outputs:
       deploy: ${{ steps.tip.outputs.deploy }}
       sha: ${{ steps.tip.outputs.sha }}
-      lane: ${{ steps.security.outputs.lane == 'security' && 'security' || steps.pick.outputs.lane || 'normal' }}
+      lane: ${{ steps.out.outputs.lane || 'normal' }}
       advisories: ${{ steps.security.outputs.advisories }}
       pr: ${{ steps.pr.outputs.number }}
       production: ${{ steps.prod.outputs.sha }}
@@ -154,6 +160,31 @@ jobs:
           elixir .github/scripts/security_lane.exs main --sha "$SHA" --production "$PRODUCTION" \
             --pr "$RUNNER_TEMP/pr.json" --ci success
 
+      # A security-fix merge that the lock-only security lane did not take.
+      # The deploy guard in security-fix-deploy.yml re-checks the full rules.
+      - name: Security-fix lane?
+        id: fix
+        if: steps.pr.outputs.number != '' && steps.security.outputs.lane != 'security'
+        run: |
+          set -euo pipefail
+          if jq -e '.labels | map(.name) | index("security-fix")' "$RUNNER_TEMP/pr.json" >/dev/null; then
+            echo "lane=security-fix" >> "$GITHUB_OUTPUT"
+            echo "Security-fix lane: the merged PR has the label security-fix." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Lane
+        id: out
+        if: steps.tip.outputs.deploy == 'true'
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.security.outputs.lane }}" = security ]; then
+            echo "lane=security" >> "$GITHUB_OUTPUT"
+          elif [ "${{ steps.fix.outputs.lane }}" = security-fix ]; then
+            echo "lane=security-fix" >> "$GITHUB_OUTPUT"
+          else
+            echo "lane=${{ steps.pick.outputs.lane || 'normal' }}" >> "$GITHUB_OUTPUT"
+          fi
+
   production:
     name: Production (admin lane)
     needs: lane
@@ -185,6 +216,25 @@ jobs:
       production_base: ${{ needs.lane.outputs.production }}
     secrets:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  # Guard, production deploy, production smoke, and rollback on failure.
+  # Notify is inside that workflow. No playtest smoke (hobby mode).
+  production-security-fix:
+    name: Production (security-fix lane)
+    needs: lane
+    if: needs.lane.outputs.deploy == 'true' && needs.lane.outputs.lane == 'security-fix'
+    permissions:
+      contents: write
+      checks: read
+      actions: read
+      pull-requests: read
+    uses: ./.github/workflows/security-fix-deploy.yml
+    with:
+      sha: ${{ needs.lane.outputs.sha }}
+    secrets:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      SECURITY_LANE_WEBHOOK_URL: ${{ secrets.SECURITY_LANE_WEBHOOK_URL }}
+      SECURITY_LANE_WEBHOOK_KEY: ${{ secrets.SECURITY_LANE_WEBHOOK_KEY }}
 
   smoke:
     name: Smoke check (security lane)

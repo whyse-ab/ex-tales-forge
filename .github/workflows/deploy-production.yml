@@ -38,8 +38,9 @@
 #
 # 5. Security-fix lane (lane=security-fix, workflow_call only; AGENTS.md rule 2
 #    carve-out, docs/environments.md "Off-hours security fixes").
-#    security-fix-deploy.yml calls it after Gentry's qa/gentry-go and the
-#    security-fix guard (TalesForge.DeployLanes.SecurityFix) passed for the sha.
+#    deploy-lanes.yml calls security-fix-deploy.yml after a green CI run on
+#    main, and that workflow calls this one after the security-fix guard
+#    (TalesForge.DeployLanes.SecurityFix) passed for the sha.
 #
 # After a successful deploy the tag `deployed/production` is moved to the sha:
 # the admin lane diffs against it, so an admin merge never carries a game
@@ -48,13 +49,10 @@
 # target.
 #
 # GitHub environment of the deploy job (picked by "Verify commit"):
-# - `production-security` for the security lane on main, at all hours
-#   (Fredrik, 2026-11-23). Also for the security-fix and security-rollback
-#   lanes, but only outside working hours (Mon-Fri 08:00-18:00 Europe/Stockholm)
-#   and only for a run on main. It has no reviewer and allows only the branch
-#   main.
-# - `production` for everything else: by hand, the admin lane, and the
-#   security-fix and security-rollback lanes during working hours. Its required
+# - `production-security` for the security, security-fix and security-rollback
+#   lanes on main, at all hours (Fredrik, 2026-11-23). It has no reviewer and
+#   allows only the branch main.
+# - `production` for everything else: by hand, and the admin lane. Its required
 #   reviewer (fpahlen) approves every such deploy; bots never approve it.
 #
 # Needs FLY_API_TOKEN (a deploy token scoped to tales-forge) as an environment
@@ -144,9 +142,9 @@ jobs:
             exit 0
           fi
           if [ "$LANE" = "admin" ] || [ "$LANE" = "security" ] || [ "$LANE" = "security-fix" ]; then
-            # Called from deploy-lanes.yml (admin or security) after a green CI
-            # run on main, or from security-fix-deploy.yml after Gentry's GO
-            # and the guard passed.
+            # Called from deploy-lanes.yml (admin, security or security-fix)
+            # after a green CI run on main, or from security-fix-deploy.yml
+            # after the guard passed.
             echo "${LANE^} lane: deploying $SHA (on main; Test and Dialyzer passed)." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
@@ -157,9 +155,8 @@ jobs:
           fi
           echo "Deploying $SHA (on main; Test and Dialyzer passed; playtest deploys found: $playtest)." >> "$GITHUB_STEP_SUMMARY"
 
-      # production-security has no reviewer. The security lane uses it on main
-      # at all hours (Fredrik, 2026-11-23). security-fix and security-rollback
-      # still use it only outside working hours on main.
+      # production-security has no reviewer. The security, security-fix and
+      # security-rollback lanes use it on main at all hours (Fredrik, 2026-11-23).
       - name: Pick the environment
         id: environment
         env:
@@ -167,20 +164,10 @@ jobs:
           REF: ${{ github.ref }}
         run: |
           set -euo pipefail
-          day="$(TZ=Europe/Stockholm date +%u)"
-          hour="$(TZ=Europe/Stockholm date +%H)"
           name=production
-          if [ "$LANE" = "security" ]; then
+          if [[ "$LANE" =~ ^(security|security-fix|security-rollback)$ ]]; then
             if [ "$REF" != "refs/heads/main" ]; then
               echo "::notice::$REF is not main: environment production."
-            else
-              name=production-security
-            fi
-          elif [[ "$LANE" =~ ^security-(fix|rollback)$ ]]; then
-            if [ "$REF" != "refs/heads/main" ]; then
-              echo "::notice::$REF is not main: environment production."
-            elif [ "$day" -le 5 ] && [ "$((10#$hour))" -ge 8 ] && [ "$((10#$hour))" -lt 18 ]; then
-              echo "::notice::Working hours in Stockholm: environment production (a founder approves)."
             else
               name=production-security
             fi

@@ -54,7 +54,7 @@ Playtest (`playtest.yml`, by hand) and production (`deploy-production.yml`, incl
 
 The GitHub environment `production` (repo Settings → Environments) requires `fpahlen` as reviewer, with `can_admins_bypass` false, so every production deploy in it waits for that approval. Bots must never approve production deployments: only Fredrik clicks Approve.
 
-The GitHub environment `production-security` has no reviewer and allows only the branch `main`. `deploy-production.yml` uses it for the security lanes (`security`, `security-fix`, `security-rollback`) at all hours, and only for a run on `main`. Normal and admin deploys keep the `production` environment and its reviewer gate. Both environments hold `FLY_API_TOKEN` as an environment secret; there is no repo-level `FLY_API_TOKEN`.
+The GitHub environment `production-security` has no reviewer and allows only the branch `main`. `deploy-production.yml` uses it for the security, security-fix and security-rollback lanes on `main`, at all hours (Fredrik, 2026-11-23). Normal and admin deploys keep the `production` environment and its reviewer gate. Both environments hold `FLY_API_TOKEN` as an environment secret; there is no repo-level `FLY_API_TOKEN`.
 
 ## GitHub sign-in for the admin
 
