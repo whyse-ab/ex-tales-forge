@@ -150,7 +150,7 @@ The `Dockerfile` builds a release with Elixir 1.18.4 and OTP 27.3.4.16 on Debian
 | Repo | Visibility | `main` protection | Rulesets | Actions secrets (names) | Actions variables | Environments |
 |---|---|---|---|---|---|---|
 | `whyse-ab/ex-tales-forge` | public | Classic branch protection: required checks `Test` and `Dialyzer`; no required reviews; admins not enforced | none | `FLY_API_TOKEN_PLAYTEST` (`FLY_API_TOKEN` is an environment secret) | none (`FLY_USE_DEPOT` is read but not set) | `production` (required reviewer `fpahlen`) and `production-security` (no reviewer, branch `main` only), each with the secret `FLY_API_TOKEN` |
-| `whyse-ab/tales-forge-docs` | private | none (commits go straight to `main`) | none | none | none | none |
+| `whyse-ab/tales-forge-docs` | private | none | none | none | none | none |
 
 Repo access: `fpahlen` is admin on ex-tales-forge. `maxpahlen`, `jpa71` and `Hawkan-Fredriksson` have read access as direct collaborators. The team `tales-forge` has no repo grant of its own.
 
@@ -368,7 +368,7 @@ Do these steps in sequence. Run Fly commands on the shared Grok Bot box with `~/
    JSON
    ```
 
-3. Do not protect `main` on `tales-forge-docs`. Docs go straight to `main` (decision 2026-10-07). When you protect it later, add the idea board App to the bypass list.
+3. Do not protect `main` on `tales-forge-docs`. When you protect it later, add the idea board App to the bypass list.
 
 ### Step 3. Fly apps and Postgres
 
