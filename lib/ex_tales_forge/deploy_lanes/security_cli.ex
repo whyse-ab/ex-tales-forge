@@ -26,9 +26,9 @@ defmodule TalesForge.DeployLanes.SecurityCLI do
   JSON is read with a small parser here, so no deps are needed.
 
   In `main` mode one more rule applies: everything production would get (the
-  files changed since `--production`) is a lock-only bump (majors included)
-  or on the `[admin]` list. Otherwise production would also get a change that
-  waits for a founder OK.
+  files changed since `--production`) is a lock-only bump of existing hex
+  packages (majors included) or on the `[admin]` list. Added or removed
+  packages, and git or other refs, wait for a founder OK.
 
   The lane goes to `$GITHUB_OUTPUT` (`lane=security|normal` and
   `advisories=<ids>`), the rules with their results to `$GITHUB_STEP_SUMMARY`,
@@ -183,12 +183,22 @@ defmodule TalesForge.DeployLanes.SecurityCLI do
   defp lock_rule(:error, _production),
     do: since_rule(false, "Since production, `mix.lock` could not be parsed.")
 
-  defp lock_rule(_changes, production),
-    do:
-      since_rule(
-        true,
-        "Since `#{short(production)}`: only lock bumps and admin files."
-      )
+  defp lock_rule(changes, production) do
+    case Enum.reject(changes, &Security.existing_hex_change?/1) do
+      [] ->
+        since_rule(
+          true,
+          "Since `#{short(production)}`: only lock bumps and admin files."
+        )
+
+      bad ->
+        since_rule(
+          false,
+          "Since production, a package was added, removed, or is not hex: " <>
+            Security.describe_changes(bad)
+        )
+    end
+  end
 
   defp pins_only?(git, from, to),
     do:

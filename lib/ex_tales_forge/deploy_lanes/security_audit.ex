@@ -56,12 +56,17 @@ defmodule TalesForge.DeployLanes.SecurityAudit do
     end
   end
 
-  @doc "Whether `new` has any package version change relative to `old` (majors included)."
+  @doc """
+  Whether `new` has a version change of an existing hex package relative to
+  `old` (majors included). Added or removed packages, and git or other refs,
+  are an error, same as the security lane.
+  """
   @spec bump(String.t(), String.t()) :: {:ok | :error, String.t()}
   def bump(old, new) do
     changes = Security.lock_changes(old, new)
     desc = if changes == [], do: "no change", else: Security.describe_changes(changes)
-    {if(changes == [], do: :error, else: :ok), desc}
+    ok? = changes != [] and Enum.all?(changes, &Security.existing_hex_change?/1)
+    {if(ok?, do: :ok, else: :error), desc}
   end
 
   @doc "Entry point for the bump, unlock-neighbors, lock-version and reaches commands."

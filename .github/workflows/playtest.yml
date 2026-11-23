@@ -24,13 +24,13 @@
 #           the merged PR changes only mix.lock (and version pins in mix.exs),
 #           the PR has the label `security` or the title prefix `security:` and
 #           an advisory id, CI is green, and production would get nothing else
-#           (majors included; Fredrik, 2026-11-23). After the playtest
-#           deploy, the "Smoke check" job checks playtest
+#           (only version bumps of existing hex packages, majors included;
+#           Fredrik, 2026-11-23).
+#           After the playtest deploy, the "Smoke check" job checks playtest
 #           (.github/scripts/smoke_check.py), then "Production (security lane)"
 #           deploys this sha through deploy-production.yml, and "Notify Bobby"
 #           posts to SECURITY_LANE_WEBHOOK_URL when that secret is set. No
-#           founder OK outside working hours (environment production-security);
-#           in working hours it waits for the production reviewer. A failed
+#           founder OK (environment production-security at all hours). A failed
 #           smoke check stops before production.
 #   normal  Anything else (game, shared, CI, docs, a mixed merge, an unknown
 #           production commit): playtest only. Production follows once Gentry

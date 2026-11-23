@@ -71,14 +71,29 @@ defmodule TalesForge.DeployLanes.SecurityTest do
       assert failed(result) == []
     end
 
-    test "a package added to the lock" do
-      result = Security.check(input(new_lock: fixture("added.lock")))
-      assert result.lane == :security
-      assert failed(result) == []
-    end
   end
 
   describe "check/1 falls back to normal" do
+    test "a package added to the lock" do
+      result = Security.check(input(new_lock: fixture("added.lock")))
+      assert result.lane == :normal
+      assert failed(result) == ["Only existing hex packages change"]
+    end
+
+    test "a package removed from the lock" do
+      result =
+        Security.check(input(old_lock: fixture("added.lock"), new_lock: fixture("minor.lock")))
+
+      assert result.lane == :normal
+      assert failed(result) == ["Only existing hex packages change"]
+    end
+
+    test "a git ref change" do
+      result = Security.check(input(new_lock: fixture("git.lock")))
+      assert result.lane == :normal
+      assert failed(result) == ["Only existing hex packages change"]
+    end
+
     test "extra files" do
       result = Security.check(input(files: ["mix.lock", "lib/ex_tales_forge/game/turn.ex"]))
       assert result.lane == :normal
@@ -178,7 +193,7 @@ defmodule TalesForge.DeployLanes.SecurityTest do
 
       assert result.lane == :security
       assert result.advisories == ["EEF-CVE-2026-97853"]
-      assert Enum.count(result.summary, &String.starts_with?(&1, "- PASS")) == 3
+      assert Enum.count(result.summary, &String.starts_with?(&1, "- PASS")) == 4
     end
 
     test "decide_pr/3: extra files fall back to normal with the reason" do
@@ -283,6 +298,35 @@ defmodule TalesForge.DeployLanes.SecurityTest do
       assert {:ok, desc} = SecurityAudit.bump(base, fixture("major.lock"))
       assert desc =~ "plug 1.18.0 -> 2.0.0"
       assert {:error, "no change"} = SecurityAudit.bump(base, base)
+    end
+
+    test "since_production/3: an added package since production does not qualify" do
+      lanes = DeployLanes.load()
+
+      trees = %{
+        "prod" => @trees["base"],
+        "head" => %{
+          "mix.lock" => File.read!(Path.expand("../fixtures/security_lane/added.lock", __DIR__))
+        }
+      }
+
+      result =
+        SecurityCLI.since_production(
+          %SecurityCLI.Run{lanes: lanes, git: git(["mix.lock"], trees)},
+          "head",
+          "prod"
+        )
+
+      refute result.ok
+      assert result.detail =~ "mime"
+    end
+
+    test "SecurityAudit.bump/2 rejects an added package or a git ref change" do
+      base = fixture("base.lock")
+      assert {:error, desc} = SecurityAudit.bump(base, fixture("added.lock"))
+      assert desc =~ "mime"
+      assert {:error, git} = SecurityAudit.bump(base, fixture("git.lock"))
+      assert git =~ "heroicons"
     end
   end
 
