@@ -24,7 +24,9 @@ defmodule TalesForge.IntentEval.Metrics do
   anyway. They still count for every other field.
   """
 
+  alias TalesForge.Game.IntentBands
   alias TalesForge.Game.IntentClarification
+  alias TalesForge.IntentEval.JevOpts
   alias TalesForge.IntentEval.SelfCheckScore
 
   @z 1.96
@@ -36,8 +38,9 @@ defmodule TalesForge.IntentEval.Metrics do
 
   `opts` may set `:ask_below` (an extra row in the clarifying table, and the
   calibrated ask threshold of the band split), `:ask_below_raw` (the raw ask
-  threshold; `0.0` turns the raw check off) and `:act_min`. Unset thresholds
-  take `IntentClarification`'s defaults.
+  threshold; `0.0` turns the raw check off), `:act_min`, `:runner_up` and
+  `:clarify_v2` (use the v2 band set). Unset thresholds take
+  `IntentClarification`'s defaults for the selected set.
   """
   @spec evaluate(atom(), [map()], keyword()) :: map()
   def evaluate(reader, scored, opts \\ []) do
@@ -287,40 +290,47 @@ defmodule TalesForge.IntentEval.Metrics do
 
   # Each row asks below `t` on the calibrated confidence and, unless
   # `:ask_below_raw` pins it, below the same `t` on the raw confidence.
+  # `act_min` and `runner_up` are the run's band set (`:clarify_v2` /
+  # `:runner_up`).
   defp clarifying(pairs, opts) do
+    band_opts = IntentBands.opts(JevOpts.band_version(opts), opts)
+    rows = Enum.map(ask_thresholds(opts), &threshold_row(pairs, sweep_opts(band_opts, opts, &1)))
+    %{by_threshold: rows}
+  end
+
+  defp ask_thresholds(opts) do
     thresholds =
       if opts[:ask_below],
         do: Enum.uniq([opts[:ask_below] | @ask_thresholds]),
         else: @ask_thresholds
 
-    rows =
-      Enum.map(Enum.sort(thresholds), fn t ->
-        asks =
-          Enum.filter(pairs, fn {_item, r} ->
-            IntentClarification.band(r, ask_below: t, ask_below_raw: opts[:ask_below_raw] || t) ==
-              :clarify
-          end)
+    Enum.sort(thresholds)
+  end
 
-        justified = Enum.count(asks, fn {item, r} -> not action_correct?(item, r) end)
+  defp sweep_opts(band_opts, opts, t) do
+    Keyword.merge(band_opts, ask_below: t, ask_below_raw: opts[:ask_below_raw] || t)
+  end
 
-        %{
-          ask_below: t,
-          ask_rate: safe_div(length(asks), length(pairs)),
-          asks: length(asks),
-          justified: safe_div(justified, length(asks))
-        }
+  defp threshold_row(pairs, row_opts) do
+    asks =
+      Enum.filter(pairs, fn {_item, r} ->
+        IntentClarification.band(r, row_opts) == :clarify
       end)
 
-    %{by_threshold: rows}
+    justified = Enum.count(asks, fn {item, r} -> not action_correct?(item, r) end)
+
+    %{
+      ask_below: row_opts[:ask_below],
+      ask_rate: safe_div(length(asks), length(pairs)),
+      asks: length(asks),
+      justified: safe_div(justified, length(asks))
+    }
   end
 
   # --- act / best guess / ask split -------------------------------------------
 
   defp bands(pairs, opts) do
-    band_opts =
-      Enum.map(IntentClarification.defaults(), fn {key, default} ->
-        {key, opts[key] || default}
-      end)
+    band_opts = IntentBands.opts(JevOpts.band_version(opts), opts)
 
     read = Enum.filter(pairs, fn {_item, r} -> not is_nil(r.action) end)
     by_band = Enum.group_by(read, fn {_item, r} -> IntentClarification.band(r, band_opts) end)

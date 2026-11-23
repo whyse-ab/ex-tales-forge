@@ -49,11 +49,22 @@ defmodule Mix.Tasks.Intent.Eval do
       readings and write it to this path (normally
       `priv/intent/calibration.json`), with `--calibration-version`. Tune split
       only; prints the raw, in-sample and 5-fold cross-validated ECE.
+    * `--skill-split` — ask the skill-split question (default off; also
+      `SKILL_SPLIT=on`).
+    * `--narration-chars` / `--player-chars` — Jev context windows (defaults
+      800 / 600; also `JEV_NARRATION_CHARS` / `JEV_PLAYER_CHARS`).
+    * `--last-actions` — send the last 3 player actions in state (default off;
+      also `JEV_LAST_ACTIONS=on`).
+    * `--clarify-v2` — use the v2 clarify bands (act_min 0.80, ask_below 0.45,
+      raw 0.30, runner_up 0.40). Default off; also `JEV_CLARIFY_V2=on`.
+    * `--runner-up` — override the runner-up plausible threshold (default 0.25,
+      or 0.40 with `--clarify-v2`).
   """
 
   use Mix.Task
 
   alias TalesForge.IntentEval
+  alias TalesForge.IntentEval.JevOpts
 
   @switches [
     split: :string,
@@ -73,7 +84,13 @@ defmodule Mix.Tasks.Intent.Eval do
     out: :string,
     fit_calibration: :string,
     calibration_version: :string,
-    i_mean_it: :boolean
+    i_mean_it: :boolean,
+    skill_split: :boolean,
+    narration_chars: :integer,
+    player_chars: :integer,
+    last_actions: :boolean,
+    clarify_v2: :boolean,
+    runner_up: :float
   ]
 
   # Key sources in order of precedence after `--api-key`. The playtest intent key
@@ -142,13 +159,17 @@ defmodule Mix.Tasks.Intent.Eval do
   end
 
   defp build_opts(opts, split, key) do
+    switches = JevOpts.from_flags(opts)
+
     [
       split: split,
       readers: readers(opts),
-      jev: jev_opts(opts, key)
+      jev: jev_opts(opts, key, switches)
     ]
     |> put_opt(:ask_below, opts[:ask_below])
     |> put_opt(:ask_below_raw, opts[:ask_below_raw])
+    |> put_opt(:clarify_v2, switches.clarify_v2)
+    |> put_opt(:runner_up, switches.runner_up)
     |> put_opt(:limit, opts[:limit])
     |> put_opt(:concurrency, opts[:concurrency])
     |> put_opt(:fixture, opts[:fixture])
@@ -167,13 +188,14 @@ defmodule Mix.Tasks.Intent.Eval do
     end
   end
 
-  defp jev_opts(opts, key) do
+  defp jev_opts(opts, key, switches) do
     []
     |> put_opt(:model, opts[:jev_model])
     |> put_opt(:api_key, key)
     |> put_opt(:cache_dir, opts[:cache])
     |> put_opt(:timeout_ms, opts[:timeout_ms])
     |> put_opt(:max_retries, opts[:retries])
+    |> Keyword.put(:switches, switches)
   end
 
   defp put_opt(kw, _key, nil), do: kw

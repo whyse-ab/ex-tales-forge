@@ -13,8 +13,9 @@ defmodule TalesForge.IntentEval.Readers do
 
   require Logger
 
-  alias TalesForge.Game.{Intent, JevIntent, JevSelfCheck, SelfCheck}
+  alias TalesForge.Game.{Intent, JevIntent, SelfCheck}
   alias TalesForge.Game.Schemas.{IntentExtraction, SingleAction}
+  alias TalesForge.IntentEval.JevRequest
 
   @jev_model "jev-1.13.0"
   @default_timeout_ms 4_000
@@ -71,9 +72,8 @@ defmodule TalesForge.IntentEval.Readers do
   # --- jev ---------------------------------------------------------------------
 
   defp jev(item, context, jev_opts) do
-    candidates = JevIntent.candidates(context)
-    questions = JevSelfCheck.ask(JevIntent.questions(candidates))
-    state = JevIntent.state(context, item["text"])
+    %{candidates: candidates, state: state, questions: questions} =
+      JevRequest.request(context, item["text"], jev_opts)
 
     post_opts =
       [
@@ -85,7 +85,7 @@ defmodule TalesForge.IntentEval.Readers do
 
     request = %{state: state, questions: questions}
 
-    case cached_post(request, post_opts, Keyword.get(jev_opts, :cache_dir)) do
+    case JevRequest.cached_post(request, post_opts, Keyword.get(jev_opts, :cache_dir)) do
       {:ok, reply, cached?} ->
         reading = JevIntent.decode(reply, candidates, text: item["text"], context: context)
         reading |> from_jev() |> Map.put(:cached, cached?)
@@ -104,55 +104,9 @@ defmodule TalesForge.IntentEval.Readers do
   defp error_reason(%{reason: reason}), do: inspect(reason)
   defp error_reason(other), do: inspect(other.__struct__)
 
-  # With a cache dir, a reply is stored under the SHA-256 of the exact request
-  # (model, state, questions), so re-running with unchanged requests (e.g. while
-  # tuning post-processing or the calibration map) costs nothing, and any change
-  # to the request misses the cache and calls Jev again.
-  defp cached_post(%{state: state, questions: questions}, post_opts, nil) do
-    with {:ok, reply} <- Jev.HTTP.post(state, questions, post_opts), do: {:ok, reply, false}
-  end
-
-  defp cached_post(%{state: state, questions: questions}, post_opts, dir) do
-    path = Path.join(dir, request_key(state, questions, post_opts[:model]) <> ".etf")
-
-    case File.read(path) do
-      {:ok, binary} ->
-        {:ok, :erlang.binary_to_term(binary), true}
-
-      {:error, _} ->
-        with {:ok, reply} <- Jev.HTTP.post(state, questions, post_opts) do
-          File.mkdir_p!(dir)
-          File.write!(path, :erlang.term_to_binary(reply))
-          {:ok, reply, false}
-        end
-    end
-  end
-
-  @doc """
-  The cache key of a Jev request: the hex SHA-256 of its content (`model`,
-  `state`, `questions`) in a canonical form, with every map's keys sorted.
-
-  The JSON body itself is not stable across VMs: since OTP 26 small maps order
-  atom keys by the atom table, not alphabetically, so label order in the body
-  depends on which atoms a VM created first. The key does not.
-  """
-  @spec request_key(map(), keyword(), String.t() | nil) :: String.t()
-  def request_key(state, questions, model) do
-    %{model: model, state: state, questions: Jev.questions(questions)}
-    |> canonical()
-    |> :erlang.term_to_binary()
-    |> then(&:crypto.hash(:sha256, &1))
-    |> Base.encode16(case: :lower)
-  end
-
-  defp canonical(%_{} = struct), do: struct |> Map.from_struct() |> canonical()
-
-  defp canonical(map) when is_map(map),
-    do: map |> Enum.map(fn {k, v} -> {to_string(k), canonical(v)} end) |> Enum.sort()
-
-  defp canonical(list) when is_list(list), do: Enum.map(list, &canonical/1)
-  defp canonical(atom) when is_atom(atom) and atom not in [nil, true, false], do: to_string(atom)
-  defp canonical(other), do: other
+  defdelegate request(context, text), to: JevRequest
+  defdelegate request(context, text, switches), to: JevRequest
+  defdelegate request_key(state, questions, model), to: JevRequest
 
   defp maybe_key(opts, key) when is_binary(key) and key != "",
     do: Keyword.put(opts, :api_key, key)
