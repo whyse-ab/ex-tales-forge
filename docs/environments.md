@@ -1,15 +1,15 @@
 ---
 title: Environments and how changes reach production
-updated: 2026-10-09
+updated: 2026-11-23
 ---
 
 # Environments and how changes reach production
 
-Status 2026-10-09: **production** and **playtest** are live. A merge to `main` deploys to **playtest first**, automatically; **production** is a separate, manual step after the build has been checked on playtest and Fredrik has OK'd it ([decision 2026-10-09](decisions.md#2026-10-09-deploy-order-playtest-first-then-production), [ex-tales-forge #91](https://github.com/whyse-ab/ex-tales-forge/pull/91), merged). Admin-only merges get a fast lane straight to production ([decision 2026-10-09](decisions.md#2026-10-09-a-fast-deploy-lane-for-admin-work), [#107](https://github.com/whyse-ab/ex-tales-forge/pull/107), merged; see [Deploy lanes](#deploy-lanes-admin-work-goes-straight-to-production)). Lock-only bumps that fix a published advisory get a security lane ([decision 2026-10-11](decisions.md#2026-10-11-security-bump-lane), [#171](https://github.com/whyse-ab/ex-tales-forge/pull/171), open; see [Security lane](#security-lane-advisory-fixes-ship-without-a-founder-ok)). PR previews are decided but not built yet.
+Status 2026-11-23: **production** is live. **Playtest** is still up, but a merge to `main` no longer deploys it automatically (hobby mode, `docs/hobby-mode.md` step 1; `playtest.yml` is started only by hand). **Production** for a normal merge is a separate, manual step after Fredrik has OK'd it. Admin-only merges go straight to production ([decision 2026-10-09](decisions.md#2026-10-09-a-fast-deploy-lane-for-admin-work), [#107](https://github.com/whyse-ab/ex-tales-forge/pull/107), merged; see [Deploy lanes](#deploy-lanes-admin-work-goes-straight-to-production)). Lock-only bumps that fix a published advisory take the security lane ([decision 2026-10-11](decisions.md#2026-10-11-security-bump-lane); see [Security lane](#security-lane-advisory-fixes-ship-without-a-founder-ok)). PR previews are decided but not built yet.
 
 ## Branches
 
-- `main` is what runs on playtest, and production runs a commit of `main` that was checked on playtest first. Nobody pushes to it directly; everything goes in through a pull request. `main` is protected: the required CI checks **`Test`** and **`Dialyzer`** must both pass before anything lands on it.
+- `main` is the branch production runs a commit of. Nobody pushes to it directly; everything goes in through a pull request. `main` is protected: the required CI checks **`Test`** and **`Dialyzer`** must both pass before anything lands on it. Playtest, while its machines are still up, can be deployed from `main` by hand.
 - Each change gets a short-lived branch (`feature/...`, `fix/...`), a PR, and is deleted after merge.
 - There is no long-lived `dev` or `staging` branch.
 
@@ -20,7 +20,7 @@ Status 2026-10-09: **production** and **playtest** are live. A merge to `main` d
 | Fly app | `tales-forge` | `tales-forge-playtest` ([tales-forge-playtest.fly.dev](https://tales-forge-playtest.fly.dev)) | `tales-forge-pr-<number>` (its own app) |
 | App machine | shared-cpu-1x, 1 GB, 1 machine always on | shared-cpu-1x, 512 MB plus 512 MB swap, 1 machine always on | Small, created per PR |
 | Database | `tales-forge-db` (own Fly Postgres) | `tales-forge-playtest-db`: own Fly Postgres (postgres-flex 18), single node, shared-cpu-1x 512 MB, 1 GB volume, always on | A database per PR **on the playtest cluster** `tales-forge-playtest-db`, dropped with the app |
-| Runs | A commit of `main` already checked on playtest, deployed by hand ("Deploy to production" workflow) | `main`, deployed automatically after every green CI run (or by hand) | The PR's branch |
+| Runs | A commit of `main`, deployed by the lane (`deploy-lanes.yml` for admin and security; "Deploy to production" by hand for normal) | `main`, deployed only by hand ("Deploy to playtest") | The PR's branch |
 | Who uses it | Players, admins | Persona bots (self-play) and a few invited testers | Whoever reviews the PR |
 | Admin data that lives only here | Founder surveys (`/admin/survey`, `/admin/surveys/*`) | Playtest runs (`/admin/playtest/*`) | Not built; its app name has no "playtest", so it would act as production (revisit when previews are built) |
 | Lifetime | Always on | Long-lived, always on | Created when the PR opens, destroyed when it closes |
@@ -31,21 +31,21 @@ Region is `arn` (Stockholm) for all three. The `tales-forge.ai` domain stays on 
 
 ## How a change gets to production
 
-Playtest first, then production (decision 2026-10-09, [ex-tales-forge #91](https://github.com/whyse-ab/ex-tales-forge/pull/91)):
+Hobby mode, 2026-11-23 (`docs/hobby-mode.md`): production is the live environment. Playtest is no longer deployed automatically.
 
 1. Push a branch and open a PR. GitHub Actions runs the two required jobs: **`Test`** (compile with warnings as errors, format check, Credo strict, the code health ratchet `mix health.check`, tests with coverage, the docs build and `mix hex.audit`) and **`Dialyzer`**.
 2. Later (not built yet), a preview app also starts for the PR, with its link posted on the PR.
 3. When the checks are green and the change is reviewed, merge to `main` (Fredrik's OK).
 4. On `main`, Actions (`.github/workflows/ci.yml`) runs `Test` and `Dialyzer` again. CI itself deploys nothing.
-5. **Playtest, automatically.** After every green CI run on `main`, `.github/workflows/playtest.yml` ("Deploy to playtest") deploys exactly that commit to `tales-forge-playtest`. Migrations run first (`/app/bin/migrate`), and only one playtest deploy runs at a time. It can also be started by hand (Actions → "Deploy to playtest", optionally with a `sha`). It needs the Actions secret `FLY_API_TOKEN_PLAYTEST`.
-6. **Check on playtest.** Gentry (the QA bot) and the playtest batch check the build there, and Fredrik decides.
-7. **Production, by hand, after Fredrik's OK.** The "Deploy to production" workflow (`.github/workflows/deploy-production.yml`) is started for the commit that was checked:
+5. **Playtest, by hand only.** `.github/workflows/playtest.yml` ("Deploy to playtest") is started from the Actions tab (optionally with a `sha`). It needs the Actions secret `FLY_API_TOKEN_PLAYTEST`. Migrations run first (`/app/bin/migrate`), and only one playtest deploy runs at a time.
+6. **Lanes, automatically.** After every green CI run on `main`, `.github/workflows/deploy-lanes.yml` picks the deploy lane. Admin and security merges go straight to production. A normal merge waits for the next step.
+7. **Production, by hand for the normal lane, after Fredrik's OK.** The "Deploy to production" workflow (`.github/workflows/deploy-production.yml`) is started for that commit:
 
    ```bash
    gh workflow run deploy-production.yml -R whyse-ab/ex-tales-forge -f sha=<full 40-character sha>
    ```
 
-   A first job refuses the run unless the sha is on `main` and its `Test` and `Dialyzer` checks passed, and warns when no successful playtest deploy of that sha is found. The deploy job then runs in the GitHub environment **`production`** (security lanes outside working hours: **`production-security`**, no reviewer, `main` only) and deploys exactly that commit to `tales-forge`, with migrations first (`/app/bin/migrate`). Only one prod deploy runs at a time, and a running deploy is never cancelled. It uses `FLY_API_TOKEN`, an environment secret on both environments. A bot starts this workflow only on Fredrik's explicit OK for that sha. Once a required reviewer (Fredrik) is set on the `production` environment (repo Settings → Environments), the job also waits for that approval; until then the manual start is the gate.
+   A first job refuses the run unless the sha is on `main` and its `Test` and `Dialyzer` checks passed, and warns when no successful playtest deploy of that sha is found. The deploy job then runs in the GitHub environment **`production`** for normal and admin deploys (the required reviewer is the gate). The security lanes (`security`, `security-fix`, `security-rollback`) always use **`production-security`** (no reviewer, `main` only), at all hours. The job deploys exactly that commit to `tales-forge`, with migrations first (`/app/bin/migrate`). Only one prod deploy runs at a time, and a running deploy is never cancelled. It uses `FLY_API_TOKEN`, an environment secret on both environments. A bot starts this workflow only on Fredrik's explicit OK for that sha. Once a required reviewer (Fredrik) is set on the `production` environment (repo Settings → Environments), the job also waits for that approval; until then the manual start is the gate.
 
 A manual `fly deploy` is the fallback when Actions is down. It is the same command CI runs; see `docs/DEPLOY-FLY.md` in ex-tales-forge. For playtest: `fly deploy --remote-only --depot=false -c fly.playtest.toml -a tales-forge-playtest --ha=false`.
 
@@ -55,14 +55,14 @@ Decision 2026-10-09 ([decision log](decisions.md#2026-10-09-a-fast-deploy-lane-f
 
 | Lane | When | Playtest | Production |
 |---|---|---|---|
-| **Admin** | Every file the merge changed **and** every file changed since the commit production runs is on the `[admin]` list in ex-tales-forge `.github/deploy-lanes.txt` | Automatic | Automatic, right after playtest: no Gentry/batch gate, no prod OK |
-| **Security** | A lock-only dependency bump within the major version that fixes a published advisory, with green CI ([Security lane](#security-lane-advisory-fixes-ship-without-a-founder-ok)) | Automatic, then a smoke check | Automatic after a green smoke check; Bobby tells the founders |
-| **Security fix** | Off-hours only: a fix for a high or critical dependency advisory with an OSV id, label `security-fix` ([Off-hours security fixes](#off-hours-security-fixes)) | Automatic; Gentry plays it | Automatic after Gentry's `qa/gentry-go` and the guard; smoke check, rollback on failure |
-| **Normal** | Anything else: game engine code (`Game.*`, intent, world, NPCs, rules, packs), shared code (sign-in and the signed-out `/internal/*` endpoints, Repo and migrations, config, `AICalls`, `mix.exs`/deps, the router, shared CSS/JS, CI), docs, unknown files, a mixed merge | Automatic | After Gentry and the playtest batch, a founder's Approve ships it (step 7) |
+| **Admin** | Every file the merge changed **and** every file changed since the commit production runs is on the `[admin]` list in ex-tales-forge `.github/deploy-lanes.txt` | Manual only | Automatic, straight to production: no Gentry/batch gate, no prod OK |
+| **Security** | A lock-only dependency bump of existing Hex packages (major version bumps allowed; adding or removing a package, or a git or other non-hex ref, is not this lane) that fixes a published advisory, with green CI ([Security lane](#security-lane-advisory-fixes-ship-without-a-founder-ok)) | Manual only | Automatic, through `production-security` at all hours; smoke check on production, rollback on failure; Bobby tells the founders |
+| **Security fix** | A fix for a high or critical dependency advisory with an OSV id, label `security-fix` (merged off-hours; [Off-hours security fixes](#off-hours-security-fixes)) | Manual only | Automatic after CI, at any hour, through `production-security`; guard, production smoke, rollback on failure |
+| **Normal** | Anything else: game engine code (`Game.*`, intent, world, NPCs, rules, packs), shared code (sign-in and the signed-out `/internal/*` endpoints, Repo and migrations, config, `AICalls`, `mix.exs`/deps, the router, shared CSS/JS, CI), docs, unknown files, a mixed merge | Manual only | A founder's Approve ships it (step 7); `production` reviewer gate |
 
 - **The admin list** (one place, `.github/deploy-lanes.txt`): the founder survey (`Surveys`, `Survey.*`, the survey admin LiveViews, components and CSV export, `priv/surveys/`), the costs page (`Costs`, `Costs.*`, `CostsLive`; not the signed-out `GET /internal/costs` controller), the playtest admin pages (`PlaytestLive`, `Playtest.Summary`, `Playtest.CharacterChanges` and its components, `priv/playtest/summary/`; not the persona runner, scorers or personas), and the founders' pages (`TeamPage`, `TeamLive`, `TeamPresentationLive`, the live PR feed `PrFeed` and `TeamPrFeedLive`, the `team_*` components, `team_hooks.js`, `priv/team/`, `priv/static/images/team/`), each with its tests.
-- **How the lane is picked:** after the playtest deploy, "Deploy to playtest" diffs the merge against its parent and against the tag **`deployed/production`** (the commit production runs; every production deploy moves it). Both must be admin-only. So an admin merge never carries an earlier game merge that still waits for a founder's Approve. With no tag yet, a rollback, or a run started by hand, the lane is normal. The lane and the files that decided it are in the run summary.
-- **The admin lane's production deploy** is the "Deploy to production" workflow called from playtest: the same "Verify commit" job (sha on `main`, `Test` and `Dialyzer` green), then, one deploy at a time, it deploys only if the commit is **still the tip of `main`** (the same guard playtest has) and production hasn't moved since the lane was picked. Otherwise it skips with a notice.
+- **How the lane is picked:** after a green CI run on `main`, "Deploy lanes" diffs the merge against its parent and against the tag **`deployed/production`** (the commit production runs; every production deploy moves it). Both must be admin-only. So an admin merge never carries an earlier game merge that still waits for a founder's Approve. With no tag yet, or a rollback, the lane is normal. The lane and the files that decided it are in the run summary.
+- **The admin lane's production deploy** is the "Deploy to production" workflow called from deploy-lanes.yml: the same "Verify commit" job (sha on `main`, `Test` and `Dialyzer` green), then, one deploy at a time, it deploys only if the commit is **still the tip of `main`** and production hasn't moved since the lane was picked. Otherwise it skips with a notice.
 - **Boundary:** game code, and shared code other than the router and the application, must never depend on admin modules. CI's `Test` job checks it (`mix deploy.check_boundaries`).
 - **Gates:** admin files get format and tests only (no Credo, so no `@spec`/`@doc` demands); game and shared code keep Credo strict, specs and Dialyzer. `Test` and `Dialyzer` stay the required checks ([Coding standards](coding-standards.md)).
 - Keep admin work in admin-only PRs: a `/team` PR that also adds a route or touches the shared CSS is normal.
@@ -74,32 +74,32 @@ Decision 2026-10-11 ([decision log](decisions.md#2026-10-11-security-bump-lane))
 A PR takes the security lane when all four rules pass (`TalesForge.DeployLanes.Security`):
 
 1. It changes only `mix.lock`, and optionally the version requirements of deps in `mix.exs`.
-2. Every changed package keeps its major version (for `0.x`, the minor too). An added or removed package needs a founder's Approve.
+2. Every lock change is a version bump of an existing hex package (majors included). An added or removed package, or a git or other non-hex ref, needs a founder's Approve.
 3. It has the label `security` or the title prefix `security:`, and an advisory id (CVE, GHSA or EEF-CVE) in the title or body.
 4. CI is green (`Test` and `Dialyzer`).
 
 When a rule fails, the PR takes the normal lane. The run summary shows PASS or FAIL for each rule.
 
-- **Find, every hour:** "Security audit" (`security-audit.yml`) runs `mix hex.audit` and `mix deps.audit`. For each advisory it runs `mix deps.update` on that package within the major version and opens a PR `security: <advisory id>: …` with the label. High and critical advisories are handled at any hour: the same job runs day and night. A fix that needs a major bump or a code change goes to the founders.
+- **Find, every hour:** "Security audit" (`security-audit.yml`) runs `mix hex.audit` and `mix deps.audit`. For each advisory it unlocks the package (`mix deps.unlock`, then `mix deps.get`; neighbours if the patched version is capped) and opens a PR `security: <advisory id>: …` with the label, including when the fix is a major bump of an existing Hex package. High and critical advisories are handled at any hour: the same job runs day and night. A bump that adds or removes a package, or points at a git or other non-hex ref, goes to Fredrik's merge list.
 - **Merge:** "Security lane" (`security-lane.yml`) runs after the PR's CI and squash-merges it for exactly its head sha.
-- **Deploy:** "Deploy to playtest" checks the rules again on the merge, and also that production gets nothing else (everything since `deployed/production` is a lock bump within the major version or an admin file). Then playtest, a smoke check on playtest (`/health`, the sign-in page, a LiveView mount; no game turn, because a turn calls the LLM), and production for that sha, with the same guards as the admin lane.
+- **Deploy:** "Deploy lanes" checks the rules again on the merge, and also that production gets nothing else (everything since `deployed/production` is a lock bump of existing Hex packages — major bumps allowed — or an admin file). Then production for that sha through `production-security` at all hours, with the same guards as the admin lane, a smoke check on production (`/health`, the sign-in page, a LiveView mount; no game turn, because a turn calls the LLM), and a rollback to `deployed/production-previous` if the smoke check fails.
 - **Tell:** after the production deploy, Bobby gets a signed webhook (`SECURITY_LANE_WEBHOOK_URL`) and tells Gentry and the founders through Case.
-- **Founder's Approve still needed** for a major version bump, for a fix that needs a code change, and for a fix that changes player-facing behaviour.
+- **Fredrik's merge list** (not the auto lane) for a PR that adds or removes a package, uses a git or other non-hex ref, needs a code change, or changes player-facing behaviour. Major version bumps of existing Hex packages merge and auto-deploy on green CI. Normal deploys keep the `production` reviewer gate.
 
 ## Off-hours security fixes
 
-Fredrik, 2026-10-27: outside working hours (Mon-Fri 08:00-18:00 Europe/Stockholm) bots may merge and deploy security-fix PRs, in this lane only (AGENTS.md rule 2 carve-out). Only a dependency advisory with an OSV id qualifies; a flaw in our own code gets containment only and waits for the founders.
+Fredrik, 2026-10-27 and 2026-11-23: outside working hours (Mon-Fri 08:00-18:00 Europe/Stockholm) bots may merge security-fix PRs, in this lane only (AGENTS.md rule 2 carve-out). After a green CI run, `deploy-lanes.yml` starts the deploy at any hour without a founder's approval, through `production-security`. Only a dependency advisory with an OSV id qualifies; a flaw in our own code gets containment only and waits for the founders.
 
-- **Guard** (`TalesForge.DeployLanes.SecurityFix`, always run from `main`'s code, never the PR's): `main` only, outside working hours, `Test` and `Dialyzer` green on the exact sha, at most 10 files and 300 changed lines, no `[founder]` path from `.github/deploy-lanes.txt` except `mix.exs`/`mix.lock`, and a high or critical advisory (hex.pm, the data `mix hex.audit` reads, confirmed by its OSV record) on a changed package at the base version that is gone at the head version.
+- **Guard** (`TalesForge.DeployLanes.SecurityFix`, always run from `main`'s code, never the PR's): `main` only, `Test` and `Dialyzer` green on the exact sha, at most 10 files and 300 changed lines, no `[founder]` path from `.github/deploy-lanes.txt` except `mix.exs`/`mix.lock`, and a high or critical advisory (hex.pm, the data `mix hex.audit` reads, confirmed by its OSV record) on a changed package at the base version that is gone at the head version. Merge also requires outside working hours. Deploy does not; it may run at any hour.
 - **Merge:** "Security lane" (`security-lane.yml`) checks the guard plus the label `security-fix` and squash-merges the PR's head sha.
-- **Playtest and Gentry:** the merge deploys to playtest as usual. When Gentry is happy, the `gentry-qa` GitHub App posts the commit status `qa/gentry-go` = success on that sha (only that App's login, the repo variable `GENTRY_GO_LOGIN`, counts).
-- **Deploy:** that status starts "Security-fix deploy" (`security-fix-deploy.yml`). It re-checks the guard against production (`deployed/production`) at deploy time, plus Gentry's GO and that every merge since production is a `security-fix` PR, then deploys with lane `security-fix` (environment `production-security`, no reviewer).
-- **Smoke check and rollback:** a smoke check on production; when it fails, production goes back to `deployed/production-previous` (lane `security-rollback`). Bobby gets a signed webhook either way (`security_fix.deployed`, `.smoke_failed` or `.rolled_back`).
+- **Playtest:** playtest is no longer deployed automatically (hobby mode). A manual `playtest.yml` run does not start this lane.
+- **Deploy:** after a green CI run on `main`, "Deploy lanes" (`deploy-lanes.yml`) calls "Security-fix deploy" (`security-fix-deploy.yml`) when the merged PR has the label `security-fix`. It re-checks the guard against production (`deployed/production`) at deploy time, plus that every merge since production is a `security-fix` PR, then deploys with lane `security-fix` (environment `production-security` at all hours, no reviewer). There is no Gentry GO.
+- **Smoke check and rollback:** a smoke check on production; when it fails, production goes back to `deployed/production-previous` (lane `security-rollback`, also `production-security` at all hours). Bobby gets a signed webhook either way (`security_fix.deployed`, `.smoke_failed` or `.rolled_back`).
 
 ## What needs Fredrik's OK
 
-- Merging anything to `main`, because a merge deploys to playtest (and an admin-only merge also goes to production, [#107](https://github.com/whyse-ab/ex-tales-forge/pull/107)).
-- Every normal-lane production deploy: starting "Deploy to production" for a sha, after the build has been checked on playtest. Admin-lane, security-lane and off-hours security-fix deploys ship without it.
+- Merging anything to `main` that is not on an automatic lane (an admin-only merge, and a qualifying security or security-fix bump, still go to production without a further click, [#107](https://github.com/whyse-ab/ex-tales-forge/pull/107)).
+- Every normal-lane production deploy: starting "Deploy to production" for a sha. Admin-lane, security-lane and security-fix deploys ship without that start.
 - Creating or deleting Fly apps, databases, volumes, deploy tokens and GitHub secrets.
 - Anything that adds cost, such as a bigger machine, an always-on playtest, or Managed Postgres.
 - Inviting playtesters and giving out admin access (`ADMIN_EMAILS`, `ADMIN_GITHUB_TEAM`).

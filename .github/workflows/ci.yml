@@ -8,12 +8,12 @@
 # the whole app. "Admin boundary" fails when game or shared code depends on an admin
 # file (decision 2026-10-09 "A fast deploy lane for admin work").
 #
-# A push to main that passes Test and Dialyzer is deployed to PLAYTEST first
-# (.github/workflows/playtest.yml), which also picks the merge's deploy lane: an
-# admin-only merge goes on to production automatically; anything else waits for
-# the manual .github/workflows/deploy-production.yml after the build has been
-# checked on playtest and Fredrik has OK'd it (ex-tales-forge decision
-# 2026-10-09 "Deploy order: playtest first, then production").
+# A push to main that passes Test and Dialyzer is classified by
+# .github/workflows/deploy-lanes.yml (hobby mode, docs/hobby-mode.md step 1):
+# an admin-only or security-lane merge goes straight to production;
+# anything else waits for the manual .github/workflows/deploy-production.yml
+# after Fredrik has OK'd it. Playtest is no longer deployed automatically
+# (`playtest.yml` is started only by hand).
 #
 # "Dependency warnings" (not a required check, never fails) compiles the deps
 # from scratch and lists their compiler warnings in its job summary: new ones

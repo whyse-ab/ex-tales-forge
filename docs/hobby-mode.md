@@ -29,10 +29,10 @@ Merging this PR is **not** approval for the steps below. Each Fly write, delete 
 | # | Step | Gate |
 |---|---|---|
 | 1 | `pg_dump` the playtest DB and keep the dump off Fly, then stop the playtest machines (app and DB). Turn off the automatic playtest deploy: `playtest.yml` currently also gates the security lane's smoke check before prod, so that PR has to route the lanes straight to prod | Fly write + workflow PR: Fredrik's go / merge |
-| 2 | Weekly prod `pg_dump` backup (a GitHub Action with a private artifact, or another target Fredrik picks) | Workflow PR: Fredrik merges |
+| 2 | Weekly prod `pg_dump` backup (a GitHub Action with a private artifact, or another target Fredrik picks) | Workflow PR: `.github/workflows/prod-backup.yml`. The dump is encrypted with age (the repo is public). Fredrik adds `FLY_API_TOKEN_DB`, `PROD_PGPASSWORD`, and `BACKUP_AGE_RECIPIENT` (see `docs/fly-secrets.md`). |
 | 3 | Uptime alert on `https://tales-forge.fly.dev/health` that tells Fredrik when it fails | Workflow PR (or an external service): Fredrik's go |
 | 4 | Set `AI_CAP_DAY_USD=5` on prod (and `AI_CAP_SESSION_USD` only if Fredrik wants one) | Fly secret write: Fredrik's go |
-| 5 | Security-fix lane: replace the wait for Gentry's `qa/gentry-go` with Fredrik's approval (or drop the lane). The Security audit and the Security lane stay as they are | Workflow PR: Fredrik merges |
+| 5 | Security-fix lane: replace the wait for Gentry's `qa/gentry-go` with Fredrik's approval (or drop the lane). The Security audit and the Security lane stay as they are | **Done in [#619](https://github.com/whyse-ab/ex-tales-forge/pull/619)** (deploy, then a prod smoke check, then a rollback if that check fails; no Gentry go; security-fix and rollback use `production-security` at all hours). |
 | 6 | Slim AGENTS.md to about one page: stack, non-negotiables, branch + PR, green CI, Fredrik merges, the deploy command. Remove the card, vote, merge-list and Case-OK rules. Delete `health-snapshot.yml` and close #600 | **Done** in this PR. After merge, close #600 |
 | 7 | Export the 57 open board ideas (and the known bugs) to GitHub Issues with labels `idea`, `bug` and `next`, then archive the board (read-only, not deleted) and remove the board webhooks | Issues and board change: Fredrik's go |
 | 8 | After 30 days with no need for it: delete the playtest app and DB | Delete, cannot be undone: Fredrik's go in his own words |
@@ -76,7 +76,7 @@ The big lever is the bots, not Fly.
 
 ## KEEP (minimal safety)
 1. **CI** (Test and Dialyzer required on main). Free, because the repo is public.
-2. **Security audit + Security lane.** Pure GitHub Actions with no bot in the loop: lock-only bumps that keep the major version merge and deploy themselves after the smoke check. **Change:** the Security-fix lane needs Gentry's GO, so either drop it or route it to Fredrik.
+2. **Security audit + Security lane.** Pure GitHub Actions with no bot in the loop: lock-only bumps that keep the major version merge and deploy themselves, then a prod smoke check, then a rollback if that check fails. **Change:** the Security-fix lane needs Gentry's GO, so either drop it or route it to Fredrik.
 3. **Backups:** add a weekly `pg_dump` of prod (a GitHub Action that keeps a private artifact, or a manual dump to Fredrik's machine). Today there is none beyond snapshots.
 4. **Uptime alert:** a free external check on `https://tales-forge.fly.dev/health` (a GitHub Actions cron or UptimeRobot) that emails Fredrik. It replaces Bobby's twice-daily log check.
 5. **Cost ceiling:** `AI_CAP_DAY_USD=5` on prod (decided), plus a monthly limit in the xAI console if Fredrik wants one.

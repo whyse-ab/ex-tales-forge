@@ -22,14 +22,14 @@ Fredrik asks or an on-call alert fires.
 
 1. **Branch + pull request.** Never commit to `main` directly. Never force-push and never push to `main`.
 2. **CI must be green.** The required checks on `main` are **Test** and **Dialyzer**.
-3. **Fredrik merges.** Bots do not merge, except the security lane (lock-only Hex bumps of existing packages, majors allowed; a PR that adds or removes a package, or uses a git ref, goes to Fredrik's list).
+3. **Fredrik merges.** Bots do not merge, except the security lane (lock-only Hex bumps of existing packages, majors allowed; a PR that adds or removes a package, or uses a git or other non-hex ref, goes to Fredrik's list) and the security-fix lane (a high or critical advisory fix with the label `security-fix`, merged only outside Mon–Fri 08:00–18:00 Europe/Stockholm, through `security-lane.yml`).
 4. **Production deploy**, after Fredrik's OK for that sha:
 
    ```bash
    gh workflow run deploy-production.yml -R whyse-ab/ex-tales-forge -f sha=<full 40-character sha>
    ```
 
-   The security lane deploys through the `production-security` environment at all hours. Normal deploys use the `production` environment and its reviewer gate.
+   The security, security-fix and security-rollback lanes deploy through the `production-security` environment at all hours, with no Gentry go: first the deploy, then a production smoke check, then a rollback if that check fails. Admin, security and security-fix merges go straight to production through `deploy-lanes.yml` after green CI (hobby mode; `playtest.yml` is manual only). Normal deploys use the `production` environment and its reviewer gate.
 5. **Fly writes** (secrets, scale, stop, delete) need Fredrik's own OK in chat. Deletes are a separate ask. Secret names only, never values (`docs/fly-secrets.md`).
 
 ```bash

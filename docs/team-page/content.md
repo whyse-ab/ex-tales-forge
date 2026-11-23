@@ -133,7 +133,7 @@ Footnote from `pace.median_hours_open_to_merge_oct` (0.24 h ≈ 15 min). Deploy 
 1. **Decisions are written down.** Every decision goes into one log, `docs/decisions.md` in `ex-tales-forge`, with the date, the decision, why, and a link to the details. Changing a decision means adding a new entry, never editing history.
    - Stat: **`decisions.total` decisions in five days** (5–9 Oct).
    - Plus a decision queue of `decisions.queue.total` bigger questions (`decisions.queue.open` still open), and a future-ideas list (`decisions.future_ideas.count` ideas so far: *speculative intent while typing*, *memory consolidation and attitude drift* and *a founder kanban on /team*).
-2. **Docs go straight to main; code goes through PRs.** Writing things down should be fast, so docs need no review step. Code always gets a PR, CI and a founder's OK on the board card. Any founder approves PRs there. An approved change goes to playtest, Gentry checks it, and then Bobby deploys that sha to production.
+2. **Docs also go through a pull request, never straight to main.** Code and docs both get a PR and CI. A founder's OK is needed to merge. An approved change goes to playtest, Gentry checks it, and then Bobby deploys that sha to production.
 3. **Code that explains itself.** "Humans may need to understand the code one day." Every module says what it's for, every public function has docs and a type spec, and the tools check it all on every PR:
    - doctests *(examples in the docs that also run as tests)*;
    - Dialyzer *(a type checker)*: `code_standards.dialyzer_warnings` warnings;

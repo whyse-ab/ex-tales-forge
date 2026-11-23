@@ -48,7 +48,7 @@ This document is the source of truth for **how the parts connect and how to rebu
 Tales Forge has two Fly apps in the Fly organization `personal`, region `arn` (Stockholm):
 
 - **`tales-forge`** (production). It has the game for players, the admin pages, the founders' pages on `/team`, the idea board, the team chat, the surveys and the costs page.
-- **`tales-forge-playtest`** (playtest). It gets every merge to `main` first. The persona bots, Gentry and the playtest admin pages run here.
+- **`tales-forge-playtest`** (playtest). It is no longer deployed automatically (hobby mode; `playtest.yml` is started only by hand). The persona bots, Gentry and the playtest admin pages run here.
 
 Each app has its own self-run Fly Postgres app. GitHub Actions in `whyse-ab/ex-tales-forge` tests each change and deploys it. The founders sign in with GitHub. Only active members of the team `whyse-ab/tales-forge` get in.
 
@@ -150,7 +150,7 @@ The `Dockerfile` builds a release with Elixir 1.18.4 and OTP 27.3.4.16 on Debian
 | Repo | Visibility | `main` protection | Rulesets | Actions secrets (names) | Actions variables | Environments |
 |---|---|---|---|---|---|---|
 | `whyse-ab/ex-tales-forge` | public | Classic branch protection: required checks `Test` and `Dialyzer`; no required reviews; admins not enforced | none | `FLY_API_TOKEN_PLAYTEST` (`FLY_API_TOKEN` is an environment secret) | none (`FLY_USE_DEPOT` is read but not set) | `production` (required reviewer `fpahlen`) and `production-security` (no reviewer, branch `main` only), each with the secret `FLY_API_TOKEN` |
-| `whyse-ab/tales-forge-docs` | private | none (commits go straight to `main`) | none | none | none | none |
+| `whyse-ab/tales-forge-docs` | private | none | none | none | none | none |
 
 Repo access: `fpahlen` is admin on ex-tales-forge. `maxpahlen`, `jpa71` and `Hawkan-Fredriksson` have read access as direct collaborators. The team `tales-forge` has no repo grant of its own.
 
@@ -161,21 +161,23 @@ Repo access: `fpahlen` is admin on ex-tales-forge. `maxpahlen`, `jpa71` and `Haw
 | File | Name | Trigger | Jobs | Secrets |
 |---|---|---|---|---|
 | `ci.yml` | CI | `pull_request`; `push` to `main` | `Test` (Postgres 18 service; includes `mix deploy.check_boundaries`), `Dialyzer`, `Dependency warnings` (report only, `continue-on-error`) | none |
-| `playtest.yml` | Deploy to playtest | `workflow_run` of CI, `completed`, branch `main`, only when CI passed for a `push`; `workflow_dispatch` (inputs `sha`, `force`) | `deploy` (tip-of-main guard, `fly deploy -c fly.playtest.toml`), `lane` (`.github/scripts/deploy_lane.exs`), `smoke` (security lane, `smoke_check.py`), `Production (admin lane)`, `Production (security lane)`, `Notify Bobby (security lane)` | `FLY_API_TOKEN_PLAYTEST`, `FLY_API_TOKEN`, `SECURITY_LANE_WEBHOOK_URL`, `SECURITY_LANE_WEBHOOK_KEY` |
-| `deploy-production.yml` | Deploy to production | `workflow_dispatch` (input `sha`); `workflow_call` from `playtest.yml` (lane `admin` or `security`); from `security-fix-deploy.yml` (lane `security-fix` or `security-rollback`) | `verify` (full 40-char sha, on `main`, `Test` and `Dialyzer` green; picks the environment), `deploy` (environment `production`, or `production-security` for the security, security-fix and rollback lanes outside working hours; moves tag `deployed/production-previous`, then `deployed/production`) | `FLY_API_TOKEN` (environment secret) |
+| `playtest.yml` | Deploy to playtest | `workflow_dispatch` (inputs `sha`, `force`); no longer runs after CI (hobby mode) | `deploy` (tip-of-main guard, `fly deploy -c fly.playtest.toml`); playtest only, no lane pick or production | `FLY_API_TOKEN_PLAYTEST` |
+| `deploy-lanes.yml` | Deploy lanes | `workflow_run` of CI, `completed`, branch `main`, only when CI passed for a `push` | `lane` (`.github/scripts/deploy_lane.exs`, also security-fix by label), `Production (admin lane)`, `Production (security lane)`, `Smoke check` (production), `rollback` (lane `security-rollback` when smoke fails), `Production (security-fix lane)` (calls `security-fix-deploy.yml`), `Notify Bobby (security lane)` | `FLY_API_TOKEN`, `SECURITY_LANE_WEBHOOK_URL`, `SECURITY_LANE_WEBHOOK_KEY` |
+| `deploy-production.yml` | Deploy to production | `workflow_dispatch` (input `sha`); `workflow_call` from `deploy-lanes.yml` (lane `admin` or `security`); from `security-fix-deploy.yml` (lane `security-fix` or `security-rollback`) | `verify` (full 40-char sha, on `main`, `Test` and `Dialyzer` green; picks the environment), `deploy` (environment `production`, or `production-security` for the security, security-fix and rollback lanes on `main` at all hours; moves tag `deployed/production-previous`, then `deployed/production`) | `FLY_API_TOKEN` (environment secret) |
 | `security-audit.yml` | Security audit | `schedule` `17 * * * *` (every hour at :17 UTC); `workflow_dispatch` | `audit` (`mix hex.audit`, `mix deps.audit`, opens a `security:` PR) | `SECURITY_BOT_APP_ID`, `SECURITY_BOT_APP_PRIVATE_KEY` or `SECURITY_BOT_TOKEN` |
 | `security-lane.yml` | Security lane | `workflow_run` of CI, `completed` (for `pull_request` runs); `workflow_dispatch` (input `pr`) | `classify` (`security_lane.exs`), `merge` (`gh pr merge --squash --match-head-commit`) | same bot secrets as Security audit |
-| `security-fix-deploy.yml` | Security-fix deploy | `status` (`qa/gentry-go` = success, from the gentry-qa App); `workflow_dispatch` (input `sha`) | `guard` (`security_fix.exs deploy`, from `main`), `deploy` (lane `security-fix`), `smoke` (production), `rollback` (lane `security-rollback` when smoke fails), `notify` | `FLY_API_TOKEN` (environment secret), `SECURITY_LANE_WEBHOOK_URL`/`_KEY`, variable `GENTRY_GO_LOGIN` |
+| `security-fix-deploy.yml` | Security-fix deploy | `workflow_call` from `deploy-lanes.yml` after a green CI run on `main`; `workflow_dispatch` (input `sha`) | `guard` (`security_fix.exs deploy`, from `main`), `deploy` (lane `security-fix`), `smoke` (production), `rollback` (lane `security-rollback` when smoke fails), `notify` | `FLY_API_TOKEN` (environment secret), `SECURITY_LANE_WEBHOOK_URL`/`_KEY` |
 
 "Dependency warnings" is a job in `ci.yml`, not a separate workflow. It compares warnings with `.github/dep-warnings-known.txt`.
 
-### 2.5 Deploy lanes (Verified, `.github/deploy-lanes.txt` and `playtest.yml`; decisions 2026-10-09 and 2026-10-11)
+### 2.5 Deploy lanes (Verified, `.github/deploy-lanes.txt` and `deploy-lanes.yml`; decisions 2026-10-09 and 2026-10-11)
 
 | Lane | When | Path | Founder OK |
 |---|---|---|---|
-| admin (fast) | Every file in the merge, and every file changed since tag `deployed/production`, is on `[admin]` | CI → playtest → production automatically (same "Verify commit" job, tip-of-main guard) | No |
-| security | Only `mix.lock` (and version pins in `mix.exs`) change, same major version, label `security` or title prefix `security:`, an advisory id (CVE, GHSA, EEF-CVE), CI green | Security lane merges → CI → playtest → smoke check → production → note to Bobby | No (founders get a note after) |
-| normal | Anything else (game, shared, CI, docs, unknown, mixed) | CI → playtest automatically. After Gentry passes, Bobby starts `deploy-production.yml` for that sha. No founder deploys by hand | Yes (Approve merges the PR) |
+| admin (fast) | Every file in the merge, and every file changed since tag `deployed/production`, is on `[admin]` | CI → deploy-lanes → production automatically (same "Verify commit" job, tip-of-main guard) | No |
+| security | Only `mix.lock` (and version pins in `mix.exs`) change, existing hex packages only (majors included), label `security` or title prefix `security:`, an advisory id (CVE, GHSA, EEF-CVE), CI green | Security lane merges → CI → deploy-lanes → production (`production-security` at all hours) → production smoke, rollback on failure → note to Bobby | No (founders get a note after) |
+| security-fix | High or critical advisory, label `security-fix`, size cap, no founder paths; merged off-hours | Security lane merges → CI → deploy-lanes → security-fix-deploy (guard, production in `production-security` at all hours, production smoke, rollback on failure) | No (founders get a note after) |
+| normal | Anything else (game, shared, CI, docs, unknown, mixed) | No automatic deploy. A founder starts `deploy-production.yml` for that sha (`production` reviewer gate) | Yes (Approve merges the PR) |
 
 `mix deploy.check_boundaries` (CI `Test` job) fails when game or shared code depends on an `[admin]` file. `[wiring]` lists the shared files that may mount admin modules.
 
@@ -232,7 +234,7 @@ Optional names that the code reads but no app has today: `RESEND_API_KEY`, `MAIL
 | Tales Forge idea board (`tales-forge-idea-board`) | GitHub App, App ID 5260951, installation 169881712 | Org `whyse-ab`, selected repositories (`tales-forge-docs`, Reported and Documented) | Contents write, Metadata read (Verified); webhook off (Documented) | `TalesForge.Board.Workers.LogDecision` on production | Verified installed |
 | Tales Forge Admin | OAuth app | Org `whyse-ab` | Sign in with GitHub (the team check uses `GITHUB_DOCS_TOKEN`, not the OAuth token) | Sign-in on both apps | Documented; playtest has a different client id (section 6) |
 | Security bot | GitHub App | `ex-tales-forge` | Contents, Pull requests, Issues write | `security-audit.yml`, `security-lane.yml` | **Not created** |
-| gentry-qa | GitHub App | `ex-tales-forge` | Commit statuses write | Gentry posts `qa/gentry-go`; starts `security-fix-deploy.yml` | **Not created** (key held by Gentry, not a repo secret) |
+| gentry-qa | GitHub App | `ex-tales-forge` | Commit statuses write | Unused for deploys. Security-fix deploys start from `deploy-lanes.yml` after CI (deploy, production smoke, rollback on failure) | **Not created** (key held by Gentry, not a repo secret) |
 
 ### 2.8 Bot tokens and webhooks (Verified from code; delivery details from `notify.ex`)
 
@@ -273,23 +275,24 @@ All three agents share one Grok Bot box. `flyctl` is at `~/.fly/bin/flyctl` on t
 2. For a normal-lane PR, Bobby links it to the board card (`POST /internal/board/prs`). The card gets the badge "PR waiting for approval".
 3. A founder clicks Approve. The board wakes Bobby with `pr.approved`. Bobby merges with the approved head sha.
 4. The push to `main` starts `ci.yml` again.
-5. When CI passes, `playtest.yml` starts. It deploys the CI-tested sha to `tales-forge-playtest`, but only when that sha is still the tip of `main`.
-6. The `lane` job compares the merge, and every file since tag `deployed/production`, with `.github/deploy-lanes.txt`. It writes the lane to the run summary.
+5. When CI passes, `deploy-lanes.yml` starts, but only when that sha is still the tip of `main`. `playtest.yml` is started only by hand and does not pick a lane or ship production.
+6. The `lane` job in `deploy-lanes.yml` compares the merge, and every file since tag `deployed/production`, with `.github/deploy-lanes.txt`. It writes the lane to the run summary.
 7. The lane decides the next step:
    - **admin:** `Production (admin lane)` calls `deploy-production.yml` at once.
-   - **security:** `smoke` runs `smoke_check.py` against playtest. When it passes, `Production (security lane)` calls `deploy-production.yml`. Then `notify` posts `security_lane.deployed` to Bobby.
-   - **normal:** the run stops after playtest. Gentry and the persona batch check the build. When Gentry passes, Bobby starts `Deploy to production` for that sha:
+   - **security:** `Production (security lane)` calls `deploy-production.yml`, then `smoke` runs `smoke_check.py` against production. If the smoke check fails, production rolls back to `deployed/production-previous`. Then `notify` posts to Bobby.
+   - **security-fix:** `Production (security-fix lane)` calls `security-fix-deploy.yml`, which re-checks the guard, deploys, smokes production, and rolls back on failure.
+   - **normal:** no automatic deploy. A founder starts `Deploy to production` for that sha:
 
      ```bash
      gh workflow run deploy-production.yml -R whyse-ab/ex-tales-forge -f sha=<full 40-char sha>
      ```
 
-     No founder deploys by hand. The admin lane and a qualifying security bump deploy to production by themselves.
+     The admin, security and security-fix lanes deploy to production by themselves.
 
-8. `deploy-production.yml` runs `verify`, then `deploy` in the environment `production`. After a deploy it moves tag `deployed/production` to the sha.
+8. `deploy-production.yml` runs `verify`, then `deploy` in the environment `production` (or `production-security` for the security, security-fix and security-rollback lanes on `main`, at all hours). After a deploy it moves tag `deployed/production` to the sha.
 9. Production boots. Auto-Done and the PR backfill jobs start 30 seconds after boot.
 
-**Security lane in detail:** `security-audit.yml` runs every hour. For an advisory it runs `mix deps.update <package>`. It keeps the bump only when every package keeps its major version. It opens a PR `security: <advisory id> …` with the label `security`. CI runs on the PR. `security-lane.yml` checks the four rules and squash-merges the PR as the bot. A merge with `GITHUB_TOKEN` does not start CI, so the bot must be a GitHub App or a PAT. Today no bot secret is set, so the audit only reports, and a qualifying PR waits for a founder's Approve.
+**Security lane in detail:** `security-audit.yml` runs every hour. For an advisory it unlocks the package (`mix deps.unlock`, then `mix deps.get`; neighbours if the patched version is capped). It keeps the bump when every lock change is a version bump of an existing hex package (majors included). A bump that adds or removes a package, or points at a git or other non-hex ref, goes to Fredrik's merge list. It opens a PR `security: <advisory id> …` with the label `security`. CI runs on the PR. `security-lane.yml` checks the four rules and squash-merges the PR as the bot. A merge with `GITHUB_TOKEN` does not start CI, so the bot must be a GitHub App or a PAT. Today no bot secret is set, so the audit only reports, and a qualifying PR waits for a founder's Approve.
 
 ### 3.2 Board events to bot wake-ups
 
@@ -315,7 +318,7 @@ All three agents share one Grok Bot box. `flyctl` is at `~/.fly/bin/flyctl` on t
 - **Approval of the PR:** a normal-lane PR waits on the card. Any founder clicks Approve or Request changes. Approve wakes Bobby (`pr.approved`). Request changes wakes Bobby (`pr.changes_requested`) with the comment. The card stays in Building.
 - **Approve once:** when Bobby links a new commit, the approval stays for the new head sha. A link with `player_change: true`, or a Request changes, asks the founders again.
 - **Admin-lane and security-lane PRs** need no Approve.
-- **GitHub environment `production`** requires `fpahlen`. Every production deploy in it waits for him (normal and admin lanes, and the security lanes in working hours). The security lanes outside working hours use `production-security` (no reviewer, `main` only).
+- **GitHub environment `production`** requires `fpahlen`. Every production deploy in it waits for him (normal and admin lanes). The security, security-fix and security-rollback lanes on `main` use `production-security` at all hours (no reviewer, `main` only).
 - `TalesForge.Board.Workers.PrBackfill` marks old plain `pr` links on Building cards as waiting, after each production boot and when a link comes. It needs `GITHUB_FEED_TOKEN`.
 
 ### 3.4 Auto-Done
@@ -365,7 +368,7 @@ Do these steps in sequence. Run Fly commands on the shared Grok Bot box with `~/
    JSON
    ```
 
-3. Do not protect `main` on `tales-forge-docs`. Docs go straight to `main` (decision 2026-10-07). When you protect it later, add the idea board App to the bypass list.
+3. Do not protect `main` on `tales-forge-docs`. When you protect it later, add the idea board App to the bypass list.
 
 ### Step 3. Fly apps and Postgres
 
@@ -628,7 +631,7 @@ Each item has a confidence label. "To confirm" means that no source in the repos
 2. **Gentry's routines (To confirm with Gentry).** Bobby's three routines are confirmed in section 2.9 (board wake-ups, hourly Fly log check, security-lane deploys). Gentry's routines are not in the repos.
 3. **Case's routines (Reported).** The routine names and schedules come from the task brief (including Unanswered mention sweep every 15 minutes). The repos do not show them.
 4. **Security lane is not active (Verified).** No `SECURITY_BOT_*` and no `SECURITY_LANE_WEBHOOK_*` secrets are set. The workflows and fly-secrets.md say "add the App as a bypass actor in the `main` ruleset", but `ex-tales-forge` has no ruleset. It has classic branch protection with no required review. An App with Contents write can probably merge after green checks, with medium confidence. Confirm when the App is created.
-5. **Normal-lane production deploy (Confirmed).** A founder's Approve on the board merges the PR. CI deploys to playtest by itself. After Gentry passes, Bobby starts `Deploy to production` for that sha. No founder deploys by hand. The admin lane and a qualifying security bump deploy to production by themselves. Aligned in section 2.5, section 3.1 and `team-page/content.md`.
+5. **Normal-lane production deploy (Confirmed).** A founder's Approve on the board merges the PR. CI does not deploy to playtest (`playtest.yml` is manual only). A founder starts `Deploy to production` for that sha (`production` reviewer gate). The admin, security and security-fix lanes deploy to production by themselves. Aligned in section 2.5, section 3.1 and `team-page/content.md`.
 6. **Two OAuth client ids (Verified difference).** `GITHUB_OAUTH_CLIENT_ID` has different digests on the two apps. infrastructure.md names one OAuth app, "Tales Forge Admin". There is probably a second OAuth app for playtest. Confirm the name in the org's OAuth app list.
 7. **Unused secrets (Verified).** `ADMIN_EMAILS` and `COSTS_PEER_URL` are set on both apps, but no code in `lib/` or `config/` reads them. infrastructure.md still describes `COSTS_PEER_URL`. Decide if you remove them.
 8. **`PHX_HOST` twice on production (Verified).** It is a Fly secret and also in `fly.toml` `[env]`. The secret takes priority. Keep the two values the same, or remove the secret.

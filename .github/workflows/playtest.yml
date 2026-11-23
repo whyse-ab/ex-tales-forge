@@ -1,56 +1,21 @@
-# Deploy main to the long-lived PLAYTEST environment (Fly app tales-forge-playtest,
-# config fly.playtest.toml), and pick the merge's DEPLOY LANE (ex-tales-forge
-# decisions 2026-10-09 "Deploy order: playtest first, then production" and "A
-# fast deploy lane for admin work").
+# Deploy a commit of main to the long-lived PLAYTEST environment (Fly app
+# tales-forge-playtest, config fly.playtest.toml).
 #
-# Runs automatically after a successful CI run (Test and Dialyzer) for a push to
-# main and deploys exactly the commit CI tested, but only if that commit is still
-# the tip of main. CI runs can finish out of order when several PRs merge close
-# together; without this check an older commit could be deployed on top of a
-# newer one (2026-10-09: e69790e (#93) went out after b873ad1 (#94)). A commit
-# that is no longer the tip is skipped with a notice (the run still succeeds);
-# the newer commit gets its own deploy when its CI passes.
+# Hobby mode (docs/hobby-mode.md step 1): this workflow is started only by
+# hand. It no longer runs after CI on main, and it no longer picks deploy
+# lanes or ships production. Admin and security merges go straight to
+# production through .github/workflows/deploy-lanes.yml. A run started here
+# deploys playtest only.
 #
-# Lanes (.github/deploy-lanes.txt is the one list; .github/scripts/deploy_lane.exs
-# picks the lane and writes it to the run summary):
-#   admin   This merge, and everything production would get (the files changed
-#           since the tag deployed/production), are all on the [admin] list
-#           (surveys, costs, playtest admin, /team). After the playtest deploy,
-#           the "Production (admin lane)" job calls deploy-production.yml, which
-#           runs the same "Verify commit" job and deploys only while the commit
-#           is still the tip of main. No Gentry/batch gate, no prod OK.
-#   security  A dependency bump that fixes a published advisory (decision
-#           2026-10-11 "Security-bump lane"; .github/scripts/security_lane.exs):
-#           the merged PR changes only mix.lock (and version pins in mix.exs),
-#           the PR has the label `security` or the title prefix `security:` and
-#           an advisory id, CI is green, and production would get nothing else
-#           (only version bumps of existing hex packages, majors included;
-#           Fredrik, 2026-11-23).
-#           After the playtest deploy, the "Smoke check" job checks playtest
-#           (.github/scripts/smoke_check.py), then "Production (security lane)"
-#           deploys this sha through deploy-production.yml, and "Notify Bobby"
-#           posts to SECURITY_LANE_WEBHOOK_URL when that secret is set. No
-#           founder OK (environment production-security at all hours). A failed
-#           smoke check stops before production.
-#   normal  Anything else (game, shared, CI, docs, a mixed merge, an unknown
-#           production commit): playtest only. Production follows once Gentry
-#           and the playtest batch have checked the build and a founder has
-#           approved it (.github/workflows/deploy-production.yml).
-#
-# It can also be started by hand from the Actions tab or with
+# Start it from the Actions tab or with
 #   gh workflow run playtest.yml                                   # tip of main
 #   gh workflow run playtest.yml -f sha=<sha>                      # must be main's tip
 #   gh workflow run playtest.yml -f sha=<older sha> -f force=true  # roll back on purpose
-# A run started by hand always takes the normal lane (playtest only).
 #
 # Needs the repo secret FLY_API_TOKEN_PLAYTEST: an app-scoped deploy token for
 # tales-forge-playtest (Fly dashboard -> tales-forge-playtest -> Tokens, or
 # `flyctl tokens create deploy -a tales-forge-playtest`). Without it the deploy
-# step fails with a clear message; nothing else is affected. The admin and
-# security lanes' production deploy passes FLY_API_TOKEN by name; its value is
-# the environment secret of the deploy job's environment (production or
-# production-security, deploy-production.yml). Optional: SECURITY_LANE_WEBHOOK_URL and
-# SECURITY_LANE_WEBHOOK_KEY (the security lane's note to Bobby).
+# step fails with a clear message.
 name: Deploy to playtest
 
 on:
@@ -66,28 +31,13 @@ on:
         required: false
         type: boolean
         default: false
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
 
 permissions:
   contents: read
 
-env:
-  # Keep in sync with ci.yml and the Dockerfile. The lane job only needs plain
-  # `elixir` (no deps, no compile).
-  ELIXIR_VERSION: "1.18.4"
-  OTP_VERSION: "27.3.4.16"
-
 jobs:
   deploy:
     name: Deploy to playtest
-    # workflow_run: only after a green CI run for a push to main.
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     outputs:
@@ -103,7 +53,7 @@ jobs:
       # Deploy exactly the commit CI tested; by hand, the given sha or main.
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.workflow_run.head_sha || inputs.sha || 'main' }}
+          ref: ${{ inputs.sha || 'main' }}
 
       # Deploy only the current tip of main, checked right before deploying
       # (inside the concurrency group, so the answer is current). By hand,
@@ -131,7 +81,7 @@ jobs:
             {
               echo "$msg"
               echo
-              echo "The tip of main is deployed by its own run once its CI passes. To deploy this commit anyway:"
+              echo "To deploy this commit anyway:"
               echo
               echo "    gh workflow run playtest.yml -f sha=$sha -f force=true"
             } >> "$GITHUB_STEP_SUMMARY"
@@ -165,181 +115,3 @@ jobs:
         run: |
           echo "deployed=true" >> "$GITHUB_OUTPUT"
           echo "Deployed \`$(git rev-parse HEAD)\` to playtest (tales-forge-playtest)." >> "$GITHUB_STEP_SUMMARY"
-
-  lane:
-    name: Deploy lane
-    needs: deploy
-    if: needs.deploy.outputs.deployed == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    outputs:
-      lane: ${{ steps.security.outputs.lane == 'security' && 'security' || steps.pick.outputs.lane || 'normal' }}
-      advisories: ${{ steps.security.outputs.advisories }}
-      pr: ${{ steps.pr.outputs.number }}
-      production: ${{ steps.prod.outputs.sha }}
-    steps:
-      # Full history: the lane diffs against the commit production runs.
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.deploy.outputs.sha }}
-          fetch-depth: 0
-
-      - name: The commit production runs (tag deployed/production)
-        id: prod
-        run: |
-          set -euo pipefail
-          git fetch --force origin "+refs/tags/deployed/production:refs/tags/deployed/production" 2>/dev/null || true
-          echo "sha=$(git rev-parse -q --verify 'refs/tags/deployed/production^{commit}' || true)" >> "$GITHUB_OUTPUT"
-
-      - name: Started by hand
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          SHA: ${{ needs.deploy.outputs.sha }}
-        run: |
-          {
-            echo "### Deploy lane: normal"
-            echo
-            echo "Started by hand: playtest only. A founder's Approve ships it to production:"
-            echo
-            echo "    gh workflow run deploy-production.yml -f sha=$SHA"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - uses: erlef/setup-beam@v1
-        if: github.event_name == 'workflow_run'
-        with:
-          elixir-version: ${{ env.ELIXIR_VERSION }}
-          otp-version: ${{ env.OTP_VERSION }}
-
-      # Writes lane=admin|normal to the step output and the reasons (file lists)
-      # to the run summary. Any error leaves the lane normal.
-      - name: Pick the lane
-        id: pick
-        if: github.event_name == 'workflow_run'
-        env:
-          SHA: ${{ needs.deploy.outputs.sha }}
-          PRODUCTION: ${{ steps.prod.outputs.sha }}
-        run: elixir .github/scripts/deploy_lane.exs --sha "$SHA" --production "$PRODUCTION"
-
-      # Not admin: is it a security bump? Reads the PR that the merge came from
-      # (title, body, labels). Any error leaves the lane normal.
-      - name: The pull request of this merge
-        id: pr
-        if: github.event_name == 'workflow_run' && steps.pick.outputs.lane != 'admin'
-        env:
-          SHA: ${{ needs.deploy.outputs.sha }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          number="$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/pulls" \
-            --jq '[.[] | select(.merged_at != null and .base.ref == "main")][0].number // empty')"
-          echo "number=$number" >> "$GITHUB_OUTPUT"
-          if [ -n "$number" ]; then
-            gh pr view "$number" -R "$GITHUB_REPOSITORY" --json title,body,labels > "$RUNNER_TEMP/pr.json"
-          else
-            echo "No merged pull request found for $SHA: the security lane does not apply." >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Security lane?
-        id: security
-        if: steps.pr.outputs.number != ''
-        continue-on-error: true
-        env:
-          SHA: ${{ needs.deploy.outputs.sha }}
-          PRODUCTION: ${{ steps.prod.outputs.sha }}
-        run: |
-          elixir .github/scripts/security_lane.exs main --sha "$SHA" --production "$PRODUCTION" \
-            --pr "$RUNNER_TEMP/pr.json" --ci success
-
-  smoke:
-    name: Smoke check (security lane)
-    needs: [deploy, lane]
-    if: needs.lane.outputs.lane == 'security'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.deploy.outputs.sha }}
-
-      # /health, the public pages and a real LiveView mount (websocket join) on
-      # playtest. No game turn: a turn calls the LLM, which costs money.
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-
-      - name: Smoke check playtest
-        run: |
-          pip install --quiet websockets==15.0.1
-          python3 .github/scripts/smoke_check.py https://tales-forge-playtest.fly.dev
-
-  production:
-    name: Production (admin lane)
-    needs: [deploy, lane]
-    if: needs.lane.outputs.lane == 'admin'
-    permissions:
-      contents: write
-      checks: read
-      actions: read
-    uses: ./.github/workflows/deploy-production.yml
-    with:
-      sha: ${{ needs.deploy.outputs.sha }}
-      lane: admin
-      production_base: ${{ needs.lane.outputs.production }}
-    secrets:
-      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
-  production-security:
-    name: Production (security lane)
-    needs: [deploy, lane, smoke]
-    if: needs.lane.outputs.lane == 'security' && needs.smoke.result == 'success'
-    permissions:
-      contents: write
-      checks: read
-      actions: read
-    uses: ./.github/workflows/deploy-production.yml
-    with:
-      sha: ${{ needs.deploy.outputs.sha }}
-      lane: security
-      production_base: ${{ needs.lane.outputs.production }}
-    secrets:
-      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
-
-  # The founders' note: Bobby gets a signed POST and tells the founders through
-  # Case. Skipped when SECURITY_LANE_WEBHOOK_URL is not set.
-  notify:
-    name: Notify Bobby (security lane)
-    needs: [deploy, lane, production-security]
-    if: needs.production-security.outputs.deployed == 'true'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: POST to SECURITY_LANE_WEBHOOK_URL
-        env:
-          URL: ${{ secrets.SECURITY_LANE_WEBHOOK_URL }}
-          KEY: ${{ secrets.SECURITY_LANE_WEBHOOK_KEY }}
-          SHA: ${{ needs.deploy.outputs.sha }}
-          PR: ${{ needs.lane.outputs.pr }}
-          ADVISORIES: ${{ needs.lane.outputs.advisories }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          if [ -z "$URL" ]; then
-            echo "SECURITY_LANE_WEBHOOK_URL is not set: no note to Bobby. Tell the founders by hand." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          title="$(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json title --jq .title 2>/dev/null || true)"
-          body="$(jq -cn --arg sha "$SHA" --arg pr "$PR" --arg title "$title" --arg adv "$ADVISORIES" \
-            --arg run "$RUN_URL" --arg repo "$GITHUB_REPOSITORY" \
-            '{event: "security_lane.deployed", repo: $repo, sha: $sha, pr: ($pr | tonumber? // null),
-              pr_title: $title, pr_url: ("https://github.com/" + $repo + "/pull/" + $pr),
-              advisories: ($adv | split(" ") | map(select(. != ""))), run_url: $run,
-              note: "Security bump deployed to playtest and production without a founder OK (decision 2026-10-11). Tell Gentry and the founders."}')"
-          ts="$(date +%s)"
-          headers=(-H "Content-Type: application/json" -H "X-Security-Lane-Timestamp: $ts")
-          if [ -n "$KEY" ]; then
-            sig="$(printf '%s.%s' "$ts" "$body" | openssl dgst -sha256 -hmac "$KEY" -r | cut -d' ' -f1)"
-            headers+=(-H "Authorization: Bearer $KEY" -H "X-Security-Lane-Signature: sha256=$sig")
-          fi
-          curl -fsS --retry 3 --max-time 20 "${headers[@]}" -d "$body" "$URL"
-          echo "Bobby notified (SECURITY_LANE_WEBHOOK_URL) about \`$SHA\` (PR #$PR, $ADVISORIES)." >> "$GITHUB_STEP_SUMMARY"
