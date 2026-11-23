@@ -32,7 +32,7 @@
 #           deployed/production-previous (lane security-rollback). "Notify
 #           Bobby" posts to SECURITY_LANE_WEBHOOK_URL when that secret is set.
 #           The deploy uses the unprotected production-security environment
-#           at all hours (pending #615).
+#           at all hours.
 #   normal  Anything else (game, shared, CI, docs, a mixed merge, an unknown
 #           production commit): no automatic deploy. Production follows when
 #           a founder starts deploy-production.yml.

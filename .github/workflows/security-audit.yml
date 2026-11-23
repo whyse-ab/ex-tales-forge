@@ -1,20 +1,25 @@
 # Hourly dependency audit (ex-tales-forge docs/decisions.md, 2026-10-11
-# "Security-bump lane"). Runs `mix hex.audit` (retired packages and Hex
-# advisories) and `mix deps.audit` (mix_audit: published advisories). Hex often
-# knows an advisory first (jose, 2026-10-26: #582, #585), so both reports go
-# into one list (.github/scripts/hex_audit.exs). For each package with an
-# advisory it runs `mix deps.update <package>` within the requirement in
-# mix.exs, keeps the bump only when every changed package keeps its major
-# version, and opens a PR "security: <advisory id> …" with the label
-# `security`. That PR goes through the security lane
-# (.github/workflows/security-lane.yml, then playtest.yml).
+# "Security-bump lane"; Fredrik, 2026-11-23: majors no longer block). Runs
+# `mix hex.audit` (retired packages and Hex advisories) and `mix deps.audit`
+# (mix_audit: published advisories). Hex often knows an advisory first
+# (jose, 2026-10-26: #582, #585), so both reports go into one list
+# (.github/scripts/hex_audit.exs). For each package with an advisory it runs
+# `mix deps.unlock <package>` then `mix deps.get` (not `mix deps.update`, which
+# can drag in unrelated packages or stop on a locked parent). If the patched
+# version is still out of reach, it also unlocks locked parents and required
+# locked deps (phoenix 1.8.17 needed phoenix_pubsub unlocked too) and retries.
+# It opens a PR "security: <advisory id> …" with the label `security` when the
+# lock changes and the package's advisories are gone. That PR goes through the
+# security lane (.github/workflows/security-lane.yml, then playtest.yml),
+# majors included.
 #
 # High and critical advisories are fixed at any hour: this job runs every hour,
 # day and night. GitHub delays or drops scheduled runs under load (at
 # "17 * * * *" about 6 of 24 runs a day came, 17-27 Oct 2026), so the cron
 # asks twice an hour, and the job also runs when CI fails on main (CI runs
-# `mix hex.audit` too, so a new advisory usually shows there first). A package that needs a major bump or a code change gets a
-# warning in the run summary; a founder decides (normal lane).
+# `mix hex.audit` too, so a new advisory usually shows there first). A package
+# that still cannot reach a patched version (a mix.exs cap, or a needed code
+# change) gets a warning in the run summary; a founder decides (normal lane).
 #
 # The PR must trigger CI, and a PR opened with GITHUB_TOKEN does not trigger
 # workflows. So the job pushes and opens the PR as the bot:
@@ -223,23 +228,52 @@ jobs:
               continue
             fi
 
-            if ! mix deps.update "$package" > update.log 2>&1; then
-              echo "::warning::$package ($ids): mix deps.update failed; a founder decides."
-              echo "- $package ($ids): \`mix deps.update\` failed (a founder decides):" >> "$GITHUB_STEP_SUMMARY"
+            mapfile -t patched < <(jq -r --arg p "$package" '[.vulnerabilities[] | select(.dependency.package == $p) | .advisory.first_patched_versions[]?] | unique | .[]' audit.json)
+
+            try_unlock() {
+              cp "$RUNNER_TEMP/main.lock" mix.lock
+              if ! mix deps.unlock "$@" > update.log 2>&1; then
+                return 1
+              fi
+              mix deps.get >> update.log 2>&1
+            }
+
+            reached() {
+              [ "${#patched[@]}" -gt 0 ] && elixir .github/scripts/security_lane.exs reaches mix.lock "$package" "${patched[@]}"
+            }
+
+            changed() {
+              ! cmp -s "$RUNNER_TEMP/main.lock" mix.lock
+            }
+
+            ok=0
+            if try_unlock "$package" && changed && { [ "${#patched[@]}" -eq 0 ] || reached; }; then
+              ok=1
+            else
+              neighbors="$(elixir .github/scripts/security_lane.exs unlock-neighbors "$RUNNER_TEMP/main.lock" "$package")"
+              read -r -a neighbor_pkgs <<< "$neighbors"
+              if try_unlock "${neighbor_pkgs[@]}" && changed; then
+                ok=1
+              fi
+            fi
+
+            if [ "$ok" != 1 ]; then
+              echo "::warning::$package ($ids): mix deps.unlock / mix deps.get did not reach a patched version; a founder decides."
+              echo "- $package ($ids): \`mix deps.unlock\` + \`mix deps.get\` did not reach a patched version (a founder decides):" >> "$GITHUB_STEP_SUMMARY"
               { echo '```'; tail -20 update.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
               continue
             fi
 
             if ! bump="$(elixir .github/scripts/security_lane.exs bump "$RUNNER_TEMP/main.lock" mix.lock)"; then
-              echo "::warning::$package ($ids): no fix within the major version ($bump); a founder decides."
-              echo "- $package ($ids): no fix within the major version ($bump). A major bump or a code change needs a founder's Approve." >> "$GITHUB_STEP_SUMMARY"
+              echo "::warning::$package ($ids): lock did not change ($bump); a founder decides."
+              echo "- $package ($ids): lock did not change ($bump). A founder decides." >> "$GITHUB_STEP_SUMMARY"
               continue
             fi
 
             mix deps.audit --format json > recheck.out 2> recheck.err || true
             if ! elixir .github/scripts/security_lane.exs extract-json recheck.out > recheck.json 2> /dev/null; then
-              echo "::error title=Tooling error::$package: the re-check after mix deps.update gave no JSON report; no PR opened."
-              echo "- $package ($ids): **tooling error**, the re-check after \`mix deps.update\` gave no JSON report. No PR opened." >> "$GITHUB_STEP_SUMMARY"
+              echo "::error title=Tooling error::$package: the re-check after mix deps.get gave no JSON report; no PR opened."
+              echo "- $package ($ids): **tooling error**, the re-check after \`mix deps.get\` gave no JSON report. No PR opened." >> "$GITHUB_STEP_SUMMARY"
               tooling_error=1
               continue
             fi
@@ -248,19 +282,19 @@ jobs:
             still="$(jq -rs --arg p "$package" '[.[].vulnerabilities[] | select(.dependency.package == $p) | .advisory.id] | unique | join(" ")' recheck.json recheck-hex.json)"
             if [ -n "$still" ]; then
               echo "::warning::$package: after the update ($bump) the advisories $still are still open; a founder decides."
-              echo "- $package: \`mix deps.update\` gives $bump, but $still are still open (the fix needs a new major or a new mix.exs requirement). A founder decides." >> "$GITHUB_STEP_SUMMARY"
+              echo "- $package: \`mix deps.unlock\` gives $bump, but $still are still open (the fix needs a new mix.exs requirement or a code change). A founder decides." >> "$GITHUB_STEP_SUMMARY"
               continue
             fi
 
             bump="${bump%.}"
             git checkout -q -b "$branch"
             git add mix.lock
-            git commit -q -m "security: $ids: $bump" -m "mix deps.update $package (.github/workflows/security-audit.yml)."
+            git commit -q -m "security: $ids: $bump" -m "mix deps.unlock $package (.github/workflows/security-audit.yml)."
             git push -q origin "$branch"
             body="$(cat <<BODY
           Fixes $ids in \`$package\`: $bump
 
-          Opened by the hourly security audit (.github/workflows/security-audit.yml). It changes only \`mix.lock\`, within the major version, so it takes the security lane (decision 2026-10-11 "Security-bump lane"): when CI is green, security-lane.yml merges it, playtest.yml deploys playtest, runs the smoke check and deploys production, and Bobby tells the founders.
+          Opened by the hourly security audit (.github/workflows/security-audit.yml). It changes only \`mix.lock\`, so it takes the security lane (decision 2026-10-11 "Security-bump lane"; majors included, Fredrik 2026-11-23): when CI is green, security-lane.yml merges it, playtest.yml deploys playtest, runs the smoke check and deploys production, and Bobby tells the founders.
 
           Advisories:
           $(jq -r --arg p "$package" '.vulnerabilities[] | select(.dependency.package == $p) | "- \(.advisory.id) (\(.advisory.severity // "severity unknown")): \(.advisory.title) \(.advisory.url)"' audit.json | sort -u)

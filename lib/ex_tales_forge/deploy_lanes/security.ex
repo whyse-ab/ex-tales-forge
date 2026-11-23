@@ -9,10 +9,11 @@ defmodule TalesForge.DeployLanes.Security do
 
     1. **Lock only.** It changes `mix.lock` and, optionally, version
        requirements in the deps of `mix.exs`. No other file changes.
-    2. **Same major.** Every package that changes in `mix.lock` keeps its major
-       version. For a `0.x` package the minor is the major (`0.5` -> `0.6` can
-       break the API, SemVer item 4). A package that is added or removed, or a
-       version that is not SemVer (a git ref), needs a founder OK.
+    2. **Existing hex packages only.** Every change in `mix.lock` is a
+       version change of a package already present on both sides, and both
+       sides are hex (not a git or other ref). Added or removed packages,
+       and added or changed git refs, take the normal lane. A major bump of
+       an existing hex package qualifies (Fredrik, 2026-11-23).
     3. **Advisory.** It has the label `security` or a title that starts with
        `security:`, and its title or body names an advisory id (`CVE-…`,
        `GHSA-…` or `EEF-CVE-…`).
@@ -70,7 +71,7 @@ defmodule TalesForge.DeployLanes.Security do
 
     rules = [
       files_rule(input),
-      major_rule(input, changes),
+      packages_rule(changes),
       advisory_rule(input),
       %{
         name: "CI is green",
@@ -208,20 +209,20 @@ defmodule TalesForge.DeployLanes.Security do
     end
   end
 
-  defp major_rule(_input, {:error, message}),
-    do: rule("Every package stays within its major version", false, message)
+  defp packages_rule({:error, message}),
+    do: rule("Only existing hex packages change", false, message)
 
-  defp major_rule(_input, []),
-    do: rule("Every package stays within its major version", false, "No package version changes.")
+  defp packages_rule([]),
+    do: rule("Only existing hex packages change", false, "No package version changes.")
 
-  defp major_rule(_input, changes) do
-    case Enum.reject(changes, & &1.same_major) do
+  defp packages_rule(changes) do
+    case Enum.reject(changes, &existing_hex_change?/1) do
       [] ->
-        rule("Every package stays within its major version", true, describe_changes(changes))
+        rule("Only existing hex packages change", true, describe_changes(changes))
 
       bad ->
         rule(
-          "Every package stays within its major version",
+          "Only existing hex packages change",
           false,
           "Needs a founder OK: " <> describe_changes(bad)
         )
@@ -258,6 +259,21 @@ defmodule TalesForge.DeployLanes.Security do
         rule("It references an advisory", true, Enum.join(ids, ", ") <> ".")
     end
   end
+
+  @doc """
+  True when a lock change is a version bump of a package present on both
+  sides, and both sides are hex (majors included). Added or removed packages,
+  and git or other refs, are false.
+  """
+  @spec existing_hex_change?(change()) :: boolean()
+  def existing_hex_change?(%{from: from, to: to}) when is_binary(from) and is_binary(to),
+    do: hex_source?(from) and hex_source?(to)
+
+  def existing_hex_change?(_change), do: false
+
+  defp hex_source?("git:" <> _ref), do: false
+  defp hex_source?("other:" <> _other), do: false
+  defp hex_source?(version) when is_binary(version), do: true
 
   @doc "The packages as `name old -> new` (`added`/`removed` for one side)."
   @spec describe_changes([change()]) :: String.t()

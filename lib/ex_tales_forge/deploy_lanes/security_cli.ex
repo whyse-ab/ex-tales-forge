@@ -13,8 +13,9 @@ defmodule TalesForge.DeployLanes.SecurityCLI do
       elixir .github/scripts/security_lane.exs main --sha <merge sha> \\
         --production <sha production runs> --pr <pr.json> --ci success
 
-      # A bump made by .github/workflows/security-audit.yml: exit 0 when the
-      # lock changed and every package keeps its major version.
+      # Bump helpers (TalesForge.DeployLanes.SecurityAudit): exit 0 when the
+      # lock has any package version change (majors included); also
+      # unlock-neighbors, lock-version and reaches:
       elixir .github/scripts/security_lane.exs bump <old mix.lock> <new mix.lock>
 
       # The JSON report out of `mix deps.audit --format json` output that may
@@ -25,9 +26,9 @@ defmodule TalesForge.DeployLanes.SecurityCLI do
   JSON is read with a small parser here, so no deps are needed.
 
   In `main` mode one more rule applies: everything production would get (the
-  files changed since `--production`) is a lock-only bump within the major
-  version or on the `[admin]` list. Otherwise production would also get a
-  change that waits for a founder OK.
+  files changed since `--production`) is a lock-only bump of existing hex
+  packages (majors included) or on the `[admin]` list. Added or removed
+  packages, and git or other refs, wait for a founder OK.
 
   The lane goes to `$GITHUB_OUTPUT` (`lane=security|normal` and
   `advisories=<ids>`), the rules with their results to `$GITHUB_STEP_SUMMARY`,
@@ -82,13 +83,6 @@ defmodule TalesForge.DeployLanes.SecurityCLI do
     }
 
     emit(decide(mode, run, opts))
-  end
-
-  def main(["bump", old, new]) do
-    changes = Security.lock_changes(File.read!(old), File.read!(new))
-    IO.puts(if changes == [], do: "no change", else: Security.describe_changes(changes))
-
-    if changes != [] and Enum.all?(changes, & &1.same_major), do: :ok, else: System.halt(1)
   end
 
   def main(["extract-json", path]) do
@@ -174,10 +168,7 @@ defmodule TalesForge.DeployLanes.SecurityCLI do
         since_rule(false, "Since production, `mix.exs` changes more than version requirements.")
 
       true ->
-        git
-        |> lock_changes(production, sha)
-        |> Enum.reject(& &1.same_major)
-        |> lock_rule(production)
+        lock_rule(lock_changes(git, production, sha), production)
     end
   end
 
@@ -189,20 +180,25 @@ defmodule TalesForge.DeployLanes.SecurityCLI do
           Enum.map_join(Enum.take(others, 20), ", ", &"`#{&1}`") <> "."
       )
 
-  defp lock_rule([], production),
-    do:
-      since_rule(
-        true,
-        "Since `#{short(production)}`: only lock bumps within the major version and admin files."
-      )
+  defp lock_rule(:error, _production),
+    do: since_rule(false, "Since production, `mix.lock` could not be parsed.")
 
-  defp lock_rule(moved, _production),
-    do:
-      since_rule(
-        false,
-        "Since production, a package leaves its major version: " <>
-          Security.describe_changes(moved)
-      )
+  defp lock_rule(changes, production) do
+    case Enum.reject(changes, &Security.existing_hex_change?/1) do
+      [] ->
+        since_rule(
+          true,
+          "Since `#{short(production)}`: only lock bumps and admin files."
+        )
+
+      bad ->
+        since_rule(
+          false,
+          "Since production, a package was added, removed, or is not hex: " <>
+            Security.describe_changes(bad)
+        )
+    end
+  end
 
   defp pins_only?(git, from, to),
     do:
@@ -214,7 +210,7 @@ defmodule TalesForge.DeployLanes.SecurityCLI do
   defp lock_changes(git, from, to) do
     Security.lock_changes(show(git, from, "mix.lock") || "", show(git, to, "mix.lock") || "")
   rescue
-    ArgumentError -> [%{package: "mix.lock", from: nil, to: nil, same_major: false}]
+    ArgumentError -> :error
   end
 
   defp since_rule(ok, detail), do: %{name: "Production gets nothing else", ok: ok, detail: detail}

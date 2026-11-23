@@ -11,5 +11,13 @@ root = Path.expand("../..", __DIR__)
 Code.require_file("lib/ex_tales_forge/deploy_lanes.ex", root)
 Code.require_file("lib/ex_tales_forge/deploy_lanes/security.ex", root)
 Code.require_file("lib/ex_tales_forge/deploy_lanes/security_cli.ex", root)
+Code.require_file("lib/ex_tales_forge/deploy_lanes/security_audit.ex", root)
 File.cd!(root)
-TalesForge.DeployLanes.SecurityCLI.main(System.argv())
+
+case System.argv() do
+  [cmd | _] when cmd in ["bump", "unlock-neighbors", "lock-version", "reaches"] ->
+    TalesForge.DeployLanes.SecurityAudit.main(System.argv())
+
+  argv ->
+    TalesForge.DeployLanes.SecurityCLI.main(argv)
+end

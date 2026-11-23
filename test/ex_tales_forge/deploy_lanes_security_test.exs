@@ -4,6 +4,7 @@ defmodule TalesForge.DeployLanes.SecurityTest do
   alias TalesForge.DeployLanes
   alias TalesForge.DeployLanes.Security
   alias TalesForge.DeployLanes.SecurityCLI
+  alias TalesForge.DeployLanes.SecurityAudit
 
   doctest TalesForge.DeployLanes.Security
   doctest TalesForge.DeployLanes.SecurityCLI
@@ -56,25 +57,40 @@ defmodule TalesForge.DeployLanes.SecurityTest do
 
       assert result.lane == :security
     end
+
+    test "a major bump" do
+      result = Security.check(input(new_lock: fixture("major.lock")))
+      assert result.lane == :security
+      assert failed(result) == []
+      assert [%{package: "plug", from: "1.18.0", to: "2.0.0", same_major: false}] = result.changes
+    end
+
+    test "a 0.x minor bump (SemVer-major) qualifies like any other bump" do
+      result = Security.check(input(new_lock: fixture("zero_minor.lock")))
+      assert result.lane == :security
+      assert failed(result) == []
+    end
   end
 
   describe "check/1 falls back to normal" do
-    test "a major bump" do
-      result = Security.check(input(new_lock: fixture("major.lock")))
-      assert result.lane == :normal
-      assert failed(result) == ["Every package stays within its major version"]
-    end
-
-    test "a 0.x minor bump counts as a major bump" do
-      result = Security.check(input(new_lock: fixture("zero_minor.lock")))
-      assert result.lane == :normal
-      assert failed(result) == ["Every package stays within its major version"]
-    end
-
     test "a package added to the lock" do
       result = Security.check(input(new_lock: fixture("added.lock")))
       assert result.lane == :normal
-      assert failed(result) == ["Every package stays within its major version"]
+      assert failed(result) == ["Only existing hex packages change"]
+    end
+
+    test "a package removed from the lock" do
+      result =
+        Security.check(input(old_lock: fixture("added.lock"), new_lock: fixture("minor.lock")))
+
+      assert result.lane == :normal
+      assert failed(result) == ["Only existing hex packages change"]
+    end
+
+    test "a git ref change" do
+      result = Security.check(input(new_lock: fixture("git.lock")))
+      assert result.lane == :normal
+      assert failed(result) == ["Only existing hex packages change"]
     end
 
     test "extra files" do
@@ -254,6 +270,83 @@ defmodule TalesForge.DeployLanes.SecurityTest do
                "x" => nil,
                "t" => true
              }
+    end
+
+    test "since_production/3: a major lock bump since production still qualifies" do
+      lanes = DeployLanes.load()
+
+      trees = %{
+        "prod" => @trees["base"],
+        "head" => %{
+          "mix.lock" => File.read!(Path.expand("../fixtures/security_lane/major.lock", __DIR__))
+        }
+      }
+
+      ok =
+        SecurityCLI.since_production(
+          %SecurityCLI.Run{lanes: lanes, git: git(["mix.lock"], trees)},
+          "head",
+          "prod"
+        )
+
+      assert ok.ok
+    end
+
+    test "SecurityAudit.bump/2 accepts a major bump and rejects an unchanged lock" do
+      base = fixture("base.lock")
+      assert {:ok, desc} = SecurityAudit.bump(base, fixture("major.lock"))
+      assert desc =~ "plug 1.18.0 -> 2.0.0"
+      assert {:error, "no change"} = SecurityAudit.bump(base, base)
+    end
+
+    test "since_production/3: an added package since production does not qualify" do
+      lanes = DeployLanes.load()
+
+      trees = %{
+        "prod" => @trees["base"],
+        "head" => %{
+          "mix.lock" => File.read!(Path.expand("../fixtures/security_lane/added.lock", __DIR__))
+        }
+      }
+
+      result =
+        SecurityCLI.since_production(
+          %SecurityCLI.Run{lanes: lanes, git: git(["mix.lock"], trees)},
+          "head",
+          "prod"
+        )
+
+      refute result.ok
+      assert result.detail =~ "mime"
+    end
+
+    test "SecurityAudit.bump/2 rejects an added package or a git ref change" do
+      base = fixture("base.lock")
+      assert {:error, desc} = SecurityAudit.bump(base, fixture("added.lock"))
+      assert desc =~ "mime"
+      assert {:error, git} = SecurityAudit.bump(base, fixture("git.lock"))
+      assert git =~ "heroicons"
+    end
+  end
+
+  describe "SecurityAudit.unlock_neighbors/2 and reaches_patched?/3" do
+    test "unlocks the package, locked required deps, and locked parents; skips optional deps" do
+      lock = fixture("neighbors.lock")
+
+      assert SecurityAudit.unlock_neighbors(lock, "phoenix") == ["phoenix", "phoenix_pubsub"]
+
+      assert SecurityAudit.unlock_neighbors(lock, "phoenix_pubsub") == [
+               "phoenix",
+               "phoenix_pubsub"
+             ]
+    end
+
+    test "reaches_patched?/3 is inclusive SemVer and ignores missing packages" do
+      lock = fixture("major.lock")
+      assert SecurityAudit.reaches_patched?(lock, "plug", ["2.0.0"])
+      assert SecurityAudit.reaches_patched?(lock, "plug", ["1.18.0", "2.1.0"])
+      refute SecurityAudit.reaches_patched?(lock, "plug", ["2.1.0"])
+      refute SecurityAudit.reaches_patched?(lock, "missing", ["1.0.0"])
     end
   end
 end
