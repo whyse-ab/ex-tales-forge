@@ -26,7 +26,7 @@ Scored by `mix intent.eval` on the **tune split only** (327 items).
 
 ## 3. Factors and levels
 
-"−" means today's default on prod. "+" means the alternative.
+"−" means the code default (flag unset). "+" means the alternative. Note: prod sets `JEV_SELF_CHECK=on` (`fly.toml`), so the prod-like baseline is B+ (R3 in the reduced design).
 
 | | Factor | − | + | How to vary it in the eval today |
 |---|---|---|---|---|
