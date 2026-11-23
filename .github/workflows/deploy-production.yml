@@ -23,9 +23,10 @@
 #
 # 3. Security lane, automatically (decision 2026-10-11 "Security-bump lane").
 #    playtest.yml calls this workflow with lane=security after the playtest
-#    deploy and a green smoke check, for a merged lock-only bump within the
-#    major version that fixes an advisory. Same "Verify commit" job and the
-#    same guard as the admin lane; no founder OK. The `deployed` output tells
+#    deploy and a green smoke check, for a merged lock-only bump (majors
+#    included; Fredrik, 2026-11-23) that fixes an advisory. Same "Verify commit"
+#    job and the same guard as the admin lane; no founder OK. The `deployed`
+#    output tells
 #    playtest.yml to notify Bobby.
 #
 # The "Verify commit" job refuses a sha that is not a full 40-character sha,

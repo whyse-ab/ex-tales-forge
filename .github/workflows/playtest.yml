@@ -22,9 +22,9 @@
 #   security  A dependency bump that fixes a published advisory (decision
 #           2026-10-11 "Security-bump lane"; .github/scripts/security_lane.exs):
 #           the merged PR changes only mix.lock (and version pins in mix.exs),
-#           every package keeps its major version, the PR has the label
-#           `security` or the title prefix `security:` and an advisory id, CI is
-#           green, and production would get nothing else. After the playtest
+#           the PR has the label `security` or the title prefix `security:` and
+#           an advisory id, CI is green, and production would get nothing else
+#           (majors included; Fredrik, 2026-11-23). After the playtest
 #           deploy, the "Smoke check" job checks playtest
 #           (.github/scripts/smoke_check.py), then "Production (security lane)"
 #           deploys this sha through deploy-production.yml, and "Notify Bobby"

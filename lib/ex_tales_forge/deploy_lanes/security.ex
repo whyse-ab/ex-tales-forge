@@ -9,15 +9,15 @@ defmodule TalesForge.DeployLanes.Security do
 
     1. **Lock only.** It changes `mix.lock` and, optionally, version
        requirements in the deps of `mix.exs`. No other file changes.
-    2. **Same major.** Every package that changes in `mix.lock` keeps its major
-       version. For a `0.x` package the minor is the major (`0.5` -> `0.6` can
-       break the API, SemVer item 4). A package that is added or removed, or a
-       version that is not SemVer (a git ref), needs a founder OK.
-    3. **Advisory.** It has the label `security` or a title that starts with
+    2. **Advisory.** It has the label `security` or a title that starts with
        `security:`, and its title or body names an advisory id (`CVE-…`,
        `GHSA-…` or `EEF-CVE-…`).
-    4. **CI is green** (the caller checks Test and Dialyzer and passes the
+    3. **CI is green** (the caller checks Test and Dialyzer and passes the
        answer in).
+
+  A cross-major lock bump takes the same path as a same-major one (Fredrik,
+  2026-11-23: major bumps merge and deploy to production automatically on
+  green CI, with no Gentry check or Approve).
 
   When one check fails, the pull request takes the normal lane; `check/1`
   gives every reason.
@@ -70,7 +70,6 @@ defmodule TalesForge.DeployLanes.Security do
 
     rules = [
       files_rule(input),
-      major_rule(input, changes),
       advisory_rule(input),
       %{
         name: "CI is green",
@@ -208,26 +207,6 @@ defmodule TalesForge.DeployLanes.Security do
     end
   end
 
-  defp major_rule(_input, {:error, message}),
-    do: rule("Every package stays within its major version", false, message)
-
-  defp major_rule(_input, []),
-    do: rule("Every package stays within its major version", false, "No package version changes.")
-
-  defp major_rule(_input, changes) do
-    case Enum.reject(changes, & &1.same_major) do
-      [] ->
-        rule("Every package stays within its major version", true, describe_changes(changes))
-
-      bad ->
-        rule(
-          "Every package stays within its major version",
-          false,
-          "Needs a founder OK: " <> describe_changes(bad)
-        )
-    end
-  end
-
   defp advisory_rule(input) do
     labelled = "security" in Enum.map(input.labels, &String.downcase/1)
 
@@ -258,6 +237,82 @@ defmodule TalesForge.DeployLanes.Security do
         rule("It references an advisory", true, Enum.join(ids, ", ") <> ".")
     end
   end
+
+  @doc "The locked version of `package`, or `nil` when it is absent."
+  @spec lock_version(String.t(), String.t()) :: String.t() | nil
+  def lock_version(text, package), do: Map.get(parse_lock(text), package)
+
+  @doc """
+  True when the locked version of `package` is at least one of `patched`
+  (SemVer, inclusive).
+  """
+  @spec reaches_patched?(String.t(), String.t(), [String.t()]) :: boolean()
+  def reaches_patched?(text, package, patched) when is_list(patched) do
+    case lock_version(text, package) do
+      nil -> false
+      version -> version_reaches?(version, patched)
+    end
+  end
+
+  defp version_reaches?(version, patched) do
+    case Version.parse(version) do
+      {:ok, current} ->
+        Enum.any?(patched, fn target ->
+          case Version.parse(target) do
+            {:ok, wanted} -> Version.compare(current, wanted) != :lt
+            :error -> false
+          end
+        end)
+
+      :error ->
+        false
+    end
+  end
+
+  @doc """
+  Packages to unlock so `package` can move: `package` itself, lock entries
+  that depend on it (a parent requirement may cap it), and the packages it
+  depends on that are already locked (a newer `package` may need them to
+  move, as phoenix 1.8.17 needed phoenix_pubsub). Optional deps are skipped.
+  """
+  @spec unlock_neighbors(String.t(), String.t()) :: [String.t()]
+  def unlock_neighbors(text, package) do
+    graph = lock_dep_graph(text)
+    locked = MapSet.new(Map.keys(graph))
+
+    children =
+      graph
+      |> Map.get(package, [])
+      |> Enum.filter(&MapSet.member?(locked, &1))
+
+    parents = for {name, deps} <- graph, package in deps, do: name
+
+    Enum.sort(Enum.uniq([package | children ++ parents]))
+  end
+
+  @doc "Each hex package in a lock file and the required (non-optional) packages it depends on."
+  @spec lock_dep_graph(String.t()) :: %{String.t() => [String.t()]}
+  def lock_dep_graph(text) do
+    case Code.string_to_quoted(text, emit_warnings: false) do
+      {:ok, {:%{}, _, pairs}} -> Map.new(pairs, &lock_deps_entry/1)
+      _ -> raise ArgumentError, "not a mix.lock file"
+    end
+  end
+
+  defp lock_deps_entry({name, {:{}, _, [:hex, _, _, _, _, deps | _]}}) when is_list(deps),
+    do: {to_string(name), Enum.flat_map(deps, &required_dep/1)}
+
+  defp lock_deps_entry({name, _other}), do: {to_string(name), []}
+
+  defp required_dep({:{}, _, [dep, _req, opts]}) when is_atom(dep) and is_list(opts) do
+    if Keyword.get(opts, :optional, false), do: [], else: [to_string(dep)]
+  end
+
+  defp required_dep({dep, _req, opts}) when is_atom(dep) and is_list(opts) do
+    if Keyword.get(opts, :optional, false), do: [], else: [to_string(dep)]
+  end
+
+  defp required_dep(_), do: []
 
   @doc "The packages as `name old -> new` (`added`/`removed` for one side)."
   @spec describe_changes([change()]) :: String.t()

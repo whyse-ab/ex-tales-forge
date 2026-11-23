@@ -15,9 +15,10 @@
 #   security  A dependency bump that fixes a published advisory (decision
 #           2026-10-11 "Security-bump lane"; TalesForge.DeployLanes.Security,
 #           .github/scripts/security_lane.exs). The PR changes only mix.lock (and
-#           version pins in mix.exs), every package keeps its major version, the
-#           PR has the label `security` or the title prefix `security:` and an
-#           advisory id (CVE, GHSA, EEF-CVE), and CI is green. security-lane.yml
+#           version pins in mix.exs), the PR has the label `security` or the
+#           title prefix `security:` and an advisory id (CVE, GHSA, EEF-CVE),
+#           and CI is green. A major bump takes the same path as a same-major
+#           one (Fredrik, 2026-11-23). security-lane.yml
 #           merges it; playtest.yml deploys playtest, runs the smoke check and
 #           deploys production for that sha, then notifies Bobby. No founder OK.
 #           This file has no [security] section: the rules are in the module.

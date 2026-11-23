@@ -56,26 +56,28 @@ defmodule TalesForge.DeployLanes.SecurityTest do
 
       assert result.lane == :security
     end
-  end
 
-  describe "check/1 falls back to normal" do
     test "a major bump" do
       result = Security.check(input(new_lock: fixture("major.lock")))
-      assert result.lane == :normal
-      assert failed(result) == ["Every package stays within its major version"]
+      assert result.lane == :security
+      assert failed(result) == []
+      assert [%{package: "plug", from: "1.18.0", to: "2.0.0", same_major: false}] = result.changes
     end
 
-    test "a 0.x minor bump counts as a major bump" do
+    test "a 0.x minor bump (SemVer-major) qualifies like any other bump" do
       result = Security.check(input(new_lock: fixture("zero_minor.lock")))
-      assert result.lane == :normal
-      assert failed(result) == ["Every package stays within its major version"]
+      assert result.lane == :security
+      assert failed(result) == []
     end
 
     test "a package added to the lock" do
       result = Security.check(input(new_lock: fixture("added.lock")))
-      assert result.lane == :normal
-      assert failed(result) == ["Every package stays within its major version"]
+      assert result.lane == :security
+      assert failed(result) == []
     end
+  end
+
+  describe "check/1 falls back to normal" do
 
     test "extra files" do
       result = Security.check(input(files: ["mix.lock", "lib/ex_tales_forge/game/turn.ex"]))
@@ -176,7 +178,7 @@ defmodule TalesForge.DeployLanes.SecurityTest do
 
       assert result.lane == :security
       assert result.advisories == ["EEF-CVE-2026-97853"]
-      assert Enum.count(result.summary, &String.starts_with?(&1, "- PASS")) == 4
+      assert Enum.count(result.summary, &String.starts_with?(&1, "- PASS")) == 3
     end
 
     test "decide_pr/3: extra files fall back to normal with the reason" do
@@ -254,6 +256,50 @@ defmodule TalesForge.DeployLanes.SecurityTest do
                "x" => nil,
                "t" => true
              }
+    end
+
+    test "since_production/3: a major lock bump since production still qualifies" do
+      lanes = DeployLanes.load()
+
+      trees = %{
+        "prod" => @trees["base"],
+        "head" => %{
+          "mix.lock" => File.read!(Path.expand("../fixtures/security_lane/major.lock", __DIR__))
+        }
+      }
+
+      ok =
+        SecurityCLI.since_production(
+          %SecurityCLI.Run{lanes: lanes, git: git(["mix.lock"], trees)},
+          "head",
+          "prod"
+        )
+
+      assert ok.ok
+    end
+
+    test "bump/2 accepts a major bump and rejects an unchanged lock" do
+      base = fixture("base.lock")
+      assert {:ok, desc} = SecurityCLI.bump(base, fixture("major.lock"))
+      assert desc =~ "plug 1.18.0 -> 2.0.0"
+      assert {:error, "no change"} = SecurityCLI.bump(base, base)
+    end
+  end
+
+  describe "unlock_neighbors/2 and reaches_patched?/3" do
+    test "unlocks the package, locked required deps, and locked parents; skips optional deps" do
+      lock = fixture("neighbors.lock")
+
+      assert Security.unlock_neighbors(lock, "phoenix") == ["phoenix", "phoenix_pubsub"]
+      assert Security.unlock_neighbors(lock, "phoenix_pubsub") == ["phoenix", "phoenix_pubsub"]
+    end
+
+    test "reaches_patched?/3 is inclusive SemVer and ignores missing packages" do
+      lock = fixture("major.lock")
+      assert Security.reaches_patched?(lock, "plug", ["2.0.0"])
+      assert Security.reaches_patched?(lock, "plug", ["1.18.0", "2.1.0"])
+      refute Security.reaches_patched?(lock, "plug", ["2.1.0"])
+      refute Security.reaches_patched?(lock, "missing", ["1.0.0"])
     end
   end
 end
