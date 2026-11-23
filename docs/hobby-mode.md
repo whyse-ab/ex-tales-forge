@@ -76,7 +76,7 @@ The big lever is the bots, not Fly.
 
 ## KEEP (minimal safety)
 1. **CI** (Test and Dialyzer required on main). Free, because the repo is public.
-2. **Security audit + Security lane.** Pure GitHub Actions with no bot in the loop: lock-only bumps that keep the major version merge and deploy themselves after the smoke check. **Change:** the Security-fix lane needs Gentry's GO, so either drop it or route it to Fredrik.
+2. **Security audit + Security lane.** Pure GitHub Actions with no bot in the loop: lock-only bumps that keep the major version merge and deploy themselves, then a prod smoke check, then a rollback if that check fails. **Change:** the Security-fix lane needs Gentry's GO, so either drop it or route it to Fredrik.
 3. **Backups:** add a weekly `pg_dump` of prod (a GitHub Action that keeps a private artifact, or a manual dump to Fredrik's machine). Today there is none beyond snapshots.
 4. **Uptime alert:** a free external check on `https://tales-forge.fly.dev/health` (a GitHub Actions cron or UptimeRobot) that emails Fredrik. It replaces Bobby's twice-daily log check.
 5. **Cost ceiling:** `AI_CAP_DAY_USD=5` on prod (decided), plus a monthly limit in the xAI console if Fredrik wants one.
