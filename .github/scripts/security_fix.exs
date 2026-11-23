@@ -4,7 +4,7 @@
 #   elixir .github/scripts/security_fix.exs <merge|deploy> <base sha> <head sha> facts.json
 #
 # facts.json comes from `gh` in the workflow: {"ref", "main_sha", "ci_green",
-# "labels", "statuses", "go_logins", "merges"}. This script adds the diff, the
+# "labels", "merges"}. This script adds the diff, the
 # mix.lock changes, the clock (Europe/Stockholm) and the advisories (hex.pm, the
 # data `mix hex.audit` reads, cross-checked with OSV). It writes `ok` and
 # `advisories` to $GITHUB_OUTPUT and the rules to $GITHUB_STEP_SUMMARY.
@@ -86,8 +86,6 @@ input =
     audit: audit,
     osv: osv,
     labels: facts["labels"] || [],
-    statuses: facts["statuses"] || [],
-    go_logins: facts["go_logins"] || [],
     merges: facts["merges"] || []
   )
 

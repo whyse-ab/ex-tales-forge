@@ -1,9 +1,11 @@
 defmodule TalesForge.DeployLanes.SecurityFix do
   @moduledoc """
   The **security-fix** lane (`docs/environments.md`, "Off-hours security fixes";
-  Fredrik, 2026-10-27): outside working hours a bot may merge and deploy a
-  pull request that fixes a high or critical dependency advisory. A flaw in our
-  own code gets containment only, never this lane.
+  Fredrik, 2026-10-27 and 2026-11-23): outside working hours a bot may merge a
+  pull request that fixes a high or critical dependency advisory. After the
+  playtest smoke check succeeds, the deploy proceeds without a founder's
+  approval, at any hour, through the `production-security` environment. A flaw
+  in our own code gets containment only, never this lane.
 
   `check/1` is the guard. It runs twice, each time from `main`'s copy of this
   module (never the pull request's): before the merge (`stage: :merge`,
@@ -13,7 +15,8 @@ defmodule TalesForge.DeployLanes.SecurityFix do
 
     1. **Main only.** The run is on `refs/heads/main`; a deploy ships the tip
        of `main`.
-    2. **Outside working hours.** Not Mon-Fri 08:00-18:00 Europe/Stockholm.
+    2. **Merge only: outside working hours.** Not Mon-Fri 08:00-18:00
+       Europe/Stockholm. A deploy may run at any hour (Fredrik, 2026-11-23).
     3. **CI green** (Test and Dialyzer) on the exact sha.
     4. **Size cap.** At most 10 files and 300 changed lines.
     5. **No founder paths** from `.github/deploy-lanes.txt`, except `mix.exs`
@@ -22,9 +25,8 @@ defmodule TalesForge.DeployLanes.SecurityFix do
        at its base version, rated high or critical, that is gone at its head
        version, and whose OSV record names that Hex package with the same CVSS
        vector and is not withdrawn. An unknown head audit is not clean.
-    7. Merge: the label `security-fix`. Deploy: a `qa/gentry-go` success from
-       an allowed login is the newest such status on the sha.
-    8. Deploy: every merge since production is a `security-fix` pull request.
+    7. Merge: the label `security-fix`. Deploy: every merge since production
+       is a `security-fix` pull request.
 
   The defaults of `Input` fail every rule. Standard library only, so the
   workflows load it with plain `elixir` (`.github/scripts/security_fix.exs`).
@@ -40,7 +42,6 @@ defmodule TalesForge.DeployLanes.SecurityFix do
   @max_files 10
   @max_lines 300
   @label "security-fix"
-  @go "qa/gentry-go"
   @allowed ["mix.exs", "mix.lock"]
 
   defmodule Input do
@@ -49,8 +50,8 @@ defmodule TalesForge.DeployLanes.SecurityFix do
     @typedoc """
     `clock` is `{iso_weekday, hour}` in Europe/Stockholm. `audit` maps
     `{package, version}` to hex.pm's `security_advisories`; `osv` maps an
-    advisory id to its OSV record. `statuses` is GitHub's list for the sha,
-    newest first; `merges` holds `%{"sha", "labels"}` per merge since production.
+    advisory id to its OSV record. `merges` holds `%{"sha", "labels"}` per
+    merge since production.
     """
     @type t :: %__MODULE__{
             stage: :merge | :deploy,
@@ -65,8 +66,6 @@ defmodule TalesForge.DeployLanes.SecurityFix do
             audit: %{{String.t(), String.t()} => [map()]},
             osv: %{String.t() => map()},
             labels: [String.t()],
-            statuses: [map()],
-            go_logins: [String.t()],
             merges: [map()]
           }
     defstruct stage: :deploy,
@@ -81,8 +80,6 @@ defmodule TalesForge.DeployLanes.SecurityFix do
               audit: %{},
               osv: %{},
               labels: [],
-              statuses: [],
-              go_logins: [],
               merges: []
   end
 
@@ -98,7 +95,6 @@ defmodule TalesForge.DeployLanes.SecurityFix do
     rules =
       [
         main_rule(input),
-        rule("Outside working hours", not working_hours?(input.clock), "#{inspect(input.clock)}"),
         rule("CI green on the sha", input.ci_green, ci_detail(input.ci_green)),
         size_rule(files),
         founder_rule(input.lanes, files),
@@ -130,27 +126,23 @@ defmodule TalesForge.DeployLanes.SecurityFix do
     rule("Main only", ok, "#{ref}, #{sha} (tip of main #{main})")
   end
 
-  defp stage_rules(%Input{stage: :merge, labels: labels}),
-    do: [rule("Label #{@label}", @label in labels, list(labels))]
+  defp stage_rules(%Input{stage: :merge, labels: labels, clock: clock}) do
+    [
+      rule("Outside working hours", not working_hours?(clock), "#{inspect(clock)}"),
+      rule("Label #{@label}", @label in labels, list(labels))
+    ]
+  end
 
   defp stage_rules(input) do
     shas = for m <- input.merges, @label not in m["labels"], do: m["sha"]
 
     [
-      rule("Gentry's GO", gentry_go?(input), "newest #{@go} by #{inspect(input.go_logins)}"),
       rule(
         "Only #{@label} merges since production",
         input.merges != [] and shas == [],
         "not #{@label}: #{list(shas)}"
       )
     ]
-  end
-
-  defp gentry_go?(%Input{statuses: statuses, go_logins: logins}) do
-    case Enum.find(statuses, &(&1["context"] == @go)) do
-      %{"state" => "success", "creator" => %{"login" => login}} -> login != "" and login in logins
-      _ -> false
-    end
   end
 
   defp ci_detail(true), do: "Test and Dialyzer passed."

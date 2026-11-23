@@ -32,6 +32,14 @@
 #           posts to SECURITY_LANE_WEBHOOK_URL when that secret is set. No
 #           founder OK (environment production-security at all hours). A failed
 #           smoke check stops before production.
+#   security-fix  A high or critical advisory fix with the label `security-fix`
+#           that the security lane does not take (TalesForge.DeployLanes.SecurityFix;
+#           merged at night by security-lane.yml). After the playtest deploy,
+#           the same "Smoke check" job runs, then "Production (security-fix
+#           lane)" calls security-fix-deploy.yml, which re-checks the guard,
+#           deploys through deploy-production.yml (environment
+#           production-security at all hours), smokes production, and rolls
+#           back on failure. No founder OK, no Gentry GO (Fredrik, 2026-11-23).
 #   normal  Anything else (game, shared, CI, docs, a mixed merge, an unknown
 #           production commit): playtest only. Production follows once Gentry
 #           and the playtest batch have checked the build and a founder has
@@ -47,10 +55,10 @@
 # tales-forge-playtest (Fly dashboard -> tales-forge-playtest -> Tokens, or
 # `flyctl tokens create deploy -a tales-forge-playtest`). Without it the deploy
 # step fails with a clear message; nothing else is affected. The admin and
-# security lanes' production deploy passes FLY_API_TOKEN by name; its value is
-# the environment secret of the deploy job's environment (production or
-# production-security, deploy-production.yml). Optional: SECURITY_LANE_WEBHOOK_URL and
-# SECURITY_LANE_WEBHOOK_KEY (the security lane's note to Bobby).
+# security and security-fix lanes' production deploy passes FLY_API_TOKEN by
+# name; its value is the environment secret of the deploy job's environment
+# (production or production-security, deploy-production.yml). Optional:
+# SECURITY_LANE_WEBHOOK_URL and SECURITY_LANE_WEBHOOK_KEY (the note to Bobby).
 name: Deploy to playtest
 
 on:
@@ -173,7 +181,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
-      lane: ${{ steps.security.outputs.lane == 'security' && 'security' || steps.pick.outputs.lane || 'normal' }}
+      lane: ${{ steps.out.outputs.lane || 'normal' }}
       advisories: ${{ steps.security.outputs.advisories }}
       pr: ${{ steps.pr.outputs.number }}
       production: ${{ steps.prod.outputs.sha }}
@@ -250,10 +258,35 @@ jobs:
           elixir .github/scripts/security_lane.exs main --sha "$SHA" --production "$PRODUCTION" \
             --pr "$RUNNER_TEMP/pr.json" --ci success
 
+      # A security-fix merge that the lock-only security lane did not take.
+      # The deploy guard in security-fix-deploy.yml re-checks the full rules.
+      - name: Security-fix lane?
+        id: fix
+        if: steps.pr.outputs.number != '' && steps.security.outputs.lane != 'security'
+        run: |
+          set -euo pipefail
+          if jq -e '.labels | map(.name) | index("security-fix")' "$RUNNER_TEMP/pr.json" >/dev/null; then
+            echo "lane=security-fix" >> "$GITHUB_OUTPUT"
+            echo "Security-fix lane: the merged PR has the label security-fix." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Lane
+        id: out
+        if: github.event_name == 'workflow_run'
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.security.outputs.lane }}" = security ]; then
+            echo "lane=security" >> "$GITHUB_OUTPUT"
+          elif [ "${{ steps.fix.outputs.lane }}" = security-fix ]; then
+            echo "lane=security-fix" >> "$GITHUB_OUTPUT"
+          else
+            echo "lane=${{ steps.pick.outputs.lane || 'normal' }}" >> "$GITHUB_OUTPUT"
+          fi
+
   smoke:
-    name: Smoke check (security lane)
+    name: Smoke check (security lanes)
     needs: [deploy, lane]
-    if: needs.lane.outputs.lane == 'security'
+    if: needs.lane.outputs.lane == 'security' || needs.lane.outputs.lane == 'security-fix'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -303,6 +336,25 @@ jobs:
       production_base: ${{ needs.lane.outputs.production }}
     secrets:
       FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  # After the playtest smoke check: the security-fix guard, production deploy,
+  # production smoke, and rollback on failure. Notify is inside that workflow.
+  production-security-fix:
+    name: Production (security-fix lane)
+    needs: [deploy, lane, smoke]
+    if: needs.lane.outputs.lane == 'security-fix' && needs.smoke.result == 'success'
+    permissions:
+      contents: write
+      checks: read
+      actions: read
+      pull-requests: read
+    uses: ./.github/workflows/security-fix-deploy.yml
+    with:
+      sha: ${{ needs.deploy.outputs.sha }}
+    secrets:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      SECURITY_LANE_WEBHOOK_URL: ${{ secrets.SECURITY_LANE_WEBHOOK_URL }}
+      SECURITY_LANE_WEBHOOK_KEY: ${{ secrets.SECURITY_LANE_WEBHOOK_KEY }}
 
   # The founders' note: Bobby gets a signed POST and tells the founders through
   # Case. Skipped when SECURITY_LANE_WEBHOOK_URL is not set.

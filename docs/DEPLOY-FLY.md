@@ -104,7 +104,7 @@ follows automatically depends on the merge's **deploy lane** (ex-tales-forge dec
 | Lane | When | Playtest | Production |
 |------|------|----------|------------|
 | **admin** | Every file the merge changed, and every file changed since the commit production runs, is on the `[admin]` list in `.github/deploy-lanes.txt` (surveys, costs, playtest admin pages, `/team`) | Automatic | Automatic, right after playtest: no Gentry/batch gate, no prod OK |
-| **security** | A merged PR that changes only `mix.lock` (and version pins in `mix.exs` deps), keeps every package in its major version, has the label `security` or the title prefix `security:` and an advisory id (CVE, GHSA, EEF-CVE), with green CI; production would get nothing else | Automatic, then a smoke check | Automatic after a green smoke check, for exactly that sha; Bobby tells the founders |
+| **security** | A merged PR that changes only `mix.lock` (and version pins in `mix.exs` deps), only version bumps of existing hex packages (majors included; no added or removed packages, no git or other non-hex refs), has the label `security` or the title prefix `security:` and an advisory id (CVE, GHSA, EEF-CVE), with green CI; production would get nothing else | Automatic, then a smoke check | Automatic after a green smoke check, for exactly that sha, in `production-security` at all hours; Bobby tells the founders |
 | **normal** | Anything else: game engine code, shared code (sign-in, Repo and migrations, config, AICalls, `mix.exs`/deps, the router, CI), docs, a mixed merge, unknown files, or an unknown production commit | Automatic | After Gentry and the playtest batch, a founder's Approve ships it |
 
 `.github/workflows/playtest.yml` picks the lane after its playtest deploy
@@ -135,26 +135,28 @@ Decision 2026-10-11 "Security-bump lane". The rules are in `TalesForge.DeployLan
 
 1. **Find:** `.github/workflows/security-audit.yml` runs every hour (and by hand,
    `gh workflow run security-audit.yml`): `mix hex.audit` and `mix deps.audit` (mix_audit). For
-   each package with an advisory it runs `mix deps.update <package>`. When the update fixes the
-   advisory within the major version, it opens a PR `security: <advisory id>: …` with the label
-   `security`. Otherwise the run summary names the package; a founder decides.
+   each package with an advisory it runs `mix deps.unlock <package>` then `mix deps.get`
+   (neighbours too if the patched version is capped). When the update fixes the advisory, it
+   opens a PR `security: <advisory id>: …` with the label `security`. A bump that adds or
+   removes a package, or points at a git or other non-hex ref, goes to the founders. Otherwise
+   the run summary names the package; a founder decides.
 2. **Merge:** after the PR's CI run, `.github/workflows/security-lane.yml` checks the four rules
-   (lock only, same major, advisory reference, Test and Dialyzer green) with the rules from
+   (lock only, existing hex packages, advisory reference, Test and Dialyzer green) with the rules from
    `main`, and squash-merges the PR for exactly its head sha (`--match-head-commit`). When a rule
    fails, the summary shows PASS or FAIL for each rule and the PR takes the normal lane.
 3. **Deploy:** the push to `main` runs CI, then playtest.yml. It checks the rules again on the
-   merge, plus one more: everything since `deployed/production` is a lock bump within the major
-   version or an `[admin]` file. Then "Smoke check" tests playtest
+   merge, plus one more: everything since `deployed/production` is a version bump of an existing
+   hex package or an `[admin]` file. Then "Smoke check" tests playtest
    (`.github/scripts/smoke_check.py`: `/health`, the signed-out redirect, the sign-in page and a
    LiveView mount over the websocket; no game turn, because a turn calls the LLM). A green smoke
    check starts "Production (security lane)", deploy-production.yml with `lane=security`: the
    same "Verify commit" job and the same tip-of-main and production-unchanged guard as the
-   admin lane. Outside working hours (Mon–Fri 08:00–18:00 Stockholm) and only for a run on
-   `main`, the deploy job runs in the environment `production-security` (no reviewer, branch
-   `main` only); in working hours it runs in `production` and waits for Fredrik's approval.
+   admin lane. For a run on `main`, the deploy job runs in the environment
+   `production-security` (no reviewer, branch `main` only) at all hours (Fredrik, 2026-11-23).
    Before `deployed/production` moves, its old value goes to the tag
-   `deployed/production-previous`, the target of the `security-rollback` lane (workflow_call
-   only, no caller yet).
+   `deployed/production-previous`, the target of the `security-rollback` lane (also
+   `production-security` at all hours on `main`; called from security-fix-deploy.yml when a
+   production smoke check fails).
 4. **Tell:** "Notify Bobby" posts a signed JSON note to `SECURITY_LANE_WEBHOOK_URL` (event
    `security_lane.deployed`: sha, PR, advisory ids, run URL). Bobby tells Gentry and the
    founders through Case. The headers are `X-Security-Lane-Timestamp`, and, with
