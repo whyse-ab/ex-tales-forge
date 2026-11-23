@@ -17,7 +17,8 @@ defmodule TalesForge.Game.IntentClarification do
       readings fall in different classes, or for a move or a fight when the
       target itself is unsure.
     * A runner-up reading of another class with a probability of at least
-      #{0.25} is plausible: two plausible readings clarify.
+      the `runner_up` threshold (default #{0.25}) is plausible: two
+      plausible readings clarify.
 
   The question itself is voiced by the GM, in character, echoing the
   player's words (`TalesForge.Game.Clarify`); there is no templated
@@ -30,10 +31,14 @@ defmodule TalesForge.Game.IntentClarification do
   @default_act_min 0.70
   @default_ask_below 0.45
   @default_ask_below_raw 0.45
+  @v2_act_min 0.80
+  @v2_ask_below 0.45
+  @v2_ask_below_raw 0.30
+  @v2_runner_up 0.40
   # Two move/fight targets compete when the runner-up is this close to the top.
   @target_margin 0.25
   # A runner-up reading at least this likely is plausible.
-  @plausible 0.25
+  @default_runner_up 0.25
   # The classes that move goods or coins.
   @goods_classes [:coin, :items]
 
@@ -87,15 +92,30 @@ defmodule TalesForge.Game.IntentClarification do
   @type decision :: :act | :best_guess | :clarify
 
   @doc """
-  The default band thresholds: `[act_min: #{@default_act_min}, ask_below:
-  #{@default_ask_below}, ask_below_raw: #{@default_ask_below_raw}]`.
+  The band thresholds for `version`. `:v1` (the default, `JEV_CLARIFY_V2` off)
+  is today's set: `act_min` #{@default_act_min}, `ask_below`
+  #{@default_ask_below}, `ask_below_raw` #{@default_ask_below_raw},
+  `runner_up` #{@default_runner_up}. `:v2` (`JEV_CLARIFY_V2=on`) is
+  #{@v2_act_min} / #{@v2_ask_below} / #{@v2_ask_below_raw} / #{@v2_runner_up}.
   """
   @spec defaults() :: keyword(float())
-  def defaults,
+  @spec defaults(:v1 | :v2) :: keyword(float())
+  def defaults(version \\ :v1)
+
+  def defaults(:v1),
     do: [
       act_min: @default_act_min,
       ask_below: @default_ask_below,
-      ask_below_raw: @default_ask_below_raw
+      ask_below_raw: @default_ask_below_raw,
+      runner_up: @default_runner_up
+    ]
+
+  def defaults(:v2),
+    do: [
+      act_min: @v2_act_min,
+      ask_below: @v2_ask_below,
+      ask_below_raw: @v2_ask_below_raw,
+      runner_up: @v2_runner_up
     ]
 
   @doc "The consequence class of an action type."
@@ -106,8 +126,9 @@ defmodule TalesForge.Game.IntentClarification do
   The decision for a `t:TalesForge.Game.JevIntent.reading/0`.
 
   `opts` may set `:act_min` (default #{@default_act_min}), `:ask_below`
-  (default #{@default_ask_below}) and `:ask_below_raw` (default
-  #{@default_ask_below_raw}; `0.0` turns the raw check off).
+  (default #{@default_ask_below}), `:ask_below_raw` (default
+  #{@default_ask_below_raw}; `0.0` turns the raw check off) and
+  `:runner_up` (default #{@default_runner_up}).
 
   The turn clarifies when a goods or coin read is below `act_min`, when the
   top two readings play out differently and either the calibrated confidence
@@ -129,6 +150,7 @@ defmodule TalesForge.Game.IntentClarification do
     act_min = Keyword.get(opts, :act_min, @default_act_min)
     ask_below = Keyword.get(opts, :ask_below, @default_ask_below)
     ask_below_raw = Keyword.get(opts, :ask_below_raw, @default_ask_below_raw)
+    runner_up = Keyword.get(opts, :runner_up, @default_runner_up)
     confidence = reading.confidence || 1.0
 
     cond do
@@ -139,7 +161,7 @@ defmodule TalesForge.Game.IntentClarification do
           split_class?(reading) ->
         :clarify
 
-      plausible_rival?(reading) ->
+      plausible_rival?(reading, runner_up) ->
         :clarify
 
       confidence >= act_min ->
@@ -169,13 +191,13 @@ defmodule TalesForge.Game.IntentClarification do
 
   # A runner-up action of another class, at least plausible (the top label
   # is the read itself, also when decoding renamed it: `ask_price` is a buy).
-  defp plausible_rival?(%{action: action} = reading) do
+  defp plausible_rival?(%{action: action} = reading, runner_up) do
     top = List.first(Map.get(reading, :top2, [])) || action
 
     reading
     |> Map.get(:action_probabilities, %{})
     |> Enum.any?(fn {other, p} ->
-      other not in [action, top] and p >= @plausible and class(other) != class(action)
+      other not in [action, top] and p >= runner_up and class(other) != class(action)
     end)
   end
 

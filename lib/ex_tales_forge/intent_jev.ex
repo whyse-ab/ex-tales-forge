@@ -39,7 +39,16 @@ defmodule TalesForge.IntentJev do
 
   alias TalesForge.AICalls
   alias TalesForge.Config
-  alias TalesForge.Game.{CharacterReactions, Clarify, Combat, Intent, IntentClarification}
+
+  alias TalesForge.Game.{
+    CharacterReactions,
+    Clarify,
+    Combat,
+    Intent,
+    IntentBands,
+    IntentClarification
+  }
+
   alias TalesForge.Game.{JevIntent, JevSelfCheck, PlayerQuote, Rest}
   alias TalesForge.Game.Schemas.{PlayerAction, SingleAction}
   alias TalesForge.GameCharacter
@@ -279,8 +288,9 @@ defmodule TalesForge.IntentJev do
 
     * `:never_ask` — true for a free-text answer to a question: the read plays
       its best guess and never asks again (one round per turn);
-    * `:act_min`, `:ask_below`, `:ask_below_raw`, `:quote_threshold` — override
-      the config.
+    * `:act_min`, `:ask_below`, `:ask_below_raw`, `:runner_up`,
+      `:quote_threshold` — override the config (and, when `JEV_CLARIFY_V2`
+      is on, the v2 band set).
 
   On a Jev error or timeout the heuristic reads the text and the GM gets the
   typed summary. Raises what `TalesForge.Game.Intent.validate_player_action/2`
@@ -344,13 +354,7 @@ defmodule TalesForge.IntentJev do
   # The confidence band, with `opts` overriding the config; a free-text answer
   # (`never_ask`) plays its best guess instead of asking.
   defp decide_band(%Read{reading: reading, raw_action: raw_action, opts: opts} = read) do
-    band_opts = [
-      act_min: Keyword.get(opts, :act_min, Config.intent_act_min_confidence()),
-      ask_below: Keyword.get(opts, :ask_below, Config.intent_ask_below_confidence()),
-      ask_below_raw: Keyword.get(opts, :ask_below_raw, Config.intent_ask_below_raw_confidence())
-    ]
-
-    case IntentClarification.band(reading, band_opts) do
+    case IntentClarification.band(reading, band_opts(opts)) do
       :clarify -> if(Keyword.get(opts, :never_ask, false), do: :best_guess, else: :clarify)
       other -> other
     end
@@ -674,13 +678,8 @@ defmodule TalesForge.IntentJev do
     })
   end
 
-  defp band_opts do
-    [
-      act_min: Config.intent_act_min_confidence(),
-      ask_below: Config.intent_ask_below_confidence(),
-      ask_below_raw: Config.intent_ask_below_raw_confidence()
-    ]
-  end
+  defp band_opts, do: IntentBands.configured()
+  defp band_opts(opts), do: IntentBands.configured(opts)
 
   defp safe_validate(extraction, context) do
     Intent.validate_player_action(extraction, context)
