@@ -1,6 +1,6 @@
 ---
 title: Environments and how changes reach production
-updated: 2026-10-09
+updated: 2026-11-23
 ---
 
 # Environments and how changes reach production
@@ -45,7 +45,7 @@ Playtest first, then production (decision 2026-10-09, [ex-tales-forge #91](https
    gh workflow run deploy-production.yml -R whyse-ab/ex-tales-forge -f sha=<full 40-character sha>
    ```
 
-   A first job refuses the run unless the sha is on `main` and its `Test` and `Dialyzer` checks passed, and warns when no successful playtest deploy of that sha is found. The deploy job then runs in the GitHub environment **`production`** (security lanes outside working hours: **`production-security`**, no reviewer, `main` only) and deploys exactly that commit to `tales-forge`, with migrations first (`/app/bin/migrate`). Only one prod deploy runs at a time, and a running deploy is never cancelled. It uses `FLY_API_TOKEN`, an environment secret on both environments. A bot starts this workflow only on Fredrik's explicit OK for that sha. Once a required reviewer (Fredrik) is set on the `production` environment (repo Settings → Environments), the job also waits for that approval; until then the manual start is the gate.
+   A first job refuses the run unless the sha is on `main` and its `Test` and `Dialyzer` checks passed, and warns when no successful playtest deploy of that sha is found. The deploy job then runs in the GitHub environment **`production`** for normal and admin deploys (the required reviewer is the gate). The security lanes (`security`, `security-fix`, `security-rollback`) always use **`production-security`** (no reviewer, `main` only), at all hours. The job deploys exactly that commit to `tales-forge`, with migrations first (`/app/bin/migrate`). Only one prod deploy runs at a time, and a running deploy is never cancelled. It uses `FLY_API_TOKEN`, an environment secret on both environments. A bot starts this workflow only on Fredrik's explicit OK for that sha. Once a required reviewer (Fredrik) is set on the `production` environment (repo Settings → Environments), the job also waits for that approval; until then the manual start is the gate.
 
 A manual `fly deploy` is the fallback when Actions is down. It is the same command CI runs; see `docs/DEPLOY-FLY.md` in ex-tales-forge. For playtest: `fly deploy --remote-only --depot=false -c fly.playtest.toml -a tales-forge-playtest --ha=false`.
 
@@ -56,7 +56,7 @@ Decision 2026-10-09 ([decision log](decisions.md#2026-10-09-a-fast-deploy-lane-f
 | Lane | When | Playtest | Production |
 |---|---|---|---|
 | **Admin** | Every file the merge changed **and** every file changed since the commit production runs is on the `[admin]` list in ex-tales-forge `.github/deploy-lanes.txt` | Automatic | Automatic, right after playtest: no Gentry/batch gate, no prod OK |
-| **Security** | A lock-only dependency bump within the major version that fixes a published advisory, with green CI ([Security lane](#security-lane-advisory-fixes-ship-without-a-founder-ok)) | Automatic, then a smoke check | Automatic after a green smoke check; Bobby tells the founders |
+| **Security** | A lock-only dependency bump of existing Hex packages (major version bumps allowed; adding or removing a package, or a git ref, is not this lane) that fixes a published advisory, with green CI ([Security lane](#security-lane-advisory-fixes-ship-without-a-founder-ok)) | Automatic, then a smoke check | Automatic after a green smoke check, through `production-security` at all hours; Bobby tells the founders |
 | **Security fix** | Off-hours only: a fix for a high or critical dependency advisory with an OSV id, label `security-fix` ([Off-hours security fixes](#off-hours-security-fixes)) | Automatic; Gentry plays it | Automatic after Gentry's `qa/gentry-go` and the guard; smoke check, rollback on failure |
 | **Normal** | Anything else: game engine code (`Game.*`, intent, world, NPCs, rules, packs), shared code (sign-in and the signed-out `/internal/*` endpoints, Repo and migrations, config, `AICalls`, `mix.exs`/deps, the router, shared CSS/JS, CI), docs, unknown files, a mixed merge | Automatic | After Gentry and the playtest batch, a founder's Approve ships it (step 7) |
 
@@ -74,17 +74,17 @@ Decision 2026-10-11 ([decision log](decisions.md#2026-10-11-security-bump-lane))
 A PR takes the security lane when all four rules pass (`TalesForge.DeployLanes.Security`):
 
 1. It changes only `mix.lock`, and optionally the version requirements of deps in `mix.exs`.
-2. Every changed package keeps its major version (for `0.x`, the minor too). An added or removed package needs a founder's Approve.
+2. Every changed package is an existing Hex package. Major version bumps are allowed. A PR that adds or removes a package, or uses a git ref, goes to Fredrik's merge list.
 3. It has the label `security` or the title prefix `security:`, and an advisory id (CVE, GHSA or EEF-CVE) in the title or body.
 4. CI is green (`Test` and `Dialyzer`).
 
 When a rule fails, the PR takes the normal lane. The run summary shows PASS or FAIL for each rule.
 
-- **Find, every hour:** "Security audit" (`security-audit.yml`) runs `mix hex.audit` and `mix deps.audit`. For each advisory it runs `mix deps.update` on that package within the major version and opens a PR `security: <advisory id>: …` with the label. High and critical advisories are handled at any hour: the same job runs day and night. A fix that needs a major bump or a code change goes to the founders.
+- **Find, every hour:** "Security audit" (`security-audit.yml`) runs `mix hex.audit` and `mix deps.audit`. For each advisory it runs `mix deps.update` on that package and opens a PR `security: <advisory id>: …` with the label, including when the fix is a major bump of an existing Hex package. High and critical advisories are handled at any hour: the same job runs day and night. A fix that adds or removes a package, uses a git ref, or needs a code change goes to Fredrik's merge list.
 - **Merge:** "Security lane" (`security-lane.yml`) runs after the PR's CI and squash-merges it for exactly its head sha.
-- **Deploy:** "Deploy to playtest" checks the rules again on the merge, and also that production gets nothing else (everything since `deployed/production` is a lock bump within the major version or an admin file). Then playtest, a smoke check on playtest (`/health`, the sign-in page, a LiveView mount; no game turn, because a turn calls the LLM), and production for that sha, with the same guards as the admin lane.
+- **Deploy:** "Deploy to playtest" checks the rules again on the merge, and also that production gets nothing else (everything since `deployed/production` is a lock bump of existing Hex packages — major bumps allowed — or an admin file). Then playtest, a smoke check on playtest (`/health`, the sign-in page, a LiveView mount; no game turn, because a turn calls the LLM), and production for that sha through `production-security` at all hours, with the same guards as the admin lane.
 - **Tell:** after the production deploy, Bobby gets a signed webhook (`SECURITY_LANE_WEBHOOK_URL`) and tells Gentry and the founders through Case.
-- **Founder's Approve still needed** for a major version bump, for a fix that needs a code change, and for a fix that changes player-facing behaviour.
+- **Fredrik's merge list** (not the auto lane) for a PR that adds or removes a package, uses a git ref, needs a code change, or changes player-facing behaviour. Major version bumps of existing Hex packages merge and auto-deploy on green CI. Normal deploys keep the `production` reviewer gate.
 
 ## Off-hours security fixes
 

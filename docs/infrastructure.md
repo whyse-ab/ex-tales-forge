@@ -1,6 +1,6 @@
 ---
 title: Infrastructure assets
-updated: 2026-10-18
+updated: 2026-11-23
 ---
 
 # Infrastructure assets
@@ -54,7 +54,7 @@ Playtest (`playtest.yml`) and production (`deploy-production.yml`) both deploy t
 
 The GitHub environment `production` (repo Settings → Environments) requires `fpahlen` as reviewer, with `can_admins_bypass` false, so every production deploy in it waits for that approval. Bots must never approve production deployments: only Fredrik clicks Approve.
 
-The GitHub environment `production-security` has no reviewer and allows only the branch `main`. `deploy-production.yml` uses it only for the security lanes (`security`, `security-rollback`) outside working hours (Mon–Fri 08:00–18:00 Stockholm); everything else uses `production`. Both environments hold `FLY_API_TOKEN` as an environment secret; there is no repo-level `FLY_API_TOKEN`.
+The GitHub environment `production-security` has no reviewer and allows only the branch `main`. `deploy-production.yml` uses it for the security lanes (`security`, `security-fix`, `security-rollback`) at all hours, and only for a run on `main`. Normal and admin deploys keep the `production` environment and its reviewer gate. Both environments hold `FLY_API_TOKEN` as an environment secret; there is no repo-level `FLY_API_TOKEN`.
 
 ## GitHub sign-in for the admin
 
