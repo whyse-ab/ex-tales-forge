@@ -65,8 +65,9 @@ jobs:
         run: |
           set -euo pipefail
           sha="$(git rev-parse HEAD)"
-          git fetch --no-tags --depth=1 origin main
-          main_sha="$(git rev-parse FETCH_HEAD)"
+          # Do not `git fetch --depth=1`: it writes .git/shallow and hides parents
+          # (deploy-lanes run 45132632242).
+          main_sha="$(git ls-remote origin refs/heads/main | cut -f1)"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           if [ "$sha" = "$main_sha" ]; then
             echo "deploy=true" >> "$GITHUB_OUTPUT"

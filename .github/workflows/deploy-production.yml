@@ -211,8 +211,9 @@ jobs:
             echo "deploy=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git fetch --no-tags --depth=1 origin main
-          main_sha="$(git rev-parse FETCH_HEAD)"
+          # Do not `git fetch --depth=1`: it writes .git/shallow and hides parents
+          # (deploy-lanes run 45132632242).
+          main_sha="$(git ls-remote origin refs/heads/main | cut -f1)"
           current="$(git ls-remote origin refs/tags/deployed/production | cut -f1)"
           reason=""
           # A rollback goes back on purpose, so only the base must be unchanged.

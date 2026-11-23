@@ -118,7 +118,8 @@ jobs:
       - name: Deploy script (shellcheck and fake-flyctl test)
         run: |
           shellcheck --version | sed -n 2p
-          shellcheck .github/scripts/fly_deploy.sh .github/scripts/fly_deploy_test.sh
+          shellcheck .github/scripts/fly_deploy.sh .github/scripts/fly_deploy_test.sh \
+            .github/scripts/deploy_lane_shallow_test.sh
           .github/scripts/fly_deploy_test.sh
 
       - uses: erlef/setup-beam@v1
@@ -126,6 +127,12 @@ jobs:
         with:
           elixir-version: ${{ env.ELIXIR_VERSION }}
           otp-version: ${{ env.OTP_VERSION }}
+
+      # Reproduces "Pick the lane" for a merge commit and a squash commit in a
+      # depth-2 clone, and shows that `git fetch --depth=1` hides the parent.
+      # Plain elixir, no mix, no production deploy.
+      - name: Deploy lane shallow checkout
+        run: .github/scripts/deploy_lane_shallow_test.sh
 
       - name: Cache deps and _build
         uses: actions/cache@v6
