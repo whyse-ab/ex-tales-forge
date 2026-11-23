@@ -88,32 +88,16 @@ code), not refactors. Lower is
 better. `mix health.snapshot` measures HEAD, puts its row in the CSV and
 redraws `trend.svg`: one stacked bar per merge (xref cycles + complex
 functions + domain -> web refs + functions with 4+ parameters, total on
-top). After each merge to main,
-`.github/workflows/health-snapshot.yml` runs it and pushes the row to the
-branch `health-history`, with one open PR for it; merging that PR adds the
-rows to main. GitHub holds every pull_request run on a PR that
-github-actions[bot] opened until a human approves it, so CI skips that PR's
-pull_request runs (it changes only the two history files) and the snapshot
-workflow dispatches CI on the branch instead. GitHub does not count a
-dispatched run's own checks on a PR, so that run sets commit statuses
-named Test and Dialyzer on the branch head with its results (job "Report
-dispatched checks"): the required checks pass with no approval. That
-run, like any PR that changes only `docs/`, skips the tests, the
-ratchet, Credo and Dialyzer (CI job "Changed files"): no code changed.
-The first rows are the merges that changed the then committed
-`baseline.json` (#324, #325, #326), measured again at each merge commit. The 4+ parameter
-counts up to #334 were measured on each merge commit's `lib/` too. When
-main changes the history files, the snapshot workflow merges main with
-main's side (`-X theirs`) and passes the branch's old file to
-`mix health.snapshot --keep`, so no row is lost. The workflow has no
-concurrency group (GitHub cancelled all but one pending run in a group,
-which dropped rows when merges came close together): each run measures
-its own merge with `--out`, rebuilds the branch from the latest main
-(only the two history files differ from main), adds the row with `--row`
-and retries the push when main moved or another run pushed first.
-GITHUB_TOKEN may not push workflow files that differ from main's, so a
-run never pushes an older main (#345's row was lost so, and added back). A row goes in merge
-order, also when the runs finish in the other order.
+top). Run it by hand after a merge to main when you want a new row, and
+open a PR for the two history files (a docs-only PR skips the code checks).
+The old `.github/workflows/health-snapshot.yml` workflow, which ran the
+task after each merge and opened rolling PR #600, was deleted in hobby
+mode (step 6); close #600 after that change lands. `--keep`, `--out` and
+`--row` still work if you need to merge histories by hand. The first rows
+are the merges that changed the then committed `baseline.json` (#324,
+#325, #326), measured again at each merge commit. The 4+ parameter
+counts up to #334 were measured on each merge commit's `lib/` too. A row
+goes in merge order.
 
 `lib/ex_tales_forge -> ExTalesForgeWeb` is measured with xref (real compile, export and
 runtime references), not grep: module names in docs and strings do not count.

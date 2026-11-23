@@ -54,6 +54,16 @@ git push -u origin feature/<short-name>   # then open a PR
 
 The seven playtest-only flags (`INN_WORLD`, `WORLD_ANTAGONIST`, `COMBAT_OPPOSED`, `TURN_PREMISE_FIRST`, `LOCATION_GRID`, `CHARACTER_MEMORY`, `CODE_HEAT_MAP`) stay **off on production**. Keep the code. Do not flip them without Fredrik's OK.
 
+## Standing rules
+
+- **No unauthenticated AI calls.** No unauthenticated route, LiveView event or endpoint may start an AI call.
+- **AI cap and key changes need Fredrik's OK.** Changing a cap (`AI_CAP_SESSION_USD`, `AI_CAP_DAY_USD`, `AI_CAP_PERSONA_RUN_USD`), or adding an AI key, needs Fredrik's OK.
+- **Golden prompts** stay byte-identical unless a change is intended. Regenerate with `UPDATE_PROMPT_GOLDEN=1 mix test test/ex_tales_forge/game/prompt_golden_test.exs`, review the diff and say so in the PR.
+- **Admin boundary.** Game and shared code must never depend on `[admin]` files (`mix deploy.check_boundaries`, CI).
+- **No Fly DNS or cert changes.** `tales-forge.ai` stays on Netlify until the Fly app replaces it. No environment gets Fly certificates or DNS changes; deploys are verified on the `fly.dev` apps.
+- **Don't bring back GM `state_updates`, `overlay_deltas` or `new_facts`.** The server owns state.
+- **Record decisions in `docs/decisions.md`**, newest at the top.
+
 ## Quality
 
 Before you finish a code change: `mix compile --warnings-as-errors`, `mix format --check-formatted`, `mix credo --strict`, and `mix test`. Full coding rules are in `docs/coding-standards.md`. UI copy and reports use "confidence", not "unsure" (decision 2026-10-10; `CONTRIBUTING.md`).

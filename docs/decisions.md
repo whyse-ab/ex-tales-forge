@@ -1,6 +1,6 @@
 ---
 title: Decision log
-updated: 2026-10-26
+updated: 2026-11-23
 ---
 
 # Decision log
@@ -12,6 +12,12 @@ Open questions waiting for a decision live in the [decision queue](decision-queu
 Ideas we may pick up later, not yet decided, live in [Future ideas](future-ideas.md).
 
 **Moved 2026-10-15.** This log was `docs/decisions.md` in `whyse-ab/tales-forge-docs` (now retired; the git history came with the move). The Workflow entries (idea board, team page, chat, inbox, Workflow split) moved to `docs/decision-history.md` in [whyse-ab/workflow](https://github.com/whyse-ab/workflow/blob/main/docs/decision-history.md). New Tales Forge decisions come here: the board writes each entry to this file (Tales Forge client file, `decision_log`).
+
+## 2026-11-23: Docs go through a pull request, never straight to main
+
+- **Decision (Fredrik, 2026-11-23 08:37 Europe/Stockholm, through Case):** documentation in this repo also goes through a pull request, never straight to `main`. This supersedes 2026-10-07 "Docs go straight to main".
+- **Why:** one rule for every change; docs and code use the same branch and review path.
+- **Details:** `AGENTS.md`, "How changes land"
 
 ## 2026-10-26: A benign read below 0.90 passes the player's words, marked untrusted; the GM always answers the current turn (card 1, PR a)
 
@@ -1481,6 +1487,8 @@ Recommended order: 1, 2, 3, 4, 5. Cards 1 and 2 are the base for the other cards
 - **Why:** one place to see what was decided and why, with git history as the audit trail.
 
 ## 2026-10-07: Docs go straight to main
+
+Superseded by 2026-11-23 "Docs go through a pull request, never straight to main". The text below is the original decision, kept for the audit trail.
 
 - **Decision:** documentation is committed straight to `main` in this repo, without pull requests; if something is wrong, undo it. Code still goes through pull requests, with Fredrik's OK before merge or deploy.
 - **Why:** docs are cheap to fix and slow to review; code reaches players, so it keeps the review gate.
