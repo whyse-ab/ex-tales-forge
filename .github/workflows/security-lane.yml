@@ -4,15 +4,17 @@
 # Runs after every CI run of a pull request. When the PR qualifies
 # (TalesForge.DeployLanes.Security, .github/scripts/security_lane.exs):
 #   1. it changes only mix.lock, and optionally version pins in mix.exs deps,
-#   2. every changed package keeps its major version (old and new mix.lock),
+#   2. every lock change is a version bump of an existing hex package (majors
+#      included; added or removed packages, and git or other refs, do not
+#      qualify),
 #   3. it has the label `security` or the title prefix `security:`, and an
 #      advisory id (CVE-…, GHSA-…, EEF-CVE-…) in the title or body,
 #   4. CI is green (Test and Dialyzer on the head sha),
 # this workflow squash-merges it for exactly that head sha
 # (`gh pr merge --squash --match-head-commit`). The push to main then runs CI
 # and playtest.yml, which checks the same rules again on the merge, deploys
-# playtest, runs the smoke check, deploys production for that sha and
-# notifies Bobby.
+# playtest, runs the smoke check, deploys production for that sha
+# (environment production-security, at all hours) and notifies Bobby.
 #
 # The security-fix lane (AGENTS.md rule 2 carve-out; TalesForge.DeployLanes.SecurityFix,
 # .github/scripts/security_fix.exs merge): a mix.lock PR the security lane does
