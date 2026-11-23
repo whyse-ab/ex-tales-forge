@@ -260,7 +260,6 @@ defmodule TalesForge.DeployLanes.Security do
     end
   end
 
-
   @doc """
   True when a lock change is a version bump of a package present on both
   sides, and both sides are hex (majors included). Added or removed packages,

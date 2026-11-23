@@ -70,7 +70,6 @@ defmodule TalesForge.DeployLanes.SecurityTest do
       assert result.lane == :security
       assert failed(result) == []
     end
-
   end
 
   describe "check/1 falls back to normal" do
