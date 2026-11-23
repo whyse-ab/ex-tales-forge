@@ -7,23 +7,23 @@ defmodule Mix.Tasks.Health.Snapshot do
   `mix health.snapshot` measures HEAD (`mix health.check`'s numbers), takes
   the date and the PR number from HEAD's commit (`--pr` and `--date`
   override them), puts the row in the CSV (a row for the same PR is
-  replaced) and redraws the chart. `.github/workflows/health-snapshot.yml`
-  runs it after each merge to main and opens one rolling PR with the rows.
+  replaced) and redraws the chart. Run it by hand after a merge to main
+  when you want a new history row. The old
+  `.github/workflows/health-snapshot.yml` workflow that opened a rolling
+  PR was removed in hobby mode.
 
       mix health.snapshot
       mix health.snapshot --pr 326 --date 2026-10-17T06:01:43+02:00
       mix health.snapshot --keep /tmp/branch.csv
 
   `--keep FILE` also keeps the rows of another history file whose PR the
-  CSV does not have (in date order). The workflow passes the rolling
-  branch's file from before it merged main, so a conflict in the CSV that
-  it resolved with main's side loses no row.
+  CSV does not have (in date order). Use it when combining two history
+  files so a conflict that kept main's side loses no row.
 
   `--out FILE` writes only the measured row to FILE (a one-row CSV) and
   leaves the history alone; `--row FILE` puts FILE's rows in the history
-  instead of measuring. The workflow measures each merge on its own
-  commit with `--out`, then adds the row to the rolling branch with
-  `--row`, so runs for merges close together can each add their row.
+  instead of measuring. Measure a merge with `--out`, then add the row
+  with `--row`, so close-together merges can each add their row.
 
       mix health.snapshot --out /tmp/row.csv
       mix health.snapshot --row /tmp/row.csv --keep /tmp/branch.csv

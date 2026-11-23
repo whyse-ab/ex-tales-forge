@@ -1,6 +1,6 @@
 # Tales Forge in hobby mode: plan (2026-11-21)
 
-Drafted by Case from read-only research. Fredrik made his decisions on 2026-11-21 (see below). Nothing in this document has been carried out yet.
+Drafted by Case from read-only research. Fredrik made his decisions on 2026-11-21 (see below). Step 6 is done in this PR; the other steps have not been carried out yet.
 Sources: `whyse-ab/ex-tales-forge` (main, cloned 2026-11-21), `whyse-ab/team` (`bots/*/routines`), GitHub API, public `/health` and the Tales Forge board API. **The Fly login on the box has expired**, so the Fly figures below are list prices from the repo docs, not invoice amounts.
 
 ## Goal
@@ -33,7 +33,7 @@ Merging this PR is **not** approval for the steps below. Each Fly write, delete 
 | 3 | Uptime alert on `https://tales-forge.fly.dev/health` that tells Fredrik when it fails | Workflow PR (or an external service): Fredrik's go |
 | 4 | Set `AI_CAP_DAY_USD=5` on prod (and `AI_CAP_SESSION_USD` only if Fredrik wants one) | Fly secret write: Fredrik's go |
 | 5 | Security-fix lane: replace the wait for Gentry's `qa/gentry-go` with Fredrik's approval (or drop the lane). The Security audit and the Security lane stay as they are | Workflow PR: Fredrik merges |
-| 6 | Slim AGENTS.md to about one page: stack, non-negotiables, branch + PR, green CI, Fredrik merges, the deploy command. Remove the card, vote, merge-list and Case-OK rules. Delete `health-snapshot.yml` and close #600 | Workflow change: Fredrik merges |
+| 6 | Slim AGENTS.md to about one page: stack, non-negotiables, branch + PR, green CI, Fredrik merges, the deploy command. Remove the card, vote, merge-list and Case-OK rules. Delete `health-snapshot.yml` and close #600 | **Done** in this PR. After merge, close #600 |
 | 7 | Export the 57 open board ideas (and the known bugs) to GitHub Issues with labels `idea`, `bug` and `next`, then archive the board (read-only, not deleted) and remove the board webhooks | Issues and board change: Fredrik's go |
 | 8 | After 30 days with no need for it: delete the playtest app and DB | Delete, cannot be undone: Fredrik's go in his own words |
 
@@ -86,7 +86,7 @@ The big lever is the bots, not Fly.
 |---|---|---|
 | Card board process and board wake-ups | Stop using it; export the 57 open ideas to `docs/future-ideas.md` or GitHub issues; remove the webhooks | Yes, while the board app exists. Deleting the board app/DB is **not** reversible, so export first. |
 | Founder votes, merge lists, Case-OK, bot-merge lane | Rule change in AGENTS.md/docs | Yes |
-| Health snapshot + PR #600 | Disable or delete `health-snapshot.yml`, close #600 | Yes (git history) |
+| Health snapshot + PR #600 | **Done** in this PR: `health-snapshot.yml` is deleted. After merge, close #600 | Yes (git history) |
 | Eval PR churn (#602, #606) | Merge once as the final batch, or close | Yes |
 | Base guard | Keep or delete; it costs nothing | Yes |
 | Team routines (above) | Pause first, delete after 30 days | Pausing: yes |

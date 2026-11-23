@@ -1,6 +1,5 @@
 # CI for Tales Forge: format, Credo, tests with coverage, docs and Dialyzer on
-# every PR, on every push to main and when dispatched (the health-history
-# branch; ex-tales-forge docs/coding-standards.md). A change to docs/ only
+# every PR, on every push to main and when dispatched. A change to docs/ only
 # skips the code checks (the changes job below).
 # Test and Dialyzer are the required checks on main.
 #
@@ -24,15 +23,6 @@ name: CI
 
 on:
   pull_request:
-    # The rolling "Code health history" PR changes only these two files.
-    # GitHub makes a human approve every pull_request run on a PR that
-    # github-actions[bot] opened (changelog 2026-06-11), so that PR gets its
-    # Test and Dialyzer from a workflow_dispatch run instead, which
-    # .github/workflows/health-snapshot.yml starts after each push. A PR
-    # that also changes anything else still runs here.
-    paths-ignore:
-      - docs/health/history.csv
-      - docs/health/trend.svg
   push:
     branches: [main]
   workflow_dispatch:
@@ -52,8 +42,8 @@ env:
   OTP_VERSION: "27.3.4.16"
 
 jobs:
-  # Whether the change touches anything outside docs/. A PR, or a dispatched
-  # run on the health-history branch, that changes only docs/** skips the
+  # Whether the change touches anything outside docs/. A PR (or a dispatched
+  # run) that changes only docs/** skips the
   # tests, the health ratchet, Credo and Dialyzer: no code changed. Test still
   # compiles, builds the docs and checks their links (the extras in mix.exs
   # live in docs/), and Test and Dialyzer still report (a job skipped by its
@@ -320,11 +310,9 @@ jobs:
 
   # A workflow_dispatch run's own checks are not counted on a pull request
   # (GitHub counts only checks of push / pull_request-like runs), and check
-  # runs made through the Checks API from a job join that same run. The
-  # dispatched run on the health-history branch (see the pull_request
-  # paths-ignore above) therefore sets commit statuses named Test and
-  # Dialyzer on the branch head, with the outcome of its own jobs, so the
-  # rolling PR gets its required checks with no approval. Only on
+  # runs made through the Checks API from a job join that same run. A
+  # dispatched run therefore sets commit statuses named Test and Dialyzer
+  # on the branch head, with the outcome of its own jobs. Only on
   # workflow_dispatch; a failed or cancelled job reports failure.
   report_dispatch:
     name: Report dispatched checks
