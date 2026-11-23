@@ -39,7 +39,16 @@ defmodule TalesForge.IntentJev do
 
   alias TalesForge.AICalls
   alias TalesForge.Config
-  alias TalesForge.Game.{CharacterReactions, Clarify, Combat, Intent, IntentClarification}
+
+  alias TalesForge.Game.{
+    CharacterReactions,
+    Clarify,
+    Combat,
+    Intent,
+    IntentBands,
+    IntentClarification
+  }
+
   alias TalesForge.Game.{JevIntent, JevSelfCheck, PlayerQuote, Rest}
   alias TalesForge.Game.Schemas.{PlayerAction, SingleAction}
   alias TalesForge.GameCharacter
@@ -669,27 +678,8 @@ defmodule TalesForge.IntentJev do
     })
   end
 
-  defp band_opts, do: band_opts([])
-
-  # `opts` from resolve/3 override the configured set. JEV_CLARIFY_V2=on
-  # selects the v2 defaults; off keeps today's Config values and runner_up
-  # 0.25, so the decision matches the previous hard-coded threshold.
-  defp band_opts(opts) do
-    Enum.map(configured_thresholds(), fn {key, default} ->
-      {key, Keyword.get(opts, key, default)}
-    end)
-  end
-
-  defp configured_thresholds do
-    if Config.jev_clarify_v2?() do
-      IntentClarification.defaults(:v2)
-    else
-      IntentClarification.defaults()
-      |> Keyword.put(:act_min, Config.intent_act_min_confidence())
-      |> Keyword.put(:ask_below, Config.intent_ask_below_confidence())
-      |> Keyword.put(:ask_below_raw, Config.intent_ask_below_raw_confidence())
-    end
-  end
+  defp band_opts, do: IntentBands.configured()
+  defp band_opts(opts), do: IntentBands.configured(opts)
 
   defp safe_validate(extraction, context) do
     Intent.validate_player_action(extraction, context)

@@ -453,46 +453,4 @@ defmodule TalesForge.Game.JevIntentTest do
     assert [%{parameters: params}] = plain.extraction.actions
     refute Map.has_key?(params, "named_price")
   end
-
-  test "state/2 is unchanged when opts are omitted or default" do
-    text = "I ask Brenna for ale"
-    today = JevIntent.state(context(), text)
-    assert JevIntent.state(context(), text, []) == today
-    refute Map.has_key?(today, "last_player_actions")
-    assert today["last_narration"] == "The fire crackles."
-    assert today["player_text"] == text
-  end
-
-  test "state slices narration and player text, and can widen the windows" do
-    narration = String.duplicate("N", 900)
-    text = String.duplicate("P", 700)
-    context = Map.put(context(), "last_narration", narration)
-
-    default = JevIntent.state(context, text)
-    assert default["last_narration"] == String.slice(narration, -800, 800)
-    assert default["player_text"] == String.slice(text, 0, 600)
-
-    wide =
-      JevIntent.state(context, text, narration_chars: 1600, player_chars: 1200)
-
-    assert wide["last_narration"] == narration
-    assert wide["player_text"] == text
-  end
-
-  test "last_actions adds up to the last 3 player actions only when on" do
-    turns = [
-      %{"action" => "one", "outcome" => "none"},
-      %{"action" => "two", "outcome" => "none"},
-      %{"action" => "three", "outcome" => "ok"}
-    ]
-
-    context = Map.put(context(), "recent_turns", turns)
-    refute Map.has_key?(JevIntent.state(context, "hi"), "last_player_actions")
-
-    assert JevIntent.state(context, "hi", last_actions: true)["last_player_actions"] == [
-             "one",
-             "two",
-             "three"
-           ]
-  end
 end

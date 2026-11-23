@@ -24,7 +24,9 @@ defmodule TalesForge.IntentEval.Metrics do
   anyway. They still count for every other field.
   """
 
+  alias TalesForge.Game.IntentBands
   alias TalesForge.Game.IntentClarification
+  alias TalesForge.IntentEval.JevOpts
   alias TalesForge.IntentEval.SelfCheckScore
 
   @z 1.96
@@ -68,17 +70,6 @@ defmodule TalesForge.IntentEval.Metrics do
   end
 
   defp cost(pairs), do: pairs |> Enum.map(fn {_item, r} -> r.cost end) |> Enum.sum()
-
-  defp band_version(opts) do
-    switches = opts |> Keyword.get(:jev, []) |> Keyword.get(:switches)
-
-    cond do
-      opts[:clarify_v2] == true -> :v2
-      opts[:clarify_v2] == false -> :v1
-      match?(%TalesForge.IntentEval.JevOpts{clarify_v2: true}, switches) -> :v2
-      true -> :v1
-    end
-  end
 
   # --- per-field accuracy ------------------------------------------------------
 
@@ -329,10 +320,7 @@ defmodule TalesForge.IntentEval.Metrics do
   # --- act / best guess / ask split -------------------------------------------
 
   defp bands(pairs, opts) do
-    band_opts =
-      Enum.map(IntentClarification.defaults(band_version(opts)), fn {key, default} ->
-        {key, opts[key] || default}
-      end)
+    band_opts = IntentBands.opts(JevOpts.band_version(opts), opts)
 
     read = Enum.filter(pairs, fn {_item, r} -> not is_nil(r.action) end)
     by_band = Enum.group_by(read, fn {_item, r} -> IntentClarification.band(r, band_opts) end)

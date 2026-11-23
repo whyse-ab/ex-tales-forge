@@ -48,11 +48,25 @@ defmodule TalesForge.IntentEval.JevOpts do
       player_chars: int(opts[:player_chars], getenv.("JEV_PLAYER_CHARS"), @player_chars),
       last_actions: bool(opts[:last_actions], getenv.("JEV_LAST_ACTIONS")),
       clarify_v2: bool(opts[:clarify_v2], getenv.("JEV_CLARIFY_V2")),
-      runner_up: number(opts[:runner_up], nil, nil)
+      runner_up: number(opts[:runner_up])
     }
   end
 
+  @doc "The clarify band set selected by `opts` (`:v2` when `clarify_v2` is on)."
+  @spec band_version(keyword() | t()) :: :v1 | :v2
+  def band_version(%__MODULE__{clarify_v2: true}), do: :v2
+  def band_version(%__MODULE__{}), do: :v1
+
+  def band_version(opts) when is_list(opts) do
+    switches = Keyword.get(Keyword.get(opts, :jev, []), :switches)
+
+    if opts[:clarify_v2] == true or match?(%__MODULE__{clarify_v2: true}, switches),
+      do: :v2,
+      else: :v1
+  end
+
   defp bool(flag, _env) when is_boolean(flag), do: flag
+
   defp bool(nil, env), do: env in ~w(on true 1)
 
   defp int(n, _env, _default) when is_integer(n) and n > 0, do: n
@@ -68,16 +82,6 @@ defmodule TalesForge.IntentEval.JevOpts do
     end
   end
 
-  defp number(n, _env, _default) when is_number(n) and n >= 0, do: n / 1
-  defp number(nil, env, default) when env in [nil, ""], do: default
-
-  defp number(nil, env, _default) when is_binary(env) do
-    case Float.parse(String.trim(env)) do
-      {n, ""} when n >= 0 ->
-        n
-
-      _ ->
-        raise ArgumentError, "expected a non-negative number, got: #{inspect(env)}"
-    end
-  end
+  defp number(n) when is_number(n) and n >= 0, do: n / 1
+  defp number(nil), do: nil
 end
