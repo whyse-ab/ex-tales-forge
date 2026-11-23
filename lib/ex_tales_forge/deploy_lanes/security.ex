@@ -256,16 +256,15 @@ defmodule TalesForge.DeployLanes.Security do
 
   defp version_reaches?(version, patched) do
     case Version.parse(version) do
-      {:ok, current} ->
-        Enum.any?(patched, fn target ->
-          case Version.parse(target) do
-            {:ok, wanted} -> Version.compare(current, wanted) != :lt
-            :error -> false
-          end
-        end)
+      {:ok, current} -> Enum.any?(patched, &at_least?(current, &1))
+      :error -> false
+    end
+  end
 
-      :error ->
-        false
+  defp at_least?(current, target) do
+    case Version.parse(target) do
+      {:ok, wanted} -> Version.compare(current, wanted) != :lt
+      :error -> false
     end
   end
 
