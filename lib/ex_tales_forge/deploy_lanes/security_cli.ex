@@ -13,16 +13,10 @@ defmodule TalesForge.DeployLanes.SecurityCLI do
       elixir .github/scripts/security_lane.exs main --sha <merge sha> \\
         --production <sha production runs> --pr <pr.json> --ci success
 
-      # A bump made by .github/workflows/security-audit.yml: exit 0 when the
-      # lock has any package version change (majors included).
+      # Bump helpers (TalesForge.DeployLanes.SecurityAudit): exit 0 when the
+      # lock has any package version change (majors included); also
+      # unlock-neighbors, lock-version and reaches:
       elixir .github/scripts/security_lane.exs bump <old mix.lock> <new mix.lock>
-
-      # Packages to unlock so `package` can move (itself, locked parents and
-      # required locked deps). Space-separated names on stdout.
-      elixir .github/scripts/security_lane.exs unlock-neighbors <mix.lock> <package>
-
-      # Exit 0 when the locked version of `package` is at least one patched version:
-      elixir .github/scripts/security_lane.exs reaches <mix.lock> <package> <patched...>
 
       # The JSON report out of `mix deps.audit --format json` output that may
       # also hold compile output (exit 3 when there is none):
@@ -91,39 +85,6 @@ defmodule TalesForge.DeployLanes.SecurityCLI do
     emit(decide(mode, run, opts))
   end
 
-  def main(["bump", old, new]) do
-    {status, desc} = bump(File.read!(old), File.read!(new))
-    IO.puts(desc)
-    if status == :ok, do: :ok, else: System.halt(1)
-  end
-
-  def main(["unlock-neighbors", lock, package]) do
-    lock
-    |> File.read!()
-    |> Security.unlock_neighbors(package)
-    |> Enum.join(" ")
-    |> IO.puts()
-  end
-
-  def main(["lock-version", lock, package]) do
-    case Security.lock_version(File.read!(lock), package) do
-      nil ->
-        IO.puts(:stderr, "#{package} is not in #{lock}")
-        System.halt(1)
-
-      version ->
-        IO.puts(version)
-    end
-  end
-
-  def main(["reaches", lock, package | patched]) do
-    if Security.reaches_patched?(File.read!(lock), package, patched) do
-      :ok
-    else
-      System.halt(1)
-    end
-  end
-
   def main(["extract-json", path]) do
     case extract_json(File.read!(path)) do
       {:ok, json} ->
@@ -142,14 +103,6 @@ defmodule TalesForge.DeployLanes.SecurityCLI do
     )
 
     System.halt(2)
-  end
-
-  @doc "Whether `new` has any package version change relative to `old` (majors included)."
-  @spec bump(String.t(), String.t()) :: {:ok | :error, String.t()}
-  def bump(old, new) do
-    changes = Security.lock_changes(old, new)
-    desc = if changes == [], do: "no change", else: Security.describe_changes(changes)
-    {if(changes == [], do: :error, else: :ok), desc}
   end
 
   defp decide("pr", run, opts), do: decide_pr(run, opts[:base], opts[:head])

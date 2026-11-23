@@ -4,6 +4,7 @@ defmodule TalesForge.DeployLanes.SecurityTest do
   alias TalesForge.DeployLanes
   alias TalesForge.DeployLanes.Security
   alias TalesForge.DeployLanes.SecurityCLI
+  alias TalesForge.DeployLanes.SecurityAudit
 
   doctest TalesForge.DeployLanes.Security
   doctest TalesForge.DeployLanes.SecurityCLI
@@ -277,28 +278,28 @@ defmodule TalesForge.DeployLanes.SecurityTest do
       assert ok.ok
     end
 
-    test "bump/2 accepts a major bump and rejects an unchanged lock" do
+    test "SecurityAudit.bump/2 accepts a major bump and rejects an unchanged lock" do
       base = fixture("base.lock")
-      assert {:ok, desc} = SecurityCLI.bump(base, fixture("major.lock"))
+      assert {:ok, desc} = SecurityAudit.bump(base, fixture("major.lock"))
       assert desc =~ "plug 1.18.0 -> 2.0.0"
-      assert {:error, "no change"} = SecurityCLI.bump(base, base)
+      assert {:error, "no change"} = SecurityAudit.bump(base, base)
     end
   end
 
-  describe "unlock_neighbors/2 and reaches_patched?/3" do
+  describe "SecurityAudit.unlock_neighbors/2 and reaches_patched?/3" do
     test "unlocks the package, locked required deps, and locked parents; skips optional deps" do
       lock = fixture("neighbors.lock")
 
-      assert Security.unlock_neighbors(lock, "phoenix") == ["phoenix", "phoenix_pubsub"]
-      assert Security.unlock_neighbors(lock, "phoenix_pubsub") == ["phoenix", "phoenix_pubsub"]
+      assert SecurityAudit.unlock_neighbors(lock, "phoenix") == ["phoenix", "phoenix_pubsub"]
+      assert SecurityAudit.unlock_neighbors(lock, "phoenix_pubsub") == ["phoenix", "phoenix_pubsub"]
     end
 
     test "reaches_patched?/3 is inclusive SemVer and ignores missing packages" do
       lock = fixture("major.lock")
-      assert Security.reaches_patched?(lock, "plug", ["2.0.0"])
-      assert Security.reaches_patched?(lock, "plug", ["1.18.0", "2.1.0"])
-      refute Security.reaches_patched?(lock, "plug", ["2.1.0"])
-      refute Security.reaches_patched?(lock, "missing", ["1.0.0"])
+      assert SecurityAudit.reaches_patched?(lock, "plug", ["2.0.0"])
+      assert SecurityAudit.reaches_patched?(lock, "plug", ["1.18.0", "2.1.0"])
+      refute SecurityAudit.reaches_patched?(lock, "plug", ["2.1.0"])
+      refute SecurityAudit.reaches_patched?(lock, "missing", ["1.0.0"])
     end
   end
 end
