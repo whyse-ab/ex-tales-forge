@@ -40,14 +40,6 @@ defmodule TalesForge.DeployLanes.SecurityFixTest do
           {"bandit", "1.14.0"} => []
         },
         osv: %{"EEF-CVE-2026-1" => osv("EEF-CVE-2026-1", "bandit")},
-        statuses: [
-          %{
-            "context" => "qa/gentry-go",
-            "state" => "success",
-            "creator" => %{"login" => "gentry-qa[bot]"}
-          }
-        ],
-        go_logins: ["gentry-qa[bot]"],
         merges: [%{"sha" => @sha, "labels" => ["security-fix"]}]
       },
       overrides
@@ -67,7 +59,7 @@ defmodule TalesForge.DeployLanes.SecurityFixTest do
     test "fails closed with the struct defaults" do
       result = SecurityFix.check(%Input{})
       refute result.ok
-      assert length(result.rules) == 8
+      assert length(result.rules) == 6
     end
 
     test "needs main: the run's ref and the tip of main" do
@@ -75,38 +67,14 @@ defmodule TalesForge.DeployLanes.SecurityFixTest do
       assert failed(input(main_sha: String.duplicate("b", 40))) == ["Main only"]
     end
 
-    test "only outside Mon-Fri 08:00-18:00 Stockholm" do
+    test "may run during Mon-Fri 08:00-18:00 Stockholm" do
       for clock <- [{1, 8}, {3, 12}, {5, 17}] do
-        assert failed(input(clock: clock)) == ["Outside working hours"]
-      end
-
-      for clock <- [{1, 7}, {5, 18}, {6, 12}, {7, 9}] do
         assert failed(input(clock: clock)) == []
       end
     end
 
     test "needs CI green on the exact sha" do
       assert failed(input(ci_green: false)) == ["CI green on the sha"]
-    end
-
-    test "needs a qa/gentry-go success from an allowed login, the newest status counting" do
-      go = fn state, login ->
-        %{"context" => "qa/gentry-go", "state" => state, "creator" => %{"login" => login}}
-      end
-
-      assert failed(input(statuses: [])) == ["Gentry's GO"]
-      assert failed(input(statuses: [go.("success", "fpahlen")])) == ["Gentry's GO"]
-      assert failed(input(statuses: [go.("failure", "gentry-qa[bot]")])) == ["Gentry's GO"]
-
-      assert failed(
-               input(
-                 statuses: [go.("pending", "gentry-qa[bot]"), go.("success", "gentry-qa[bot]")]
-               )
-             ) ==
-               ["Gentry's GO"]
-
-      assert failed(input(go_logins: [])) == ["Gentry's GO"]
-      assert failed(input(go_logins: [""], statuses: [go.("success", "")])) == ["Gentry's GO"]
     end
 
     test "ships nothing but security-fix merges since production" do
@@ -206,21 +174,19 @@ defmodule TalesForge.DeployLanes.SecurityFixTest do
 
   describe "a pull request (stage :merge)" do
     defp pr(overrides),
-      do:
-        input(
-          Keyword.merge(
-            [stage: :merge, labels: ["security-fix"], statuses: [], merges: []],
-            overrides
-          )
-        )
+      do: input(Keyword.merge([stage: :merge, labels: ["security-fix"], merges: []], overrides))
 
-    test "qualifies without Gentry's GO or the tip of main" do
+    test "qualifies without the tip of main" do
       assert SecurityFix.check(pr(main_sha: "")).ok
     end
 
     test "needs the label security-fix and the night" do
       assert failed(pr(labels: ["security"])) == ["Label security-fix"]
       assert failed(pr(clock: {2, 10})) == ["Outside working hours"]
+
+      for clock <- [{1, 7}, {5, 18}, {6, 12}, {7, 9}] do
+        assert failed(pr(clock: clock)) == []
+      end
     end
   end
 

@@ -1,44 +1,55 @@
 # The security-fix lane's deploy (AGENTS.md rule 2 carve-out; docs/environments.md
-# "Off-hours security fixes"; Fredrik, 2026-10-27). Outside working hours a fix
-# for a high or critical dependency advisory ships without a founder OK.
+# "Off-hours security fixes"; Fredrik, 2026-10-27 and 2026-11-23). A fix for a
+# high or critical dependency advisory ships without a founder OK. Merge is still
+# outside working hours (security-lane.yml). The deploy starts after a green CI
+# run on main, at any hour, when deploy-lanes.yml calls this workflow. There is
+# no playtest smoke check and no Gentry GO (hobby mode; Fredrik, 2026-11-23).
 #
-# security-lane.yml merges a qualifying security-fix PR at night. playtest.yml
-# deploys the merge to playtest like any other. Gentry plays it, and the
-# gentry-qa GitHub App posts the commit status qa/gentry-go = success on that
-# sha. The status starts this workflow (an App's status starts workflows;
-# GITHUB_TOKEN's would not; `status` runs main's copy of this file):
+# security-lane.yml merges a qualifying security-fix PR at night.
+# deploy-lanes.yml picks the lane after CI and calls this workflow
+# (workflow_call) with that sha:
 #   1. guard: TalesForge.DeployLanes.SecurityFix from main's checkout
 #      (.github/scripts/security_fix.exs deploy), diffing production
 #      (deployed/production) against the sha: main only and the tip of main,
-#      outside working hours, Test and Dialyzer green on the sha, the newest
-#      qa/gentry-go is success from vars.GENTRY_GO_LOGIN, every merge since
-#      production is a security-fix PR, at most 10 files and 300 lines, no
-#      founder paths but mix.exs/mix.lock, and a high or critical OSV advisory
-#      at production's version that is gone at the sha's;
+#      Test and Dialyzer green on the sha, every merge since production is a
+#      security-fix PR, at most 10 files and 300 lines, no founder paths but
+#      mix.exs/mix.lock, and a high or critical OSV advisory at production's
+#      version that is gone at the sha's;
 #   2. deploy: deploy-production.yml, lane security-fix (environment
-#      production-security only off-hours on main; tip of main and production
+#      production-security at all hours on main; tip of main and production
 #      unchanged, re-checked inside the deploy concurrency group);
 #   3. smoke check on production; when it fails, roll back to
 #      deployed/production-previous (lane security-rollback);
 #   4. notify Bobby (SECURITY_LANE_WEBHOOK_URL), whatever happened after the deploy.
 #
-# By hand (the same guard; it still needs Gentry's GO and the night):
+# By hand (the same guard; no Gentry GO):
 #   gh workflow run security-fix-deploy.yml -f sha=<full sha>
 name: Security-fix deploy
 
 on:
-  status:
+  workflow_call:
+    inputs:
+      sha:
+        description: "Full 40-character sha on main to deploy"
+        required: true
+        type: string
+    secrets:
+      FLY_API_TOKEN:
+        required: true
+      SECURITY_LANE_WEBHOOK_URL:
+        required: false
+      SECURITY_LANE_WEBHOOK_KEY:
+        required: false
   workflow_dispatch:
     inputs:
       sha:
-        description: "Full 40-character sha on main with Gentry's qa/gentry-go"
+        description: "Full 40-character sha on main to deploy"
         required: true
         type: string
 
 permissions:
   contents: read
   checks: read
-  statuses: read
   pull-requests: read
 
 env:
@@ -48,10 +59,6 @@ env:
 jobs:
   guard:
     name: Security-fix guard
-    if: >-
-      github.ref == 'refs/heads/main' &&
-      (github.event_name == 'workflow_dispatch' ||
-       (github.event.context == 'qa/gentry-go' && github.event.state == 'success'))
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
@@ -71,12 +78,11 @@ jobs:
           otp-version: ${{ env.OTP_VERSION }}
 
       # GitHub's answers for the sha; the rules are in the script.
-      - name: Facts (CI, statuses, merges since production)
+      - name: Facts (CI, merges since production)
         id: facts
         env:
           GH_TOKEN: ${{ github.token }}
-          SHA: ${{ inputs.sha || github.event.sha }}
-          GO_LOGIN: ${{ vars.GENTRY_GO_LOGIN }}
+          SHA: ${{ inputs.sha }}
         run: |
           set -euo pipefail
           if ! [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
@@ -91,15 +97,13 @@ jobs:
               --jq '.check_runs[0].conclusion // "missing"')"
             [ "$conclusion" = "success" ] || ci=false
           done
-          statuses="$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/statuses?per_page=100")"
           merges="$(for c in $(git rev-list --first-parent "$production..$SHA"); do
             gh api "repos/$GITHUB_REPOSITORY/commits/$c/pulls" \
               --jq "{sha: \"$c\", labels: [.[] | select(.merge_commit_sha == \"$c\") | .labels[].name]}"
           done | jq -s .)"
           jq -n --arg ref "$GITHUB_REF" --arg main "$(git rev-parse origin/main)" --argjson ci "$ci" \
-            --argjson statuses "$statuses" --argjson merges "$merges" --arg go "$GO_LOGIN" \
-            '{ref: $ref, main_sha: $main, ci_green: $ci, statuses: $statuses, merges: $merges,
-              go_logins: ([$go] | map(select(. != "")))}' > "$RUNNER_TEMP/facts.json"
+            --argjson merges "$merges" \
+            '{ref: $ref, main_sha: $main, ci_green: $ci, merges: $merges}' > "$RUNNER_TEMP/facts.json"
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
           echo "production=$production" >> "$GITHUB_OUTPUT"
 
@@ -193,7 +197,7 @@ jobs:
             --arg run "$RUN_URL" --arg repo "$GITHUB_REPOSITORY" \
             '{event: $event, repo: $repo, sha: $sha, smoke: $smoke, run_url: $run,
               advisories: ($adv | split(" ") | map(select(. != ""))),
-              note: "Security fix deployed to production off-hours without a founder OK (AGENTS.md rule 2 carve-out). Tell Gentry and the founders."}')"
+              note: "Security fix deployed to production without a founder OK (AGENTS.md rule 2 carve-out). Tell Gentry and the founders."}')"
           ts="$(date +%s)"
           headers=(-H "Content-Type: application/json" -H "X-Security-Lane-Timestamp: $ts")
           if [ -n "$KEY" ]; then
