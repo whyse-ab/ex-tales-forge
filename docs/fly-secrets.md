@@ -156,6 +156,19 @@ The security lane ([environments.md](environments.md#security-lane-advisory-fixe
 | `SECURITY_LANE_WEBHOOK_URL` | Optional: Bobby's webhook. After a security-lane production deploy, it gets a JSON note (`security_lane.deployed`: sha, PR, advisory ids, run link) | No note; the run summary says so |
 | `SECURITY_LANE_WEBHOOK_KEY` | Optional: the key sent as `Authorization: Bearer <key>` and used for `X-Security-Lane-Signature: sha256=<HMAC-SHA256 of "<timestamp>.<body>">`, the same scheme as the board webhooks | The note goes out unsigned |
 
+
+## GitHub Actions secrets for the weekly prod backup
+
+Hobby mode step 2 (`.github/workflows/prod-backup.yml`). The repo is public, so the dump is encrypted with [age](https://age-encryption.org) before it is stored as an Actions artifact (kept 90 days). A plaintext dump is never uploaded. None of these is set by the PR; Fredrik adds them in repo Settings → Secrets and variables → Actions.
+
+| Name | What it is | Without it |
+|---|---|---|
+| `FLY_API_TOKEN_DB` (secret) | A Fly token that can proxy the Postgres app `tales-forge-db` (for example `fly tokens create deploy -a tales-forge-db`). Do not reuse `FLY_API_TOKEN`, which is scoped to the web app `tales-forge` only | The backup job fails; no dump is taken |
+| `PROD_PGPASSWORD` (secret) | Password for `PROD_PGUSER` on the prod database | The backup job fails; no dump is taken |
+| `BACKUP_AGE_RECIPIENT` (variable or secret) | An age X25519 public key (`age1…`). A repository variable is enough. Fredrik keeps the private key offline and decrypts with `age -d -i key.txt dump.age > dump` | The backup job fails rather than upload a plaintext dump |
+| `PROD_PGUSER` (optional variable or secret) | Database role. Default `postgres` | The default is used |
+| `PROD_PGDATABASE` (optional variable or secret) | Database name. Default `tales_forge` | The default is used; override if `fly postgres attach` created a different name |
+
 ## Good habits
 
 - Use a separate key per environment (local `.env` vs Fly) and per provider account, so one can be revoked without breaking the other.
