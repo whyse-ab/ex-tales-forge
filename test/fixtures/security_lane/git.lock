@@ -1,0 +1,7 @@
+%{
+  "decimal": {:hex, :decimal, "3.1.1", "aaaa", [:mix], [], "hexpm", "bbbb"},
+  "plug": {:hex, :plug, "1.18.0", "cccc", [:mix], [{:mime, "~> 1.0 or ~> 2.0", [hex: :mime, repo: "hexpm", optional: false]}], "hexpm", "dddd"},
+  "jason": {:hex, :jason, "1.4.4", "eeee", [:mix], [], "hexpm", "ffff"},
+  "req": {:hex, :req, "0.5.10", "gggg", [:mix], [], "hexpm", "hhhh"},
+  "heroicons": {:git, "https://github.com/tailwindlabs/heroicons.git", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", [tag: "v2.2.0", sparse: "optimized", depth: 1]},
+}
