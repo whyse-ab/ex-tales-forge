@@ -1,0 +1,104 @@
+# Uptime check of production /health (hobby mode, docs/hobby-mode.md step 3).
+# Every 10 minutes (GitHub may delay scheduled runs) it requests
+# https://tales-forge.fly.dev/health and expects HTTP 200. The check retries
+# three times, 30 seconds apart, before it fails. On failure it opens or
+# comments on a GitHub issue assigned to Fredrik (label `uptime`), which
+# emails him if he watches the repo. On recovery it comments and closes
+# the open issue.
+#
+# No secret is required. Optional:
+#   UPTIME_WEBHOOK_URL  If set, a POST with a short JSON body goes there too
+#                       on failure, and on recovery only when an open uptime
+#                       issue was actually closed (for example Bobby's
+#                       webhook). Name only; this workflow does not set it.
+#   UPTIME_WEBHOOK_KEY  Optional bearer token for that webhook.
+#
+# By hand: gh workflow run prod-uptime.yml
+name: Prod uptime
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: prod-uptime
+  cancel-in-progress: false
+
+jobs:
+  health:
+    name: Check /health
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: GET https://tales-forge.fly.dev/health
+        id: check
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          code=000
+          for try in 1 2 3; do
+            code=$(curl -sS -o "$RUNNER_TEMP/health.out" -w "%{http_code}" --max-time 20 \
+              https://tales-forge.fly.dev/health || echo "000")
+            if [ "$code" = "200" ]; then
+              echo "code=$code" >> "$GITHUB_OUTPUT"
+              echo "Health check OK (HTTP 200) on try $try."
+              exit 0
+            fi
+            echo "Health check try $try of 3 failed (HTTP $code)."
+            if [ "$try" -lt 3 ]; then
+              sleep 30
+            fi
+          done
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "::error::Health check failed after 3 tries (HTTP $code)."
+          exit 1
+
+      - name: Open or update a GitHub issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OK: ${{ steps.check.outcome == 'success' }}
+          CODE: ${{ steps.check.outputs.code }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          WEBHOOK: ${{ secrets.UPTIME_WEBHOOK_URL }}
+          WEBHOOK_KEY: ${{ secrets.UPTIME_WEBHOOK_KEY }}
+        run: |
+          set -euo pipefail
+          event=
+          gh label create uptime --description "Production /health uptime alert" --color B60205 >/dev/null || true
+          number="$(gh issue list -l uptime --state open --json number --jq '.[0].number // empty')"
+          if [ "$OK" = "true" ]; then
+            if [ -n "$number" ]; then
+              gh issue comment "$number" --body "Recovered: \`https://tales-forge.fly.dev/health\` returned HTTP 200. Run: $RUN_URL"
+              gh issue close "$number" --reason completed
+              event=uptime.recovered
+            fi
+          else
+            body="$(printf '%s\n' \
+              "Production health check failed: \`https://tales-forge.fly.dev/health\` returned HTTP ${CODE:-unknown}." \
+              "" \
+              "Run: $RUN_URL")"
+            if [ -n "$number" ]; then
+              gh issue comment "$number" --body "$body"
+            else
+              gh issue create --title "Production /health failed" --label uptime --assignee fpahlen --body "$body"
+            fi
+            event=uptime.failed
+          fi
+          if [ -n "$WEBHOOK" ] && [ -n "$event" ]; then
+            payload="$(jq -cn --arg event "$event" --arg code "${CODE:-}" --arg run "$RUN_URL" --arg repo "$GITHUB_REPOSITORY" \
+              '{event: $event, repo: $repo, http_code: $code, url: "https://tales-forge.fly.dev/health", run_url: $run}')"
+            headers=(-H "Content-Type: application/json")
+            if [ -n "$WEBHOOK_KEY" ]; then
+              headers+=(-H "Authorization: Bearer $WEBHOOK_KEY")
+            fi
+            curl -fsS --retry 2 --max-time 15 "${headers[@]}" -d "$payload" "$WEBHOOK" || \
+              echo "::warning::UPTIME_WEBHOOK_URL POST failed; the GitHub issue was still updated."
+          fi
+          if [ "$OK" != "true" ]; then
+            exit 1
+          fi
