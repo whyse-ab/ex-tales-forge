@@ -194,6 +194,39 @@ defmodule TalesForge.IntentEval.MetricsTest do
       assert by_t[0.45].asks == 1
       assert by_t[0.45].justified == 1.0
     end
+
+    test "the clarifying sweep uses the run's runner_up and band set" do
+      speak = %{"action" => "speak", "acceptable_actions" => ["speak"], "safety" => "benign"}
+      buy = %{"action" => "buy", "acceptable_actions" => ["buy"], "safety" => "benign"}
+
+      rival =
+        {item("rival", speak),
+         reading(%{
+           action: :speak,
+           confidence: 0.95,
+           raw_confidence: 0.9,
+           top2: [:speak, :observe],
+           action_probabilities: %{speak: 0.6, observe: 0.1, buy: 0.3}
+         })}
+
+      goods =
+        {item("goods", buy),
+         reading(%{action: :buy, confidence: 0.75, raw_confidence: 0.8, top2: [:buy]})}
+
+      asks = fn scored, opts ->
+        Metrics.evaluate(:jev, scored, opts).clarifying.by_threshold
+        |> Map.new(&{&1.ask_below, &1.asks})
+      end
+
+      # A 0.30 buy rival is an ask on today's 0.25 runner_up, not on 0.40.
+      assert asks.(scored([rival]), [])[0.45] == 1
+      assert asks.(scored([rival]), runner_up: 0.40)[0.45] == 0
+      assert asks.(scored([rival]), clarify_v2: true)[0.45] == 0
+
+      # A 0.75 buy is an act on today's act_min 0.70, and an ask on v2's 0.80.
+      assert asks.(scored([goods]), [])[0.45] == 0
+      assert asks.(scored([goods]), clarify_v2: true)[0.45] == 1
+    end
   end
 
   describe "self-check" do
