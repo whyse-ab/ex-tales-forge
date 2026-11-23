@@ -97,7 +97,7 @@ This app keeps two tokens for the link to Workflow:
 ## 4. Deploy
 
 Normally you don't run `fly deploy` by hand. A push to `main` that passes CI is classified by
-`.github/workflows/deploy-lanes.yml` (hobby mode, [docs/hobby-mode.md](hobby-mode.md) step 1).
+`.github/workflows/deploy-lanes.yml` (hobby mode, `docs/hobby-mode.md` step 1).
 Playtest is no longer deployed automatically (see [Playtest environment](#playtest-environment)).
 Whether production follows automatically depends on the merge's **deploy lane** (ex-tales-forge
 decision 2026-10-09 "A fast deploy lane for admin work" and 2026-10-11 "Security-bump lane"):

@@ -5,7 +5,7 @@ updated: 2026-11-23
 
 # Environments and how changes reach production
 
-Status 2026-11-23: **production** is live. **Playtest** is still up, but a merge to `main` no longer deploys it automatically (hobby mode, [hobby-mode.md](hobby-mode.md) step 1; `playtest.yml` is started only by hand). **Production** for a normal merge is a separate, manual step after Fredrik has OK'd it. Admin-only merges go straight to production ([decision 2026-10-09](decisions.md#2026-10-09-a-fast-deploy-lane-for-admin-work), [#107](https://github.com/whyse-ab/ex-tales-forge/pull/107), merged; see [Deploy lanes](#deploy-lanes-admin-work-goes-straight-to-production)). Lock-only bumps that fix a published advisory take the security lane ([decision 2026-10-11](decisions.md#2026-10-11-security-bump-lane); see [Security lane](#security-lane-advisory-fixes-ship-without-a-founder-ok)). PR previews are decided but not built yet.
+Status 2026-11-23: **production** is live. **Playtest** is still up, but a merge to `main` no longer deploys it automatically (hobby mode, `docs/hobby-mode.md` step 1; `playtest.yml` is started only by hand). **Production** for a normal merge is a separate, manual step after Fredrik has OK'd it. Admin-only merges go straight to production ([decision 2026-10-09](decisions.md#2026-10-09-a-fast-deploy-lane-for-admin-work), [#107](https://github.com/whyse-ab/ex-tales-forge/pull/107), merged; see [Deploy lanes](#deploy-lanes-admin-work-goes-straight-to-production)). Lock-only bumps that fix a published advisory take the security lane ([decision 2026-10-11](decisions.md#2026-10-11-security-bump-lane); see [Security lane](#security-lane-advisory-fixes-ship-without-a-founder-ok)). PR previews are decided but not built yet.
 
 ## Branches
 
@@ -31,7 +31,7 @@ Region is `arn` (Stockholm) for all three. The `tales-forge.ai` domain stays on 
 
 ## How a change gets to production
 
-Hobby mode, 2026-11-23 ([hobby-mode.md](hobby-mode.md)): production is the live environment. Playtest is no longer deployed automatically.
+Hobby mode, 2026-11-23 (`docs/hobby-mode.md`): production is the live environment. Playtest is no longer deployed automatically.
 
 1. Push a branch and open a PR. GitHub Actions runs the two required jobs: **`Test`** (compile with warnings as errors, format check, Credo strict, the code health ratchet `mix health.check`, tests with coverage, the docs build and `mix hex.audit`) and **`Dialyzer`**.
 2. Later (not built yet), a preview app also starts for the PR, with its link posted on the PR.
