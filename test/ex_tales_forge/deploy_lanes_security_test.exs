@@ -291,7 +291,11 @@ defmodule TalesForge.DeployLanes.SecurityTest do
       lock = fixture("neighbors.lock")
 
       assert SecurityAudit.unlock_neighbors(lock, "phoenix") == ["phoenix", "phoenix_pubsub"]
-      assert SecurityAudit.unlock_neighbors(lock, "phoenix_pubsub") == ["phoenix", "phoenix_pubsub"]
+
+      assert SecurityAudit.unlock_neighbors(lock, "phoenix_pubsub") == [
+               "phoenix",
+               "phoenix_pubsub"
+             ]
     end
 
     test "reaches_patched?/3 is inclusive SemVer and ignores missing packages" do
