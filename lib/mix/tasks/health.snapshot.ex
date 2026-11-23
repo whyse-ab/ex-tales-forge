@@ -198,6 +198,7 @@ defmodule Mix.Tasks.Health.Snapshot do
   @w 920
   @h 420
   @pad %{l: 48, r: 170, t: 48, b: 40}
+  @plot_h @h - @pad.t - @pad.b
   # The least room between two x-axis names on one line.
   @label_gap 36
 
@@ -268,7 +269,7 @@ defmodule Mix.Tasks.Health.Snapshot do
   end
 
   defp x(g, i), do: @pad.l + i * g.slot + (g.slot - g.bar) / 2
-  defp y(g, v), do: @pad.t + (@h - @pad.t - @pad.b) * (1 - v / g.top)
+  defp y(g, v), do: @pad.t + @plot_h * (1 - v / g.top)
 
   defp grid(%{top: top} = g) do
     Enum.map_join(0..top//div(top, 4), "\n", fn v ->
@@ -280,15 +281,11 @@ defmodule Mix.Tasks.Health.Snapshot do
   # Every bar is drawn; only the labelled bars (`labelled/1`) show their
   # segment numbers and the total on top.
   defp bar({{row, segs}, i}, g) do
-    rects =
-      for(
-        {{k, _, color}, {from, to}} <- Enum.zip(@segments, segs),
-        to > from,
-        do: segment(g, i, row[k], color, {from, to})
-      )
-      |> Enum.join()
-
-    rects <> bar_total(g, i, total(row))
+    Enum.join(
+      for {{k, _, color}, {from, to}} <- Enum.zip(@segments, segs),
+          to > from,
+          do: segment(g, i, row[k], color, {from, to})
+    ) <> bar_total(g, i, total(row))
   end
 
   # The bold total on top of bar i, when the bar is labelled.
