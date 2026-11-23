@@ -78,7 +78,6 @@ defmodule TalesForge.DeployLanes.SecurityTest do
   end
 
   describe "check/1 falls back to normal" do
-
     test "extra files" do
       result = Security.check(input(files: ["mix.lock", "lib/ex_tales_forge/game/turn.ex"]))
       assert result.lane == :normal
