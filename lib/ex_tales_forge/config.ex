@@ -145,8 +145,11 @@ defmodule TalesForge.Config do
   Jev clarify bands v2 (`TalesForge.Game.IntentClarification.defaults/1`):
   act_min 0.80, ask_below 0.45, raw ask_below 0.30, runner_up 0.40.
   JEV_CLARIFY_V2=on. Default off on prod and eval. With the flag off, the
-  bands stay at today's 0.70 / 0.45 / 0.45 / 0.25. Turning this on in
-  production is a founder decision after merge; it is not set in fly.toml.
+  bands stay at today's 0.70 / 0.45 / 0.45 / 0.25. When the flag is on,
+  the v2 set is used as-is; INTENT_ACT_MIN_CONFIDENCE,
+  INTENT_ASK_BELOW_CONFIDENCE and INTENT_ASK_BELOW_RAW_CONFIDENCE do not
+  apply. Turning this on in production is a founder decision after merge;
+  it is not set in fly.toml.
   """
   @spec jev_clarify_v2?() :: boolean()
   def jev_clarify_v2?, do: on?("JEV_CLARIFY_V2")
