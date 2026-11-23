@@ -2,8 +2,10 @@
 # "Off-hours security fixes"; Fredrik, 2026-10-27). Outside working hours a fix
 # for a high or critical dependency advisory ships without a founder OK.
 #
-# security-lane.yml merges a qualifying security-fix PR at night. playtest.yml
-# deploys the merge to playtest like any other. Gentry plays it, and the
+# security-lane.yml merges a qualifying security-fix PR at night. Playtest is
+# no longer deployed automatically (hobby mode; playtest.yml is manual only),
+# so Gentry may not see a new playtest build until that workflow is started
+# by hand. When Gentry plays a build, the
 # gentry-qa GitHub App posts the commit status qa/gentry-go = success on that
 # sha. The status starts this workflow (an App's status starts workflows;
 # GITHUB_TOKEN's would not; `status` runs main's copy of this file):

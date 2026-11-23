@@ -96,18 +96,19 @@ This app keeps two tokens for the link to Workflow:
 
 ## 4. Deploy
 
-Normally you don't run `fly deploy` by hand. A push to `main` that passes CI deploys to
-**playtest** first (see [Playtest environment](#playtest-environment)). Whether production
-follows automatically depends on the merge's **deploy lane** (ex-tales-forge decision
-2026-10-09 "A fast deploy lane for admin work" and 2026-10-11 "Security-bump lane"):
+Normally you don't run `fly deploy` by hand. A push to `main` that passes CI is classified by
+`.github/workflows/deploy-lanes.yml` (hobby mode, [docs/hobby-mode.md](hobby-mode.md) step 1).
+Playtest is no longer deployed automatically (see [Playtest environment](#playtest-environment)).
+Whether production follows automatically depends on the merge's **deploy lane** (ex-tales-forge
+decision 2026-10-09 "A fast deploy lane for admin work" and 2026-10-11 "Security-bump lane"):
 
 | Lane | When | Playtest | Production |
 |------|------|----------|------------|
-| **admin** | Every file the merge changed, and every file changed since the commit production runs, is on the `[admin]` list in `.github/deploy-lanes.txt` (surveys, costs, playtest admin pages, `/team`) | Automatic | Automatic, right after playtest: no Gentry/batch gate, no prod OK |
-| **security** | A merged PR that changes only `mix.lock` (and version pins in `mix.exs` deps), keeps every package in its major version, has the label `security` or the title prefix `security:` and an advisory id (CVE, GHSA, EEF-CVE), with green CI; production would get nothing else | Automatic, then a smoke check | Automatic after a green smoke check, for exactly that sha; Bobby tells the founders |
-| **normal** | Anything else: game engine code, shared code (sign-in, Repo and migrations, config, AICalls, `mix.exs`/deps, the router, CI), docs, a mixed merge, unknown files, or an unknown production commit | Automatic | After Gentry and the playtest batch, a founder's Approve ships it |
+| **admin** | Every file the merge changed, and every file changed since the commit production runs, is on the `[admin]` list in `.github/deploy-lanes.txt` (surveys, costs, playtest admin pages, `/team`) | Manual only (`playtest.yml` by hand, while the machines are up) | Automatic, straight to production: no Gentry/batch gate, no prod OK |
+| **security** | A merged PR that changes only `mix.lock` (and version pins in `mix.exs` deps) of existing Hex packages (major version bumps are allowed; adding or removing a package, or a git ref, is not this lane), has the label `security` or the title prefix `security:` and an advisory id (CVE, GHSA, EEF-CVE), with green CI; production would get nothing else | Manual only | Automatic, for exactly that sha, through `production-security` at all hours; smoke check on production, rollback on failure; Bobby tells the founders |
+| **normal** | Anything else: game engine code, shared code (sign-in, Repo and migrations, config, AICalls, `mix.exs`/deps, the router, CI), docs, a mixed merge, unknown files, or an unknown production commit | Manual only | A founder's Approve ships it (`production` reviewer gate) |
 
-`.github/workflows/playtest.yml` picks the lane after its playtest deploy
+`.github/workflows/deploy-lanes.yml` picks the lane after a green CI run on `main`
 (`elixir .github/scripts/deploy_lane.exs`, logic in `TalesForge.DeployLanes`) and writes it,
 with the files that decided it, to the run summary. "Since production" is measured against the
 tag `deployed/production`, which every successful production deploy moves to its sha; without
@@ -121,8 +122,8 @@ elixir .github/scripts/deploy_lane.exs --sha <merge sha> --production <sha produ
 ```
 
 The admin lane's production deploy is `.github/workflows/deploy-production.yml` called from
-playtest.yml: the same "Verify commit" job, and inside the `deploy-prod` concurrency group it
-deploys only if the sha is still the tip of main (the playtest tip guard) and production still
+deploy-lanes.yml: the same "Verify commit" job, and inside the `deploy-prod` concurrency group it
+deploys only if the sha is still the tip of main (the same tip guard) and production still
 runs the commit the lane was picked against; otherwise it skips with a notice. CI's
 "Admin boundary" step (`mix deploy.check_boundaries`) fails when game or shared code depends
 on an `[admin]` file.
@@ -142,16 +143,17 @@ Decision 2026-10-11 "Security-bump lane". The rules are in `TalesForge.DeployLan
    (lock only, same major, advisory reference, Test and Dialyzer green) with the rules from
    `main`, and squash-merges the PR for exactly its head sha (`--match-head-commit`). When a rule
    fails, the summary shows PASS or FAIL for each rule and the PR takes the normal lane.
-3. **Deploy:** the push to `main` runs CI, then playtest.yml. It checks the rules again on the
-   merge, plus one more: everything since `deployed/production` is a lock bump within the major
-   version or an `[admin]` file. Then "Smoke check" tests playtest
+3. **Deploy:** the push to `main` runs CI, then deploy-lanes.yml. It checks the rules again on
+   the merge, plus one more: everything since `deployed/production` is a lock bump of existing
+   Hex packages (major bumps allowed) or an `[admin]` file. Then "Production (security lane)"
+   starts deploy-production.yml with `lane=security`: the same "Verify commit" job and the same
+   tip-of-main and production-unchanged guard as the admin lane. The deploy job always runs in
+   the environment `production-security` (no reviewer, branch `main` only), at all hours, and
+   only for a run on `main`. Normal and admin deploys keep the `production` environment and its
+   reviewer gate. After the deploy, "Smoke check" tests production
    (`.github/scripts/smoke_check.py`: `/health`, the signed-out redirect, the sign-in page and a
-   LiveView mount over the websocket; no game turn, because a turn calls the LLM). A green smoke
-   check starts "Production (security lane)", deploy-production.yml with `lane=security`: the
-   same "Verify commit" job and the same tip-of-main and production-unchanged guard as the
-   admin lane. Outside working hours (Mon–Fri 08:00–18:00 Stockholm) and only for a run on
-   `main`, the deploy job runs in the environment `production-security` (no reviewer, branch
-   `main` only); in working hours it runs in `production` and waits for Fredrik's approval.
+   LiveView mount over the websocket; no game turn, because a turn calls the LLM). A failed
+   smoke check rolls production back to `deployed/production-previous` (lane `security-rollback`).
    Before `deployed/production` moves, its old value goes to the tag
    `deployed/production-previous`, the target of the `security-rollback` lane (workflow_call
    only, no caller yet).
@@ -181,15 +183,15 @@ under `docs/`) or the **health-history** PR, nothing it changes is on `[founder]
 `.github/workflows/security-lane.yml` checks this after CI with the rules from `main`
 (`TalesForge.DeployLanes.Auto`, `elixir .github/scripts/auto_lane.exs`) and merges with
 `gh pr merge --squash --match-head-commit <sha>`. Everything else waits for a founder. The auto
-lane only merges: the deploy that follows is the normal lane (playtest, then a founder's Approve).
+lane only merges: the deploy that follows is the normal lane (a founder's Approve).
 
 Dry runs, which never merge: `gh workflow run security-lane.yml -f pr=<number>` (merging needs
 `-f dry_run=false`), or locally over merged PRs:
 `elixir .github/scripts/auto_lane.exs history --prs prs.json`.
 
 Normal lane: production is the manual GitHub Actions workflow
-`.github/workflows/deploy-production.yml` ("Deploy to production"), started once the build has
-been checked on playtest and Fredrik has OK'd it:
+`.github/workflows/deploy-production.yml` ("Deploy to production"), started once Fredrik has
+OK'd the build:
 
 ```bash
 gh workflow run deploy-production.yml -R whyse-ab/ex-tales-forge -f sha=<full 40-character sha on main>
@@ -212,7 +214,7 @@ fly deploy --remote-only --depot=false -a tales-forge --ha=false
 
 `release_command` runs `/app/bin/migrate` (Ecto migrations) before the new machines take traffic.
 
-The CI deploys (`playtest.yml`, `deploy-production.yml`) run `flyctl deploy` through `.github/scripts/fly_deploy.sh`. It sets `--wait-timeout 2m`, and when the release machine never starts (it stays in `created` on Fly's side, as happened twice on 2026-10-17), it deploys the same pushed image once more. A migration that runs long is bounded by `--release-command-timeout` (5m) and is not retried.
+The CI deploys (`playtest.yml` by hand, `deploy-production.yml`) run `flyctl deploy` through `.github/scripts/fly_deploy.sh`. It sets `--wait-timeout 2m`, and when the release machine never starts (it stays in `created` on Fly's side, as happened twice on 2026-10-17), it deploys the same pushed image once more. A migration that runs long is bounded by `--release-command-timeout` (5m) and is not retried.
 
 Notes from the first deploy:
 
@@ -234,18 +236,14 @@ shared-cpu-1x 512MB, 1GB volume, always on). Config: `fly.playtest.toml` (same a
 apart from app name, `PHX_HOST`, memory and `swap_size_mb = 512`: at 512MB without swap the BEAM
 is OOM-killed during boot).
 
-Deploys: `.github/workflows/playtest.yml` deploys main to playtest after every green CI run on
-main (playtest is the first stop; production follows automatically for an admin-lane merge and
-by hand otherwise, see [Deploy](#4-deploy)) and on
-demand (Actions → "Deploy to playtest" → Run workflow, or
-`gh workflow run playtest.yml -f sha=<sha>`; no sha = the tip of main).
+Deploys: `.github/workflows/playtest.yml` is started only by hand (hobby mode; Actions →
+"Deploy to playtest" → Run workflow, or `gh workflow run playtest.yml -f sha=<sha>`; no sha =
+the tip of main). Admin and security merges go straight to production through
+`deploy-lanes.yml` (see [Deploy](#4-deploy)); a normal merge waits for a founder's Approve.
 Right before deploying, the workflow fetches `origin/main` and deploys only if the commit is
-still the tip of main; otherwise it skips with a notice and the run still succeeds. CI runs can
-finish out of order when PRs merge close together, and this keeps playtest from going backwards
-(the tip gets its own deploy when its CI passes; if the tip's CI fails, playtest stays where it
-was). To deploy an older commit on purpose, run it by hand with
-`gh workflow run playtest.yml -f sha=<sha> -f force=true` (a run started by hand always takes
-the normal lane). Playtest deploys run one at a time
+still the tip of main; otherwise it skips with a notice and the run still succeeds. To deploy
+an older commit on purpose, run it by hand with
+`gh workflow run playtest.yml -f sha=<sha> -f force=true`. Playtest deploys run one at a time
 and are never cancelled mid-way.
 It uses the Actions secret `FLY_API_TOKEN_PLAYTEST`, a deploy token scoped to the playtest app
 (`fly tokens create deploy -a tales-forge-playtest`). It is a separate workflow, so a failed
