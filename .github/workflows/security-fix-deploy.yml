@@ -1,11 +1,12 @@
 # The security-fix lane's deploy (AGENTS.md rule 2 carve-out; docs/environments.md
 # "Off-hours security fixes"; Fredrik, 2026-10-27 and 2026-11-23). A fix for a
 # high or critical dependency advisory ships without a founder OK. Merge is still
-# outside working hours (security-lane.yml). The deploy starts after the playtest
-# smoke check, at any hour.
+# outside working hours (security-lane.yml). The deploy starts after a green CI
+# run on main, at any hour, when deploy-lanes.yml calls this workflow. There is
+# no playtest smoke check and no Gentry GO (hobby mode; Fredrik, 2026-11-23).
 #
-# security-lane.yml merges a qualifying security-fix PR at night. playtest.yml
-# deploys the merge to playtest, runs the smoke check, and calls this workflow
+# security-lane.yml merges a qualifying security-fix PR at night.
+# deploy-lanes.yml picks the lane after CI and calls this workflow
 # (workflow_call) with that sha:
 #   1. guard: TalesForge.DeployLanes.SecurityFix from main's checkout
 #      (.github/scripts/security_fix.exs deploy), diffing production

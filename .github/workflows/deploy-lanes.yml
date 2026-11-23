@@ -1,0 +1,324 @@
+# After a green CI run for a push to main, pick the merge's DEPLOY LANE and
+# send admin and security merges straight to production (hobby mode,
+# docs/hobby-mode.md step 1). Playtest is no longer deployed automatically;
+# a manual playtest deploy remains in playtest.yml until those machines are
+# stopped.
+#
+# Only the commit CI tested is considered, and only if it is still the tip of
+# main. CI runs can finish out of order when several PRs merge close together;
+# without this check an older commit could be deployed on top of a newer one
+# (2026-10-09: e69790e (#93) went out after b873ad1 (#94)). A commit that is
+# no longer the tip is skipped with a notice (the run still succeeds); the
+# newer commit gets its own run when its CI passes.
+#
+# Lanes (.github/deploy-lanes.txt is the one list; .github/scripts/deploy_lane.exs
+# picks the lane and writes it to the run summary):
+#   admin   This merge, and everything production would get (the files changed
+#           since the tag deployed/production), are all on the [admin] list
+#           (surveys, costs, playtest admin, /team). "Production (admin lane)"
+#           calls deploy-production.yml, which runs the same "Verify commit"
+#           job and deploys only while the commit is still the tip of main.
+#           No Gentry/batch gate, no prod OK.
+#   security  A dependency bump that fixes a published advisory (decision
+#           2026-10-11 "Security-bump lane"; .github/scripts/security_lane.exs):
+#           the merged PR changes only mix.lock (and version pins in mix.exs)
+#           of existing Hex packages (major bumps allowed; adding or removing
+#           a package, or a git ref, is not this lane), the PR has the label
+#           `security` or the title prefix `security:` and an advisory id, CI
+#           is green, and production would get nothing else. "Production
+#           (security lane)" deploys this sha through deploy-production.yml,
+#           then "Smoke check" tests production (.github/scripts/smoke_check.py).
+#           A failed smoke check rolls production back to
+#           deployed/production-previous (lane security-rollback). "Notify
+#           Bobby" posts to SECURITY_LANE_WEBHOOK_URL when that secret is set.
+#           The deploy uses the unprotected production-security environment
+#           at all hours.
+#   security-fix  A high or critical advisory fix with the label `security-fix`
+#           that the security lane does not take (merged at night by
+#           security-lane.yml). "Production (security-fix lane)" calls
+#           security-fix-deploy.yml, which re-checks the guard, deploys
+#           through production-security at all hours, smokes production, and
+#           rolls back on failure. No founder OK, no Gentry GO.
+#   normal  Anything else (game, shared, CI, docs, a mixed merge, an unknown
+#           production commit): no automatic deploy. Production follows when
+#           a founder starts deploy-production.yml.
+#
+# Needs FLY_API_TOKEN as an environment secret on production and
+# production-security (passed by name into deploy-production.yml). Optional:
+# SECURITY_LANE_WEBHOOK_URL and SECURITY_LANE_WEBHOOK_KEY (the security lane's
+# note to Bobby).
+name: Deploy lanes
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  # Keep in sync with ci.yml and the Dockerfile. The lane job only needs plain
+  # `elixir` (no deps, no compile).
+  ELIXIR_VERSION: "1.18.4"
+  OTP_VERSION: "27.3.4.16"
+
+jobs:
+  lane:
+    name: Deploy lane
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      deploy: ${{ steps.tip.outputs.deploy }}
+      sha: ${{ steps.tip.outputs.sha }}
+      lane: ${{ steps.out.outputs.lane || 'normal' }}
+      advisories: ${{ steps.security.outputs.advisories }}
+      pr: ${{ steps.pr.outputs.number }}
+      production: ${{ steps.prod.outputs.sha }}
+    steps:
+      # Full history: the lane diffs against the commit production runs.
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      # Consider only the current tip of main, checked before the lane is
+      # used to start a production deploy.
+      - name: Still the tip of main?
+        id: tip
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse HEAD)"
+          git fetch --no-tags --depth=1 origin main
+          main_sha="$(git rev-parse FETCH_HEAD)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          if [ "$sha" = "$main_sha" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            echo "$sha is the tip of main; picking the deploy lane."
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            msg="Skipped: $sha is not the tip of main (main is at $main_sha); an older merge is not deployed after a newer one."
+            echo "::notice title=Deploy lanes skipped::$msg"
+            echo "$msg" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: The commit production runs (tag deployed/production)
+        id: prod
+        if: steps.tip.outputs.deploy == 'true'
+        run: |
+          set -euo pipefail
+          git fetch --force origin "+refs/tags/deployed/production:refs/tags/deployed/production" 2>/dev/null || true
+          echo "sha=$(git rev-parse -q --verify 'refs/tags/deployed/production^{commit}' || true)" >> "$GITHUB_OUTPUT"
+
+      - uses: erlef/setup-beam@v1
+        if: steps.tip.outputs.deploy == 'true'
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+
+      # Writes lane=admin|normal to the step output and the reasons (file lists)
+      # to the run summary. Any error leaves the lane normal.
+      - name: Pick the lane
+        id: pick
+        if: steps.tip.outputs.deploy == 'true'
+        env:
+          SHA: ${{ steps.tip.outputs.sha }}
+          PRODUCTION: ${{ steps.prod.outputs.sha }}
+        run: elixir .github/scripts/deploy_lane.exs --sha "$SHA" --production "$PRODUCTION"
+
+      # Not admin: is it a security bump? Reads the PR that the merge came from
+      # (title, body, labels). Any error leaves the lane normal.
+      - name: The pull request of this merge
+        id: pr
+        if: steps.tip.outputs.deploy == 'true' && steps.pick.outputs.lane != 'admin'
+        env:
+          SHA: ${{ steps.tip.outputs.sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          number="$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/pulls" \
+            --jq '[.[] | select(.merged_at != null and .base.ref == "main")][0].number // empty')"
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          if [ -n "$number" ]; then
+            gh pr view "$number" -R "$GITHUB_REPOSITORY" --json title,body,labels > "$RUNNER_TEMP/pr.json"
+          else
+            echo "No merged pull request found for $SHA: the security lane does not apply." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Security lane?
+        id: security
+        if: steps.pr.outputs.number != ''
+        continue-on-error: true
+        env:
+          SHA: ${{ steps.tip.outputs.sha }}
+          PRODUCTION: ${{ steps.prod.outputs.sha }}
+        run: |
+          elixir .github/scripts/security_lane.exs main --sha "$SHA" --production "$PRODUCTION" \
+            --pr "$RUNNER_TEMP/pr.json" --ci success
+
+      # A security-fix merge that the lock-only security lane did not take.
+      # The deploy guard in security-fix-deploy.yml re-checks the full rules.
+      - name: Security-fix lane?
+        id: fix
+        if: steps.pr.outputs.number != '' && steps.security.outputs.lane != 'security'
+        run: |
+          set -euo pipefail
+          if jq -e '.labels | map(.name) | index("security-fix")' "$RUNNER_TEMP/pr.json" >/dev/null; then
+            echo "lane=security-fix" >> "$GITHUB_OUTPUT"
+            echo "Security-fix lane: the merged PR has the label security-fix." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Lane
+        id: out
+        if: steps.tip.outputs.deploy == 'true'
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.security.outputs.lane }}" = security ]; then
+            echo "lane=security" >> "$GITHUB_OUTPUT"
+          elif [ "${{ steps.fix.outputs.lane }}" = security-fix ]; then
+            echo "lane=security-fix" >> "$GITHUB_OUTPUT"
+          else
+            echo "lane=${{ steps.pick.outputs.lane || 'normal' }}" >> "$GITHUB_OUTPUT"
+          fi
+
+  production:
+    name: Production (admin lane)
+    needs: lane
+    if: needs.lane.outputs.deploy == 'true' && needs.lane.outputs.lane == 'admin'
+    permissions:
+      contents: write
+      checks: read
+      actions: read
+    uses: ./.github/workflows/deploy-production.yml
+    with:
+      sha: ${{ needs.lane.outputs.sha }}
+      lane: admin
+      production_base: ${{ needs.lane.outputs.production }}
+    secrets:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  production-security:
+    name: Production (security lane)
+    needs: lane
+    if: needs.lane.outputs.deploy == 'true' && needs.lane.outputs.lane == 'security'
+    permissions:
+      contents: write
+      checks: read
+      actions: read
+    uses: ./.github/workflows/deploy-production.yml
+    with:
+      sha: ${{ needs.lane.outputs.sha }}
+      lane: security
+      production_base: ${{ needs.lane.outputs.production }}
+    secrets:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  # Guard, production deploy, production smoke, and rollback on failure.
+  # Notify is inside that workflow. No playtest smoke (hobby mode).
+  production-security-fix:
+    name: Production (security-fix lane)
+    needs: lane
+    if: needs.lane.outputs.deploy == 'true' && needs.lane.outputs.lane == 'security-fix'
+    permissions:
+      contents: write
+      checks: read
+      actions: read
+      pull-requests: read
+    uses: ./.github/workflows/security-fix-deploy.yml
+    with:
+      sha: ${{ needs.lane.outputs.sha }}
+    secrets:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      SECURITY_LANE_WEBHOOK_URL: ${{ secrets.SECURITY_LANE_WEBHOOK_URL }}
+      SECURITY_LANE_WEBHOOK_KEY: ${{ secrets.SECURITY_LANE_WEBHOOK_KEY }}
+
+  smoke:
+    name: Smoke check (security lane)
+    needs: [lane, production-security]
+    if: needs.production-security.outputs.deployed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.lane.outputs.sha }}
+
+      # /health, the public pages and a real LiveView mount (websocket join) on
+      # production. No game turn: a turn calls the LLM, which costs money.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Smoke check production
+        run: |
+          pip install --quiet websockets==15.0.1
+          python3 .github/scripts/smoke_check.py https://tales-forge.fly.dev
+
+  rollback:
+    name: Roll back production (security-rollback lane)
+    needs: [lane, production-security, smoke]
+    if: always() && needs.production-security.outputs.deployed == 'true' && needs.smoke.result == 'failure'
+    permissions:
+      contents: write
+      checks: read
+      actions: read
+    uses: ./.github/workflows/deploy-production.yml
+    with:
+      sha: ${{ needs.lane.outputs.production }}
+      lane: security-rollback
+      production_base: ${{ needs.lane.outputs.sha }}
+    secrets:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  # The founders' note: Bobby gets a signed POST. Skipped when
+  # SECURITY_LANE_WEBHOOK_URL is not set.
+  notify:
+    name: Notify Bobby (security lane)
+    needs: [lane, production-security, smoke, rollback]
+    if: always() && needs.production-security.outputs.deployed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: POST to SECURITY_LANE_WEBHOOK_URL
+        env:
+          URL: ${{ secrets.SECURITY_LANE_WEBHOOK_URL }}
+          KEY: ${{ secrets.SECURITY_LANE_WEBHOOK_KEY }}
+          SHA: ${{ needs.lane.outputs.sha }}
+          PR: ${{ needs.lane.outputs.pr }}
+          ADVISORIES: ${{ needs.lane.outputs.advisories }}
+          SMOKE: ${{ needs.smoke.result }}
+          ROLLED_BACK: ${{ needs.rollback.outputs.deployed == 'true' }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ -z "$URL" ]; then
+            echo "SECURITY_LANE_WEBHOOK_URL is not set: no note to Bobby. Tell the founders by hand." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          title="$(gh pr view "$PR" -R "$GITHUB_REPOSITORY" --json title --jq .title 2>/dev/null || true)"
+          if [ "$SMOKE" != "success" ]; then
+            event=security_lane.smoke_failed
+          else
+            event=security_lane.deployed
+          fi
+          if [ "$ROLLED_BACK" = "true" ]; then event=security_lane.rolled_back; fi
+          body="$(jq -cn --arg event "$event" --arg sha "$SHA" --arg pr "$PR" --arg title "$title" --arg adv "$ADVISORIES" \
+            --arg run "$RUN_URL" --arg repo "$GITHUB_REPOSITORY" --arg smoke "$SMOKE" --argjson rolled "$ROLLED_BACK" \
+            '{event: $event, repo: $repo, sha: $sha, pr: ($pr | tonumber? // null),
+              pr_title: $title, pr_url: ("https://github.com/" + $repo + "/pull/" + $pr),
+              advisories: ($adv | split(" ") | map(select(. != ""))), run_url: $run, smoke: $smoke,
+              rolled_back: $rolled,
+              note: "Security bump deployed to production without a playtest stop (hobby mode). Tell the founders."}')"
+          ts="$(date +%s)"
+          headers=(-H "Content-Type: application/json" -H "X-Security-Lane-Timestamp: $ts")
+          if [ -n "$KEY" ]; then
+            sig="$(printf '%s.%s' "$ts" "$body" | openssl dgst -sha256 -hmac "$KEY" -r | cut -d' ' -f1)"
+            headers+=(-H "Authorization: Bearer $KEY" -H "X-Security-Lane-Signature: sha256=$sig")
+          fi
+          curl -fsS --retry 3 --max-time 20 "${headers[@]}" -d "$body" "$URL"
+          echo "Bobby notified (SECURITY_LANE_WEBHOOK_URL) about \`$SHA\` (PR #$PR, $ADVISORIES, event $event, smoke $SMOKE)." >> "$GITHUB_STEP_SUMMARY"

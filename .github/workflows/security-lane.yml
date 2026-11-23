@@ -12,9 +12,9 @@
 #   4. CI is green (Test and Dialyzer on the head sha),
 # this workflow squash-merges it for exactly that head sha
 # (`gh pr merge --squash --match-head-commit`). The push to main then runs CI
-# and playtest.yml, which checks the same rules again on the merge, deploys
-# playtest, runs the smoke check, deploys production for that sha
-# (environment production-security, at all hours) and notifies Bobby.
+# and deploy-lanes.yml, which checks the same rules again on the merge,
+# deploys production for that sha (environment production-security, at all
+# hours), smokes production, rolls back on failure, and notifies Bobby.
 #
 # The security-fix lane (AGENTS.md rule 2 carve-out; TalesForge.DeployLanes.SecurityFix,
 # .github/scripts/security_fix.exs merge): a mix.lock PR the security lane does
@@ -22,8 +22,8 @@
 # Mon-Fri 08:00-18:00 Stockholm, CI is green, it changes at most 10 files and
 # 300 lines and no founder path but mix.exs/mix.lock, and a high or critical
 # OSV advisory at the base version is gone at the head version.
-# playtest.yml deploys it to playtest, runs the smoke check, and calls
-# security-fix-deploy.yml (environment production-security, at all hours).
+# deploy-lanes.yml then calls security-fix-deploy.yml (environment
+# production-security, at all hours; production smoke, rollback on failure).
 #
 # When a rule fails, the PR takes the normal lane (a founder's Approve). The
 # run summary lists every rule with PASS or FAIL. PRs that do not change
@@ -272,4 +272,4 @@ jobs:
             exit 0
           fi
           gh pr merge "$PR" -R "$GITHUB_REPOSITORY" --squash --match-head-commit "$HEAD"
-          echo "Merged PR #$PR ($LANE lane, squash, head \`$HEAD\`). playtest.yml deploys it after CI on main." >> "$GITHUB_STEP_SUMMARY"
+          echo "Merged PR #$PR ($LANE lane, squash, head \`$HEAD\`). deploy-lanes.yml ships a security, security-fix or admin merge after CI on main." >> "$GITHUB_STEP_SUMMARY"
