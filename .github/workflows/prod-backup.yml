@@ -123,6 +123,7 @@ jobs:
             sleep 2
           done
 
+          PGOPTIONS='-c default_transaction_read_only=on' \
           PGPASSFILE="$passfile" pg_dump -Fc --no-password \
             -h 127.0.0.1 -p 15432 -U "$PROD_PGUSER" -d "$PROD_PGDATABASE" -f "$dump"
           age -r "$BACKUP_AGE_RECIPIENT" -o "$encrypted" "$dump"
