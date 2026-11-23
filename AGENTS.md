@@ -29,7 +29,7 @@ Fredrik asks or an on-call alert fires.
    gh workflow run deploy-production.yml -R whyse-ab/ex-tales-forge -f sha=<full 40-character sha>
    ```
 
-   The security, security-fix and security-rollback lanes deploy through the `production-security` environment at all hours, after the smoke check, with no Gentry go. Admin, security and security-fix merges go straight to production through `deploy-lanes.yml` after green CI (hobby mode; `playtest.yml` is manual only). Normal deploys use the `production` environment and its reviewer gate.
+   The security, security-fix and security-rollback lanes deploy through the `production-security` environment at all hours, with no Gentry go: first the deploy, then a production smoke check, then a rollback if that check fails. Admin, security and security-fix merges go straight to production through `deploy-lanes.yml` after green CI (hobby mode; `playtest.yml` is manual only). Normal deploys use the `production` environment and its reviewer gate.
 5. **Fly writes** (secrets, scale, stop, delete) need Fredrik's own OK in chat. Deletes are a separate ask. Secret names only, never values (`docs/fly-secrets.md`).
 
 ```bash
