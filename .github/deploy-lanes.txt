@@ -2,30 +2,30 @@
 #
 # Decision 2026-10-09 (Fredrik, ex-tales-forge docs/decisions.md "A fast
 # deploy lane for admin work"). Read by TalesForge.DeployLanes:
-#   - .github/workflows/playtest.yml picks the lane of each merge to main
-#     (.github/scripts/deploy_lane.exs),
+#   - .github/workflows/deploy-lanes.yml picks the lane of each merge to main
+#     (.github/scripts/deploy_lane.exs) and sends admin and security merges
+#     straight to production (hobby mode; playtest.yml is manual only),
 #   - `mix deploy.check_boundaries` (CI Test job) fails when game or shared code
 #     depends on an [admin] file,
 #
 # Lanes:
 #   admin   Every file changed since the commit production runs is on [admin]:
-#           deploy to playtest AND production automatically (no Gentry/batch
+#           deploy straight to production automatically (no Gentry/batch
 #           gate, no prod OK). Production still goes through deploy-production.yml's
 #           "Verify commit" job and the tip-of-main guard.
 #   security  A dependency bump that fixes a published advisory (decision
 #           2026-10-11 "Security-bump lane"; TalesForge.DeployLanes.Security,
 #           .github/scripts/security_lane.exs). The PR changes only mix.lock (and
-#           version pins in mix.exs), the PR has the label `security` or the
-#           title prefix `security:` and an advisory id (CVE, GHSA, EEF-CVE),
-#           and CI is green. Only version bumps of existing hex packages
-#           qualify; a major bump takes the same path as a same-major one
-#           (Fredrik, 2026-11-23). Added or removed packages, and git refs,
-#           wait for a founder. security-lane.yml
-#           merges it; playtest.yml deploys playtest, runs the smoke check and
-#           deploys production for that sha, then notifies Bobby. No founder OK.
+#           version pins in mix.exs) of existing Hex packages (major bumps
+#           allowed; adding or removing a package, or a git ref, is not this
+#           lane), the PR has the label `security` or the title prefix
+#           `security:` and an advisory id (CVE, GHSA, EEF-CVE), and CI is green.
+#           security-lane.yml merges it; deploy-lanes.yml deploys production
+#           for that sha, smokes production, rolls back on failure, and
+#           notifies Bobby. Deploys through production-security at all hours.
 #           This file has no [security] section: the rules are in the module.
 #   normal  Anything else (game, shared, CI, docs, unknown files; a mixed merge):
-#           playtest first; a founder's Approve ships it to production.
+#           no automatic deploy; a founder's Approve ships it to production.
 #
 # Merging (docs/design-auto-merge.md): a pull request on [founder] below always
 # waits for a founder to review and merge it. Without one, a docs-only or
