@@ -211,8 +211,9 @@ jobs:
             echo "deploy=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git fetch --no-tags --depth=1 origin main
-          main_sha="$(git rev-parse FETCH_HEAD)"
+          # Do not `git fetch --depth=1`: it writes .git/shallow and hides parents
+          # (deploy-lanes run 45132632242).
+          main_sha="$(git ls-remote origin refs/heads/main | cut -f1)"
           current="$(git ls-remote origin refs/tags/deployed/production | cut -f1)"
           reason=""
           # A rollback goes back on purpose, so only the base must be unchanged.
@@ -274,6 +275,8 @@ jobs:
           echo "Deployed \`$SHA\` to production (tales-forge), lane: $LANE. Tag \`deployed/production\` moved to it." >> "$GITHUB_STEP_SUMMARY"
           # Not on a rollback: the bad build must not become the rollback target.
           if [ -n "$old" ] && [ "$old" != "$SHA" ] && [ "$LANE" != "security-rollback" ]; then
+            # This fetch makes the clone shallow, so it must stay the last git
+            # step; no step that diffs against a parent may go below it.
             if git fetch --no-tags --depth=1 origin "$old" && git push --force origin "$old:refs/tags/deployed/production-previous"; then
               echo "Tag \`deployed/production-previous\` moved to \`$old\` (the rollback target)." >> "$GITHUB_STEP_SUMMARY"
             else

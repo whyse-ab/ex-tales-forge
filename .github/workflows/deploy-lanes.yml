@@ -87,14 +87,15 @@ jobs:
           fetch-depth: 0
 
       # Consider only the current tip of main, checked before the lane is
-      # used to start a production deploy.
+      # used to start a production deploy. Do not `git fetch --depth=1`:
+      # that writes .git/shallow and hides the merge's parent, so
+      # "Pick the lane" cannot `git diff SHA^1 SHA` (run 45132632242).
       - name: Still the tip of main?
         id: tip
         run: |
           set -euo pipefail
           sha="$(git rev-parse HEAD)"
-          git fetch --no-tags --depth=1 origin main
-          main_sha="$(git rev-parse FETCH_HEAD)"
+          main_sha="$(git ls-remote origin refs/heads/main | cut -f1)"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           if [ "$sha" = "$main_sha" ]; then
             echo "deploy=true" >> "$GITHUB_OUTPUT"
