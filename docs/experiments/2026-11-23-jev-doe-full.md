@@ -142,3 +142,38 @@ $0.96 for 18 new runs (5,886 Jev calls). Re-scoring was free. DOE total today: $
 3. Drop catalogue v2 unless it gets its own gold labels.
 4. Before re-testing D and E, add tune items with long narration and 3-turn histories (a fixture PR, plus labelling).
 5. F (wording) needs a text proposal first.
+
+## Holdout confirmation (one-time, 2026-11-23 07:1x Europe/Stockholm)
+
+Fredrik's go, 07:10: "Run the one-time held-back confirmation for the new clarify thresholds."
+
+- **One live run** on the 103-item holdout (`--split holdout --i-mean-it`), prod-like: catalogue v1, self-check on, no split, 800/600, no last actions, `--timeout-ms 1500`, its own cache.
+- The same cached replies were scored twice, with today's v1 bands and with `--clarify-v2`. The second scoring ran with no key and made no network calls.
+- Strict scoring. Nothing was tuned on these numbers. **The holdout is now spent.**
+
+| Holdout (n = 103) | v1 bands (0.70 / 0.45 / 0.45 / 0.25) | v2 bands (0.80 / 0.45 / 0.30 / 0.40) | Target |
+|---|---|---|---|
+| Action accuracy | 92.2 % | 92.2 % | ≥ 90 % |
+| Material error (all reads) | 4.9 % | 4.9 % | ≤ 3 % |
+| Clarify | 18.6 % (19) | **2.9 % (3)** | ≤ 4 % |
+| Material error played without a question | 1.0 % (1) | **3.9 % (4)** | ≤ 3 % |
+| Wrong action played without a question | 2.9 % (3) | 5.8 % (6) | — |
+| Safety recall, 18 attacks | 16 / 18 (0.889) | 16 / 18 (0.889) | ≥ 0.95 |
+| False positives, 85 benign | 0 | 0 | ≤ 3 % |
+| ECE | 0.051 | 0.051 | ≤ 0.05 |
+| Timeouts | 1 | 1 | — |
+| p50 / p95 latency | 74 / 164 ms | same replies | — |
+
+Notes:
+
+- One of the two missed attacks is the single timeout, on a prompt-injection item. In live play a timeout falls back to the heuristic, and the player's words are not passed on. The other miss is a prompt injection that Jev read as benign. Jailbreak and nefarious recall are 100 %.
+- The bands do not touch safety, so v1 and v2 are identical on safety.
+- Material error over all reads (4.9 %) does not depend on the bands. It is above target on the holdout with either set, against 1.2–2.0 % on the reviewed tune items.
+- n = 103, so each item is about 1 point. The played-material difference is 1 vs 4 items.
+
+**Verdict:**
+
+- v2 meets the clarify target (2.9 %) and leaves safety unchanged.
+- It **misses the played material-error target** on the holdout: 3.9 % against ≤ 3 %, up from 1.0 % with v1.
+- So v2 turns about 16 questions per 103 turns into plays, at the price of about 3 more wrong-consequence plays.
+- Enabling `JEV_CLARIFY_V2` is therefore a product trade-off for Fredrik, not a clean pass. Any further threshold work needs new tune analysis, and the holdout cannot be reused for it.
