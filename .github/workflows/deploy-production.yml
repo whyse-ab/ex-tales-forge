@@ -23,9 +23,10 @@
 #
 # 3. Security lane, automatically (decision 2026-10-11 "Security-bump lane").
 #    playtest.yml calls this workflow with lane=security after the playtest
-#    deploy and a green smoke check, for a merged lock-only bump within the
-#    major version that fixes an advisory. Same "Verify commit" job and the
-#    same guard as the admin lane; no founder OK. The `deployed` output tells
+#    deploy and a green smoke check, for a merged lock-only bump (majors
+#    included; Fredrik, 2026-11-23) that fixes an advisory. Same "Verify commit"
+#    job and the same guard as the admin lane; no founder OK. The `deployed`
+#    output tells
 #    playtest.yml to notify Bobby.
 #
 # The "Verify commit" job refuses a sha that is not a full 40-character sha,
@@ -49,12 +50,14 @@
 # target.
 #
 # GitHub environment of the deploy job (picked by "Verify commit"):
-# - `production-security` for the security, security-fix and security-rollback lanes, but
-#   only outside working hours (Mon-Fri 08:00-18:00 Europe/Stockholm) and only
-#   for a run on main. It has no reviewer and allows only the branch main.
+# - `production-security` for the security lane on main, at all hours
+#   (Fredrik, 2026-11-23). Also for the security-fix and security-rollback
+#   lanes, but only outside working hours (Mon-Fri 08:00-18:00 Europe/Stockholm)
+#   and only for a run on main. It has no reviewer and allows only the branch
+#   main.
 # - `production` for everything else: by hand, the admin lane, and the
-#   security lanes during working hours. Its required reviewer (fpahlen)
-#   approves every such deploy; bots never approve it.
+#   security-fix and security-rollback lanes during working hours. Its required
+#   reviewer (fpahlen) approves every such deploy; bots never approve it.
 #
 # Needs FLY_API_TOKEN (a deploy token scoped to tales-forge) as an environment
 # secret on both environments. The caller still passes it by name: the job's
@@ -156,8 +159,9 @@ jobs:
           fi
           echo "Deploying $SHA (on main; Test and Dialyzer passed; playtest deploys found: $playtest)." >> "$GITHUB_STEP_SUMMARY"
 
-      # production-security has no reviewer, so it is used only when nobody is
-      # there to approve: security lanes, outside working hours, on main.
+      # production-security has no reviewer. The security lane uses it on main
+      # at all hours (Fredrik, 2026-11-23). security-fix and security-rollback
+      # still use it only outside working hours on main.
       - name: Pick the environment
         id: environment
         env:
@@ -168,7 +172,13 @@ jobs:
           day="$(TZ=Europe/Stockholm date +%u)"
           hour="$(TZ=Europe/Stockholm date +%H)"
           name=production
-          if [[ "$LANE" =~ ^security(-fix|-rollback)?$ ]]; then
+          if [ "$LANE" = "security" ]; then
+            if [ "$REF" != "refs/heads/main" ]; then
+              echo "::notice::$REF is not main: environment production."
+            else
+              name=production-security
+            fi
+          elif [[ "$LANE" =~ ^security-(fix|rollback)$ ]]; then
             if [ "$REF" != "refs/heads/main" ]; then
               echo "::notice::$REF is not main: environment production."
             elif [ "$day" -le 5 ] && [ "$((10#$hour))" -ge 8 ] && [ "$((10#$hour))" -lt 18 ]; then

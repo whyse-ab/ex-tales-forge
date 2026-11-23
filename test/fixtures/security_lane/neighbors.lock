@@ -1,0 +1,5 @@
+%{
+  "phoenix": {:hex, :phoenix, "1.8.9", "aaaa", [:mix], [{:phoenix_pubsub, "~> 2.1", [hex: :phoenix_pubsub, repo: "hexpm", optional: false]}, {:bandit, "~> 1.0", [hex: :bandit, repo: "hexpm", optional: true]}], "hexpm", "bbbb"},
+  "phoenix_pubsub": {:hex, :phoenix_pubsub, "2.2.0", "cccc", [:mix], [], "hexpm", "dddd"},
+  "bandit": {:hex, :bandit, "1.14.0", "eeee", [:mix], [], "hexpm", "ffff"},
+}
