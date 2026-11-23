@@ -92,6 +92,7 @@ defmodule TalesForge.Game.JevIntent do
   alias TalesForge.Locations.Named
 
   @action_chars 600
+  @narration_chars 800
   @max_candidates 48
 
   # Literal index labels for the candidate list (Credo: no atoms from input).
@@ -615,9 +616,17 @@ defmodule TalesForge.Game.JevIntent do
   @doc """
   The deterministic `state` sent to Jev: the scene the player can see, plus
   their text. A plain map; JSON encodes its keys sorted, so it is stable.
+
+  `opts` is used only by the eval harness (`TalesForge.IntentEval.JevOpts`):
+  `:narration_chars` (default 800, last N chars), `:player_chars` (default
+  600, first N chars of the player text), and `:last_actions` (default
+  false). When `:last_actions` is true, `"last_player_actions"` holds up to
+  the last 3 action strings from `context["recent_turns"]`. With defaults,
+  the map is identical to the two-argument form.
   """
   @spec state(map(), String.t()) :: map()
-  def state(context, text) do
+  @spec state(map(), String.t(), keyword()) :: map()
+  def state(context, text, opts \\ []) do
     %{
       "location" => context["location_name"] || context["location_id"],
       "location_blurb" => context["location_blurb"] || "",
@@ -626,10 +635,16 @@ defmodule TalesForge.Game.JevIntent do
       "exits" => list(context, "exits"),
       "inventory" => Enum.map(items(context, "player_inventory"), &item_name/1),
       "for_sale" => context |> for_sale() |> Enum.map(&item_name/1),
-      "last_narration" => last_narration(context),
-      "player_text" => text |> to_string() |> String.trim() |> String.slice(0, @action_chars)
+      "last_narration" =>
+        last_narration(context, Keyword.get(opts, :narration_chars, @narration_chars)),
+      "player_text" =>
+        text
+        |> to_string()
+        |> String.trim()
+        |> String.slice(0, Keyword.get(opts, :player_chars, @action_chars))
     }
     |> put_open_offer(context["open_offer"])
+    |> put_last_actions(context, Keyword.get(opts, :last_actions, false))
   end
 
   # The open offer, with its options, while one is open (only then: the
@@ -671,13 +686,30 @@ defmodule TalesForge.Game.JevIntent do
     |> Enum.flat_map(fn {_npc, list} -> Inventory.normalize_stock(list) end)
   end
 
-  defp last_narration(context) do
+  defp last_narration(context, chars) do
     context
     |> Map.get("last_narration")
     |> case do
-      text when is_binary(text) -> String.slice(text, -800, 800)
+      text when is_binary(text) -> String.slice(text, -chars, chars)
       _ -> ""
     end
+  end
+
+  defp put_last_actions(state, _context, false), do: state
+
+  defp put_last_actions(state, context, true) do
+    Map.put(state, "last_player_actions", last_player_actions(context))
+  end
+
+  defp last_player_actions(context) do
+    context
+    |> Map.get("recent_turns", [])
+    |> List.wrap()
+    |> Enum.flat_map(fn
+      %{"action" => action} when is_binary(action) and action != "" -> [action]
+      _ -> []
+    end)
+    |> Enum.take(-3)
   end
 
   @doc """

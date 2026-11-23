@@ -15,6 +15,7 @@ defmodule TalesForge.IntentEval.Readers do
 
   alias TalesForge.Game.{Intent, JevIntent, JevSelfCheck, SelfCheck}
   alias TalesForge.Game.Schemas.{IntentExtraction, SingleAction}
+  alias TalesForge.IntentEval.JevOpts
 
   @jev_model "jev-1.13.0"
   @default_timeout_ms 4_000
@@ -71,9 +72,8 @@ defmodule TalesForge.IntentEval.Readers do
   # --- jev ---------------------------------------------------------------------
 
   defp jev(item, context, jev_opts) do
-    candidates = JevIntent.candidates(context)
-    questions = JevSelfCheck.ask(JevIntent.questions(candidates))
-    state = JevIntent.state(context, item["text"])
+    %{candidates: candidates, state: state, questions: questions} =
+      request(context, item["text"], switches(jev_opts))
 
     post_opts =
       [
@@ -103,6 +103,44 @@ defmodule TalesForge.IntentEval.Readers do
   defp error_reason(%{status: status}) when is_integer(status), do: "http_#{status}"
   defp error_reason(%{reason: reason}), do: inspect(reason)
   defp error_reason(other), do: inspect(other.__struct__)
+
+  @doc """
+  The Jev request for an eval item: candidates, state and questions.
+
+  With `%TalesForge.IntentEval.JevOpts{}` defaults, this is the same request
+  as `JevIntent.state/2`, `JevIntent.questions/1` and `JevSelfCheck.ask/1`.
+  """
+  @spec request(map(), String.t(), JevOpts.t()) :: %{
+          candidates: [JevIntent.candidate()],
+          state: map(),
+          questions: keyword()
+        }
+  def request(context, text, switches \\ %JevOpts{}) do
+    candidates = JevIntent.candidates(context)
+
+    questions =
+      candidates
+      |> JevIntent.questions(JevIntent.catalogue(), switches.skill_split)
+      |> JevSelfCheck.ask()
+
+    state = JevIntent.state(context, text, state_opts(switches))
+    %{candidates: candidates, state: state, questions: questions}
+  end
+
+  defp switches(jev_opts) do
+    case Keyword.get(jev_opts, :switches) do
+      %JevOpts{} = switches -> switches
+      _other -> %JevOpts{}
+    end
+  end
+
+  defp state_opts(%JevOpts{} = switches) do
+    [
+      narration_chars: switches.narration_chars,
+      player_chars: switches.player_chars,
+      last_actions: switches.last_actions
+    ]
+  end
 
   # With a cache dir, a reply is stored under the SHA-256 of the exact request
   # (model, state, questions), so re-running with unchanged requests (e.g. while

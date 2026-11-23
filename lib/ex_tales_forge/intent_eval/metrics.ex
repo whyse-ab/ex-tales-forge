@@ -36,8 +36,9 @@ defmodule TalesForge.IntentEval.Metrics do
 
   `opts` may set `:ask_below` (an extra row in the clarifying table, and the
   calibrated ask threshold of the band split), `:ask_below_raw` (the raw ask
-  threshold; `0.0` turns the raw check off) and `:act_min`. Unset thresholds
-  take `IntentClarification`'s defaults.
+  threshold; `0.0` turns the raw check off), `:act_min`, `:runner_up` and
+  `:clarify_v2` (use the v2 band set). Unset thresholds take
+  `IntentClarification`'s defaults for the selected set.
   """
   @spec evaluate(atom(), [map()], keyword()) :: map()
   def evaluate(reader, scored, opts \\ []) do
@@ -67,6 +68,17 @@ defmodule TalesForge.IntentEval.Metrics do
   end
 
   defp cost(pairs), do: pairs |> Enum.map(fn {_item, r} -> r.cost end) |> Enum.sum()
+
+  defp band_version(opts) do
+    switches = opts |> Keyword.get(:jev, []) |> Keyword.get(:switches)
+
+    cond do
+      opts[:clarify_v2] == true -> :v2
+      opts[:clarify_v2] == false -> :v1
+      match?(%TalesForge.IntentEval.JevOpts{clarify_v2: true}, switches) -> :v2
+      true -> :v1
+    end
+  end
 
   # --- per-field accuracy ------------------------------------------------------
 
@@ -318,7 +330,7 @@ defmodule TalesForge.IntentEval.Metrics do
 
   defp bands(pairs, opts) do
     band_opts =
-      Enum.map(IntentClarification.defaults(), fn {key, default} ->
+      Enum.map(IntentClarification.defaults(band_version(opts)), fn {key, default} ->
         {key, opts[key] || default}
       end)
 

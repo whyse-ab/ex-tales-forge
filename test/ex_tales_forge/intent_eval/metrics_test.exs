@@ -153,11 +153,28 @@ defmodule TalesForge.IntentEval.MetricsTest do
       m = Metrics.evaluate(:jev, scored(band_pairs()))
       rows = Map.new(m.bands.rows, &{&1.band, &1})
 
-      assert m.bands.opts == [act_min: 0.70, ask_below: 0.45, ask_below_raw: 0.45]
+      assert m.bands.opts == [
+               act_min: 0.70,
+               ask_below: 0.45,
+               ask_below_raw: 0.45,
+               runner_up: 0.25
+             ]
+
       assert rows.clarify.n == 1 and rows.clarify.accuracy == 0.0
       assert rows.act.n == 1 and rows.act.accuracy == 1.0
       assert rows.best_guess.n == 1
       assert m.bands.played_accuracy == 1.0
+    end
+
+    test "clarify_v2 selects the v2 band set" do
+      m = Metrics.evaluate(:jev, scored(band_pairs()), clarify_v2: true)
+
+      assert m.bands.opts == [
+               act_min: 0.80,
+               ask_below: 0.45,
+               ask_below_raw: 0.30,
+               runner_up: 0.40
+             ]
     end
 
     test "ask_below_raw 0.0 reproduces the calibrated-only bands" do

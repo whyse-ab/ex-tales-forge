@@ -142,6 +142,16 @@ defmodule TalesForge.Config do
   def jev_self_check?, do: on?("JEV_SELF_CHECK")
 
   @doc """
+  Jev clarify bands v2 (`TalesForge.Game.IntentClarification.defaults/1`):
+  act_min 0.80, ask_below 0.45, raw ask_below 0.30, runner_up 0.40.
+  JEV_CLARIFY_V2=on. Default off on prod and eval. With the flag off, the
+  bands stay at today's 0.70 / 0.45 / 0.45 / 0.25. Turning this on in
+  production is a founder decision after merge; it is not set in fly.toml.
+  """
+  @spec jev_clarify_v2?() :: boolean()
+  def jev_clarify_v2?, do: on?("JEV_CLARIFY_V2")
+
+  @doc """
   The skill split thresholds (d100 scale): `start`, `triple` and
   `min_uneven_part`, from `config :ex_tales_forge, :skill_split`.
   """
